@@ -1,7 +1,4 @@
-before_script:
-  - source Env/PacIFiC-OpenMPI-2.1.1-GNU-7.5.0.env.sh
-
-build_linux:
+build:
   stage: build
   script:
     - build.sh
