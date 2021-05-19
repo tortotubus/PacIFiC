@@ -1,4 +1,4 @@
 build:
   stage: build
   script:
-    - build.sh
+    - ./build.sh
