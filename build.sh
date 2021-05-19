@@ -7,5 +7,4 @@ cp ${PACIFIC_HOME}/Cartesian/FLUID/Env/fluid_env_template.env.sh ${PACIFIC_HOME}
 source PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 
 cd $GRAINS_HOME
-tar zxvf xerces-2-8-0.tar.gz
-make install
+./makeARCH create ; make update ; make dtd
