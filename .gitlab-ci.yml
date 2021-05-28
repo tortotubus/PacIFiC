@@ -4,16 +4,16 @@ build:
     - echo "Compilation of Grains3D"
     - cd tests
     - ./source_env.sh
-    - cd ${GRAINS_HOME}
+    - cd "${GRAINS_HOME}"
     - ./makeARCH create ; make update ; make dtd
-    - find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
+    - find "${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/" -name "grains"
     - echo "Compilation of MacWorld"
     - cd $MACWORLD_ROOT/MAC
     - ./install-mac.sh
-    - find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac0.so"
-    - find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac2.so"
+    - find "${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/" -name "libmac0.so"
+    - find "${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/" -name "libmac2.so"
     - echo "Compilation of FLUID"
     - cd ${PACIFIC_HOME}/Cartesian/FLUID
     - ./compil
-    - find -L ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe0"
-    - find -L ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe2"
+    - find -L "${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/" -name "exe0"
+    - find -L "${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/" -name "exe2"
