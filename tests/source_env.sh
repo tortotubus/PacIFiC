@@ -1,6 +1,6 @@
 sed -i "s|TO_BE_OVERWRITTEN|$(echo $PWD)|" Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
 
-cd Env/
+cd ../Env/
 source PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
 cp ${PACIFIC_HOME}/GRAINS/Env/grains_env_template.env.sh ${PACIFIC_HOME}/GRAINS/Env/grains-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 cp ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld_env_template.env.sh ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
@@ -20,19 +20,3 @@ source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PAC
 mv ${MAC_HOME}/etc/Linux- ${MAC_HOME}/etc/Linux-${MAC_FULL_EXT}.mak
 mv ${MAC_HOME}/etc/extra-Linux- ${MAC_HOME}/etc/extra-Linux-${MAC_FULL_EXT}.mak
 
-# Compilation of Grains3D
-cd $GRAINS_HOME
-./makeARCH create ; make update ; make dtd
-find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
-
-# Compilation of MacWorld
-cd $MACWORLD_ROOT/MAC
-./install-mac.sh
-find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac0.so"
-find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac2.so"
-
-# Compilation of FLUID
-cd ${PACIFIC_HOME}/Cartesian/FLUID
-./compil
-find -L Cartesian/FLUID/lib/Linux-${MAX_FULL_EXT} -name "exe0"
-find -L Cartesian/FLUID/lib/Linux-${MAX_FULL_EXT}/ -name "exe2"
