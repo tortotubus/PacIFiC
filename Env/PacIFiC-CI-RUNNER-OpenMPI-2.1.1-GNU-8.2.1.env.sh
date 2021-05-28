@@ -3,7 +3,7 @@
 #
 
 # PacIFiC home
-export PACIFIC_HOME=TO_BE_OVERWRITTEN
+export PACIFIC_HOME=/home/gitlab-runner/builds/GEm5KEz3/0/pacific-devel-team/pacific
 export PACIFIC_BITS_DEFAULT="64"
 export PACIFIC_BITS_EXT="64"
 echo -e '\033[94m*** PacIFiC shell variables\033[0m'
@@ -73,9 +73,9 @@ export PACIFIC_ATLAS_LIBDIR=/usr/lib64/atlas
 export PACIFIC_ATLAS_LIBS="satlas tatlas"
 export PACIFIC_LAPACK_LIBDIR=/usr/lib64
 export PACIFIC_LAPACK_LIBS="lapack"
-export PACIFIC_GFORTRAN_LIBDIR=/usr/lib/gcc/x86_64-redhat-linux/4.8.2
+export PACIFIC_GFORTRAN_LIBDIR=/usr/lib/gcc/x86_64-redhat-linux/8
 export PACIFIC_GFORTRAN_LIBS=gfortran
-export PACIFIC_INTEL_LIBDIR=/usr/lib/gcc/x86_64-redhat-linux/4.8.2
+export PACIFIC_INTEL_LIBDIR=/usr/lib/gcc/x86_64-redhat-linux/8
 export PACIFIC_INTEL_LIBS=gfortran
 
 echo -e '\033[32m*** Serial compiler and low level librairies shell variables\033[0m'
