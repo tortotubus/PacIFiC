@@ -52,6 +52,6 @@ then
 fi
 if [ $3 -eq 1 ]
 then
-    find -L Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe0"
-    find -L Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe2"
+    find ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe0"
+    find ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe2"
 fi
