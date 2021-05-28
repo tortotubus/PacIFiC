@@ -17,10 +17,13 @@ sed -i 's|PETSC_DIR=${MACWORLD_ROOT}/petsc-${PETSC_VERSION_PATCH}|PETSC_DIR=/hom
 
 source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 
+mv ${MAC_HOME}/etc/Linux- ${MAC_HOME}/etc/Linux-${MAC_FULL_EXT}.mak
+mv ${MAC_HOME}/etc/extra-Linux- ${MAC_HOME}/etc/extra-Linux-${MAC_FULL_EXT}.mak
+
 # Compilation of Grains3D
 cd $GRAINS_HOME
 ./makeARCH create ; make update ; make dtd
-find GRAINS/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
+find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
 
 # Compilation of MacWorld
 cd $MACWORLD_ROOT/MAC
