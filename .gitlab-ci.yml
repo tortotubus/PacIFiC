@@ -2,10 +2,7 @@ build:
   stage: build
   script:
     - cd tests
-    - ./source_env.sh
-    - echo "Compilation of Grains3D"
-    - ./build_grains.sh
-    - echo "Compilation of MacWorld"
-    - ./build_mac.sh
-    - echo "Compilation of FLUID"
-    - ./build_fluid.sh
+    - BUILD_GRAINS=1
+    - BUILD_MAC=1
+    - BUILD_FLUID=1
+    - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID

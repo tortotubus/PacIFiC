@@ -20,3 +20,29 @@ source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PAC
 mv ${MAC_HOME}/etc/Linux- ${MAC_HOME}/etc/Linux-${MAC_FULL_EXT}.mak
 mv ${MAC_HOME}/etc/extra-Linux- ${MAC_HOME}/etc/extra-Linux-${MAC_FULL_EXT}.mak
 
+if [ $1 -eq 1 ]
+then
+    # Compilation of Grains3D
+    cd $GRAINS_HOME
+    ./makeARCH create ; make update ; make dtd
+    find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
+fi
+
+if [ $2 -eq 1 ]
+then
+    # Compilation of MacWorld
+    cd $MACWORLD_ROOT/MAC
+    ./install-mac.sh
+    find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac0.so"
+    find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac2.so"
+fi
+
+if [ $3 -eq 1 ]
+then
+    # Compilation of FLUID
+    cd ${PACIFIC_HOME}/Cartesian/FLUID
+    ./compil
+    find -L Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT} -name "exe0"
+    find -L Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe2"
+fi
+
