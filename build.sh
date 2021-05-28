@@ -9,10 +9,10 @@ cp ${PACIFIC_HOME}/Cartesian/FLUID/Env/fluid_env_template.env.sh ${PACIFIC_HOME}
 # Modification of the environment files for the specific architecture of r8k1-wachs1.math.ubc.ca 
 sed -i 's|${GRAINS_HOME}/XERCES-2.8.0|/home/gitlab-runner/dependencies/XERCES-2.8.0|' GRAINS/Env/grains_default.env.sh
 sed -i 's|${GRAINS_HOME}/XERCES-2.8.0|/home/gitlab-runner/dependencies/XERCES-2.8.0|' GRAINS/Env/grains_default.env.csh
-sed -i 's|source ${MACWORLD_ROOT}/hypre-2.10.1/hypre.env.sh|source ${MACWORLD_ROOT}/extra_files/hypre.env.sh' ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
-sed -i 's|source ${MACWORLD_ROOT}/petsc-3.2.0-p7/petsc.env.sh|source ${MACWORLD_ROOT}/extra_files/petsc.env.sh' ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
-sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/hypre-2.10.1|HYPRE_DIR=/home/gitlab_runner/dependencies/hypre-2.10.1' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/hypre.env.sh
-sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/petsc-3.2.0-p7|HYPRE_DIR=/home/gitlab_runner/dependencies/petsc-3.2.0-p7' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/petsc.env.sh
+sed -i 's|source ${MACWORLD_ROOT}/hypre-2.10.1/hypre.env.sh|source ${MACWORLD_ROOT}/extra_files/hypre.env.shi|' ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
+sed -i 's|source ${MACWORLD_ROOT}/petsc-3.2.0-p7/petsc.env.sh|source ${MACWORLD_ROOT}/extra_files/petsc.env.sh|' ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
+sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/hypre-2.10.1|HYPRE_DIR=/home/gitlab_runner/dependencies/hypre-2.10.1|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/hypre.env.sh
+sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/petsc-3.2.0-p7|HYPRE_DIR=/home/gitlab_runner/dependencies/petsc-3.2.0-p7|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/petsc.env.sh
 
 source PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 
