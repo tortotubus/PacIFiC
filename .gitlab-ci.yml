@@ -3,12 +3,14 @@ build:
   script:
     - cd tests
     - BUILD_GRAINS=1
-    - BUILD_MAC=1
-    - BUILD_FLUID=1
+    - BUILD_MAC=0
+    - BUILD_FLUID=0
     - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
 
 test-grains1:
-    stage: test
-    script:
+  stage: test
+  script:
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
+  dependencies:
+    - build
