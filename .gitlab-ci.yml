@@ -6,13 +6,13 @@ build:
     - BUILD_MAC=0
     - BUILD_FLUID=0
     - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
-    - cat var.env
+    - cat build.env
 
 test-grains1:
   stage: test
   script:
     - cat pwd
-    - source var.env
+    - source tests/build.env
     - printenv
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
