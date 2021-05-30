@@ -2,15 +2,17 @@ build:
   stage: build
   script:
     - cd tests
-    - BUILD_GRAINS=1
+    - BUILD_GRAINS=0
     - BUILD_MAC=0
     - BUILD_FLUID=0
     - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
     - cat env_var.txt >> build.env
+    - cat env_var.txt
 
 test-grains1:
   stage: test
   script:
+    - printenv
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
   dependencies:
