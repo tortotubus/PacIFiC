@@ -12,7 +12,9 @@ test-grains1:
   stage: test
   script:
     - echo $PWD 
-    - source tests/build.env
+    - ls
+    - ls ./tests
+    - source ./tests/build.env
     - printenv
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
