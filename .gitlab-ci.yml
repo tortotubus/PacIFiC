@@ -6,15 +6,23 @@ build:
     - BUILD_MAC=0
     - BUILD_FLUID=0
     - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
-    - cat build.env
+    - cd ..
+    - echo $PWD
+    - echo "PACIFIC_HOME=$PACIFIC_HOME" >> build.env
+    - echo "PACIFIC_MPI_DISTRIB=$PACIFIC_MPI_DISTRIB" >> build.env
+    - echo "PACIFIC_MPI_VERSION=$PACIFIC_MPI_VERSION" >> build.env
+    - echo "PACIFIC_SERCOMPIL_ENV=$PACIFIC_SERCOMPIL_ENV" >> build.env
+    - echo "PACIFIC_SERCOMPIL_VERSION=$PACIFIC_SERCOMPIL_VERSION" >> build.env
+  artifacts:
+    reports:
+      dotenv: build.env
 
 test-grains1:
   stage: test
   script:
-    - echo $PWD 
-    - ls
-    - ls ./tests
-    - source ./tests/build.env
     - printenv
+    - source Env/PacIFiC-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
+  dependencies:
+    - build

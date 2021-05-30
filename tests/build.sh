@@ -15,7 +15,6 @@ sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/hypre-2.10.1|HYPRE_DIR=/home/gitlab-runner/
 sed -i 's|PETSC_DIR=${MACWORLD_ROOT}/petsc-${PETSC_VERSION_PATCH}|PETSC_DIR=/home/gitlab-runner/dependencies/petsc-3.2.0-p7|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/petsc.env.sh
 
 source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
-printenv >> tests/build.env
 
 mv ${MAC_HOME}/etc/Linux- ${MAC_HOME}/etc/Linux-${MAC_FULL_EXT}.mak
 mv ${MAC_HOME}/etc/extra-Linux- ${MAC_HOME}/etc/extra-Linux-${MAC_FULL_EXT}.mak
