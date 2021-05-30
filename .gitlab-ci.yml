@@ -6,7 +6,7 @@ build:
     - BUILD_MAC=0
     - BUILD_FLUID=0
     - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
-    - cat $PACIFIC_HOME/Env/PacIFiC-$PACIFIC_MPI_DISTRIB-$PACIFIC_MPI_VERSION-$PACIFIC_SERCOMPIL_ENV-$PACIFIC_SERCOMPIL_VERSION.env.sh >> build.env
+    - cat tests/env_var.txt >> build.env
 
 test-grains1:
   stage: test
