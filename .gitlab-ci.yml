@@ -1,8 +1,13 @@
+stages:
+  - build
+  - test
+
 build_env:
   stage: build
   script:
     - cd tests
     - ./build_env.sh
+    - cd ..
   artifacts:
     paths:
       - Env/
