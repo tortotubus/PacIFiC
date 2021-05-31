@@ -1,4 +1,4 @@
-build_env:
+build:
   stage: build
   script:
     - cd tests
