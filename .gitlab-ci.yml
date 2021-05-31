@@ -9,21 +9,28 @@ build_env:
     - ./build_env.sh
     - cd ..
   artifacts:
+    untracked: true
     paths:
       - Env/
       - GRAINS/Env/
 
 build_grains:
   stage: build
+  dependencies:
+    - build_env
   script:
     - cd tests
     - ./build_grains.sh
   artifacts:
+    untracked: true
     paths:
       - GRAINS/Main/
 
 test-grains1:
   stage: test
+  dependencies:
+    - build_env
+    - build_grains
   script:
     - source ./Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
