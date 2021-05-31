@@ -4,8 +4,9 @@ build_env:
     - cd tests
     - ./build_env.sh
   artifacts:
-    - Env/
-    - GRAINS/Env/
+    paths:
+      - Env/
+      - GRAINS/Env/
 
 build_grains:
   stage: build
@@ -13,7 +14,8 @@ build_grains:
     - cd tests
     - ./build_grains.sh
   artifacts:
-    - GRAINS/Main/
+    paths:
+      - GRAINS/Main/
 
 test-grains1:
   stage: test
