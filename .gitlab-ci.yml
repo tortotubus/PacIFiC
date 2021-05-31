@@ -1,28 +1,18 @@
-build:
+build_env:
   stage: build
   script:
     - cd tests
-    - BUILD_GRAINS=0
-    - BUILD_MAC=0
-    - BUILD_FLUID=0
-    - ./build.sh $BUILD_GRAINS $BUILD_MAC $BUILD_FLUID
-    - cd ..
-    - echo $PWD
-    - echo "PACIFIC_HOME=$PACIFIC_HOME" >> build.env
-    - echo "PACIFIC_MPI_DISTRIB=$PACIFIC_MPI_DISTRIB" >> build.env
-    - echo "PACIFIC_MPI_VERSION=$PACIFIC_MPI_VERSION" >> build.env
-    - echo "PACIFIC_SERCOMPIL_ENV=$PACIFIC_SERCOMPIL_ENV" >> build.env
-    - echo "PACIFIC_SERCOMPIL_VERSION=$PACIFIC_SERCOMPIL_VERSION" >> build.env
-  artifacts:
-    reports:
-      dotenv: build.env
+    - ./build_env.sh
+
+build_grains:
+  stage: build
+  script:
+    - cd tests
+    - ./build_grains.sh
 
 test-grains1:
   stage: test
   script:
-    - printenv
-    - source Env/PacIFiC-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
+    - source ./Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd $PACIFIC_HOME/tests/tests-grains/spheres_settling
     - ./spheres_settling.sh
-  dependencies:
-    - build

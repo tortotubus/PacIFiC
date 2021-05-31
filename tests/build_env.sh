@@ -14,44 +14,5 @@ sed -i 's|source ${MACWORLD_ROOT}/petsc-3.2.0-p7/petsc.env.sh|source ${MACWORLD_
 sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/hypre-2.10.1|HYPRE_DIR=/home/gitlab-runner/dependencies/hypre-2.10.1|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/hypre.env.sh
 sed -i 's|PETSC_DIR=${MACWORLD_ROOT}/petsc-${PETSC_VERSION_PATCH}|PETSC_DIR=/home/gitlab-runner/dependencies/petsc-3.2.0-p7|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/petsc.env.sh
 
-source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
-
 mv ${MAC_HOME}/etc/Linux- ${MAC_HOME}/etc/Linux-${MAC_FULL_EXT}.mak
 mv ${MAC_HOME}/etc/extra-Linux- ${MAC_HOME}/etc/extra-Linux-${MAC_FULL_EXT}.mak
-
-if [ $1 -eq 1 ]
-then
-    # Compilation of Grains3D
-    cd $GRAINS_HOME
-    ./makeARCH create ; make update ; make dtd
-fi
-
-if [ $2 -eq 1 ]
-then
-    # Compilation of MacWorld
-    cd $MACWORLD_ROOT/MAC
-    ./install-mac.sh
-fi
-
-if [ $3 -eq 1 ]
-then
-    # Compilation of FLUID
-    cd ${PACIFIC_HOME}/Cartesian/FLUID
-    ./compil
-fi
-
-# Check if compilations succeeded
-if [ $1 -eq 1 ]
-then
-    find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains"
-fi
-if [ $3 -eq 1 ]
-then
-    find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac0.so"
-    find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac2.so"
-fi
-if [ $3 -eq 1 ]
-then
-    find ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe0"
-    find ${PACIFIC_HOME}/Cartesian/FLUID/lib/Linux-${MAC_FULL_EXT}/ -name "exe2"
-fi
