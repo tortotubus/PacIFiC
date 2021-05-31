@@ -3,12 +3,17 @@ build_env:
   script:
     - cd tests
     - ./build_env.sh
+  artifacts:
+    - Env/
+    - GRAINS/Env/
 
 build_grains:
   stage: build
   script:
     - cd tests
     - ./build_grains.sh
+  artifacts:
+    - GRAINS/Main/
 
 test-grains1:
   stage: test
