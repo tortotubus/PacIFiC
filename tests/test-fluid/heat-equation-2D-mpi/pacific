@@ -49,7 +49,7 @@ Petsc_options_3D="-Xpetsc -pc_hypre_boomeramg_strong_threshold -Xpetsc 0.25 -Xpe
 Petsc_options="${Petsc_options_3D}"
 
 ## Commande de run MPI pour MAC
-MAC_mpi_exec_command="-Mpicom mpirun -Mpicom --hostfile -Mpicom my_hostfile"
+MAC_mpi_exec_command="-Mpicom mpirun"
 
 # Run Pacific
 mac run -noautocheck $Petsc_options $MAC_mpi_exec_command -np $NB_PROCS ${FLUID_MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/$macexe $1 cout | tee --append pacific.log
