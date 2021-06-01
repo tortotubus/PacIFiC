@@ -49,7 +49,7 @@ heat-equation-2D-mpi:
     - build
   script:
     - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
-    - cd tests/test-fluid/heat-equations-2D-mpi/
+    - cd tests/test-fluid/heat-equation-2D-mpi/
     - ./heat-equation-2D-mpi.sh
 
 
