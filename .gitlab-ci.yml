@@ -9,9 +9,9 @@ build:
   script:
     - cd tests
     - ./build_env.sh
-    - ./build_grains.sh >> build_success.txt
-    - ./build_mac.sh >> build_success.txt
-    - ./build_fluid.sh >> build_success.txt
+    - ./build_grains.sh
+    - ./build_mac.sh
+    - ./build_fluid.sh
     - cat build_success | grep -q "1"; echo $? | grep "1"
   artifacts:
     untracked: true
