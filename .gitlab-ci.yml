@@ -39,4 +39,11 @@ memory-model:
     - cd tests/test-grains/spheres_settling
     - ./spheres_settling.sh
 
-
+direction-splitting-drag-mpi:
+  stage: test-fluid
+  dependencies:
+    - build
+  script:
+    - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
+    - cd tests/test-fluid/FlowPastCylinder/
+    - FlowPastCylinder.sh
