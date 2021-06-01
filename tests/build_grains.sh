@@ -5,4 +5,4 @@ cd $GRAINS_HOME
 ./makeARCH create ; make update ; make dtd
 
 # Check if the compilation was successful
-find ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/ -name "grains" >> build_success.txt
+test -f ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/grains ; echo $? >> ${PACIFIC_HOME}/tests/build_success.txt

@@ -5,5 +5,5 @@ cd $MACWORLD_ROOT/MAC
 ./install-mac.sh
 
 # Check if compilation was successful
-find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac0.so" >> build_success.txt
-find ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/ -name "libmac2.so" >> build_success.txt
+test -f ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/libmac0.so ; echo $? >> ${PACIFIC_HOME}/tests/build_success.txt
+test -f ${MAC_HOME}/lib/Linux-${MAC_FULL_EXT}/libmac2.so ; echo $? >> ${PACIFIC_HOME}/tests/build_success.txt
