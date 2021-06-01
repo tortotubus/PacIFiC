@@ -5,18 +5,17 @@ MODULE MAC_Application
 
    MODULE MAC_ObjectReader
       restart_table_file_directory = join( getcwd(), "Savings" )
-//      file_name = join( getcwd(), "Savings", "saving#A.mac" ) 
    END MODULE MAC_ObjectReader
 
    MODULE MAC_Application
    
       MODULE FV_TimeIterator
-	 time_interval = 0.1
-         time_step = 1.E-3
+	 time_interval = 1.
+         time_step = 1.E-2
       END MODULE FV_TimeIterator
 
       // Output & Backup copy
-      $IS_ouput_backup_number = 5
+      $IS_ouput_backup_number = 1
    
       number_graphics_output_times = $IS_ouput_backup_number 
       number_state_saving_times = $IS_ouput_backup_number
