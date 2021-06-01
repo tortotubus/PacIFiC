@@ -46,4 +46,4 @@ direction-splitting-drag-mpi:
   script:
     - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd tests/test-fluid/FlowPastCylinder/
-    - FlowPastCylinder.sh
+    - ./FlowPastCylinder.sh
