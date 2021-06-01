@@ -8,7 +8,7 @@ for time in {1..2}
 do
   for proc in {1..4}
   do
-    cmp Res/saveT${time}_${proc}.vtr Res_ref/ref_saveT${time}_${proc}.vtr >> heat-equation-2D-mpi-success.txt
+    cmp Res/saveT${time}_${proc}.vtr Res_ref/ref_saveT${time}_${proc}.vtr ; echo $? >> heat-equation-2D-mpi-success.txt
   done
 done
 
