@@ -8,11 +8,10 @@ build:
   stage: build
   script:
     - cd tests
-#    - ./build_env.sh
-#    - ./build_grains.sh
-#    - ./build_mac.sh
-#    - ./build_fluid.sh
-    - echo "0\n0\n0\n0\n0\n0\n" >> build_success.txt
+    - ./build_env.sh
+    - ./build_grains.sh
+    - ./build_mac.sh
+    - ./build_fluid.sh
     - $(! grep -q "1" build_success.txt)
   artifacts:
     untracked: true
