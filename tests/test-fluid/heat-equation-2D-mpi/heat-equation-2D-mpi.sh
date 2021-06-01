@@ -4,14 +4,13 @@
 ./pacific ./InputFiles/time.mac 4
 
 # Assess success: compare to reference file (this command's exit status returns 0 if the two files are identical)
-cmp -s DS_results/particle_forces.csv DS_results/particle_forces_reference.csv
-SUCCESS=$?
-if [ SUCCESS != "0" ]
-then
-  echo "Error: output file and reference file differ"
-  echo "reference file:"
-  cat DS_results/particle_forces_reference.csv
-  echo "output file:"
-  cat DS_results/particle_forces.csv
-fi
-echo "$SUCCESS" | grep -q "0"
+cd Res
+for time in {1..2}
+do
+  for proc in {1..4}
+  do
+    cmp save${time}_${proc}.vtr ref_save${time}_${proc}.vtr >> heat-equation-2D-mpi-success.txt
+  done
+done
+
+$(! grep -q "1" heat-equation-2D-mpi-success.txt)
