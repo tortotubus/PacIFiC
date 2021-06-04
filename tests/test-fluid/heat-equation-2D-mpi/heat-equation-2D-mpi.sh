@@ -12,4 +12,6 @@ do
   done
 done
 
+echo "Success assessment output:"
+cat heat-equation-2D-mpi-success.txt
 $(! grep -q "1" heat-equation-2D-mpi-success.txt)
