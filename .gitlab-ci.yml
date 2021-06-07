@@ -33,8 +33,6 @@ build:
 ### Tests for Grains3D
 memory-model:
   stage: test-grains
-  dependencies:
-    - build
   script:
     - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd tests/test-grains/spheres-settling
@@ -45,8 +43,6 @@ memory-model:
 ### Tests for FLUID (Cartesian solver)
 heat-equation-2D-mpi:
   stage: test-fluid
-  dependencies:
-    - build
   script:
     - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd tests/test-fluid/heat-equation-2D-mpi/
