@@ -37,8 +37,8 @@ memory-model:
     - build
   script:
     - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
-    - cd tests/test-grains/spheres_settling
-    - ./spheres_settling.sh
+    - cd tests/test-grains/spheres-settling
+    - ./spheres-settling.sh
 
 
 

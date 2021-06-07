@@ -108,20 +108,19 @@
 
 
   <Simulation>
-    <Temps Debut="0." Fin=".5"/>
+    <Temps Debut="0." Fin="1.5"/>
     <IncreTemps dt="2.5e-6"/>
     <TempsSave Debut="0." Fin="60." Dt="0.01"/>
     <Fichier>Grains/Init/insert</Fichier>
     <VitesseRelative value="2.2"/>
     <ModeEcriture>Hybride</ModeEcriture>
 
-    <Insertion Mode="Aleatoire" Configuration="Aleatoire" Aleatoire="Reproductible">
-      <Fenetres>
-        <Fenetre>
-          <Point X="0." Y="0." Z="0."/>
-          <Point X="0.03" Y="0.03" Z="0.03"/>
-        </Fenetre>
-      </Fenetres>
+    <Insertion Mode="Sequentiel" Method="Preinstall">
+      <Position>Grains/Init/initial_position.result</Position>
+      <InitVitesse Mode="Constant">
+        <TranslationVelocity VX="0." VY="0." VZ="0."/>
+        <RotationVelocity RX="0." RY="0." RZ="0."/>
+      </InitVitesse>
     </Insertion>
 
     <PostProcessingWriters>
