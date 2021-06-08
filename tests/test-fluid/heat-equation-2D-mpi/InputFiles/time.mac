@@ -23,7 +23,7 @@ MODULE MAC_Application
    MODULE MAC_ObjectWriter
       type = "last_two_cycles"
       files_basename = join( getcwd(), "Savings", "saving.mac" )
-      output_format = "hybrid"
+      output_format = "text"
       force_write_at_last_time = true      
    END MODULE MAC_ObjectWriter        
    
