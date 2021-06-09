@@ -41,12 +41,6 @@ memory-model:
 
 
 ### Tests for FLUID (Cartesian solver)
-heat-equation-2D-mpi:
-  stage: test-fluid
-  script:
-    - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
-    - cd tests/test-fluid/heat-equation-2D-mpi/
-    - ./heat-equation-2D-mpi.sh
 
 
 ### Tests for DLMFD solver
