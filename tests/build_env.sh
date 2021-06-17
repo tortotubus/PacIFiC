@@ -13,6 +13,7 @@ sed -i 's|source ${MACWORLD_ROOT}/hypre-2.10.1/hypre.env.sh|source ${MACWORLD_RO
 sed -i 's|source ${MACWORLD_ROOT}/petsc-3.2.0-p7/petsc.env.sh|source ${MACWORLD_ROOT}/extra_files/petsc.env.sh|' ${PACIFIC_HOME}/Cartesian/MacWorld/Env/macworld-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 sed -i 's|HYPRE_DIR=${MACWORLD_ROOT}/hypre-2.10.1|HYPRE_DIR=/home/gitlab-runner/dependencies/hypre-2.10.1|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/hypre.env.sh
 sed -i 's|PETSC_DIR=${MACWORLD_ROOT}/petsc-${PETSC_VERSION_PATCH}|PETSC_DIR=/home/gitlab-runner/dependencies/petsc-3.2.0-p7|' ${PACIFIC_HOME}/Cartesian/MacWorld/extra_files/petsc.env.sh
+sed -i 's|export BASILISK=${OCTREE_HOME}/basilisk/src|export BASILISK=/home/gitlab-runner/dependencies/basilisk/src|' ${PACIFIC_HOME}/Octree/Env/octree.env.sh
 
 source Env/PacIFiC-CI-RUNNER-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 

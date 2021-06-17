@@ -2,7 +2,7 @@ stages:
   - build
   - test-grains
   - test-fluid
-  - test-dlmfd
+  - test-basilisk
 
 build:
   stage: build
@@ -28,6 +28,7 @@ build:
       - Cartesian/MacWorld/MAC/lib/Linux-64-OpenMPI-2.1.1-GNU-8.2.1-MAC-1.0.0-PETSC-3.2.0-HYPRE-2.10.1-MUMPS-4.10.0/libmac2.so
       - Cartesian/FLUID/lib/Linux-64-OpenMPI-2.1.1-GNU-8.2.1-MAC-1.0.0-PETSC-3.2.0-HYPRE-2.10.1-MUMPS-4.10.0/exe0
       - Cartesian/FLUID/lib/Linux-64-OpenMPI-2.1.1-GNU-8.2.1-MAC-1.0.0-PETSC-3.2.0-HYPRE-2.10.1-MUMPS-4.10.0/exe2
+      - Octree/Env/octree.env.sh
 
 
 ### Tests for Grains3D
@@ -43,4 +44,9 @@ memory-model:
 ### Tests for FLUID (Cartesian solver)
 
 
-### Tests for DLMFD solver
+### Tests for basilisk
+official-test-suite:
+  stage: test-basilisk
+  script:
+    - cd ${BASILISK}/tests
+    - make -k -j12
