@@ -48,5 +48,6 @@ memory-model:
 official-test-suite:
   stage: test-basilisk
   script:
+    - source Env/PacIFiC-CI-RUNNER-OpenMPI-2.1.1-GNU-8.2.1.env.sh
     - cd ${BASILISK}/tests
     - make -k -j12
