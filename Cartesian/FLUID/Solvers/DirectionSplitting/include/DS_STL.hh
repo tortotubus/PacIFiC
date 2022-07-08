@@ -13,6 +13,12 @@
 #include <map>
 #include <iostream>
 #include <fstream>
+// AM
+#include <time.h>
+#include <sstream>
+#include <sys/time.h>
+#include <math.h>
+//
 using std::ostream;
 using std::vector;
 using std::tuple;
@@ -20,13 +26,18 @@ class FS_RigidBody;
 class FV_DiscreteField;
 class FV_Mesh;
 
-/** @brief The class DS_RigidBody.
+#define Nopx 10
+#define Nopy 10
+#define Nopz 1
+
+
+/** @brief The class DS_STL.
 
 A moving or stationary rigid body in the Direction Splitting solver.
 
 @author A. Wachs - Pacific project 2021 */
 
-class DS_RigidBody
+class DS_STL
 {
    public: //-----------------------------------------------------------------
 
@@ -35,14 +46,14 @@ class DS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Default constructor */
-      DS_RigidBody();
+      DS_STL();
 
       /** @brief Constructor with arguments
       @param pgrb pointer to the corresponding geometric rigid body */
-      DS_RigidBody( FS_RigidBody* pgrb );
+      DS_STL( FS_RigidBody* pgrb );
 
       /** @brief Destructor */
-      virtual ~DS_RigidBody();
+      virtual ~DS_STL();
       //@}
 
 
@@ -216,6 +227,40 @@ class DS_RigidBody
          body */
       //@}
 
+      vector<tuple<double,double,double>> Llvls; /**< vector containing the 
+    	vertices of the triangulation */
+      vector<tuple<double,double,double>> Llvns; /**< vector containing the 
+    	normals associated to the triangles i.e. one per 3 vertices */
+
+      vector<tuple<double,double,double>> v; /**< intermediate variable */
+      vector<vector<tuple<double,double,double>>> vz =
+                 vector<vector<tuple<double,double,double>>>(5,v);
+      /**< intermediate variable */
+      vector<vector<tuple<double,double,double>>> vy =
+	         vector<vector<tuple<double,double,double>>>(5,v);
+      /**< intermediate variable */
+
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz = 
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vz); 
+      /**< vector containing the list of triangles belonging to halos
+       * defined accross the xz plane */
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy = 
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vy); 
+      /**< vector containing the list of triangles belonging to halos
+       * defined accross the xz plane */
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz = 
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopy,vz); 
+      /**< vector containing the list of triangles belonging to halos
+       * defined accross the yz plane */
+      
+      double tridx_xz[Nopx][Nopz]; /**< Array indicating the number of triangles
+				     per halo accross the xz plane */
+      double tridx_xy[Nopx][Nopy]; /**< Array indicating the number of triangles
+				     per halo accross the xy plane */
+      double tridx_yz[Nopy][Nopz]; /**< Array indicating the number of triangles
+				     per halo accross the xz plane */
+
+      int Npls; /**<Number of triangles */
 
    //-- Methods
 
@@ -232,8 +277,66 @@ class DS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Copy constructor
-      @param copy copied DS_RigidBody object */
-      DS_RigidBody( DS_RigidBody const& copy );
+      @param copy copied DS_STL object */
+//      DS_STL( DS_RigidBody const& copy );
+      //@}
+
+      // AM 7.7.2022
+      //-- Methods
+
+      /**@name Methods */
+      //@{
+      
+      /** @brief Returns the dot product of two vectors
+      @param vect_A[] first vector
+      @param vect_B[] second vector */
+      double dotProduct(double vect_A[], 
+		        double vect_B[]) const;
+
+      /** @brief Computes the cross product of two vectors
+      @param vect_A[]  first vector
+      @param vect_B[]  second vector
+      @param cross_P[] result */
+      void crossProduct(double vect_A[],
+		        double vect_B[], 
+			double cross_P[]) const;
+
+      /** @brief compute the difference between two vectors
+      @param vect_A[] first vector
+      @param vect_B[] second vector
+      @param diff_P[] result */
+      void diffProduct(double vect_A[], 
+		       double vect_B[], 
+		       double diff_P[]) const;
+
+      /** @brief Computes the sign of the signed volume  
+      // of the tetrahedron (A,B,C,D)
+      // 1 -> positive or 0 -> negative 
+      @param vect_A[] first vector
+      @param vect_B[] second vector
+      @param vect_C[] third vector
+      @param vect_D[] fourth vector */
+      int orient3d(double vect_A[], 
+		   double vect_B[], 
+		   double vect_C[], 
+		   double vect_D[]) const;  
+
+      /** @brief returns 1 if a segment [q1 q2]intersects 
+       * a triangle (tri1, tri2, tri3)
+      @param q1[] first point 
+      @param q2[] second point
+      @param tri1[] first vertex
+      @param tri2[] second vertex
+      @param tri3[] third vertex */
+      int intersect3d(double q1[], 
+		      double q2[], 
+		      double tri1[], 
+		      double tri2[], 
+		      double tri3[]) const;
+      /** @brief reads and STL file 
+       * and fills the variables Llvls LLvns */
+      void readSTL();
+
       //@}
 };
 
