@@ -1,43 +1,25 @@
-#ifndef _DS_RIGIDBODY__
-#define _DS_RIGIDBODY__
+#ifndef _DS_STL__
+#define _DS_STL__
 
-#include <geomVector.hh>
-#include <size_t_vector.hh>
-#include <size_t_array2D.hh>
-#include <doubleArray2D.hh>
-#include <boolVector.hh>
-#include <MAC_assertions.hh>
-#include <MAC_Communicator.hh>
-#include <vector>
+#include <DS_RigidBody.hh>
+#include <string>
 #include <iostream>
-#include <map>
-#include <iostream>
-#include <fstream>
-// AM
-#include <time.h>
 #include <sstream>
-#include <sys/time.h>
-#include <math.h>
-//
+#include <fstream>
+using std::string;
 using std::ostream;
-using std::vector;
-using std::tuple;
-class FS_RigidBody;
-class FV_DiscreteField;
-class FV_Mesh;
 
 #define Nopx 10
 #define Nopy 10
 #define Nopz 1
 
-
 /** @brief The class DS_STL.
 
-A moving or stationary rigid body in the Direction Splitting solver.
+A stationary rigid STL in the Direction Splitting solver.
 
-@author A. Wachs - Pacific project 2021 */
+@author A. Goyal - Pacific project 2022 */
 
-class DS_STL
+class DS_STL: public DS_RigidBody
 {
    public: //-----------------------------------------------------------------
 
@@ -48,12 +30,8 @@ class DS_STL
       /** @brief Default constructor */
       DS_STL();
 
-      /** @brief Constructor with arguments
-      @param pgrb pointer to the corresponding geometric rigid body */
-      DS_STL( FS_RigidBody* pgrb );
-
       /** @brief Destructor */
-      virtual ~DS_STL();
+      ~DS_STL();
       //@}
 
 
@@ -63,7 +41,7 @@ class DS_STL
       //@{
       /** @brief Updates the rigid body features from its corresponding
       geometric rigid body */
-      virtual void update() = 0;
+      void update();
       //@}
 
    //-- Get Methods
@@ -116,13 +94,12 @@ class DS_STL
       /** @brief Writes the attributes in a stream
       @param out output stream
       @param indent_width indentation width */
-      virtual void display( ostream& out, size_t const& indent_width )
-      	const = 0;
+      void display( ostream& out, size_t const& indent_width ) const;
 
       /** @brief Compute the halozone of a rigid body
       @param out output stream
       @param indent_width indentation width */
-      virtual void compute_rigid_body_halozone( ) = 0;
+      void compute_rigid_body_halozone( );
 
       /** @brief Returns whether a point is inside the rigid body
       @param pt the point */
@@ -148,55 +125,14 @@ class DS_STL
 
       /** @brief Compute the surface points by discretizing the rigid body
       surface in approximately equal areas (if possible) */
-      virtual void compute_surface_points( ) = 0;
+      void compute_surface_points( );
 
 
       /** @brief Compute number of points on a rigid body
       @param surface_cell_scale scale of surface cell compared with the grid
       @param dx grid size */
-      virtual void compute_number_of_surface_variables(
-               double const& surface_cell_scale, double const& dx ) = 0;
-
-      /** @brief Write the surface discretization points of all RB in
-      respective CSV files */
-      void write_surface_discretization( const std::string& file );
-
-      /** @brief Correct surface discretization due to PBC */
-      void correct_surface_discretization( FV_Mesh const* MESH );
-
-      /** @brief Translate the surface points already discretized at
-      the start of simulation */
-      void translate_surface_points( geomVector const& delta);
-
-      /** @brief Initializa the surface variables for a rigid body
-      such as points, normals, and area */
-      void initialize_surface_variables( );
-
-      /** @brief Update the pressure force on a surface point
-      @param i index of the surface point
-      @param value the value to assign for pressure force */
-      void update_Pforce_on_surface_point( size_t const& i
-                                         , geomVector const& value );
-
-      /** @brief Update the viscous force on a surface point
-      @param i index of the surface point
-      @param value the value to assign for viscous force */
-      void update_Vforce_on_surface_point( size_t const& i
-                                         , geomVector const& value );
-
-      /** @brief Update the temperature gradient on a surface point
-      @param i index of the surface point
-      @param value the value to assign for temperature gradient */
-      void update_Tgrad_on_surface_point( size_t const& i
-                                        , double const& value );
-
-      /** @brief Update the RB position and velocity
-      @param pos updated position
-      @param vel updated translation velocity */
-      void update_RB_position_and_velocity(geomVector const& pos,
-                                           geomVector const& vel,
-                                           geomVector const& ang_vel,
-                         vector<geomVector> const& periodic_directions);
+      void compute_number_of_surface_variables(
+               double const& surface_cell_scale, double const& dx );
 
       //@}
 
@@ -207,8 +143,6 @@ class DS_STL
 
       /**@name Parameters */
       //@{
-      FS_RigidBody* m_geometric_rigid_body; /**< Pointer to the corresponding
-    	geometric rigid body */
       vector<geomVector*> m_surface_points; /**< vector of points distributed on
       	the surface of the particle to compute surface integrals */
       vector<geomVector*> m_surface_area; /**< vector of the area associated
@@ -227,9 +161,9 @@ class DS_STL
          body */
       //@}
 
-      vector<tuple<double,double,double>> Llvls; /**< vector containing the 
+      vector<tuple<double,double,double>> Llvls; /**< vector containing the
     	vertices of the triangulation */
-      vector<tuple<double,double,double>> Llvns; /**< vector containing the 
+      vector<tuple<double,double,double>> Llvns; /**< vector containing the
     	normals associated to the triangles i.e. one per 3 vertices */
 
       vector<tuple<double,double,double>> v; /**< intermediate variable */
@@ -240,19 +174,19 @@ class DS_STL
 	         vector<vector<tuple<double,double,double>>>(5,v);
       /**< intermediate variable */
 
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz = 
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vz); 
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz =
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vz);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy = 
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vy); 
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy =
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vy);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz = 
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopy,vz); 
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz =
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopy,vz);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the yz plane */
-      
+
       double tridx_xz[Nopx][Nopz]; /**< Array indicating the number of triangles
 				     per halo accross the xz plane */
       double tridx_xy[Nopx][Nopy]; /**< Array indicating the number of triangles
@@ -286,11 +220,11 @@ class DS_STL
 
       /**@name Methods */
       //@{
-      
+
       /** @brief Returns the dot product of two vectors
       @param vect_A[] first vector
       @param vect_B[] second vector */
-      double dotProduct(double vect_A[], 
+      double dotProduct(double vect_A[],
 		        double vect_B[]) const;
 
       /** @brief Computes the cross product of two vectors
@@ -298,42 +232,42 @@ class DS_STL
       @param vect_B[]  second vector
       @param cross_P[] result */
       void crossProduct(double vect_A[],
-		        double vect_B[], 
+		        double vect_B[],
 			double cross_P[]) const;
 
       /** @brief compute the difference between two vectors
       @param vect_A[] first vector
       @param vect_B[] second vector
       @param diff_P[] result */
-      void diffProduct(double vect_A[], 
-		       double vect_B[], 
+      void diffProduct(double vect_A[],
+		       double vect_B[],
 		       double diff_P[]) const;
 
-      /** @brief Computes the sign of the signed volume  
+      /** @brief Computes the sign of the signed volume
       // of the tetrahedron (A,B,C,D)
-      // 1 -> positive or 0 -> negative 
+      // 1 -> positive or 0 -> negative
       @param vect_A[] first vector
       @param vect_B[] second vector
       @param vect_C[] third vector
       @param vect_D[] fourth vector */
-      int orient3d(double vect_A[], 
-		   double vect_B[], 
-		   double vect_C[], 
-		   double vect_D[]) const;  
+      int orient3d(double vect_A[],
+		   double vect_B[],
+		   double vect_C[],
+		   double vect_D[]) const;
 
-      /** @brief returns 1 if a segment [q1 q2]intersects 
+      /** @brief returns 1 if a segment [q1 q2]intersects
        * a triangle (tri1, tri2, tri3)
-      @param q1[] first point 
+      @param q1[] first point
       @param q2[] second point
       @param tri1[] first vertex
       @param tri2[] second vertex
       @param tri3[] third vertex */
-      int intersect3d(double q1[], 
-		      double q2[], 
-		      double tri1[], 
-		      double tri2[], 
+      int intersect3d(double q1[],
+		      double q2[],
+		      double tri1[],
+		      double tri2[],
 		      double tri3[]) const;
-      /** @brief reads and STL file 
+      /** @brief reads and STL file
        * and fills the variables Llvls LLvns */
       void readSTL();
 

@@ -10,7 +10,7 @@ class DS_RigidBody;
 /** @brief The Class DS_RigidBody_BuilderFactory.
 
 Rigid body builder factory, creates an instance of rigid body using a unsigned
-integer (numebr of corners for a polyhedron or a code for other shapes) as 
+integer (numebr of corners for a polyhedron or a code for other shapes) as
 the main parameter.
 
 @author A. Wachs - Pacific project 2021 */
@@ -18,7 +18,7 @@ the main parameter.
 class DS_RigidBody_BuilderFactory
 {
    public: //-----------------------------------------------------------------
-   
+
    //-- Static methods
 
       /** @name Static methods */
@@ -27,12 +27,15 @@ class DS_RigidBody_BuilderFactory
       @param pgrb pointer to the corresponding geometric rigid body */
       static DS_RigidBody* create( FS_RigidBody* pgrb );
 
-	
+      /** @brief Creates a Direction Splitting STL */
+      static DS_RigidBody* create( );
+
+
    protected: //--------------------------------------------------------------
-	
+
 
    private: //----------------------------------------------------------------
-   
+
    //-- Constructors & Destructor
 
       /** @name Constructors & Destructor */
@@ -42,7 +45,7 @@ class DS_RigidBody_BuilderFactory
 
       /** @brief Destructor */
       ~DS_RigidBody_BuilderFactory();
-      //@}   
+      //@}
 };
 
 #endif

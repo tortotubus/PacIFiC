@@ -74,6 +74,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    , AdvectionTimeAccuracy( 1 )
    , b_restart( false )
    , is_solids( false )
+   , is_STL( false )
    , is_HE( false )
    , is_NS( false )
    , is_NSwithHE( false )
@@ -110,6 +111,14 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    // Read the presence of particles
    if ( exp->has_entry( "Particles" ) )
      is_solids = exp->bool_data( "Particles" ) ;
+
+   // Read the presence of STL
+   if ( exp->has_entry( "STL_as_RB" ) )
+     is_STL = exp->bool_data( "STL_as_RB" ) ;
+
+   // Read STL file name
+   if ( is_STL )
+     STL_file = exp->string_data( "STL_file" ) ;
 
    // Read Kai
    if ( exp->has_entry( "Kai" ) ) {
@@ -269,6 +278,18 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       }
    }
 
+   // Create STL as a rigid bodies object
+   if (is_STL) {
+      STLasRB = new DS_AllRigidBodies( space_dimensions
+                                     , STL_file
+                                     , dom->discrete_field( "velocity" )
+                                     , dom->discrete_field( "pressure" )
+                                     , rho
+                                     , gravity_vector
+                                     , surface_cell_scale
+                                     , macCOMM
+                                     , mu );
+   }
 
    // Create structure to input in the NS solver
    if (is_NS || is_NSwithHE) {

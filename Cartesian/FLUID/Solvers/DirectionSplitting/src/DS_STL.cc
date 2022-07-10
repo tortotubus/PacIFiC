@@ -8,23 +8,10 @@ using std::endl;
 //---------------------------------------------------------------------------
 DS_STL:: DS_STL()
 //---------------------------------------------------------------------------
-  : m_geometric_rigid_body( NULL )
 {
   MAC_LABEL( "DS_STL:: DS_STL" ) ;
 
-}
-
-
-
-
-//---------------------------------------------------------------------------
-DS_STL:: DS_STL( FS_RigidBody* pgrb )
-//---------------------------------------------------------------------------
-  : m_geometric_rigid_body( pgrb )
-{
-  MAC_LABEL( "DS_STL:: DS_STL" ) ;
-
-
+  std::cout << "Construction of STL object completed" << endl;
 
 }
 
@@ -38,6 +25,102 @@ DS_STL:: ~DS_STL()
   MAC_LABEL( "DS_STL:: ~DS_STL" ) ;
 
   if ( !m_surface_points.empty() ) m_surface_points.clear();
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_STL:: update()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: update" ) ;
+
+}
+
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_STL:: display( ostream& out, size_t const& indent_width ) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: display" ) ;
+
+  string space( indent_width, ' ' ) ;
+  string three( 3, ' ' ) ;
+
+  // out << space << "Geometric rigid body features" << endl;
+  // m_geometric_rigid_body->display( out, indent_width + 3 );
+  // out << space << "Direction splitting specific features" << endl;
+  // out << space << three << "None so far" << endl;
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_STL:: compute_rigid_body_halozone( )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: compute_rigid_body_halozone" ) ;
+
+  // struct FS_STL_Additional_Param const* pagp =
+  //  dynamic_cast<FS_STL*>(m_geometric_rigid_body)
+  //     ->get_ptr_FS_STL_Additional_Param();
+  //
+  // geomVector const* pgc = dynamic_cast<FS_RigidBody*>(m_geometric_rigid_body)
+  //                             ->get_ptr_to_gravity_centre();
+  //
+  // double r_equi = 3.0*pagp->radius;
+  //
+  // geomVector delta(r_equi, r_equi, r_equi);
+  //
+  // m_halo_zone[0]->operator=(*pgc);
+  // m_halo_zone[1]->operator=(*pgc);
+  //
+  // m_halo_zone[0]->operator-=(delta);
+  // m_halo_zone[1]->operator+=(delta);
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_STL:: compute_surface_points( )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: compute_surface_points" ) ;
+
+
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_STL:: compute_number_of_surface_variables(
+                                          double const& surface_cell_scale
+                                        , double const& dx)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: compute_number_of_surface_variables" ) ;
+
+  // struct FS_STL_Additional_Param const* pagp =
+  //  dynamic_cast<FS_STL*>(m_geometric_rigid_body)
+  //     ->get_ptr_FS_STL_Additional_Param();
+  //
+  // size_t temp = (size_t) ((1./surface_cell_scale)
+  //              *(4.*MAC::pi()*pagp->radius*pagp->radius)
+  //              /(dx*dx));
+  //
+  // // Getting the nearest even number
+  // Ntot = (size_t) (round((double)temp * 0.5) * 2.);
 
 }
 
@@ -81,20 +164,20 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
 
   xC = x; yC = y; zC = z;
 
-  int ii=-1; int kk=-1; 
+  int ii=-1; int kk=-1;
 
   // Searching for the right 2D Halo
   for (int i=0; i<Nopx; i++)
   {
      double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
-	         	 
+
      for (int k=0; k<Nopz; k++)
      {
          double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
 
          if ((xC > xmin-eps) && (xC < xmax+eps) && (zC > zmin-eps) && (zC < zmax+eps))
 	 {
-	     ii=i; 
+	     ii=i;
 	     kk=k;
          }
      }
@@ -102,7 +185,7 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
 
   int itrscount = 0;
   double tri1[3], tri2[3], tri3[3], q1[3], q2[3];
-	     
+
   if (ii > -1 && kk > -1)
   {
      for (int m=0; m < tridx_xz[ii][kk]/3; m++)
@@ -113,13 +196,13 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
 	z1 = std::get<2>(ttrbox_xz[ii][kk][3*m  ]);
 
 	tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
-		
+
 	// second point
 	x2 = std::get<0>(ttrbox_xz[ii][kk][3*m + 1]);
 	y2 = std::get<1>(ttrbox_xz[ii][kk][3*m + 1]);
 	z2 = std::get<2>(ttrbox_xz[ii][kk][3*m + 1]);
 	tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
-	       	
+
 	// third point
         x3 = std::get<0>(ttrbox_xz[ii][kk][3*m + 2]);
         y3 = std::get<1>(ttrbox_xz[ii][kk][3*m + 2]);
@@ -136,10 +219,10 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
      }
   }
 
-  if ( itrscount % 2 == 0 ) // even number -> outside  
+  if ( itrscount % 2 == 0 ) // even number -> outside
      level_set = 1.0;
-  else 
-     level_set = -1.0;   
+  else
+     level_set = -1.0;
 
   return(level_set);
 
@@ -200,7 +283,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 
   double trdx = (Xmax - Xmin) / Nopx;
   double trdy = (Ymax - Ymin) / Nopy;
-  double trdz = (Zmax - Zmin) / Nopz; 
+  double trdz = (Zmax - Zmin) / Nopz;
 
   int ii, kk;
 
@@ -216,18 +299,18 @@ double DS_STL:: get_distanceTo( geomVector const& source,
  	for (int i=0; i<Nopy; i++)
   	{
 	    double ymin = Ymin + i * trdy;     double ymax = Ymin + (i+1) * trdy;
-	         	 
+
             for (int k=0; k<Nopz; k++)
 	    {
                    double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
 
                    if ((yvalue > ymin-eps) && (yvalue < ymax+eps) && (zvalue > zmin-eps) && (zvalue < zmax+eps))
 	           {
-		       ii=i; 
+		       ii=i;
 		       kk=k;
 	           }
 	    }
-        } 
+        }
 
         for (int m=0; m<tridx_yz[ii][kk]/3; m++)
 	{
@@ -236,13 +319,13 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 		y1 = std::get<1>(ttrbox_yz[ii][kk][3*m  ]);
 		z1 = std::get<2>(ttrbox_yz[ii][kk][3*m  ]);
 		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
-		
+
 		// second point
 	        x2 = std::get<0>(ttrbox_yz[ii][kk][3*m + 1]);
 		y2 = std::get<1>(ttrbox_yz[ii][kk][3*m + 1]);
 		z2 = std::get<2>(ttrbox_yz[ii][kk][3*m + 1]);
 		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
-	       	
+
 	       	// third point
                 x3 = std::get<0>(ttrbox_yz[ii][kk][3*m + 2]);
 		y3 = std::get<1>(ttrbox_yz[ii][kk][3*m + 2]);
@@ -273,17 +356,17 @@ double DS_STL:: get_distanceTo( geomVector const& source,
  	for (int i=0; i<Nopx; i++)
   	{
 	    double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
-	         	 
+
             for (int k=0; k<Nopz; k++)
 	    {
                    double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
                    if ((yvalue > xmin-eps) && (yvalue < xmax+eps) && (zvalue > zmin-eps) && (zvalue < zmax+eps))
 	           {
-		       ii=i; 
+		       ii=i;
 		       kk=k;
 	           }
 	    }
-        } 
+        }
 
         for (int m=0; m<tridx_xz[ii][kk]/3; m++)
 	{
@@ -292,13 +375,13 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 		y1 = std::get<1>(ttrbox_xz[ii][kk][3*m  ]);
 		z1 = std::get<2>(ttrbox_xz[ii][kk][3*m  ]);
 		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
-		
+
 		// second point
 	        x2 = std::get<0>(ttrbox_xz[ii][kk][3*m + 1]);
 		y2 = std::get<1>(ttrbox_xz[ii][kk][3*m + 1]);
 		z2 = std::get<2>(ttrbox_xz[ii][kk][3*m + 1]);
 		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
-	       	
+
 	       	// third point
                 x3 = std::get<0>(ttrbox_xz[ii][kk][3*m + 2]);
 		y3 = std::get<1>(ttrbox_xz[ii][kk][3*m + 2]);
@@ -328,18 +411,18 @@ double DS_STL:: get_distanceTo( geomVector const& source,
  	for (int i=0; i<Nopx; i++)
   	{
 	    double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
-	         	 
+
             for (int k=0; k<Nopy; k++)
 	    {
                    double ymin = Ymin + k * trdy;     double ymax = Ymin + (k+1) * trdy;
 
                    if ((yvalue > xmin-eps) && (yvalue < xmax+eps) && (zvalue > ymin-eps) && (zvalue < ymax+eps))
 	           {
-		       ii=i; 
+		       ii=i;
 		       kk=k;
 	           }
 	    }
-        } 
+        }
 
         for (int m=0; m<tridx_xy[ii][kk]/3; m++)
 	{
@@ -348,13 +431,13 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 	        y1 = std::get<1>(ttrbox_xy[ii][kk][3*m  ]);
 	        z1 = std::get<2>(ttrbox_xy[ii][kk][3*m  ]);
 		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
-		
+
 		// second point
 	        x2 = std::get<0>(ttrbox_xy[ii][kk][3*m + 1]);
 	        y2 = std::get<1>(ttrbox_xy[ii][kk][3*m + 1]);
 	        z2 = std::get<2>(ttrbox_xy[ii][kk][3*m + 1]);
 		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
-	       	
+
 	       	// third point
                 x3 = std::get<0>(ttrbox_xy[ii][kk][3*m + 2]);
 	        y3 = std::get<1>(ttrbox_xy[ii][kk][3*m + 2]);
@@ -374,7 +457,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 		   diffProduct(q1,tri1,tmp3);
 		   diffProduct(q2,q1,tmp4);
 		   double t = -dotProduct(tmp3,N)/dotProduct(tmp4,N);
-		   xcenter2 = q1[2] + t * tmp4[2];		
+		   xcenter2 = q1[2] + t * tmp4[2];
 		}
 	}
   }
@@ -457,226 +540,13 @@ geomVector const* DS_STL:: get_ptr_to_gravity_centre( ) const
 
 
 //---------------------------------------------------------------------------
-void DS_STL:: initialize_surface_variables( )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: initialize_surface_variables" ) ;
-
-  if (m_surface_points.empty()) {
-     m_surface_points.reserve( Ntot );
-     m_surface_area.reserve( Ntot );
-     m_surface_normal.reserve( Ntot );
-     m_surface_Pforce.reserve( Ntot );
-     m_surface_Vforce.reserve( Ntot );
-     m_surface_Tgrad.reserve( Ntot );
-
-     geomVector vvv(3);
-
-     for (size_t i = 0; i < Ntot; ++i) {
-        m_surface_points.push_back( new geomVector(3) );
-        m_surface_area.push_back( new geomVector(1) );
-        m_surface_normal.push_back( new geomVector(3) );
-        m_surface_Pforce.push_back( vvv );
-        m_surface_Vforce.push_back( vvv );
-        m_surface_Tgrad.push_back( 0. );
-     }
-   }
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: update_RB_position_and_velocity(geomVector const& pos,
-                                                    geomVector const& vel,
-                                                    geomVector const& ang_vel,
-                                   vector<geomVector> const& periodic_directions)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: update_RB_position_and_velocity" ) ;
-
-  //return (m_geometric_rigid_body->update_RB_position_and_velocity(pos,vel
-    //                                                              ,ang_vel
-      //                                                   ,periodic_directions));
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-vector<geomVector*> DS_STL:: get_rigid_body_surface_points( ) const
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: get_rigid_body_surface_points" ) ;
-
-  return (m_surface_points);
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-vector<geomVector*> DS_STL:: get_rigid_body_surface_normals( ) const
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: get_rigid_body_surface_normals" ) ;
-
-  return (m_surface_normal);
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-vector<geomVector*> DS_STL:: get_rigid_body_surface_areas( ) const
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: get_rigid_body_surface_areas" ) ;
-
-  return (m_surface_area);
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-vector<geomVector*> DS_STL:: get_rigid_body_haloZone( ) const
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: get_rigid_body_haloZone" ) ;
-
-  return (m_halo_zone);
-
-}
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: update_Pforce_on_surface_point( size_t const& i
-                                                  , geomVector const& value )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: update_Pforce_on_surface_point" ) ;
-
-  m_surface_Pforce[i] = value;
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: update_Vforce_on_surface_point( size_t const& i
-                                                  , geomVector const& value )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: update_Vforce_on_surface_point" ) ;
-
-  m_surface_Vforce[i] = value;
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: update_Tgrad_on_surface_point( size_t const& i
-                                                 , double const& value )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: update_Tgrad_on_surface_point" ) ;
-
-  m_surface_Tgrad[i] = value;
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: correct_surface_discretization( FV_Mesh const* MESH )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: correct_surface_discretization( )" ) ;
-
-  // vector<geomVector> const* p_pbc =
-  //                 dynamic_cast<FS_RigidBody*>(m_geometric_rigid_body)
-  //                             ->get_ptr_to_periodic_directions();
-  //
-  // if (p_pbc) {
-     boolVector const* periodic_comp = MESH->get_periodic_directions();
-     size_t dim = MESH->nb_space_dimensions() ;
-
-     for (size_t dir=0;dir < dim; dir++) {
-        bool is_periodic = periodic_comp->operator()( dir );
-
-        if (is_periodic) {
-           double isize = MESH->get_main_domain_max_coordinate(dir)
-                        - MESH->get_main_domain_min_coordinate(dir);
-           double imin = MESH->get_main_domain_min_coordinate(dir);
-
-           for (size_t i = 0; i < m_surface_area.size(); i++) {
-              m_surface_points[i]->operator()(dir) =
-                  m_surface_points[i]->operator()(dir)
-                - MAC::floor((m_surface_points[i]->operator()(dir)-imin)/isize)
-                  * isize;
-           }
-        }
-     }
-  // }
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_STL:: write_surface_discretization( const std::string& file)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_STL:: write_surface_discretization" ) ;
-
-  std::ofstream out;
-
-  out.open(file.c_str());
-  out << "x ,y ,z ,nx ,ny ,nz ,area ,Fpx ,Fpy ,Fpz ,Fvx ,Fvy ,Fvz, Tgrad" << endl;
-
-  for (size_t i = 0; i < m_surface_area.size(); i++) {
-     if ((m_surface_Pforce[i].calcNorm() != 0) ||
-         (m_surface_Vforce[i].calcNorm() != 0) ||
-         (m_surface_Tgrad[i] != 0))
-        out << m_surface_points[i]->operator()(0) << " ,"
-            << m_surface_points[i]->operator()(1) << " ,"
-            << m_surface_points[i]->operator()(2) << " ,"
-            << m_surface_normal[i]->operator()(0) << " ,"
-            << m_surface_normal[i]->operator()(1) << " ,"
-            << m_surface_normal[i]->operator()(2) << " ,"
-            << m_surface_area[i]->operator()(0) << " ,"
-            << m_surface_Pforce[i](0) << " ,"
-            << m_surface_Pforce[i](1) << " ,"
-            << m_surface_Pforce[i](2) << " ,"
-            << m_surface_Vforce[i](0) << " ,"
-            << m_surface_Vforce[i](1) << " ,"
-            << m_surface_Vforce[i](2) << " ,"
-            << m_surface_Tgrad[i] << endl;
-  }
-
-  out.close();
-
-}
-
-//---------------------------------------------------------------------------
 double DS_STL:: dotProduct(double vect_A[], double vect_B[]) const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_STL:: dotProduct" ) ;
 
   double product = 0;
- 
+
   for (int i = 0; i < 3; i++)
      product = product + vect_A[i] * vect_B[i];
 
@@ -684,12 +554,12 @@ double DS_STL:: dotProduct(double vect_A[], double vect_B[]) const
 }
 
 //---------------------------------------------------------------------------
-void DS_STL:: crossProduct(double vect_A[], double vect_B[] 
+void DS_STL:: crossProduct(double vect_A[], double vect_B[]
 		                          , double cross_P[]) const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_STL:: crossProduct" ) ;
- 
+
   cross_P[0] = vect_A[1] * vect_B[2] - vect_A[2] * vect_B[1];
   cross_P[1] = vect_A[2] * vect_B[0] - vect_A[0] * vect_B[2];
   cross_P[2] = vect_A[0] * vect_B[1] - vect_A[1] * vect_B[0];
@@ -738,7 +608,7 @@ int DS_STL:: intersect3d(double q1[], double q2[], double tri1[]
   // Test whether the two extermities of the segment
   // are on the same side of the supporting plane of
   // the triangle
-  if (s1 == s2) 
+  if (s1 == s2)
      return 0;
 
   // Now we know that the segment 'straddles' the supporing
@@ -766,10 +636,10 @@ void DS_STL:: readSTL()
   int dim =3; // to be removed
 
   string solid_filename("q");
-  	  
-     kk = 0;	     
+
+     kk = 0;
      start = clock(); // start time for reading the set of triangles
-        
+
      // reading STL file format
      // filename
      std::ostringstream os2;
@@ -778,7 +648,7 @@ void DS_STL:: readSTL()
 
      // check if the file is ASCII or binary
      std::ifstream inFilep(filename);
-	
+
      int c;
      //if ( my_rank == is_master && field == 0 )
      {
@@ -789,23 +659,23 @@ void DS_STL:: readSTL()
      }
 
      while( (c = inFilep.get()) != EOF && c <= 127);
-	
+
      //if ( my_rank == is_master && field == 0 )
      {
-        if( c == EOF ) 
+        if( c == EOF )
 	{
            std::cout << "   File is in ASCII format" << endl;
         }
-	else 
+	else
 	   std::cout << "   File is in Binary format" << endl;
-     } 
+     }
      inFilep.close();
      // end reading STL file format
 
-     // reading triangulation     	
+     // reading triangulation
      if ( c == EOF ) // ASCII
      {
-	std::ifstream inFile(filename);	
+	std::ifstream inFile(filename);
         //inFile.open(filename.c_str());
      	string line;
 
@@ -818,7 +688,7 @@ void DS_STL:: readSTL()
      	   iss1 >> notsodummy;
 	   if ( dim == 3  && notsodummy.compare("endsolid") == 0 )
                break;
-     	   iss1 >> dummy; 
+     	   iss1 >> dummy;
      	   iss1 >> xn;
      	   iss1 >> yn;
      	   iss1 >> zn;
@@ -850,9 +720,9 @@ void DS_STL:: readSTL()
 	   // Vertices
            Llvls.push_back(std::make_tuple(x1, y1, z1));
 	   Llvls.push_back(std::make_tuple(x2, y2, z2));
-	   if ( dim == 3 )	   
+	   if ( dim == 3 )
 	      Llvls.push_back(std::make_tuple(x3, y3, z3));
-	   
+
 
 	   // Normals
 	   Llvns.push_back(std::make_tuple(xn, yn, zn));
@@ -861,10 +731,10 @@ void DS_STL:: readSTL()
 	      kk=kk+2;
 	   if ( dim == 3 )
 	      kk=kk+3;
-	 
+
         }
-         	
-        inFile.close();	  
+
+        inFile.close();
 	Npls=kk;
 
      } // end ASCII
@@ -889,7 +759,7 @@ void DS_STL:: readSTL()
 
 	char* buffer = new char[(size_t)size];
 
-	// Get file data. sgetn grabs all the characters from the streambuf 
+	// Get file data. sgetn grabs all the characters from the streambuf
 	// object 'pbuf'. The return value of sgetn is the number of characters
 	// obtained - ordinarily, this value should be checked for equality
 	// against the number of characters requested.
@@ -906,7 +776,7 @@ void DS_STL:: readSTL()
         while (bufptr < buffer + size)
        	{
 
-		xn = *(float *)(bufptr);	
+		xn = *(float *)(bufptr);
                 yn = *(float *)(bufptr + 4);
 		zn = *(float *)(bufptr + 8);
 		bufptr += 12;
@@ -931,7 +801,7 @@ void DS_STL:: readSTL()
 		Llvls.push_back(std::make_tuple(x1, y1, z1));
 	        Llvls.push_back(std::make_tuple(x2, y2, z2));
 	        Llvls.push_back(std::make_tuple(x3, y3, z3));
-	    
+
                 kk=kk+3;
 		bufptr += 2;
 	}
@@ -942,9 +812,9 @@ void DS_STL:: readSTL()
 
      }
      // end reading triangulation
-	
+
      //if ( my_rank == is_master && field == 0 )
-     {        
+     {
          std::cout << "   Delaunay triangles: " << Npls/3 << endl;
 	 duration = ( clock() - start ) / (double) CLOCKS_PER_SEC;
          std::cout << "   File read in " << duration << "s" << endl;
@@ -971,14 +841,14 @@ void DS_STL:: readSTL()
 	   std::cout << "   y [" << Ymin  << " " << Ymax << "]" <<  endl;
 	   std::cout << "   z [" << Zmin  << " " << Zmax << "]" <<  endl << endl;
          }
-     
+
         double trdx = (Xmax - Xmin) / Nopx;
         double trdy = (Ymax - Ymin) / Nopy;
         double trdz = (Zmax - Zmin) / Nopz;
 
-        double cenh = 1.0; // if too small and triangles too large, 
+        double cenh = 1.0; // if too small and triangles too large,
                           // we may miss some triangles in the halo
-       
+
         double enhx = trdx * cenh;
         double enhy = trdy * cenh;
         double enhz = trdz * cenh;
@@ -988,7 +858,7 @@ void DS_STL:: readSTL()
         {
 	   double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
            double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
-	         	 
+
            for (int k=0; k<Nopz; k++)
 	   {
               double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
@@ -1000,18 +870,18 @@ void DS_STL:: readSTL()
                  if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
 	                (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
 	                (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
-	               ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   || 
+	               ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
 	                (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
 	                (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
 	         {
                     x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]); 
-                    x3 = std::get<0>(Llvls[3*l+2]); 
+	            x2 = std::get<0>(Llvls[3*l+1]);
+                    x3 = std::get<0>(Llvls[3*l+2]);
 	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]); 
+	            y2 = std::get<1>(Llvls[3*l+1]);
                     y3 = std::get<1>(Llvls[3*l+2]);
                     z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]); 
+	            z2 = std::get<2>(Llvls[3*l+1]);
                     z3 = std::get<2>(Llvls[3*l+2]);
 
 		    ttrbox_xz[i][k].push_back(std::make_tuple(x1, y1, z1));
@@ -1019,7 +889,7 @@ void DS_STL:: readSTL()
 		    ttrbox_xz[i][k].push_back(std::make_tuple(x3, y3, z3));
 
 		    m=m+3;
-	         }  
+	         }
 	     }
 	     tridx_xz[i][k] = m;
            }
@@ -1029,7 +899,7 @@ void DS_STL:: readSTL()
         {
 	   double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
            double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
-	         	 
+
            for (int k=0; k<Nopy; k++)
 	   {
               double ymin = Ymin + k * trdy;     double ymax = Ymin + (k+1) * trdy;
@@ -1041,19 +911,19 @@ void DS_STL:: readSTL()
                  if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
 	                (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
 	                (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
-		       ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   || 
+		       ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
 	                (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
 	                (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax)) )
 	         {
 
                     x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]); 
-                    x3 = std::get<0>(Llvls[3*l+2]); 
+	            x2 = std::get<0>(Llvls[3*l+1]);
+                    x3 = std::get<0>(Llvls[3*l+2]);
 	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]); 
+	            y2 = std::get<1>(Llvls[3*l+1]);
                     y3 = std::get<1>(Llvls[3*l+2]);
 		    z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]); 
+	            z2 = std::get<2>(Llvls[3*l+1]);
                     z3 = std::get<2>(Llvls[3*l+2]);
 
 		    ttrbox_xy[i][k].push_back(std::make_tuple(x1, y1, z1));
@@ -1062,16 +932,16 @@ void DS_STL:: readSTL()
 
                     m=m+3;
 	         }
-	      }    
+	      }
               tridx_xy[i][k] = m;
-           }   
+           }
         }
         // yz
         for (int i=0; i<Nopy; i++)
         {
 	   double ymin = Ymin + i * trdy;     double ymax = Ymin + (i+1) * trdy;
            double yymin = ymin - enhy;        double yymax = ymax + enhy;
-	         	 
+
            for (int k=0; k<Nopz; k++)
 	   {
               double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
@@ -1083,18 +953,18 @@ void DS_STL:: readSTL()
                  if  ( ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
 	                (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
 	                (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax))  &&
-		       ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   || 
+		       ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
 	                (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
 	                (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
 	         {
 	            x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]); 
-                    x3 = std::get<0>(Llvls[3*l+2]); 
+	            x2 = std::get<0>(Llvls[3*l+1]);
+                    x3 = std::get<0>(Llvls[3*l+2]);
 	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]); 
+	            y2 = std::get<1>(Llvls[3*l+1]);
                     y3 = std::get<1>(Llvls[3*l+2]);
 		    z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]); 
+	            z2 = std::get<2>(Llvls[3*l+1]);
                     z3 = std::get<2>(Llvls[3*l+2]);
 
 		    ttrbox_yz[i][k].push_back(std::make_tuple(x1, y1, z1));
@@ -1112,7 +982,7 @@ void DS_STL:: readSTL()
         {
            std::cout << "- Displaying Matrix of filtered triangles xz" << endl;
            for (int i=0; i<Nopx; i++)
-           {	       	 
+           {
               for (int k=0; k<Nopz; k++)
 	      {
                  std::cout << tridx_xz[i][k]/3 << "\t";
@@ -1121,7 +991,7 @@ void DS_STL:: readSTL()
            }
            std::cout << "- Displaying Matrix of filtered triangles xy" << endl;
            for (int i=0; i<Nopx; i++)
-           {	       	 
+           {
               for (int k=0; k<Nopy; k++)
 	      {
                  std::cout << tridx_xy[i][k]/3 << "\t";
@@ -1130,7 +1000,7 @@ void DS_STL:: readSTL()
            }
            std::cout << "- Displaying Matrix of filtered triangles yz" << endl;
            for (int i=0; i<Nopy; i++)
-           {	       	 
+           {
               for (int k=0; k<Nopz; k++)
 	      {
                  std::cout << tridx_yz[i][k]/3 << "\t";
@@ -1139,7 +1009,5 @@ void DS_STL:: readSTL()
            }
 
          }
-      } // end filtertrbox 
+      } // end filtertrbox
 }
-     
-
