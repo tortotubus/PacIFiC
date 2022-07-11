@@ -135,23 +135,6 @@ class DS_STL: public DS_RigidBody
 
       /**@name Parameters */
       //@{
-      vector<geomVector*> m_surface_points; /**< vector of points distributed on
-      	the surface of the particle to compute surface integrals */
-      vector<geomVector*> m_surface_area; /**< vector of the area associated
-         with the points distributed on the surface of the particle */
-      vector<geomVector*> m_surface_normal; /**< vector of the normal associated
-         with the points distributed on the surface of the particle */
-      vector<geomVector> m_surface_Pforce; /**< vector of the pressure force
-         on the points distributed on the surface of the particle */
-      vector<geomVector> m_surface_Vforce; /**< vector of the viscous force
-         on the points distributed on the surface of the particle */
-      vector<double> m_surface_Tgrad; /**< vector of the temperature gradient
-         on the points distributed on the surface of the particle */
-      vector<geomVector*> m_halo_zone; /**< vector of min and max extents
-         of rigid body halozone, required for void fraction detection */
-      size_t Ntot; /** < Stores the total number of surface points on a rigid
-         body */
-      //@}
 
       vector<tuple<double,double,double>> Llvls; /**< vector containing the
     	vertices of the triangulation */
@@ -187,7 +170,8 @@ class DS_STL: public DS_RigidBody
 				     per halo accross the xz plane */
 
       int Npls; /**<Number of triangles */
-
+      //@}
+      
    //-- Methods
 
       /**@name Methods */

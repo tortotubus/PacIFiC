@@ -11,6 +11,8 @@ DS_STL:: DS_STL()
 {
   MAC_LABEL( "DS_STL:: DS_STL" ) ;
 
+  readSTL();
+
   std::cout << "Construction of STL object completed" << endl;
 
 }
@@ -548,9 +550,6 @@ void DS_STL:: update_RB_position_and_velocity(geomVector const& pos,
 {
   MAC_LABEL( "DS_STL:: update_RB_position_and_velocity" ) ;
 
-  // return (m_geometric_rigid_body->update_RB_position_and_velocity(pos,vel
-  //                                                                 ,ang_vel
-  //                                                        ,periodic_directions));
 
 }
 
@@ -653,379 +652,383 @@ void DS_STL:: readSTL()
   double duration;
   int dim =3; // to be removed
 
-  string solid_filename("q");
+  string solid_filename("sphere_r0.stl");
 
-     kk = 0;
-     start = clock(); // start time for reading the set of triangles
+  kk = 0;
+  start = clock(); // start time for reading the set of triangles
 
-     // reading STL file format
-     // filename
-     std::ostringstream os2;
-     os2 << "./InputFiles/" << solid_filename;
-     std::string filename = os2.str();
+  // reading STL file format
+  // filename
+  std::ostringstream os2;
+  os2 << "./InputFiles/" << solid_filename;
+  std::string filename = os2.str();
 
-     // check if the file is ASCII or binary
-     std::ifstream inFilep(filename);
+  // check if the file is ASCII or binary
+  std::ifstream inFilep(filename);
 
-     int c;
-     //if ( my_rank == is_master && field == 0 )
-     {
-        std::cout << endl;
-	std::cout << "***" << endl;
-	std::cout << "================= STL FILE =================" << endl;
-	std::cout << "   Read STL file: *" << solid_filename << "*" << endl;
+  int c;
+  //if ( my_rank == is_master && field == 0 )
+  {
+     std::cout << endl;
+     std::cout << "***" << endl;
+     std::cout << "================= STL FILE =================" << endl;
+	  std::cout << "   Read STL file: *" << solid_filename << "*" << endl;
+  }
+
+  while( (c = inFilep.get()) != EOF && c <= 127);
+
+  //if ( my_rank == is_master && field == 0 )
+  {
+     if ( c == EOF )
+	  {
+        std::cout << "   File is in ASCII format" << endl;
      }
+     else
+	     std::cout << "   File is in Binary format" << endl;
+  }
 
-     while( (c = inFilep.get()) != EOF && c <= 127);
+  inFilep.close();
+  // end reading STL file format
 
-     //if ( my_rank == is_master && field == 0 )
-     {
-        if( c == EOF )
-	{
-           std::cout << "   File is in ASCII format" << endl;
-        }
-	else
-	   std::cout << "   File is in Binary format" << endl;
-     }
-     inFilep.close();
-     // end reading STL file format
+  // reading triangulation
+  if ( c == EOF ) // ASCII
+  {
+ 	  std::ifstream inFile(filename);
+     //inFile.open(filename.c_str());
+	  string line;
 
-     // reading triangulation
-     if ( c == EOF ) // ASCII
-     {
-	std::ifstream inFile(filename);
-        //inFile.open(filename.c_str());
-     	string line;
+     if ( dim == 3 )
+	     getline(inFile,line);
 
-	if ( dim == 3 )
-	   getline(inFile,line);
-
-     	while(getline(inFile,line))
-     	{
-	   std::istringstream iss1(line);
-     	   iss1 >> notsodummy;
-	   if ( dim == 3  && notsodummy.compare("endsolid") == 0 )
-               break;
-     	   iss1 >> dummy;
-     	   iss1 >> xn;
-     	   iss1 >> yn;
-     	   iss1 >> zn;
-           getline(inFile,line);
-           getline(inFile,line);
-	   std::istringstream iss2(line);
-           iss2 >> dummy;
-     	   iss2 >> x1;
-     	   iss2 >> y1;
-     	   iss2 >> z1;
-	   getline(inFile,line);
-	   std::istringstream iss3(line);
-           iss3 >> dummy;
-     	   iss3 >> x2;
-     	   iss3 >> y2;
-      	   iss3 >> z2;
-	   if ( dim == 3 )
-	   {
-	      getline(inFile,line);
-	      std::istringstream iss4(line);
-              iss4 >> dummy;
-     	      iss4 >> x3;
-     	      iss4 >> y3;
-      	      iss4 >> z3;
-	   }
-	   getline(inFile,line);
-	   getline(inFile,line);
-
-	   // Vertices
-           Llvls.push_back(std::make_tuple(x1, y1, z1));
-	   Llvls.push_back(std::make_tuple(x2, y2, z2));
-	   if ( dim == 3 )
-	      Llvls.push_back(std::make_tuple(x3, y3, z3));
-
-
-	   // Normals
-	   Llvns.push_back(std::make_tuple(xn, yn, zn));
-
-	   if ( dim == 2 )
-	      kk=kk+2;
-	   if ( dim == 3 )
-	      kk=kk+3;
-
-        }
-
-        inFile.close();
-	Npls=kk;
-
-     } // end ASCII
-     else // binary
-     {
-	std::ifstream inFileb(filename, std::ifstream::binary);
-
-        // rdbuf returns a streambuf object associated with the
-	// input fstream object ifs.
-
-	std::filebuf* pbuf = inFileb.rdbuf();
-
-	// Calculate the file's size.
-
-	auto size = pbuf->pubseekoff(0, inFileb.end);
-
-	// Set the position pointer to the beginning of the file.
-
-	pbuf->pubseekpos(0);
-
-	// Allocate memory to contain file data.
-
-	char* buffer = new char[(size_t)size];
-
-	// Get file data. sgetn grabs all the characters from the streambuf
-	// object 'pbuf'. The return value of sgetn is the number of characters
-	// obtained - ordinarily, this value should be checked for equality
-	// against the number of characters requested.
-
-	pbuf->sgetn(buffer, size);
-
-	char * bufptr = buffer;
-
-	bufptr += 80;  // Skip past the header.
-	bufptr += 4;   // Skip past the number of triangles.
-
-	double nx,ny,nz;
-
-        while (bufptr < buffer + size)
-       	{
-
-		xn = *(float *)(bufptr);
-                yn = *(float *)(bufptr + 4);
-		zn = *(float *)(bufptr + 8);
-		bufptr += 12;
-
-		Llvns.push_back(std::make_tuple(xn, yn, zn));
-
-		x1 = *(float *)(bufptr);
-		y1 = *(float *)(bufptr + 4);
-		z1 = *(float *)(bufptr + 8);
-		bufptr += 12;
-
-		x2 = *(float *)(bufptr);
-		y2 = *(float *)(bufptr + 4);
-		z2 = *(float *)(bufptr + 8);
-		bufptr += 12;
-
-		x3 = *(float *)(bufptr);
-		y3 = *(float *)(bufptr + 4);
-		z3 = *(float *)(bufptr + 8);
-		bufptr += 12;
-
-		Llvls.push_back(std::make_tuple(x1, y1, z1));
-	        Llvls.push_back(std::make_tuple(x2, y2, z2));
-	        Llvls.push_back(std::make_tuple(x3, y3, z3));
-
-                kk=kk+3;
-		bufptr += 2;
-	}
-
-        inFileb.close();
-	Npls=kk;
-        delete[] buffer;
-
-     }
-     // end reading triangulation
-
-     //if ( my_rank == is_master && field == 0 )
-     {
-         std::cout << "   Delaunay triangles: " << Npls/3 << endl;
-	 duration = ( clock() - start ) / (double) CLOCKS_PER_SEC;
-         std::cout << "   File read in " << duration << "s" << endl;
-     }
-
-     // Filtering operations
-
-     int filter_trbox = 1; // 1D distances approach
-
-     if ( filter_trbox )
-     {
-
-        double Xmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(0) ;
-        double Xmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(0) ;
-        double Ymin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(1) ;
-        double Ymax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(1) ;
-        double Zmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(2) ;
-        double Zmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(2) ;
-
-        //if ( field == 0 && my_rank == is_master )
+  	  while(getline(inFile,line))
+  	  {
+        std::istringstream iss1(line);
+  	     iss1 >> notsodummy;
+        if ( dim == 3  && notsodummy.compare("endsolid") == 0 )
+           break;
+	        iss1 >> dummy;
+  	     iss1 >> xn;
+  	     iss1 >> yn;
+  	     iss1 >> zn;
+        getline(inFile,line);
+        getline(inFile,line);
+        std::istringstream iss2(line);
+        iss2 >> dummy;
+  	     iss2 >> x1;
+  	     iss2 >> y1;
+  	     iss2 >> z1;
+        getline(inFile,line);
+        std::istringstream iss3(line);
+        iss3 >> dummy;
+  	     iss3 >> x2;
+  	     iss3 >> y2;
+   	  iss3 >> z2;
+        if ( dim == 3 )
         {
-       	   std::cout << "   - Box dimensions" << endl;
-       	   std::cout << "   x [" << Xmin  << " " << Xmax << "]" <<  endl;
-	   std::cout << "   y [" << Ymin  << " " << Ymax << "]" <<  endl;
-	   std::cout << "   z [" << Zmin  << " " << Zmax << "]" <<  endl << endl;
-         }
+           getline(inFile,line);
+           std::istringstream iss4(line);
+           iss4 >> dummy;
+  	        iss4 >> x3;
+  	        iss4 >> y3;
+   	     iss4 >> z3;
+        }
+        getline(inFile,line);
+        getline(inFile,line);
 
-        double trdx = (Xmax - Xmin) / Nopx;
-        double trdy = (Ymax - Ymin) / Nopy;
-        double trdz = (Zmax - Zmin) / Nopz;
+        // Vertices
+        Llvls.push_back(std::make_tuple(x1, y1, z1));
+        Llvls.push_back(std::make_tuple(x2, y2, z2));
+        if ( dim == 3 )
+           Llvls.push_back(std::make_tuple(x3, y3, z3));
 
-        double cenh = 1.0; // if too small and triangles too large,
-                          // we may miss some triangles in the halo
+        // Normals
+        Llvns.push_back(std::make_tuple(xn, yn, zn));
 
-        double enhx = trdx * cenh;
-        double enhy = trdy * cenh;
-        double enhz = trdz * cenh;
+        if ( dim == 2 )
+           kk=kk+2;
+        if ( dim == 3 )
+           kk=kk+3;
+
+     }
+
+     inFile.close();
+     Npls=kk;
+
+  } // end ASCII
+  else // binary
+  {
+     std::ifstream inFileb(filename, std::ifstream::binary);
+
+     // rdbuf returns a streambuf object associated with the
+     // input fstream object ifs.
+
+     std::filebuf* pbuf = inFileb.rdbuf();
+
+     // Calculate the file's size.
+
+     auto size = pbuf->pubseekoff(0, inFileb.end);
+
+     // Set the position pointer to the beginning of the file.
+
+     pbuf->pubseekpos(0);
+
+     // Allocate memory to contain file data.
+
+     char* buffer = new char[(size_t)size];
+
+	  // Get file data. sgetn grabs all the characters from the streambuf
+	  // object 'pbuf'. The return value of sgetn is the number of characters
+	  // obtained - ordinarily, this value should be checked for equality
+	  // against the number of characters requested.
+
+	  pbuf->sgetn(buffer, size);
+
+	  char * bufptr = buffer;
+
+	  bufptr += 80;  // Skip past the header.
+	  bufptr += 4;   // Skip past the number of triangles.
+
+	  double nx,ny,nz;
+
+     while (bufptr < buffer + size)
+     {
+
+        xn = *(float *)(bufptr);
+        yn = *(float *)(bufptr + 4);
+        zn = *(float *)(bufptr + 8);
+        bufptr += 12;
+
+        Llvns.push_back(std::make_tuple(xn, yn, zn));
+
+        x1 = *(float *)(bufptr);
+   	  y1 = *(float *)(bufptr + 4);
+   	  z1 = *(float *)(bufptr + 8);
+   	  bufptr += 12;
+
+   	  x2 = *(float *)(bufptr);
+   	  y2 = *(float *)(bufptr + 4);
+   	  z2 = *(float *)(bufptr + 8);
+   	  bufptr += 12;
+
+   	  x3 = *(float *)(bufptr);
+   	  y3 = *(float *)(bufptr + 4);
+   	  z3 = *(float *)(bufptr + 8);
+   	  bufptr += 12;
+
+        Llvls.push_back(std::make_tuple(x1, y1, z1));
+        Llvls.push_back(std::make_tuple(x2, y2, z2));
+        Llvls.push_back(std::make_tuple(x3, y3, z3));
+
+        kk=kk+3;
+        bufptr += 2;
+     }
+
+     inFileb.close();
+     Npls=kk;
+     delete[] buffer;
+
+  }
+  // end reading triangulation
+
+  //if ( my_rank == is_master && field == 0 )
+  {
+      std::cout << "   Delaunay triangles: " << Npls/3 << endl;
+      duration = ( clock() - start ) / (double) CLOCKS_PER_SEC;
+      std::cout << "   File read in " << duration << "s" << endl;
+  }
+
+  // Filtering operations
+
+  int filter_trbox = 1; // 1D distances approach
+
+  if ( filter_trbox )
+  {
+
+     double Xmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(0) ;
+     double Xmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(0) ;
+     double Ymin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(1) ;
+     double Ymax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(1) ;
+     double Zmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(2) ;
+     double Zmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(2) ;
+
+     //if ( field == 0 && my_rank == is_master )
+     {
+    	   std::cout << "   - Box dimensions" << endl;
+    	   std::cout << "   x [" << Xmin  << " " << Xmax << "]" <<  endl;
+         std::cout << "   y [" << Ymin  << " " << Ymax << "]" <<  endl;
+         std::cout << "   z [" << Zmin  << " " << Zmax << "]" <<  endl << endl;
+     }
+
+     double trdx = (Xmax - Xmin) / Nopx;
+     double trdy = (Ymax - Ymin) / Nopy;
+     double trdz = (Zmax - Zmin) / Nopz;
+
+     double cenh = 1.0; // if too small and triangles too large,
+                       // we may miss some triangles in the halo
+
+     double enhx = trdx * cenh;
+     double enhy = trdy * cenh;
+     double enhz = trdz * cenh;
 
         // xz
+     for (int i=0; i<Nopx; i++)
+     {
+        double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
+        double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
+
+        for (int k=0; k<Nopz; k++)
+        {
+           double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
+           double zzmin = zmin - enhz;        double zzmax = zmax + enhz;
+
+	        int m=0;
+
+   	     for (int l=0; l<Npls/3; l++)
+           {
+              if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
+                     (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
+   	               (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
+   	              ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
+   	               (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
+   	               (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
+   	        {
+                  x1 = std::get<0>(Llvls[3*l  ]);
+   	            x2 = std::get<0>(Llvls[3*l+1]);
+                  x3 = std::get<0>(Llvls[3*l+2]);
+   	            y1 = std::get<1>(Llvls[3*l  ]);
+   	            y2 = std::get<1>(Llvls[3*l+1]);
+                  y3 = std::get<1>(Llvls[3*l+2]);
+                  z1 = std::get<2>(Llvls[3*l  ]);
+   	            z2 = std::get<2>(Llvls[3*l+1]);
+                  z3 = std::get<2>(Llvls[3*l+2]);
+
+         		   ttrbox_xz[i][k].push_back(std::make_tuple(x1, y1, z1));
+         		   ttrbox_xz[i][k].push_back(std::make_tuple(x2, y2, z2));
+         		   ttrbox_xz[i][k].push_back(std::make_tuple(x3, y3, z3));
+
+                  m=m+3;
+   	        }
+   	     }
+           tridx_xz[i][k] = m;
+       }
+    }
+
+    // xy
+    for (int i=0; i<Nopx; i++)
+    {
+	    double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
+       double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
+
+       for (int k=0; k<Nopy; k++)
+       {
+          double ymin = Ymin + k * trdy;     double ymax = Ymin + (k+1) * trdy;
+          double yymin = ymin - enhy;        double yymax = ymax + enhy;
+
+	       int m=0;
+          for (int l=0; l<Npls/3; l++)
+          {
+              if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
+	                  (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
+	                  (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
+		              ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
+	                  (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
+	                  (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax)) )
+              {
+
+                 x1 = std::get<0>(Llvls[3*l  ]);
+                 x2 = std::get<0>(Llvls[3*l+1]);
+                 x3 = std::get<0>(Llvls[3*l+2]);
+                 y1 = std::get<1>(Llvls[3*l  ]);
+                 y2 = std::get<1>(Llvls[3*l+1]);
+                 y3 = std::get<1>(Llvls[3*l+2]);
+                 z1 = std::get<2>(Llvls[3*l  ]);
+                 z2 = std::get<2>(Llvls[3*l+1]);
+                 z3 = std::get<2>(Llvls[3*l+2]);
+
+      		     ttrbox_xy[i][k].push_back(std::make_tuple(x1, y1, z1));
+      		     ttrbox_xy[i][k].push_back(std::make_tuple(x2, y2, z2));
+      		     ttrbox_xy[i][k].push_back(std::make_tuple(x3, y3, z3));
+
+                 m=m+3;
+              }
+           }
+
+           tridx_xy[i][k] = m;
+        }
+     }
+
+     // yz
+     for (int i=0; i<Nopy; i++)
+     {
+        double ymin = Ymin + i * trdy;     double ymax = Ymin + (i+1) * trdy;
+        double yymin = ymin - enhy;        double yymax = ymax + enhy;
+
+        for (int k=0; k<Nopz; k++)
+	     {
+           double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
+           double zzmin = zmin - enhz;        double zzmax = zmax + enhz;
+
+	        int m=0;
+           for (int l=0; l<Npls/3; l++)
+           {
+              if  ( ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
+	                  (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
+	                  (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax))  &&
+		              ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
+	                  (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
+	                  (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
+	           {
+   	           x1 = std::get<0>(Llvls[3*l  ]);
+   	           x2 = std::get<0>(Llvls[3*l+1]);
+                 x3 = std::get<0>(Llvls[3*l+2]);
+                 y1 = std::get<1>(Llvls[3*l  ]);
+	              y2 = std::get<1>(Llvls[3*l+1]);
+                 y3 = std::get<1>(Llvls[3*l+2]);
+	              z1 = std::get<2>(Llvls[3*l  ]);
+	              z2 = std::get<2>(Llvls[3*l+1]);
+                 z3 = std::get<2>(Llvls[3*l+2]);
+
+      		     ttrbox_yz[i][k].push_back(std::make_tuple(x1, y1, z1));
+      		     ttrbox_yz[i][k].push_back(std::make_tuple(x2, y2, z2));
+      		     ttrbox_yz[i][k].push_back(std::make_tuple(x3, y3, z3));
+
+                 m=m+3;
+              }
+	        }
+           tridx_yz[i][k] = m;
+        }
+     }
+
+     //if ( field == 0 && my_rank == is_master )
+     {
+        std::cout << "- Displaying Matrix of filtered triangles xz" << endl;
         for (int i=0; i<Nopx; i++)
         {
-	   double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
-           double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
-
            for (int k=0; k<Nopz; k++)
-	   {
-              double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
-              double zzmin = zmin - enhz;        double zzmax = zmax + enhz;
-
-	      int m=0;
-	      for (int l=0; l<Npls/3; l++)
-              {
-                 if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
-	                (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
-	                (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
-	               ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
-	                (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
-	                (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
-	         {
-                    x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]);
-                    x3 = std::get<0>(Llvls[3*l+2]);
-	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]);
-                    y3 = std::get<1>(Llvls[3*l+2]);
-                    z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]);
-                    z3 = std::get<2>(Llvls[3*l+2]);
-
-		    ttrbox_xz[i][k].push_back(std::make_tuple(x1, y1, z1));
-		    ttrbox_xz[i][k].push_back(std::make_tuple(x2, y2, z2));
-		    ttrbox_xz[i][k].push_back(std::make_tuple(x3, y3, z3));
-
-		    m=m+3;
-	         }
-	     }
-	     tridx_xz[i][k] = m;
+           {
+              std::cout << tridx_xz[i][k]/3 << "\t";
            }
+           std::cout << endl;
         }
-        // xy
+        std::cout << "- Displaying Matrix of filtered triangles xy" << endl;
         for (int i=0; i<Nopx; i++)
         {
-	   double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
-           double xxmin = xmin - enhx;        double xxmax = xmax + enhx;
-
            for (int k=0; k<Nopy; k++)
-	   {
-              double ymin = Ymin + k * trdy;     double ymax = Ymin + (k+1) * trdy;
-              double yymin = ymin - enhy;        double yymax = ymax + enhy;
-
-	      int m=0;
-	      for (int l=0; l<Npls/3; l++)
-              {
-                 if  ( ((std::get<0>(Llvls[3*l])   > xxmin && std::get<0>(Llvls[3*l])   < xxmax)   ||
-	                (std::get<0>(Llvls[3*l+1]) > xxmin && std::get<0>(Llvls[3*l+1]) < xxmax)   ||
-	                (std::get<0>(Llvls[3*l+2]) > xxmin && std::get<0>(Llvls[3*l+2]) < xxmax))  &&
-		       ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
-	                (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
-	                (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax)) )
-	         {
-
-                    x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]);
-                    x3 = std::get<0>(Llvls[3*l+2]);
-	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]);
-                    y3 = std::get<1>(Llvls[3*l+2]);
-		    z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]);
-                    z3 = std::get<2>(Llvls[3*l+2]);
-
-		    ttrbox_xy[i][k].push_back(std::make_tuple(x1, y1, z1));
-		    ttrbox_xy[i][k].push_back(std::make_tuple(x2, y2, z2));
-		    ttrbox_xy[i][k].push_back(std::make_tuple(x3, y3, z3));
-
-                    m=m+3;
-	         }
-	      }
-              tridx_xy[i][k] = m;
+	        {
+              std::cout << tridx_xy[i][k]/3 << "\t";
            }
+           std::cout << endl;
         }
-        // yz
+        std::cout << "- Displaying Matrix of filtered triangles yz" << endl;
         for (int i=0; i<Nopy; i++)
         {
-	   double ymin = Ymin + i * trdy;     double ymax = Ymin + (i+1) * trdy;
-           double yymin = ymin - enhy;        double yymax = ymax + enhy;
-
            for (int k=0; k<Nopz; k++)
-	   {
-              double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
-              double zzmin = zmin - enhz;        double zzmax = zmax + enhz;
-
-	      int m=0;
-	      for (int l=0; l<Npls/3; l++)
-              {
-                 if  ( ((std::get<1>(Llvls[3*l])   > yymin && std::get<1>(Llvls[3*l])   < yymax)   ||
-	                (std::get<1>(Llvls[3*l+1]) > yymin && std::get<1>(Llvls[3*l+1]) < yymax)   ||
-	                (std::get<1>(Llvls[3*l+2]) > yymin && std::get<1>(Llvls[3*l+2]) < yymax))  &&
-		       ((std::get<2>(Llvls[3*l])   > zzmin && std::get<2>(Llvls[3*l])   < zzmax)   ||
-	                (std::get<2>(Llvls[3*l+1]) > zzmin && std::get<2>(Llvls[3*l+1]) < zzmax)   ||
-	                (std::get<2>(Llvls[3*l+2]) > zzmin && std::get<2>(Llvls[3*l+2]) < zzmax)) )
-	         {
-	            x1 = std::get<0>(Llvls[3*l  ]);
-	            x2 = std::get<0>(Llvls[3*l+1]);
-                    x3 = std::get<0>(Llvls[3*l+2]);
-	            y1 = std::get<1>(Llvls[3*l  ]);
-	            y2 = std::get<1>(Llvls[3*l+1]);
-                    y3 = std::get<1>(Llvls[3*l+2]);
-		    z1 = std::get<2>(Llvls[3*l  ]);
-	            z2 = std::get<2>(Llvls[3*l+1]);
-                    z3 = std::get<2>(Llvls[3*l+2]);
-
-		    ttrbox_yz[i][k].push_back(std::make_tuple(x1, y1, z1));
-		    ttrbox_yz[i][k].push_back(std::make_tuple(x2, y2, z2));
-		    ttrbox_yz[i][k].push_back(std::make_tuple(x3, y3, z3));
-
-                    m=m+3;
-	         }
-	      }
-              tridx_yz[i][k] = m;
+	        {
+              std::cout << tridx_yz[i][k]/3 << "\t";
            }
+           std::cout << endl;
         }
 
-        //if ( field == 0 && my_rank == is_master )
-        {
-           std::cout << "- Displaying Matrix of filtered triangles xz" << endl;
-           for (int i=0; i<Nopx; i++)
-           {
-              for (int k=0; k<Nopz; k++)
-	      {
-                 std::cout << tridx_xz[i][k]/3 << "\t";
-	      }
-	      std::cout << endl;
-           }
-           std::cout << "- Displaying Matrix of filtered triangles xy" << endl;
-           for (int i=0; i<Nopx; i++)
-           {
-              for (int k=0; k<Nopy; k++)
-	      {
-                 std::cout << tridx_xy[i][k]/3 << "\t";
-	      }
-	      std::cout << endl;
-           }
-           std::cout << "- Displaying Matrix of filtered triangles yz" << endl;
-           for (int i=0; i<Nopy; i++)
-           {
-              for (int k=0; k<Nopz; k++)
-	      {
-                 std::cout << tridx_yz[i][k]/3 << "\t";
-	      }
-	      std::cout << endl;
-           }
-
-         }
-      } // end filtertrbox
+      }
+   } // end filtertrbox
 }
