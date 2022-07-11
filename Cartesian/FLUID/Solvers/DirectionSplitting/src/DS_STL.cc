@@ -540,6 +540,24 @@ geomVector const* DS_STL:: get_ptr_to_gravity_centre( ) const
 
 
 //---------------------------------------------------------------------------
+void DS_STL:: update_RB_position_and_velocity(geomVector const& pos,
+                                                    geomVector const& vel,
+                                                    geomVector const& ang_vel,
+                                   vector<geomVector> const& periodic_directions)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_STL:: update_RB_position_and_velocity" ) ;
+
+  // return (m_geometric_rigid_body->update_RB_position_and_velocity(pos,vel
+  //                                                                 ,ang_vel
+  //                                                        ,periodic_directions));
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 double DS_STL:: dotProduct(double vect_A[], double vect_B[]) const
 //---------------------------------------------------------------------------
 {

@@ -44,49 +44,6 @@ class DS_STL: public DS_RigidBody
       void update();
       //@}
 
-   //-- Get Methods
-      /**@name Get methods */
-      //@{
-      /** @brief Return the halo zones of the rigid body */
-      vector<geomVector*> get_rigid_body_haloZone( ) const;
-
-      /** @brief Returns rigid body velocity including rotation speed at pt
-      @param pt the point */
-      geomVector get_rigid_body_velocity( geomVector const& pt ) const;
-
-      /** @brief Returns rigid body angular velocity */
-      geomVector get_rigid_body_angular_velocity( ) const;
-
-      /** @brief Returns pointer to the rigid body gravity center */
-      geomVector const* get_ptr_to_gravity_centre( ) const;
-
-      /** @brief Returns circumscribed radius */
-      double get_circumscribed_radius( ) const;
-
-      /** @brief Returns a tuple of mass and density of RB */
-      std::tuple<double,double> get_mass_and_density() const;
-
-      /** @brief Returns the distance of a point with the rigid body
-      with a given ray vector and source
-      @param pt the point
-      @param direction x, y or z (=0, 1 or 2)
-      @param positive true if search in the positive direction of the coordinate
-      axis and false otherwise */
-      double get_distanceTo( geomVector const& source,
-                             geomVector const& rayDir,
-                             double const& delta ) const;
-
-      /** @brief Return the surface points on the rigid body */
-      vector<geomVector*> get_rigid_body_surface_points( ) const;
-
-      /** @brief Return the area of the surface points on the rigid body */
-      vector<geomVector*> get_rigid_body_surface_areas( ) const;
-
-      /** @brief Return the normal of the surface points on the rigid body */
-      vector<geomVector*> get_rigid_body_surface_normals( ) const;
-
-      //@}
-
    //-- Methods
 
       /**@name Methods */
@@ -100,6 +57,10 @@ class DS_STL: public DS_RigidBody
       @param out output stream
       @param indent_width indentation width */
       void compute_rigid_body_halozone( );
+
+      /** @brief Compute the surface points by discretizing the rigid body
+      surface in approximately equal areas (if possible) */
+      void compute_surface_points( );
 
       /** @brief Returns whether a point is inside the rigid body
       @param pt the point */
@@ -123,9 +84,40 @@ class DS_STL: public DS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
-      /** @brief Compute the surface points by discretizing the rigid body
-      surface in approximately equal areas (if possible) */
-      void compute_surface_points( );
+      /** @brief Returns the distance of a point with the rigid body
+      with a given ray vector and source
+      @param pt the point
+      @param direction x, y or z (=0, 1 or 2)
+      @param positive true if search in the positive direction of the coordinate
+      axis and false otherwise */
+      double get_distanceTo( geomVector const& source,
+          geomVector const& rayDir,
+          double const& delta ) const;
+
+      /** @brief Returns rigid body velocity including rotation speed at pt
+      @param pt the point */
+      geomVector get_rigid_body_velocity( geomVector const& pt ) const;
+
+      /** @brief Returns rigid body angular velocity */
+      geomVector get_rigid_body_angular_velocity( ) const;
+
+      /** @brief Returns pointer to the rigid body gravity center */
+      geomVector const* get_ptr_to_gravity_centre( ) const;
+
+      /** @brief Returns circumscribed radius */
+      double get_circumscribed_radius( ) const;
+
+      /** @brief Returns a tuple of mass and density of RB */
+      std::tuple<double,double> get_mass_and_density() const;
+
+      /** @brief Update the RB position and velocity
+      @param pos updated position
+      @param vel updated translation velocity */
+      void update_RB_position_and_velocity(geomVector const& pos,
+          geomVector const& vel,
+          geomVector const& ang_vel,
+          vector<geomVector> const& periodic_directions);
+
 
 
       /** @brief Compute number of points on a rigid body
