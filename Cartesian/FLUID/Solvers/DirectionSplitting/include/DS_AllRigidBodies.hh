@@ -72,7 +72,9 @@ class DS_AllRigidBodies
                        , MAC_DoubleVector const* arb_gv
                        , double const& arb_scs
                        , MAC_Communicator const* arb_macCOMM
-                       , double const& arb_mu );
+                       , double const& arb_mu
+                       , bool const& is_solids
+                       , bool const& is_STL );
 
       /** @brief Constructor with arguments
       @param dimens number of space dimensions
@@ -113,26 +115,6 @@ class DS_AllRigidBodies
                        , MAC_Communicator const* arb_macCOMM
                        , double const& arb_mu
                        , double const& arb_RBTemp);
-
-      /** @brief Constructor with arguments for STL RB
-      @param dimens number of space dimensions
-      @param in STL path
-      @param arb_UF Pointer to flow field UF
-      @param arb_PF Pointer to flow field PF
-      @param arb_scs scale of cell on the rigid body surface as
-      compared with the cell of computational grid
-      @param arb_macCOMM communicator for MPI communications */
-
-      DS_AllRigidBodies( size_t& dimens
-                       , string const& in
-                       , FV_DiscreteField const* arb_UF
-                       , FV_DiscreteField const* arb_PF
-                       , double const& arb_rho
-                       , MAC_DoubleVector const* arb_gv
-                       , double const& arb_scs
-                       , MAC_Communicator const* arb_macCOMM
-                       , double const& arb_mu );
-
 
       /** @brief Destructor */
       ~DS_AllRigidBodies();
@@ -522,6 +504,9 @@ class DS_AllRigidBodies
       vector<vector<size_t>> neighbour_list;
 
       vector<size_t> local_RB_list; /**< Stores a list of local RB */
+
+      bool b_solids;
+      bool b_STL;
 
       //@}
 

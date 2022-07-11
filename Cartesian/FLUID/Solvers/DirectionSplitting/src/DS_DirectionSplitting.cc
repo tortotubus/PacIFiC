@@ -243,7 +243,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    gravity_vector = MAC_DoubleVector::create( this, gg );
 
    // Create rigid bodies objects depending on which PDE to solve
-   if (is_solids) {
+   if (is_solids || is_STL) {
       if (is_NS) {
          allrigidbodies = new DS_AllRigidBodies( space_dimensions
                           , *solidFluid_transferStream
@@ -254,7 +254,9 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , gravity_vector
                           , surface_cell_scale
                           , macCOMM
-                          , mu );
+                          , mu
+                          , is_solids
+                          , is_STL );
       } else if (is_HE) {
          allrigidbodies = new DS_AllRigidBodies( space_dimensions
                           , *solidFluid_transferStream
@@ -276,19 +278,6 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , mu
                           , RBTemp);
       }
-   }
-
-   // Create STL as a rigid bodies object
-   if (is_STL) {
-      STLasRB = new DS_AllRigidBodies( space_dimensions
-                                     , STL_file
-                                     , dom->discrete_field( "velocity" )
-                                     , dom->discrete_field( "pressure" )
-                                     , rho
-                                     , gravity_vector
-                                     , surface_cell_scale
-                                     , macCOMM
-                                     , mu );
    }
 
    // Create structure to input in the NS solver

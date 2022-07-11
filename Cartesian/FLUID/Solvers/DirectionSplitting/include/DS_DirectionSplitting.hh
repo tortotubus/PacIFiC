@@ -154,7 +154,6 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       string solidSolver_simulationFile;
       istringstream* solidFluid_transferStream;
       DS_AllRigidBodies* allrigidbodies;
-      DS_AllRigidBodies* STLasRB;
       bool b_particles_as_fixed_obstacles;
 
       double critical_distance_translation;
