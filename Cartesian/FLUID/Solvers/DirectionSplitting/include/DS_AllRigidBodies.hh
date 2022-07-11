@@ -74,7 +74,8 @@ class DS_AllRigidBodies
                        , MAC_Communicator const* arb_macCOMM
                        , double const& arb_mu
                        , bool const& is_solids
-                       , bool const& is_STL );
+                       , bool const& is_STL
+                       , istream& STL_input );
 
       /** @brief Constructor with arguments
       @param dimens number of space dimensions

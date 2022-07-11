@@ -5,13 +5,16 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <istream>
 #include <fstream>
 using std::string;
 using std::ostream;
+using std::istream ;
+class FV_Mesh;
 
-#define Nopx 10
-#define Nopy 10
-#define Nopz 1
+#define Nopxa 10
+#define Nopya 10
+#define Nopza 10
 
 /** @brief The class DS_STL.
 
@@ -28,7 +31,7 @@ class DS_STL: public DS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Default constructor */
-      DS_STL();
+      DS_STL(FV_Mesh const* MESH, istream& STL_input);
 
       /** @brief Destructor */
       ~DS_STL();
@@ -143,35 +146,39 @@ class DS_STL: public DS_RigidBody
 
       vector<tuple<double,double,double>> v; /**< intermediate variable */
       vector<vector<tuple<double,double,double>>> vz =
-                 vector<vector<tuple<double,double,double>>>(5,v);
+                 vector<vector<tuple<double,double,double>>>(Nopza,v);
       /**< intermediate variable */
       vector<vector<tuple<double,double,double>>> vy =
-	         vector<vector<tuple<double,double,double>>>(5,v);
+	         vector<vector<tuple<double,double,double>>>(Nopya,v);
       /**< intermediate variable */
 
       vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vz);
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopxa,vz);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
       vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopx,vy);
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopxa,vy);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
       vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopy,vz);
+	      vector<vector<vector<tuple<double,double,double>>>>(Nopya,vz);
       /**< vector containing the list of triangles belonging to halos
        * defined accross the yz plane */
 
-      double tridx_xz[Nopx][Nopz]; /**< Array indicating the number of triangles
+      double tridx_xz[Nopxa][Nopza]; /**< Array indicating the number of triangles
 				     per halo accross the xz plane */
-      double tridx_xy[Nopx][Nopy]; /**< Array indicating the number of triangles
+      double tridx_xy[Nopxa][Nopya]; /**< Array indicating the number of triangles
 				     per halo accross the xy plane */
-      double tridx_yz[Nopy][Nopz]; /**< Array indicating the number of triangles
+      double tridx_yz[Nopya][Nopza]; /**< Array indicating the number of triangles
 				     per halo accross the xz plane */
 
       int Npls; /**<Number of triangles */
+
+      string filename;
+      double Nopx, Nopy, Nopz;
+      double cenh;
       //@}
-      
+
    //-- Methods
 
       /**@name Methods */
@@ -246,6 +253,8 @@ class DS_STL: public DS_RigidBody
       /** @brief reads and STL file
        * and fills the variables Llvls LLvns */
       void readSTL();
+
+      FV_Mesh const* m_MESH;
 
       //@}
 };

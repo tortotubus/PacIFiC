@@ -13,6 +13,10 @@ DS_RigidBody:: DS_RigidBody()
 {
   MAC_LABEL( "DS_RigidBody:: DS_RigidBody" ) ;
 
+  m_halo_zone.reserve(2);
+  m_halo_zone.push_back(new geomVector(3));
+  m_halo_zone.push_back(new geomVector(3));
+
 }
 
 

@@ -117,8 +117,18 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      is_STL = exp->bool_data( "STL_as_RB" ) ;
 
    // Read STL file name
-   if ( is_STL )
+   istringstream STL_input;
+   ostringstream STL_features;
+   if ( is_STL ) {
      STL_file = exp->string_data( "STL_file" ) ;
+     STL_features << STL_file << endl;
+     intVector Halo( 3, 0 );
+     Halo = exp->intVector_data( "HaloZones" );
+     STL_features << Halo(0) << "\t" << Halo(1) << "\t" << Halo(2) << endl;
+     double HaloEnh = exp->double_data( "HaloEnhancement" ) ;
+     STL_features << HaloEnh << endl;
+   }
+   STL_input.str( STL_features.rdbuf()->str() );
 
    // Read Kai
    if ( exp->has_entry( "Kai" ) ) {
@@ -256,7 +266,8 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , macCOMM
                           , mu
                           , is_solids
-                          , is_STL );
+                          , is_STL
+                          , STL_input);
       } else if (is_HE) {
          allrigidbodies = new DS_AllRigidBodies( space_dimensions
                           , *solidFluid_transferStream

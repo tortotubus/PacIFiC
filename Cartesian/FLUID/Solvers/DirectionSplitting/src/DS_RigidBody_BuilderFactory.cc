@@ -50,7 +50,8 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
 
 
 //---------------------------------------------------------------------------
-DS_RigidBody* DS_RigidBody_BuilderFactory:: create( )
+DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FV_Mesh const* MESH,
+                                                    istream& STL_input)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_RigidBody_BuilderFactory:: create" ) ;
@@ -58,7 +59,7 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( )
   DS_RigidBody* dsrb = NULL;
 
   // Build the Direction Splitting STL
-  dsrb = new DS_STL( );
+  dsrb = new DS_STL( MESH, STL_input );
 
   return ( dsrb );
 

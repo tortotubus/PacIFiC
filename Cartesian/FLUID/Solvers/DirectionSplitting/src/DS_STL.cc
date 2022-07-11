@@ -6,10 +6,15 @@ using std::endl;
 
 
 //---------------------------------------------------------------------------
-DS_STL:: DS_STL()
+DS_STL:: DS_STL(FV_Mesh const* MESH, istream& STL_input)
 //---------------------------------------------------------------------------
+: m_MESH( MESH )
 {
   MAC_LABEL( "DS_STL:: DS_STL" ) ;
+
+  std::getline(STL_input,filename);
+  STL_input >> Nopx >> Nopy >> Nopz;
+  STL_input >> cenh;
 
   readSTL();
 
@@ -54,10 +59,33 @@ void DS_STL:: display( ostream& out, size_t const& indent_width ) const
   string space( indent_width, ' ' ) ;
   string three( 3, ' ' ) ;
 
-  // out << space << "Geometric rigid body features" << endl;
-  // m_geometric_rigid_body->display( out, indent_width + 3 );
-  // out << space << "Direction splitting specific features" << endl;
-  // out << space << three << "None so far" << endl;
+  std::cout << "- Displaying Matrix of filtered triangles xz" << endl;
+  for (int i=0; i<Nopx; i++)
+  {
+     for (int k=0; k<Nopz; k++)
+     {
+        std::cout << tridx_xz[i][k]/3 << "\t";
+     }
+     std::cout << endl;
+  }
+  std::cout << "- Displaying Matrix of filtered triangles xy" << endl;
+  for (int i=0; i<Nopx; i++)
+  {
+     for (int k=0; k<Nopy; k++)
+     {
+        std::cout << tridx_xy[i][k]/3 << "\t";
+     }
+     std::cout << endl;
+  }
+  std::cout << "- Displaying Matrix of filtered triangles yz" << endl;
+  for (int i=0; i<Nopy; i++)
+  {
+     for (int k=0; k<Nopz; k++)
+     {
+        std::cout << tridx_yz[i][k]/3 << "\t";
+     }
+     std::cout << endl;
+  }
 
 }
 
@@ -70,22 +98,19 @@ void DS_STL:: compute_rigid_body_halozone( )
 {
   MAC_LABEL( "DS_STL:: compute_rigid_body_halozone" ) ;
 
-  // struct FS_STL_Additional_Param const* pagp =
-  //  dynamic_cast<FS_STL*>(m_geometric_rigid_body)
-  //     ->get_ptr_FS_STL_Additional_Param();
-  //
-  // geomVector const* pgc = dynamic_cast<FS_RigidBody*>(m_geometric_rigid_body)
-  //                             ->get_ptr_to_gravity_centre();
-  //
-  // double r_equi = 3.0*pagp->radius;
-  //
-  // geomVector delta(r_equi, r_equi, r_equi);
-  //
-  // m_halo_zone[0]->operator=(*pgc);
-  // m_halo_zone[1]->operator=(*pgc);
-  //
-  // m_halo_zone[0]->operator-=(delta);
-  // m_halo_zone[1]->operator+=(delta);
+  double radius = get_circumscribed_radius();
+
+  geomVector const* pgc = get_ptr_to_gravity_centre();
+
+  double r_equi = 3.0*radius;
+
+  geomVector delta(r_equi, r_equi, r_equi);
+
+  m_halo_zone[0]->operator=(*pgc);
+  m_halo_zone[1]->operator=(*pgc);
+
+  m_halo_zone[0]->operator-=(delta);
+  m_halo_zone[1]->operator+=(delta);
 
 }
 
@@ -123,6 +148,7 @@ void DS_STL:: compute_number_of_surface_variables(
   //
   // // Getting the nearest even number
   // Ntot = (size_t) (round((double)temp * 0.5) * 2.);
+  Ntot = 1;
 
 }
 
@@ -135,7 +161,7 @@ bool DS_STL:: isIn( geomVector const& pt ) const
 {
   MAC_LABEL( "DS_STL:: isIn(pt)" ) ;
 
-  // return ( m_geometric_rigid_body->isIn( pt ) );
+  return(isIn(pt(0), pt(1), pt(2)));
 
 }
 
@@ -152,17 +178,17 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
   double x1, y1, z1, x2, y2, z2, x3, y3, z3;
   double xC, yC, zC;
 
-  double Xmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(0);
-  double Xmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(0);
-  double Ymin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(1);
-  double Ymax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(1);
-  double Zmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(2);
-  double Zmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(2);
+  double Xmin = m_MESH->get_main_domain_min_coordinate(0);
+  double Xmax = m_MESH->get_main_domain_max_coordinate(0);
+  double Ymin = m_MESH->get_main_domain_min_coordinate(1);
+  double Ymax = m_MESH->get_main_domain_max_coordinate(1);
+  double Zmin = m_MESH->get_main_domain_min_coordinate(2);
+  double Zmax = m_MESH->get_main_domain_max_coordinate(2);
 
   double trdx = (Xmax - Xmin) / Nopx;
   double trdz = (Zmax - Zmin) / Nopz;
 
-  double eps = 0.01*trdx; double level_set;
+  double eps = 0.01*trdx;
 
   xC = x; yC = y; zC = z;
 
@@ -221,14 +247,12 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
      }
   }
 
+  bool level_set = false;
+
   if ( itrscount % 2 == 0 ) // even number -> outside
-     level_set = 1.0;
-  else
-     level_set = -1.0;
+     level_set = true;
 
   return(level_set);
-
-  // return ( m_geometric_rigid_body->isIn( x, y, z ) );
 
 }
 
@@ -241,7 +265,13 @@ double DS_STL:: level_set_value( geomVector const& pt ) const
 {
   MAC_LABEL( "DS_STL:: level_set_value(pt)" ) ;
 
-  // return ( m_geometric_rigid_body->level_set_value( pt ) );
+  bool flag = isIn(pt(0), pt(1), pt(2));
+
+  double level_set = -1;
+  if (flag)
+     level_set = 1;
+
+  return ( level_set );
 
 }
 
@@ -256,9 +286,13 @@ double DS_STL:: level_set_value( double const& x
 {
   MAC_LABEL( "DS_STL:: level_set_value(x,y,z)" ) ;
 
-  return isIn(x,y,z);
+  bool flag = isIn(x, y, z);
 
-  // return ( m_geometric_rigid_body->level_set_value( x, y, z ) );
+  double level_set = -1;
+  if (flag)
+     level_set = 1;
+
+  return ( level_set );
 
 }
 
@@ -276,12 +310,12 @@ double DS_STL:: get_distanceTo( geomVector const& source,
   double tri1[3], tri2[3], tri3[3], q1[3], q2[3];
   double x1,y1,z1,x2,y2,z2,x3,y3,z3;
 
-  double Xmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(0) ;
-  double Xmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(0) ;
-  double Ymin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(1) ;
-  double Ymax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(1) ;
-  double Zmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(2) ;
-  double Zmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(2) ;
+  double Xmin = m_MESH->get_main_domain_min_coordinate(0);
+  double Xmax = m_MESH->get_main_domain_max_coordinate(0);
+  double Ymin = m_MESH->get_main_domain_min_coordinate(1);
+  double Ymax = m_MESH->get_main_domain_max_coordinate(1);
+  double Zmin = m_MESH->get_main_domain_min_coordinate(2);
+  double Zmax = m_MESH->get_main_domain_max_coordinate(2);
 
   double trdx = (Xmax - Xmin) / Nopx;
   double trdy = (Ymax - Ymin) / Nopy;
@@ -291,114 +325,134 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 
   double eps = 0.01*trdx;
 
-  int dir = 1;
+  geomVector p1(3), p2(3);
+  p1(0) = source(0);
+  p1(1) = source(1);
+  p1(2) = source(2);
+  p2(0) = source(0) + delta*rayDir(0);
+  p2(1) = source(1) + delta*rayDir(1);
+  p2(2) = source(2) + delta*rayDir(2);
 
-  double xvalue, yvalue, zvalue, xright2, xcenter2, xleft2;
+  double xcenter2;
 
   // yz
-  if ( dir == 0 )
+  if ( rayDir(0) )
   {
- 	for (int i=0; i<Nopy; i++)
-  	{
-	    double ymin = Ymin + i * trdy;     double ymax = Ymin + (i+1) * trdy;
+ 	  for (int i=0; i<Nopy; i++)
+  	  {
+	     double ymin = Ymin + i * trdy;
+        double ymax = Ymin + (i+1) * trdy;
 
-            for (int k=0; k<Nopz; k++)
-	    {
-                   double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
+        for (int k=0; k<Nopz; k++)
+	     {
+           double zmin = Zmin + k * trdz;
+           double zmax = Zmin + (k+1) * trdz;
 
-                   if ((yvalue > ymin-eps) && (yvalue < ymax+eps) && (zvalue > zmin-eps) && (zvalue < zmax+eps))
-	           {
+           if ((p1(1) > ymin-eps) &&
+               (p1(1) < ymax+eps) &&
+               (p1(2) > zmin-eps) &&
+               (p1(2) < zmax+eps))
+           {
 		       ii=i;
 		       kk=k;
-	           }
-	    }
-        }
+           }
+	     }
+     }
 
-        for (int m=0; m<tridx_yz[ii][kk]/3; m++)
-	{
-		// first point
-                x1 = std::get<0>(ttrbox_yz[ii][kk][3*m  ]);
-		y1 = std::get<1>(ttrbox_yz[ii][kk][3*m  ]);
-		z1 = std::get<2>(ttrbox_yz[ii][kk][3*m  ]);
-		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
+     for (int m=0; m<tridx_yz[ii][kk]/3; m++)
+     {
+	     // first point
+        x1 = std::get<0>(ttrbox_yz[ii][kk][3*m  ]);
+        y1 = std::get<1>(ttrbox_yz[ii][kk][3*m  ]);
+		  z1 = std::get<2>(ttrbox_yz[ii][kk][3*m  ]);
+		  tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
 
-		// second point
-	        x2 = std::get<0>(ttrbox_yz[ii][kk][3*m + 1]);
-		y2 = std::get<1>(ttrbox_yz[ii][kk][3*m + 1]);
-		z2 = std::get<2>(ttrbox_yz[ii][kk][3*m + 1]);
-		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
+		  // second point
+	     x2 = std::get<0>(ttrbox_yz[ii][kk][3*m + 1]);
+		  y2 = std::get<1>(ttrbox_yz[ii][kk][3*m + 1]);
+		  z2 = std::get<2>(ttrbox_yz[ii][kk][3*m + 1]);
+		  tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
 
-	       	// third point
-                x3 = std::get<0>(ttrbox_yz[ii][kk][3*m + 2]);
-		y3 = std::get<1>(ttrbox_yz[ii][kk][3*m + 2]);
-		z3 = std::get<2>(ttrbox_yz[ii][kk][3*m + 2]);
-		tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
+	     // third point
+        x3 = std::get<0>(ttrbox_yz[ii][kk][3*m + 2]);
+		  y3 = std::get<1>(ttrbox_yz[ii][kk][3*m + 2]);
+		  z3 = std::get<2>(ttrbox_yz[ii][kk][3*m + 2]);
+		  tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
 
-		q1[0] = xleft2;  q1[1] = yvalue;  q1[2] = zvalue;
-                q2[0] = xright2; q2[1] = yvalue;  q2[2] = zvalue;
+		  // q1[0] = xleft2;  q1[1] = yvalue;  q1[2] = zvalue;
+        // q2[0] = xright2; q2[1] = yvalue;  q2[2] = zvalue;
+        q1[0] = p1(0);  q1[1] = p1(1);  q1[2] = p1(2);
+        q2[0] = p2(0); q2[1] = p2(1);  q2[2] = p2(2);
 
-		if (intersect3d(q1,q2,tri1,tri2,tri3))
-		{
-		   // 974
-		   double tmp1[3], tmp2[3], tmp3[3], tmp4[3];
-	           diffProduct(tri2,tri1,tmp1);
-		   diffProduct(tri3,tri1,tmp2);
-                   double N[3];
-		   crossProduct(tmp1,tmp2,N);
-		   diffProduct(q1,tri1,tmp3);
-		   diffProduct(q2,q1,tmp4);
-		   double t = -dotProduct(tmp3,N)/dotProduct(tmp4,N);
-		   xcenter2 = q1[0] + t * tmp4[0];
-		}
-	}
+		  if (intersect3d(q1,q2,tri1,tri2,tri3))
+		  {
+	        // 974
+		     double tmp1[3], tmp2[3], tmp3[3], tmp4[3];
+
+           diffProduct(tri2,tri1,tmp1);
+		     diffProduct(tri3,tri1,tmp2);
+           double N[3];
+		     crossProduct(tmp1,tmp2,N);
+		     diffProduct(q1,tri1,tmp3);
+		     diffProduct(q2,q1,tmp4);
+		     double t = -dotProduct(tmp3,N)/dotProduct(tmp4,N);
+		     xcenter2 = q1[0] + t * tmp4[0];
+		  }
+     }
   }
   // xz
-  if ( dir == 1 )
+  if ( rayDir(1) )
   {
  	for (int i=0; i<Nopx; i++)
   	{
-	    double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
+	   double xmin = Xmin + i * trdx;
+      double xmax = Xmin + (i+1) * trdx;
 
-            for (int k=0; k<Nopz; k++)
-	    {
-                   double zmin = Zmin + k * trdz;     double zmax = Zmin + (k+1) * trdz;
-                   if ((yvalue > xmin-eps) && (yvalue < xmax+eps) && (zvalue > zmin-eps) && (zvalue < zmax+eps))
-	           {
+      for (int k=0; k<Nopz; k++)
+	   {
+         double zmin = Zmin + k * trdz;
+         double zmax = Zmin + (k+1) * trdz;
+
+         if ((p1(0) > xmin-eps) &&
+             (p1(0) < xmax+eps) &&
+             (p1(2) > zmin-eps) &&
+             (p1(2) < zmax+eps))
+	      {
 		       ii=i;
 		       kk=k;
-	           }
-	    }
-        }
+         }
+	   }
+   }
 
-        for (int m=0; m<tridx_xz[ii][kk]/3; m++)
+   for (int m=0; m<tridx_xz[ii][kk]/3; m++)
 	{
 		// first point
-                x1 = std::get<0>(ttrbox_xz[ii][kk][3*m  ]);
+      x1 = std::get<0>(ttrbox_xz[ii][kk][3*m  ]);
 		y1 = std::get<1>(ttrbox_xz[ii][kk][3*m  ]);
 		z1 = std::get<2>(ttrbox_xz[ii][kk][3*m  ]);
 		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
 
 		// second point
-	        x2 = std::get<0>(ttrbox_xz[ii][kk][3*m + 1]);
+      x2 = std::get<0>(ttrbox_xz[ii][kk][3*m + 1]);
 		y2 = std::get<1>(ttrbox_xz[ii][kk][3*m + 1]);
 		z2 = std::get<2>(ttrbox_xz[ii][kk][3*m + 1]);
 		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
 
-	       	// third point
-                x3 = std::get<0>(ttrbox_xz[ii][kk][3*m + 2]);
+    	// third point
+      x3 = std::get<0>(ttrbox_xz[ii][kk][3*m + 2]);
 		y3 = std::get<1>(ttrbox_xz[ii][kk][3*m + 2]);
 		z3 = std::get<2>(ttrbox_xz[ii][kk][3*m + 2]);
 		tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
 
-		q1[0] = yvalue; q1[1] = xleft2;   q1[2] = zvalue;
-                q2[0] = yvalue; q2[1] = xright2;  q2[2] = zvalue;
+      q1[0] = p1(0);  q1[1] = p1(1);  q1[2] = p1(2);
+      q2[0] = p2(0); q2[1] = p2(1);  q2[2] = p2(2);
 
 		if (intersect3d(q1,q2,tri1,tri2,tri3))
 		{
 		   double tmp1[3], tmp2[3], tmp3[3], tmp4[3];
-	           diffProduct(tri2,tri1,tmp1);
+	      diffProduct(tri2,tri1,tmp1);
 		   diffProduct(tri3,tri1,tmp2);
-                   double N[3];
+         double N[3];
 		   crossProduct(tmp1,tmp2,N);
 		   diffProduct(q1,tri1,tmp3);
 		   diffProduct(q2,q1,tmp4);
@@ -407,54 +461,60 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 		}
 	}
   }
+
   // xy
-  if ( dir == 2 )
+  if ( rayDir(2) )
   {
  	for (int i=0; i<Nopx; i++)
   	{
-	    double xmin = Xmin + i * trdx;     double xmax = Xmin + (i+1) * trdx;
+	    double xmin = Xmin + i * trdx;
+       double xmax = Xmin + (i+1) * trdx;
 
-            for (int k=0; k<Nopy; k++)
+       for (int k=0; k<Nopy; k++)
 	    {
-                   double ymin = Ymin + k * trdy;     double ymax = Ymin + (k+1) * trdy;
+          double ymin = Ymin + k * trdy;
+          double ymax = Ymin + (k+1) * trdy;
 
-                   if ((yvalue > xmin-eps) && (yvalue < xmax+eps) && (zvalue > ymin-eps) && (zvalue < ymax+eps))
-	           {
+          if ((p1(0) > xmin-eps) &&
+              (p1(0) < xmax+eps) &&
+              (p1(1) > ymin-eps) &&
+              (p1(1) < ymax+eps))
+          {
 		       ii=i;
 		       kk=k;
-	           }
+	       }
 	    }
-        }
+    }
 
-        for (int m=0; m<tridx_xy[ii][kk]/3; m++)
-	{
-		// first point
-                x1 = std::get<0>(ttrbox_xy[ii][kk][3*m  ]);
-	        y1 = std::get<1>(ttrbox_xy[ii][kk][3*m  ]);
-	        z1 = std::get<2>(ttrbox_xy[ii][kk][3*m  ]);
-		tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
+    for (int m=0; m<tridx_xy[ii][kk]/3; m++)
+	 {
+	    // first point
+       x1 = std::get<0>(ttrbox_xy[ii][kk][3*m  ]);
+	    y1 = std::get<1>(ttrbox_xy[ii][kk][3*m  ]);
+	    z1 = std::get<2>(ttrbox_xy[ii][kk][3*m  ]);
+		 tri1[0] = x1; tri1[1] = y1; tri1[2] = z1;
 
-		// second point
-	        x2 = std::get<0>(ttrbox_xy[ii][kk][3*m + 1]);
-	        y2 = std::get<1>(ttrbox_xy[ii][kk][3*m + 1]);
-	        z2 = std::get<2>(ttrbox_xy[ii][kk][3*m + 1]);
-		tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
+		 // second point
+	    x2 = std::get<0>(ttrbox_xy[ii][kk][3*m + 1]);
+	    y2 = std::get<1>(ttrbox_xy[ii][kk][3*m + 1]);
+	    z2 = std::get<2>(ttrbox_xy[ii][kk][3*m + 1]);
+		 tri2[0] = x2; tri2[1] = y2; tri2[2] = z2;
 
-	       	// third point
-                x3 = std::get<0>(ttrbox_xy[ii][kk][3*m + 2]);
-	        y3 = std::get<1>(ttrbox_xy[ii][kk][3*m + 2]);
-	        z3 = std::get<2>(ttrbox_xy[ii][kk][3*m + 2]);
-		tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
+	    // third point
+       x3 = std::get<0>(ttrbox_xy[ii][kk][3*m + 2]);
+	    y3 = std::get<1>(ttrbox_xy[ii][kk][3*m + 2]);
+	    z3 = std::get<2>(ttrbox_xy[ii][kk][3*m + 2]);
+		 tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
 
-		q1[0] = yvalue; q1[1] = zvalue;  q1[2] = xleft2;
-                q2[0] = yvalue; q2[1] = zvalue;  q2[2] = xright2;
+       q1[0] = p1(0);  q1[1] = p1(1);  q1[2] = p1(2);
+       q2[0] = p2(0); q2[1] = p2(1);  q2[2] = p2(2);
 
 		if (intersect3d(q1,q2,tri1,tri2,tri3))
 		{
 		   double tmp1[3], tmp2[3], tmp3[3], tmp4[3];
-	           diffProduct(tri2,tri1,tmp1);
+	      diffProduct(tri2,tri1,tmp1);
 		   diffProduct(tri3,tri1,tmp2);
-                   double N[3];
+         double N[3];
 		   crossProduct(tmp1,tmp2,N);
 		   diffProduct(q1,tri1,tmp3);
 		   diffProduct(q2,q1,tmp4);
@@ -464,7 +524,14 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 	}
   }
 
-  // return (m_geometric_rigid_body->distanceTo(source, rayDir, delta));
+  double dx = 0.;
+
+  for (size_t i = 0; i < 3; i++) {
+     if (rayDir(i) != 0)
+        dx = MAC::abs(p1(i) - xcenter2);
+  }
+
+  return (dx);
 
 }
 
@@ -520,7 +587,8 @@ double DS_STL:: get_circumscribed_radius( ) const
 {
   MAC_LABEL( "DS_STL:: get_circumscribed_radius()" ) ;
 
-  //return (m_geometric_rigid_body->get_circumscribed_radius());
+  // return (m_geometric_rigid_body->get_circumscribed_radius());
+  return(0.5);
 
 }
 
@@ -535,6 +603,11 @@ geomVector const* DS_STL:: get_ptr_to_gravity_centre( ) const
 
   //return (dynamic_cast<FS_RigidBody*>(m_geometric_rigid_body)
     //                          ->get_ptr_to_gravity_centre());
+  geomVector* gc = new geomVector(3);
+  gc->operator()(0) = 0.5;
+  gc->operator()(1) = 0.5;
+  gc->operator()(2) = 0.;
+  return(gc);
 
 }
 
@@ -652,19 +725,17 @@ void DS_STL:: readSTL()
   double duration;
   int dim =3; // to be removed
 
-  string solid_filename("sphere_r0.stl");
-
   kk = 0;
   start = clock(); // start time for reading the set of triangles
 
   // reading STL file format
   // filename
   std::ostringstream os2;
-  os2 << "./InputFiles/" << solid_filename;
-  std::string filename = os2.str();
+  os2 << "./InputFiles/" << filename;
+  std::string str_file = os2.str();
 
   // check if the file is ASCII or binary
-  std::ifstream inFilep(filename);
+  std::ifstream inFilep(str_file);
 
   int c;
   //if ( my_rank == is_master && field == 0 )
@@ -672,7 +743,7 @@ void DS_STL:: readSTL()
      std::cout << endl;
      std::cout << "***" << endl;
      std::cout << "================= STL FILE =================" << endl;
-	  std::cout << "   Read STL file: *" << solid_filename << "*" << endl;
+	  std::cout << "   Read STL file: *" << str_file << "*" << endl;
   }
 
   while( (c = inFilep.get()) != EOF && c <= 127);
@@ -844,12 +915,12 @@ void DS_STL:: readSTL()
   if ( filter_trbox )
   {
 
-     double Xmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(0) ;
-     double Xmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(0) ;
-     double Ymin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(1) ;
-     double Ymax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(1) ;
-     double Zmin = 0.;//UF->primary_grid()->get_main_domain_min_coordinate(2) ;
-     double Zmax = 1.;//UF->primary_grid()->get_main_domain_max_coordinate(2) ;
+     double Xmin = m_MESH->get_main_domain_min_coordinate(0);
+     double Xmax = m_MESH->get_main_domain_max_coordinate(0);
+     double Ymin = m_MESH->get_main_domain_min_coordinate(1);
+     double Ymax = m_MESH->get_main_domain_max_coordinate(1);
+     double Zmin = m_MESH->get_main_domain_min_coordinate(2);
+     double Zmax = m_MESH->get_main_domain_max_coordinate(2);
 
      //if ( field == 0 && my_rank == is_master )
      {
@@ -862,9 +933,6 @@ void DS_STL:: readSTL()
      double trdx = (Xmax - Xmin) / Nopx;
      double trdy = (Ymax - Ymin) / Nopy;
      double trdz = (Zmax - Zmin) / Nopz;
-
-     double cenh = 1.0; // if too small and triangles too large,
-                       // we may miss some triangles in the halo
 
      double enhx = trdx * cenh;
      double enhy = trdy * cenh;
@@ -998,37 +1066,5 @@ void DS_STL:: readSTL()
            tridx_yz[i][k] = m;
         }
      }
-
-     //if ( field == 0 && my_rank == is_master )
-     {
-        std::cout << "- Displaying Matrix of filtered triangles xz" << endl;
-        for (int i=0; i<Nopx; i++)
-        {
-           for (int k=0; k<Nopz; k++)
-           {
-              std::cout << tridx_xz[i][k]/3 << "\t";
-           }
-           std::cout << endl;
-        }
-        std::cout << "- Displaying Matrix of filtered triangles xy" << endl;
-        for (int i=0; i<Nopx; i++)
-        {
-           for (int k=0; k<Nopy; k++)
-	        {
-              std::cout << tridx_xy[i][k]/3 << "\t";
-           }
-           std::cout << endl;
-        }
-        std::cout << "- Displaying Matrix of filtered triangles yz" << endl;
-        for (int i=0; i<Nopy; i++)
-        {
-           for (int k=0; k<Nopz; k++)
-	        {
-              std::cout << tridx_yz[i][k]/3 << "\t";
-           }
-           std::cout << endl;
-        }
-
-      }
    } // end filtertrbox
 }

@@ -5,6 +5,7 @@
 using std::istream;
 class FS_RigidBody;
 class DS_RigidBody;
+class FV_Mesh;
 
 
 /** @brief The Class DS_RigidBody_BuilderFactory.
@@ -28,7 +29,7 @@ class DS_RigidBody_BuilderFactory
       static DS_RigidBody* create( FS_RigidBody* pgrb );
 
       /** @brief Creates a Direction Splitting STL */
-      static DS_RigidBody* create( );
+      static DS_RigidBody* create( FV_Mesh const* MESH, istream& STL_input );
 
 
    protected: //--------------------------------------------------------------

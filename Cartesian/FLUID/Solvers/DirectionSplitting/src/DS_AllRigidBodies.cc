@@ -37,7 +37,8 @@ DS_AllRigidBodies:: DS_AllRigidBodies( size_t& dimens
                                   , MAC_Communicator const* arb_macCOMM
                                   , double const& arb_mu
                                   , bool const& is_solids
-                                  , bool const& is_STL )
+                                  , bool const& is_STL
+                                  , istream& STL_input)
 //---------------------------------------------------------------------------
   : m_space_dimension( dimens )
   , UF ( arb_UF )
@@ -59,21 +60,23 @@ DS_AllRigidBodies:: DS_AllRigidBodies( size_t& dimens
      m_nrb = m_FSallrigidbodies->get_number_rigid_bodies();
      m_npart = m_FSallrigidbodies->get_number_particles();
   }
-  
-  if (b_STL) m_nrb++;
+
   DS_RigidBody* dsrb = NULL;
 
   m_allDSrigidbodies.reserve( m_nrb );
 
   for (size_t i = 0; i < m_nrb; ++i)
   {
-    m_allDSrigidbodies.push_back( dsrb );
-    if (b_STL && (i = m_nrb - 1)) {
-      m_allDSrigidbodies[i] = DS_RigidBody_BuilderFactory::create();
-    } else {
-      m_allDSrigidbodies[i] = DS_RigidBody_BuilderFactory::create(
-         m_FSallrigidbodies->get_ptr_rigid_body(i) );
-    }
+     m_allDSrigidbodies.push_back( dsrb );
+     m_allDSrigidbodies[i] = DS_RigidBody_BuilderFactory::create(
+                           m_FSallrigidbodies->get_ptr_rigid_body(i) );
+  }
+
+  if (b_STL) {
+     m_nrb = m_nrb + 1;
+     m_allDSrigidbodies.push_back( dsrb );
+     m_allDSrigidbodies[m_nrb-1] = DS_RigidBody_BuilderFactory::
+                                                create(MESH,STL_input);
   }
 
   generate_list_of_local_RB();
@@ -784,7 +787,8 @@ geomVector DS_AllRigidBodies:: rigid_body_velocity( size_t const& parID,
 
   delta(0) = delta_periodic_transformation(pt(0) - pgc->operator()(0), 0);
   delta(1) = delta_periodic_transformation(pt(1) - pgc->operator()(1), 1);
-  delta(2) = delta_periodic_transformation(pt(2) - pgc->operator()(2), 2);
+  delta(2) = (m_space_dimension == 3) ?
+             delta_periodic_transformation(pt(2) - pgc->operator()(2), 2) : 0.;
 
   return (m_allDSrigidbodies[parID]->get_rigid_body_velocity(delta));
 
@@ -1565,8 +1569,8 @@ void DS_AllRigidBodies:: first_order_pressure_stress( size_t const& parID )
                 surface_point[i]->operator()(0) - pgc->operator()(0), 0);
      delta(1) = delta_periodic_transformation(
                 surface_point[i]->operator()(1) - pgc->operator()(1), 1);
-     delta(2) = delta_periodic_transformation(
-                surface_point[i]->operator()(2) - pgc->operator()(2), 2);
+     delta(2) = (m_space_dimension == 3) ? delta_periodic_transformation(
+                surface_point[i]->operator()(2) - pgc->operator()(2), 2) : 0.;
 
      pressure_torque->operator()(parID,0) += value(2)*delta(1)
                                            - value(1)*delta(2);
