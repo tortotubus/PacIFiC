@@ -127,6 +127,8 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      STL_features << Halo(0) << "\t" << Halo(1) << "\t" << Halo(2) << endl;
      double HaloEnh = exp->double_data( "HaloEnhancement" ) ;
      STL_features << HaloEnh << endl;
+     bool invertSTL = exp->bool_data ( "InvertSTL" ) ;
+     STL_features << invertSTL << endl;
    }
    STL_input.str( STL_features.rdbuf()->str() );
 

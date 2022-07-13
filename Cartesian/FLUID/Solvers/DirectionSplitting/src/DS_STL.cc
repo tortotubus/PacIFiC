@@ -15,11 +15,29 @@ DS_STL:: DS_STL(FV_Mesh const* MESH, istream& STL_input)
   std::getline(STL_input,filename);
   STL_input >> Nopx >> Nopy >> Nopz;
   STL_input >> cenh;
+  STL_input >> invertSTL;
+
+  // Dynamic allocation of the variables of the STL
+
+  tridx_xz = new doubleArray2D(1,1,0.);
+  tridx_xz->re_initialize(Nopx,Nopz);
+
+  tridx_xy = new doubleArray2D(1,1,0.);
+  tridx_xy->re_initialize(Nopx,Nopy);
+
+  tridx_yz = new doubleArray2D(1,1,0.);
+  tridx_yz->re_initialize(Nopy,Nopz);
+
+  vz = vector<vector<tuple<double,double,double>>>(Nopz,v);
+  vy = vector<vector<tuple<double,double,double>>>(Nopy,v);
+
+  ttrbox_xz = vector<vector<vector<tuple<double,double,double>>>>(Nopx,vz);
+  ttrbox_xy = vector<vector<vector<tuple<double,double,double>>>>(Nopx,vy);
+  ttrbox_yz = vector<vector<vector<tuple<double,double,double>>>>(Nopy,vz);
 
   readSTL();
 
   std::cout << "Construction of STL object completed" << endl;
-
 }
 
 
@@ -64,7 +82,7 @@ void DS_STL:: display( ostream& out, size_t const& indent_width ) const
   {
      for (int k=0; k<Nopz; k++)
      {
-        std::cout << tridx_xz[i][k]/3 << "\t";
+        std::cout << tridx_xz->operator()(i,k)/3 << "\t";
      }
      std::cout << endl;
   }
@@ -73,7 +91,7 @@ void DS_STL:: display( ostream& out, size_t const& indent_width ) const
   {
      for (int k=0; k<Nopy; k++)
      {
-        std::cout << tridx_xy[i][k]/3 << "\t";
+        std::cout << tridx_xy->operator()(i,k)/3 << "\t";
      }
      std::cout << endl;
   }
@@ -82,7 +100,7 @@ void DS_STL:: display( ostream& out, size_t const& indent_width ) const
   {
      for (int k=0; k<Nopz; k++)
      {
-        std::cout << tridx_yz[i][k]/3 << "\t";
+        std::cout << tridx_yz->operator()(i,k)/3 << "\t";
      }
      std::cout << endl;
   }
@@ -181,7 +199,6 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
   double Xmin = m_MESH->get_main_domain_min_coordinate(0);
   double Xmax = m_MESH->get_main_domain_max_coordinate(0);
   double Ymin = m_MESH->get_main_domain_min_coordinate(1);
-  double Ymax = m_MESH->get_main_domain_max_coordinate(1);
   double Zmin = m_MESH->get_main_domain_min_coordinate(2);
   double Zmax = m_MESH->get_main_domain_max_coordinate(2);
 
@@ -216,7 +233,7 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
 
   if (ii > -1 && kk > -1)
   {
-     for (int m=0; m < tridx_xz[ii][kk]/3; m++)
+     for (int m=0; m < tridx_xz->operator()(ii,kk)/3; m++)
      {
         // first point
 	x1 = std::get<0>(ttrbox_xz[ii][kk][3*m  ]);
@@ -251,6 +268,8 @@ bool DS_STL:: isIn( double const& x, double const& y, double const& z )
 
   if ( itrscount % 2 == 0 ) // even number -> outside
      level_set = true;
+
+  if (invertSTL) level_set = !level_set;
 
   return(level_set);
 
@@ -321,7 +340,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
   double trdy = (Ymax - Ymin) / Nopy;
   double trdz = (Zmax - Zmin) / Nopz;
 
-  int ii, kk;
+  int ii = 0, kk = 0;
 
   double eps = 0.01*trdx;
 
@@ -333,7 +352,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
   p2(1) = source(1) + delta*rayDir(1);
   p2(2) = source(2) + delta*rayDir(2);
 
-  double xcenter2;
+  double xcenter2 = 0.;
 
   // yz
   if ( rayDir(0) )
@@ -359,7 +378,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 	     }
      }
 
-     for (int m=0; m<tridx_yz[ii][kk]/3; m++)
+     for (int m=0; m<tridx_yz->operator()(ii,kk)/3; m++)
      {
 	     // first point
         x1 = std::get<0>(ttrbox_yz[ii][kk][3*m  ]);
@@ -379,8 +398,6 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 		  z3 = std::get<2>(ttrbox_yz[ii][kk][3*m + 2]);
 		  tri3[0] = x3; tri3[1] = y3; tri3[2] = z3;
 
-		  // q1[0] = xleft2;  q1[1] = yvalue;  q1[2] = zvalue;
-        // q2[0] = xright2; q2[1] = yvalue;  q2[2] = zvalue;
         q1[0] = p1(0);  q1[1] = p1(1);  q1[2] = p1(2);
         q2[0] = p2(0); q2[1] = p2(1);  q2[2] = p2(2);
 
@@ -424,7 +441,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 	   }
    }
 
-   for (int m=0; m<tridx_xz[ii][kk]/3; m++)
+   for (int m=0; m<tridx_xz->operator()(ii,kk)/3; m++)
 	{
 		// first point
       x1 = std::get<0>(ttrbox_xz[ii][kk][3*m  ]);
@@ -486,7 +503,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
 	    }
     }
 
-    for (int m=0; m<tridx_xy[ii][kk]/3; m++)
+    for (int m=0; m<tridx_xy->operator()(ii,kk)/3; m++)
 	 {
 	    // first point
        x1 = std::get<0>(ttrbox_xy[ii][kk][3*m  ]);
@@ -531,6 +548,7 @@ double DS_STL:: get_distanceTo( geomVector const& source,
         dx = MAC::abs(p1(i) - xcenter2);
   }
 
+  //std:: cout << dx << " " << sqrt( pow(source(0)-0.5,2) + pow(source(1)-0.5,2) +pow(source(2)-0.5,2) ) - 0.2 << endl;
   return (dx);
 
 }
@@ -587,8 +605,16 @@ double DS_STL:: get_circumscribed_radius( ) const
 {
   MAC_LABEL( "DS_STL:: get_circumscribed_radius()" ) ;
 
-  // return (m_geometric_rigid_body->get_circumscribed_radius());
-  return(0.5);
+  double Xmin = m_MESH->get_main_domain_min_coordinate(0);
+  double Xmax = m_MESH->get_main_domain_max_coordinate(0);
+  double Ymin = m_MESH->get_main_domain_min_coordinate(1);
+  double Ymax = m_MESH->get_main_domain_max_coordinate(1);
+  double Zmin = m_MESH->get_main_domain_min_coordinate(2);
+  double Zmax = m_MESH->get_main_domain_max_coordinate(2);
+  
+  double value = MAC::max(Xmax - Xmin, MAC::max(Ymax - Ymin, Zmax - Zmin));
+
+  return(value);
 
 }
 
@@ -601,12 +627,18 @@ geomVector const* DS_STL:: get_ptr_to_gravity_centre( ) const
 {
   MAC_LABEL( "DS_STL:: get_ptr_to_gravity_centre( )" ) ;
 
-  //return (dynamic_cast<FS_RigidBody*>(m_geometric_rigid_body)
-    //                          ->get_ptr_to_gravity_centre());
+  double Xmin = m_MESH->get_main_domain_min_coordinate(0);
+  double Xmax = m_MESH->get_main_domain_max_coordinate(0);
+  double Ymin = m_MESH->get_main_domain_min_coordinate(1);
+  double Ymax = m_MESH->get_main_domain_max_coordinate(1);
+  double Zmin = m_MESH->get_main_domain_min_coordinate(2);
+  double Zmax = m_MESH->get_main_domain_max_coordinate(2);
+
   geomVector* gc = new geomVector(3);
-  gc->operator()(0) = 0.5;
-  gc->operator()(1) = 0.5;
-  gc->operator()(2) = 0.;
+
+  gc->operator()(0) = 0.5*(Xmin + Xmax);
+  gc->operator()(1) = 0.5*(Ymin + Ymax);
+  gc->operator()(2) = 0.5*(Zmin + Zmax);
   return(gc);
 
 }
@@ -717,15 +749,13 @@ void DS_STL:: readSTL()
 {
   MAC_LABEL( "DS_STL:: readSTL" ) ;
 
-  double xp,yp,zp,Rp,vx,vy,vz,wx,wy,wz,Tp,off;
-  double xn,yn,zn,x1,y1,z1,x2,y2,z2,x3,y3,z3;
-  int kk;
+  double xn, yn ,zn, x1,y1,z1,x2,y2,z2,x3,y3,z3;
+  int kk = 0;
   string notsodummy,dummy;
   clock_t start;
   double duration;
-  int dim =3; // to be removed
+  int dim = 3; // to be removed
 
-  kk = 0;
   start = clock(); // start time for reading the set of triangles
 
   // reading STL file format
@@ -764,7 +794,7 @@ void DS_STL:: readSTL()
   // reading triangulation
   if ( c == EOF ) // ASCII
   {
- 	  std::ifstream inFile(filename);
+ 	  std::ifstream inFile(str_file);
      //inFile.open(filename.c_str());
 	  string line;
 
@@ -828,7 +858,7 @@ void DS_STL:: readSTL()
   } // end ASCII
   else // binary
   {
-     std::ifstream inFileb(filename, std::ifstream::binary);
+     std::ifstream inFileb(str_file, std::ifstream::binary);
 
      // rdbuf returns a streambuf object associated with the
      // input fstream object ifs.
@@ -858,8 +888,6 @@ void DS_STL:: readSTL()
 
 	  bufptr += 80;  // Skip past the header.
 	  bufptr += 4;   // Skip past the number of triangles.
-
-	  double nx,ny,nz;
 
      while (bufptr < buffer + size)
      {
@@ -897,7 +925,6 @@ void DS_STL:: readSTL()
      inFileb.close();
      Npls=kk;
      delete[] buffer;
-
   }
   // end reading triangulation
 
@@ -977,7 +1004,7 @@ void DS_STL:: readSTL()
                   m=m+3;
    	        }
    	     }
-           tridx_xz[i][k] = m;
+           tridx_xz->operator()(i,k) = m;
        }
     }
 
@@ -1021,7 +1048,7 @@ void DS_STL:: readSTL()
               }
            }
 
-           tridx_xy[i][k] = m;
+           tridx_xy->operator()(i,k) = m;
         }
      }
 
@@ -1063,7 +1090,7 @@ void DS_STL:: readSTL()
                  m=m+3;
               }
 	        }
-           tridx_yz[i][k] = m;
+           tridx_yz->operator()(i,k) = m;
         }
      }
    } // end filtertrbox

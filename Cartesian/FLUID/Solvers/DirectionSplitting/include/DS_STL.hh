@@ -2,19 +2,17 @@
 #define _DS_STL__
 
 #include <DS_RigidBody.hh>
+#include <doubleArray2D.hh>
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <istream>
 #include <fstream>
+#include <cmath>
 using std::string;
 using std::ostream;
 using std::istream ;
 class FV_Mesh;
-
-#define Nopxa 10
-#define Nopya 10
-#define Nopza 10
 
 /** @brief The class DS_STL.
 
@@ -145,31 +143,26 @@ class DS_STL: public DS_RigidBody
     	normals associated to the triangles i.e. one per 3 vertices */
 
       vector<tuple<double,double,double>> v; /**< intermediate variable */
-      vector<vector<tuple<double,double,double>>> vz =
-                 vector<vector<tuple<double,double,double>>>(Nopza,v);
+      vector<vector<tuple<double,double,double>>> vz;
       /**< intermediate variable */
-      vector<vector<tuple<double,double,double>>> vy =
-	         vector<vector<tuple<double,double,double>>>(Nopya,v);
+      vector<vector<tuple<double,double,double>>> vy;
       /**< intermediate variable */
 
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopxa,vz);
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xz;
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopxa,vy);
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_xy;
       /**< vector containing the list of triangles belonging to halos
        * defined accross the xz plane */
-      vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz =
-	      vector<vector<vector<tuple<double,double,double>>>>(Nopya,vz);
+      vector<vector<vector<tuple<double,double,double>>>> ttrbox_yz;
       /**< vector containing the list of triangles belonging to halos
        * defined accross the yz plane */
 
-      double tridx_xz[Nopxa][Nopza]; /**< Array indicating the number of triangles
+      doubleArray2D* tridx_xz; /**< Array indicating the number of triangles
 				     per halo accross the xz plane */
-      double tridx_xy[Nopxa][Nopya]; /**< Array indicating the number of triangles
+      doubleArray2D* tridx_xy; /**< Array indicating the number of triangles
 				     per halo accross the xy plane */
-      double tridx_yz[Nopya][Nopza]; /**< Array indicating the number of triangles
+      doubleArray2D* tridx_yz; /**< Array indicating the number of triangles
 				     per halo accross the xz plane */
 
       int Npls; /**<Number of triangles */
@@ -177,6 +170,7 @@ class DS_STL: public DS_RigidBody
       string filename;
       double Nopx, Nopy, Nopz;
       double cenh;
+      bool invertSTL;
       //@}
 
    //-- Methods
