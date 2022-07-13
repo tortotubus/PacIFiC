@@ -36,11 +36,13 @@ DS_AllRigidBodies:: DS_AllRigidBodies( size_t& dimens
                                   , double const& arb_scs
                                   , MAC_Communicator const* arb_macCOMM
                                   , double const& arb_mu
-                                  , bool const& is_solids
+                                  , bool const& is_GRAINS
                                   , bool const& is_STL
                                   , istream& STL_input)
 //---------------------------------------------------------------------------
   : m_space_dimension( dimens )
+  , m_npart ( 0 )
+  , m_nrb ( 0 )
   , UF ( arb_UF )
   , PF ( arb_PF )
   , MESH ( UF->primary_grid() )
@@ -49,21 +51,22 @@ DS_AllRigidBodies:: DS_AllRigidBodies( size_t& dimens
   , m_mu ( arb_mu )
   , m_rho ( arb_rho )
   , gravity_vector ( arb_gv )
-  , b_solids ( is_solids )
+  , b_GRAINS ( is_GRAINS )
   , b_STL ( is_STL )
 {
   MAC_LABEL( "DS_AllRigidBodies:: DS_AllRigidBodies(size_t&,istream&)" ) ;
 
-  if (b_solids) {
+  if (b_GRAINS) { // if GRAINS with or without STL
      m_FSallrigidbodies = new FS_AllRigidBodies( m_space_dimension, in,
      	b_particles_as_fixed_obstacles );
      m_nrb = m_FSallrigidbodies->get_number_rigid_bodies();
      m_npart = m_FSallrigidbodies->get_number_particles();
+     m_allDSrigidbodies.reserve( m_nrb );
+  } else { // if only STL
+     m_allDSrigidbodies.reserve( 1 );
   }
 
   DS_RigidBody* dsrb = NULL;
-
-  m_allDSrigidbodies.reserve( m_nrb );
 
   for (size_t i = 0; i < m_nrb; ++i)
   {
@@ -205,7 +208,7 @@ DS_AllRigidBodies:: ~DS_AllRigidBodies()
 
   for (size_t i = 0; i < m_nrb; ++i) delete m_allDSrigidbodies[i];
   m_allDSrigidbodies.clear();
-  if ( m_FSallrigidbodies ) delete m_FSallrigidbodies;
+  if ( m_FSallrigidbodies && b_GRAINS) delete m_FSallrigidbodies;
 
 }
 
@@ -957,7 +960,8 @@ void DS_AllRigidBodies:: compute_void_fraction_on_epsilon_grid(
 
 //---------------------------------------------------------------------------
 void DS_AllRigidBodies:: compute_void_fraction_on_grid(
-                                                FV_DiscreteField const* FF )
+                                                FV_DiscreteField const* FF
+                                              , bool const& is_in_time_iter)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllRigidBodies:: compute_void_fraction_on_grid" ) ;
@@ -981,6 +985,8 @@ void DS_AllRigidBodies:: compute_void_fraction_on_grid(
   for (vector<size_t>::iterator it = local_RB_list.begin() ;
                                it != local_RB_list.end() ; ++it) {
      size_t parID = *it;
+
+     if (b_STL && is_in_time_iter && parID == m_nrb-1) continue;
   // for (size_t parID = 0; parID < m_nrb; ++parID) {
      vector<geomVector*> haloZone = m_allDSrigidbodies[parID]
                                                    ->get_rigid_body_haloZone();
@@ -1215,7 +1221,8 @@ void DS_AllRigidBodies:: compute_halo_zones_for_all_rigid_body( )
 
 //---------------------------------------------------------------------------
 void DS_AllRigidBodies:: compute_grid_intersection_with_rigidbody(
-                                                   FV_DiscreteField const* FF )
+                                                   FV_DiscreteField const* FF
+                                                 , bool const& is_in_time_iter )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllRigidBodies:: compute_grid_intersection_with_rigidbody" ) ;
@@ -1232,6 +1239,7 @@ void DS_AllRigidBodies:: compute_grid_intersection_with_rigidbody(
   for (vector<size_t>::iterator it = local_RB_list.begin() ;
                                it != local_RB_list.end() ; ++it) {
      size_t parID = *it;
+     if (b_STL && is_in_time_iter && parID == m_nrb-1) continue;
   // for (size_t parID = 0; parID < m_nrb; ++parID) {
      vector<geomVector*> haloZone = m_allDSrigidbodies[parID]
                                                    ->get_rigid_body_haloZone();

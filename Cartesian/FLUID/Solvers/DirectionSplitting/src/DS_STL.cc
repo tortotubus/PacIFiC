@@ -141,6 +141,13 @@ void DS_STL:: compute_surface_points( )
 {
   MAC_LABEL( "DS_STL:: compute_surface_points" ) ;
 
+  geomVector const* pgc = get_ptr_to_gravity_centre();
+  geomVector normal(1.,1.,1.);
+
+  m_surface_points[0]->operator=(*pgc);
+  m_surface_area[0]->operator()(0) = 0.;
+  m_surface_normal[0]->operator=(normal);
+
 
 
 }
@@ -548,7 +555,6 @@ double DS_STL:: get_distanceTo( geomVector const& source,
         dx = MAC::abs(p1(i) - xcenter2);
   }
 
-  //std:: cout << dx << " " << sqrt( pow(source(0)-0.5,2) + pow(source(1)-0.5,2) +pow(source(2)-0.5,2) ) - 0.2 << endl;
   return (dx);
 
 }
