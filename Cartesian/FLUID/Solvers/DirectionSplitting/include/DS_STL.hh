@@ -250,6 +250,8 @@ class DS_STL: public DS_RigidBody
 
       FV_Mesh const* m_MESH;
 
+      geomVector* ptr_gravity_centre; 
+
       //@}
 };
 

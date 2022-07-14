@@ -37,6 +37,9 @@ DS_STL:: DS_STL(FV_Mesh const* MESH, istream& STL_input)
 
   readSTL();
 
+  // Declating the variable to store gravity centre;
+  ptr_gravity_centre = new geomVector(3);
+
   std::cout << "Construction of STL object completed" << endl;
 }
 
@@ -640,12 +643,11 @@ geomVector const* DS_STL:: get_ptr_to_gravity_centre( ) const
   double Zmin = m_MESH->get_main_domain_min_coordinate(2);
   double Zmax = m_MESH->get_main_domain_max_coordinate(2);
 
-  geomVector* gc = new geomVector(3);
+  ptr_gravity_centre->operator()(0) = 0.5*(Xmin + Xmax);
+  ptr_gravity_centre->operator()(1) = 0.5*(Ymin + Ymax);
+  ptr_gravity_centre->operator()(2) = 0.5*(Zmin + Zmax);
 
-  gc->operator()(0) = 0.5*(Xmin + Xmax);
-  gc->operator()(1) = 0.5*(Ymin + Ymax);
-  gc->operator()(2) = 0.5*(Zmin + Zmax);
-  return(gc);
+  return(ptr_gravity_centre);
 
 }
 
