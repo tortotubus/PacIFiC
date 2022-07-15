@@ -18,6 +18,80 @@ not with Cartesian nor multigrids}.
 #define POS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : (((Y) > L0/2.) ? (Y) - L0 : (Y)))
 #define POS_PBC_Z(Z) ((u.x.boundary[top] != periodic_bc) ? (Z) : (((Z) > L0/2.) ? (Z) - L0 : (Z)))
 
+#ifndef CONSTANT_MB_DELTA
+  #define CONSTANT_MB_DELTA 1
+#endif
+
+#if CONSTANT_MB_LVL
+  #define MB_LEVEL (L0/(1 << grid->maxdepth))
+#endif
+
+struct _locate_lvl {int lvl; double x, y, z;};
+
+Point locate_lvl(struct _locate_lvl p) {
+  for (int l = p.lvl; l >= 0; l--) {
+    Point point = {0};
+    point.level = l;
+    int n = 1 << point.level;
+    point.i = (p.x - X0)/L0*n + GHOSTS;
+    #if dimension >= 2
+      point.j = (p.y - Y0)/L0*n + GHOSTS;
+    #endif
+    #if dimension >= 3
+      point.k = (p.z - Z0)/L0*n + GHOSTS;
+    #endif
+      if (point.i >= 0 && point.i < n + 2*GHOSTS
+    #if dimension >= 2
+    && point.j >= 0 && point.j < n + 2*GHOSTS
+    #endif
+    #if dimension >= 3
+    && point.k >= 0 && point.k < n + 2*GHOSTS
+    #endif
+    ) {
+        if (allocated(0) && is_local(cell))
+    return point;
+      }
+      else
+        break;
+  }
+  Point point = {0};
+  point.level = -1;
+  return point;
+}
+
+int get_level_IBM_stencil(lagNode* node) {
+  #if CONSTANT_MB_LVL
+    return MB_LEVEL;
+  #else
+    #if dimension < 3
+      Point point = locate(node->pos.x, node->pos.y);
+    #else
+      Point point = locate(node->pos.x, node->pos.y, node->pos.z);
+    #endif
+    int lvl = point.level;
+    double delta = (L0/(1 << lvl));
+    for(int ni=-2; ni<=2; ni++) {
+      for(int nj=-2; nj<=2; nj++) {
+        #if dimension < 3
+        Point point = locate(POS_PBC_X(node->pos.x + ni*delta),
+          POS_PBC_Y(node->pos.y + nj*delta));
+        #else
+        for(int nk=-2; nk<=2; nk++) {
+          Point point = locate(POS_PBC_X(node->pos.x + ni*delta),
+            POS_PBC_Y(node->pos.y + nj*delta),
+            POS_PBC_Z(node->pos.z + nk*delta));
+        #endif
+        if (point.level > lvl) lvl = point.level;
+      #if dimension > 2
+        }
+      #endif
+      }
+    }
+    return lvl;
+  #endif
+}
+
+
 /**
 The function below loops through the Lagrangian nodes and "caches" the Eulerian
 cells in a 5x5(x5) stencil around each node. In case of parallel simulations,
@@ -31,15 +105,18 @@ void generate_lag_stencils(lagMesh* mesh) {
     The current implementation assumes that the Eulerian cells around Lagrangian
     node are all at the maximum level.
     */
-    double delta = (L0/(1 << grid->maxdepth));
+    int lvl = get_level_IBM_stencil(mesh->nodes[i]);
+    double delta = L0/(1 << lvl);
     for(int ni=-2; ni<=2; ni++) {
       for(int nj=-2; nj<=2; nj++) {
         #if dimension < 3
-        Point point = locate(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
+        Point point = locate_lvl(lvl,
+          POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
           POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta));
         #else
         for(int nk=-2; nk<=2; nk++) {
-          Point point = locate(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
+          Point point = locate_lvl(lvl,
+            POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
             POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta),
             POS_PBC_Z(mesh->nodes[i].pos.z + nk*delta));
         #endif
@@ -56,7 +133,6 @@ void generate_lag_stencils(lagMesh* mesh) {
           else mesh->nodes[i].pid = -1;
         }
         #endif
-        // c++;
         #if dimension == 3
         }
         #endif
