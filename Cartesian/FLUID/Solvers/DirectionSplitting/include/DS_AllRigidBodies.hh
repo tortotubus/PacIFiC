@@ -271,6 +271,11 @@ class DS_AllRigidBodies
       void compute_grid_intersection_with_rigidbody(FV_DiscreteField const* FF
                                                 , bool const& is_in_time_iter);
 
+      /** @brief Clear the void fraction and intersection belonging to
+      rigid bodies coming from GRAINS
+      @param FF the fluid field (PF, UF) */
+      void clear_GrainsRB_data_on_grid( FV_DiscreteField const* FF );
+
       /** @brief Computes the rigid body velocity including the rotation speed
       at a given geometric vector pt
       @param pt a point in space*/

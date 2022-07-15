@@ -345,6 +345,9 @@ DS_NavierStokes:: do_before_inner_iterations_stage(
 		allrigidbodies->compute_surface_variables_for_all_RB();
 		allrigidbodies->compute_halo_zones_for_all_rigid_body();
 		allrigidbodies->create_neighbour_list_for_AllRB();
+		// Clear void fraction and intersection data
+		allrigidbodies->clear_GrainsRB_data_on_grid(PF);
+		allrigidbodies->clear_GrainsRB_data_on_grid(UF);
 		// Compute void fraction for pressure and velocity field
 		allrigidbodies->compute_void_fraction_on_grid(PF, true);
 		allrigidbodies->compute_void_fraction_on_grid(UF, true);
