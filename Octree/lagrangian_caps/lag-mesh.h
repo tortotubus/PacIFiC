@@ -37,6 +37,9 @@ typedef struct lagNode {
     int triangle_ids[6];
     int nb_fit_iterations;
   #endif
+  #if (!CONSTANT_MB_LEVEL)
+    double stencil_delta;
+  #endif
 } lagNode;
 
 /** Similarly, the edges of the mesh are assigned the IDs of the two nodes they

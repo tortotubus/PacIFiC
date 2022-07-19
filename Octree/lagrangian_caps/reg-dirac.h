@@ -18,12 +18,12 @@ not with Cartesian nor multigrids}.
 #define POS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : (((Y) > L0/2.) ? (Y) - L0 : (Y)))
 #define POS_PBC_Z(Z) ((u.x.boundary[top] != periodic_bc) ? (Z) : (((Z) > L0/2.) ? (Z) - L0 : (Z)))
 
-#ifndef CONSTANT_MB_DELTA
-  #define CONSTANT_MB_DELTA 1
+#ifndef CONSTANT_MB_LEVEL
+  #define CONSTANT_MB_LEVEL 1
 #endif
 
-#if CONSTANT_MB_LVL
-  #define MB_LEVEL (L0/(1 << grid->maxdepth))
+#if CONSTANT_MB_LEVEL
+  #define MB_DELTA (L0/(1 << grid->maxdepth))
 #endif
 
 struct _locate_lvl {int lvl; double x, y, z;};
@@ -48,7 +48,7 @@ Point locate_lvl(struct _locate_lvl p) {
     && point.k >= 0 && point.k < n + 2*GHOSTS
     #endif
     ) {
-        if (allocated(0) && is_local(cell))
+        if (allocated(0))
     return point;
       }
       else
@@ -61,7 +61,7 @@ Point locate_lvl(struct _locate_lvl p) {
 
 int get_level_IBM_stencil(lagNode* node) {
   #if CONSTANT_MB_LVL
-    return MB_LEVEL;
+    return grid->maxdepth;
   #else
     #if dimension < 3
       Point point = locate(node->pos.x, node->pos.y);
@@ -69,22 +69,31 @@ int get_level_IBM_stencil(lagNode* node) {
       Point point = locate(node->pos.x, node->pos.y, node->pos.z);
     #endif
     int lvl = point.level;
-    double delta = (L0/(1 << lvl));
-    for(int ni=-2; ni<=2; ni++) {
-      for(int nj=-2; nj<=2; nj++) {
-        #if dimension < 3
-        Point point = locate(POS_PBC_X(node->pos.x + ni*delta),
-          POS_PBC_Y(node->pos.y + nj*delta));
-        #else
-        for(int nk=-2; nk<=2; nk++) {
-          Point point = locate(POS_PBC_X(node->pos.x + ni*delta),
-            POS_PBC_Y(node->pos.y + nj*delta),
-            POS_PBC_Z(node->pos.z + nk*delta));
+    bool complete_stencil = false;
+    while (!complete_stencil) {
+      complete_stencil = true;
+      bool changed_lvl = false;
+      double delta = (L0/(1 << lvl));
+      for(int ni=-2; ni<=2; ni++) {
+        for(int nj=-2; nj<=2 && !changed_lvl ; nj++) {
+          #if dimension < 3
+          point = locate(POS_PBC_X(node->pos.x + ni*delta),
+            POS_PBC_Y(node->pos.y + nj*delta));
+          #else
+          for(int nk=-2; nk<=2; nk++) {
+            point = locate(POS_PBC_X(node->pos.x + ni*delta),
+              POS_PBC_Y(node->pos.y + nj*delta),
+              POS_PBC_Z(node->pos.z + nk*delta));
+          #endif
+          if (point.level < lvl) {
+            lvl = point.level;
+            changed_lvl = true;
+            complete_stencil = false;
+          }
+        #if dimension > 2
+          }
         #endif
-        if (point.level > lvl) lvl = point.level;
-      #if dimension > 2
         }
-      #endif
       }
     }
     return lvl;
@@ -105,8 +114,9 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
     The current implementation assumes that the Eulerian cells around Lagrangian
     node are all at the maximum level.
     */
-    int lvl = get_level_IBM_stencil(mesh->nodes[i]);
+    int lvl = get_level_IBM_stencil(&mesh->nodes[i]);
     double delta = L0/(1 << lvl);
+    mesh->nodes[i].stencil_delta = delta;
     for(int ni=-2; ni<=2; ni++) {
       for(int nj=-2; nj<=2; nj++) {
         #if dimension < 3
@@ -120,9 +130,59 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
             POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta),
             POS_PBC_Z(mesh->nodes[i].pos.z + nk*delta));
         #endif
-        if (point.level >= 0 && point.level != grid->maxdepth)
-          fprintf(stderr, "Warning: Lagrangian stencil not fully resolved.\n");
-        cache_append(&(mesh->nodes[i].stencil), point, 0);
+        #if CONSTANT_MB_LEVEL
+          if (point.level >= 0 && point.level != grid->maxdepth)
+            fprintf(stderr,
+              "Warning: Lagrangian stencil not fully resolved.\n");
+          cache_append(&(mesh->nodes[i].stencil), point, 0);
+        #else
+          // if (is_local(cell) && is_leaf(cell)) {
+          //   cache_append(&(mesh->nodes[i].stencil), point, 0);
+          // }
+          // else {
+          //   foreach_child() {
+          //     if (allocated(0) && is_local(cell) && is_leaf(cell))
+          //       cache_append(&(mesh->nodes[i].stencil), point, 0);
+          //     else {
+          //       if (allocated(0) && !is_leaf(cell))
+          //         foreach_child() {
+          //           if (allocated(0) && is_local(cell) && is_leaf(cell))
+          //             cache_append(&(mesh->nodes[i].stencil), point, 0);
+          //           else
+          //             fprintf(stderr,
+          //               "Error: too many levels in one IBM stencil\n");
+          //       }
+          //     }
+          //   }
+          // }
+          if (is_local(cell)) {
+            if (is_leaf(cell))
+              cache_append(&(mesh->nodes[i].stencil), point, 0);
+            else {
+              foreach_child() {
+                if (allocated(0)) {
+                  if (is_local(cell) && is_leaf(cell))
+                    cache_append(&(mesh->nodes[i].stencil), point, 0);
+                  else {
+                    if (!is_leaf(cell)) {
+                      foreach_child() {
+                        if (allocated(0)) {
+                          if (is_local(cell)) {
+                            if (is_leaf(cell))
+                              cache_append(&(mesh->nodes[i].stencil), point, 0);
+                            else
+                            fprintf(stderr,
+                              "Error: too many levels in one IBM stencil\n");
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        #endif // constant_mb_level
         #if _MPI
         #if dimension < 3
         if (ni == 0 && nj == 0) {
@@ -158,6 +218,12 @@ void lag2eul(vector forcing, lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
+        double sdelta;
+        #if CONSTANT_MB_LEVEL
+          sdelta = Delta;
+        #else
+          sdelta = mesh->nodes[i].stencil_delta;
+        #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
         dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
@@ -165,16 +231,16 @@ void lag2eul(vector forcing, lagMesh* mesh) {
         dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
         #endif
         #if dimension < 3
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
           double weight =
-            (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
-            /(sq(4*Delta));
+            (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
+            /(sq(4*sdelta));
         #else
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta &&
-          fabs(dist.z) <= 2*Delta) {
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta &&
+          fabs(dist.z) <= 2*sdelta) {
           double weight =
-            (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
-            *(1 + cos(.5*pi*dist.z/Delta))/(cube(4*Delta));
+            (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
+            *(1 + cos(.5*pi*dist.z/sdelta))/(cube(4*sdelta));
         #endif
           foreach_dimension() forcing.x[] += weight*mesh->nodes[i].lagForce.x;
         }
@@ -189,27 +255,40 @@ the Lagrangian mesh.
 */
 trace
 void eul2lag(lagMesh* mesh) {
-  for(int ii=0; ii<mesh->nlp; ii++) {
-    foreach_dimension() mesh->nodes[ii].lagVel.x = 0.;
-    foreach_cache(mesh->nodes[ii].stencil) {
+  for(int i=0; i<mesh->nlp; i++) {
+    foreach_dimension() mesh->nodes[i].lagVel.x = 0.;
+    foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
+        double sdelta;
+        #if CONSTANT_MB_LEVEL
+          sdelta = Delta;
+        #else
+          sdelta = mesh->nodes[i].stencil_delta;
+        #endif
         coord dist;
-        dist.x = GENERAL_1DIST(x, mesh->nodes[ii].pos.x);
-        dist.y = GENERAL_1DIST(y, mesh->nodes[ii].pos.y);
+        dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
+        dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
         #if dimension > 2
-        dist.z = GENERAL_1DIST(z, mesh->nodes[ii].pos.z);
+        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
         #endif
         #if dimension < 3
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
-          double weight = (1 + cos(.5*pi*dist.x/Delta))*
-            (1 + cos(.5*pi*dist.y/Delta))/16.;
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
+          double weight = (1 + cos(.5*pi*dist.x/sdelta))*
+            (1 + cos(.5*pi*dist.y/sdelta))/16.;
         #else
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta
-          && fabs(dist.z) <= 2*Delta) {
-          double weight = (1 + cos(.5*pi*dist.x/Delta))*
-            (1 + cos(.5*pi*dist.y/Delta))*(1 + cos(.5*pi*dist.z/Delta))/64.;
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta
+          && fabs(dist.z) <= 2*sdelta) {
+          double weight = (1 + cos(.5*pi*dist.x/sdelta))*
+            (1 + cos(.5*pi*dist.y/sdelta))*(1 + cos(.5*pi*dist.z/sdelta))/64.;
         #endif
-        foreach_dimension() mesh->nodes[ii].lagVel.x += weight*u.x[];
+        #if !CONSTANT_MB_LEVEL
+          double cdelta = Delta; // cdelta for "current delta"
+          while (cdelta < .75*sdelta) {
+            weight /= (1 << dimension);
+            cdelta *= 2;
+          }
+        #endif
+        foreach_dimension() mesh->nodes[i].lagVel.x += weight*u.x[];
         }
       }
     }
@@ -235,6 +314,12 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
+        double sdelta;
+        #if CONSTANT_MB_LEVEL
+          sdelta = Delta;
+        #else
+          sdelta = mesh->nodes[i].stencil_delta;
+        #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
         dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
@@ -242,12 +327,12 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
         dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
         #endif
         #if dimension < 3
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
-          stencils[] = sq(dist.x + dist.y)/sq(2.*Delta)*(2.+noise());
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
+          stencils[] = sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise());
         #else
-        if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta
-          && fabs(dist.z) <= 2*Delta) {
-          stencils[] = sq(dist.x + dist.y + dist.z)/cube(2.*Delta)*(2.+noise());
+        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta
+          && fabs(dist.z) <= 2*sdelta) {
+          stencils[] = sq(dist.x + dist.y + dist.z)/cube(2.*sdelta)*(2.+noise());
         #endif
         }
       }
