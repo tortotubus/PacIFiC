@@ -106,8 +106,10 @@ The function below loops through the Lagrangian nodes and "caches" the Eulerian
 cells in a 5x5(x5) stencil around each node. In case of parallel simulations,
 the cached cells are tagged with the process id.
 */
+scalar stencils[];
 trace
 void generate_lag_stencils_one_caps(lagMesh* mesh) {
+  foreach() stencils[] = 0.;
   for(int i=0; i<mesh->nlp; i++) {
     mesh->nodes[i].stencil.n = 0;
     /**
@@ -136,40 +138,27 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
               "Warning: Lagrangian stencil not fully resolved.\n");
           cache_append(&(mesh->nodes[i].stencil), point, 0);
         #else
-          // if (is_local(cell) && is_leaf(cell)) {
-          //   cache_append(&(mesh->nodes[i].stencil), point, 0);
-          // }
-          // else {
-          //   foreach_child() {
-          //     if (allocated(0) && is_local(cell) && is_leaf(cell))
-          //       cache_append(&(mesh->nodes[i].stencil), point, 0);
-          //     else {
-          //       if (allocated(0) && !is_leaf(cell))
-          //         foreach_child() {
-          //           if (allocated(0) && is_local(cell) && is_leaf(cell))
-          //             cache_append(&(mesh->nodes[i].stencil), point, 0);
-          //           else
-          //             fprintf(stderr,
-          //               "Error: too many levels in one IBM stencil\n");
-          //       }
-          //     }
-          //   }
-          // }
           if (is_local(cell)) {
-            if (is_leaf(cell))
+            if (is_leaf(cell)) {
+              stencils[] = 1 + .25*noise();
               cache_append(&(mesh->nodes[i].stencil), point, 0);
+            }
             else {
               foreach_child() {
                 if (allocated(0)) {
-                  if (is_local(cell) && is_leaf(cell))
+                  if (is_local(cell) && is_leaf(cell)) {
+                    stencils[] = 2 + .25*noise();
                     cache_append(&(mesh->nodes[i].stencil), point, 0);
+                  }
                   else {
                     if (!is_leaf(cell)) {
                       foreach_child() {
                         if (allocated(0)) {
                           if (is_local(cell)) {
-                            if (is_leaf(cell))
+                            if (is_leaf(cell)) {
+                              stencils[] = 3 + .25*noise();
                               cache_append(&(mesh->nodes[i].stencil), point, 0);
+                            }
                             else
                             fprintf(stderr,
                               "Error: too many levels in one IBM stencil\n");
@@ -218,7 +207,7 @@ void lag2eul(vector forcing, lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
-        double sdelta;
+        double sdelta; // sdelta for "stencil delta"
         #if CONSTANT_MB_LEVEL
           sdelta = Delta;
         #else
@@ -308,7 +297,6 @@ The function below fills a scalar field "stencils" with noise in all "cached"
 cells. Passing this scalar to the \textit{adapt_wavelet} function ensure all
 the 5x5(x5) stencils around the Lagrangian nodes are at the same level.
 */
-scalar stencils[];
 trace
 void tag_ibm_stencils_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
