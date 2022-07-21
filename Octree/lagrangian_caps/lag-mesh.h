@@ -38,7 +38,7 @@ typedef struct lagNode {
     int nb_fit_iterations;
   #endif
   #if (!CONSTANT_MB_LEVEL)
-    double stencil_delta;
+    int slvl; // slvl for "stencil level"
   #endif
 } lagNode;
 

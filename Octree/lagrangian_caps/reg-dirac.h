@@ -109,7 +109,6 @@ the cached cells are tagged with the process id.
 scalar stencils[];
 trace
 void generate_lag_stencils_one_caps(lagMesh* mesh) {
-  foreach() stencils[] = 0.;
   for(int i=0; i<mesh->nlp; i++) {
     mesh->nodes[i].stencil.n = 0;
     /**
@@ -118,7 +117,7 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
     */
     int lvl = get_level_IBM_stencil(&mesh->nodes[i]);
     double delta = L0/(1 << lvl);
-    mesh->nodes[i].stencil_delta = delta;
+    mesh->nodes[i].slvl = lvl;
     for(int ni=-2; ni<=2; ni++) {
       for(int nj=-2; nj<=2; nj++) {
         #if dimension < 3
@@ -136,42 +135,8 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
           if (point.level >= 0 && point.level != grid->maxdepth)
             fprintf(stderr,
               "Warning: Lagrangian stencil not fully resolved.\n");
-          cache_append(&(mesh->nodes[i].stencil), point, 0);
-        #else
-          if (is_local(cell)) {
-            if (is_leaf(cell)) {
-              stencils[] = 1 + .25*noise();
-              cache_append(&(mesh->nodes[i].stencil), point, 0);
-            }
-            else {
-              foreach_child() {
-                if (allocated(0)) {
-                  if (is_local(cell) && is_leaf(cell)) {
-                    stencils[] = 2 + .25*noise();
-                    cache_append(&(mesh->nodes[i].stencil), point, 0);
-                  }
-                  else {
-                    if (!is_leaf(cell)) {
-                      foreach_child() {
-                        if (allocated(0)) {
-                          if (is_local(cell)) {
-                            if (is_leaf(cell)) {
-                              stencils[] = 3 + .25*noise();
-                              cache_append(&(mesh->nodes[i].stencil), point, 0);
-                            }
-                            else
-                            fprintf(stderr,
-                              "Error: too many levels in one IBM stencil\n");
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        #endif // constant_mb_level
+        #endif
+        cache_append(&(mesh->nodes[i].stencil), point, 0);
         #if _MPI
         #if dimension < 3
         if (ni == 0 && nj == 0) {
@@ -211,7 +176,7 @@ void lag2eul(vector forcing, lagMesh* mesh) {
         #if CONSTANT_MB_LEVEL
           sdelta = Delta;
         #else
-          sdelta = mesh->nodes[i].stencil_delta;
+          sdelta = L0/(1 << mesh->nodes[i].slvl);
         #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
@@ -231,7 +196,35 @@ void lag2eul(vector forcing, lagMesh* mesh) {
             (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
             *(1 + cos(.5*pi*dist.z/sdelta))/(cube(4*sdelta));
         #endif
+        #if CONSTANT_MB_LEVEL
           foreach_dimension() forcing.x[] += weight*mesh->nodes[i].lagForce.x;
+        #else
+          if (is_leaf(cell)) {
+            foreach_dimension() forcing.x[] += weight*mesh->nodes[i].lagForce.x;
+          }
+          else {
+            foreach_child() {
+              if (is_local(cell)) {
+                if (is_leaf(cell)) {
+                  foreach_dimension() forcing.x[] +=
+                    weight*mesh->nodes[i].lagForce.x/(1 << dimension);
+                }
+                else {
+                  foreach_child() {
+                    if (is_local(cell)) {
+                      if (is_leaf(cell)) {
+                        foreach_dimension() forcing.x[] +=
+                          weight*mesh->nodes[i].lagForce.x/sq(1 << dimension);
+                      }
+                      else fprintf(stderr, "Error: too many different levels in"
+                        "one IBM stencil\n");
+                    }
+                  }
+                }
+              }
+            }
+          }
+        #endif
         }
       }
     }
@@ -248,11 +241,11 @@ void eul2lag(lagMesh* mesh) {
     foreach_dimension() mesh->nodes[i].lagVel.x = 0.;
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
-        double sdelta;
+        double sdelta; // sdelta for "stencil delta"
         #if CONSTANT_MB_LEVEL
           sdelta = Delta;
         #else
-          sdelta = mesh->nodes[i].stencil_delta;
+          sdelta = L0/(1 << mesh->nodes[i].slvl);
         #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
@@ -270,14 +263,36 @@ void eul2lag(lagMesh* mesh) {
           double weight = (1 + cos(.5*pi*dist.x/sdelta))*
             (1 + cos(.5*pi*dist.y/sdelta))*(1 + cos(.5*pi*dist.z/sdelta))/64.;
         #endif
-        #if !CONSTANT_MB_LEVEL
-          double cdelta = Delta; // cdelta for "current delta"
-          while (cdelta < .75*sdelta) {
-            weight /= (1 << dimension);
-            cdelta *= 2;
+        coord iu; // iu for "interpolated u"
+        #if CONSTANT_MB_LEVEL
+          foreach_dimension() iu.x = u.x[];
+        #else
+          foreach_dimension() iu.x = 0.;
+          if (is_leaf(cell)) {
+            foreach_dimension() iu.x = u.x[];
+          }
+          else {
+            foreach_child() {
+              if (is_local(cell)) {
+                if (is_leaf(cell)) {
+                  foreach_dimension() iu.x += u.x[]/(1 << dimension);
+                }
+                else {
+                  foreach_child() {
+                    if (is_local(cell)) {
+                      if (is_leaf(cell)) {
+                        foreach_dimension() iu.x += u.x[]/sq(1 << dimension);
+                      }
+                      else fprintf(stderr, "Error: too many different levels in"
+                        "one IBM stencil\n");
+                    }
+                  }
+                }
+              }
+            }
           }
         #endif
-        foreach_dimension() mesh->nodes[i].lagVel.x += weight*u.x[];
+        foreach_dimension() mesh->nodes[i].lagVel.x += weight*iu.x;
         }
       }
     }
@@ -300,13 +315,14 @@ the 5x5(x5) stencils around the Lagrangian nodes are at the same level.
 trace
 void tag_ibm_stencils_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
+    foreach_dimension() mesh->nodes[i].lagVel.x = 0.;
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
-        double sdelta;
+        double sdelta; // sdelta for "stencil delta"
         #if CONSTANT_MB_LEVEL
           sdelta = Delta;
         #else
-          sdelta = mesh->nodes[i].stencil_delta;
+          sdelta = L0/(1 << mesh->nodes[i].slvl);
         #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
@@ -315,17 +331,67 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
         dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
         #endif
         #if dimension < 3
-        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
-          stencils[] = sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise());
+          if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
         #else
-        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta
-          && fabs(dist.z) <= 2*sdelta) {
-          stencils[] = sq(dist.x + dist.y + dist.z)/cube(2.*sdelta)*(2.+noise());
+          if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta
+            && fabs(dist.z) <= 2*sdelta) {
+        #endif
+        #if CONSTANT_MB_LEVEL
+          #if dimension < 3
+          stencils[] = sq(dist.x + dist.y )/
+            sq(2.*sdelta)*(2.+noise());
+          #else
+            stencils[] = sq(dist.x + dist.y + dist.z)/
+              cube(2.*sdelta)*(2.+noise());
+          #endif
+        #else
+          if (is_leaf(cell)) {
+            #if dimension < 3
+              stencils[] = sq(dist.x + dist.y )/
+                sq(2.*sdelta)*(2.+noise());
+            #else
+              stencils[] = sq(dist.x + dist.y + dist.z)/
+                cube(2.*sdelta)*(2.+noise());
+            #endif
+          }
+          else {
+            foreach_child() {
+              if (is_local(cell)) {
+                if (is_leaf(cell)) {
+                  #if dimension < 3
+                    stencils[] = sq(dist.x + dist.y )/
+                      sq(2.*sdelta)*(2.+noise());
+                  #else
+                    stencils[] = sq(dist.x + dist.y + dist.z)/
+                      cube(2.*sdelta)*(2.+noise());
+                  #endif
+                }
+                else {
+                  foreach_child() {
+                    if (is_local(cell)) {
+                      if (is_leaf(cell)) {
+                        #if dimension < 3
+                          stencils[] = sq(dist.x + dist.y )/
+                            sq(2.*sdelta)*(2.+noise());
+                        #else
+                          stencils[] = sq(dist.x + dist.y + dist.z)/
+                            cube(2.*sdelta)*(2.+noise());
+                        #endif
+                      }
+                      else fprintf(stderr, "Error: too many different levels in"
+                        "one IBM stencil\n");
+                    }
+                  }
+                }
+              }
+            }
+          }
         #endif
         }
       }
     }
   }
+
   #if OLD_QCC
   boundary({stencils});
   #endif
