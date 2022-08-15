@@ -3,7 +3,7 @@
 #
 
 # PacIFiC home
-export PACIFIC_HOME=${HOME}/Documents/GIT/pacific
+export PACIFIC_HOME=/home/anirudh/anirudh-local/Desktop/PostDoc/code/merged_code/pacific
 export PACIFIC_BITS_DEFAULT="64"
 export PACIFIC_BITS_EXT="64"
 echo -e '\033[94m*** PacIFiC shell variables\033[0m'
@@ -14,7 +14,7 @@ echo -e '  '
 
 
 # MPI
-export PACIFIC_MPI_ROOT=/home/goyal001/software/openmpi-3.1.6
+export PACIFIC_MPI_ROOT=/home/anirudh/local/openmpi_316
 export PACIFIC_MPI_DISTRIB=OpenMPI
 export PACIFIC_MPI_VERSION="3.1.6"
 export PACIFIC_MPI_INCDIR="${PACIFIC_MPI_ROOT}/include"
