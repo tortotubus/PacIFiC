@@ -43,7 +43,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /**@name Methods */
       //@{
-
+      void initialize_node_properties();
 
       //@}
 

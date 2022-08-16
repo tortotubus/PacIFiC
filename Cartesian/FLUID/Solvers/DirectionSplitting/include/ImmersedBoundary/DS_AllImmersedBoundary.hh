@@ -40,7 +40,9 @@ class DS_AllImmersedBoundary
       /**@name Constructors & Destructor */
       //@{
       /** @brief Default constructor */
-      DS_AllImmersedBoundary();
+      DS_AllImmersedBoundary(size_t const& space_dimension
+                           , string const& IB_file
+                           , size_t const& N_IB);
 
       /** @brief Destructor */
       ~DS_AllImmersedBoundary();
@@ -93,6 +95,7 @@ class DS_AllImmersedBoundary
       //@{
       size_t m_space_dimension; /**< Space dimension */
       size_t m_nIB; /**< number of immersed boundaries */
+      string m_IB_file;
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /**< the vector of all
     	Direction Splitting rigid bodies */
 
@@ -111,6 +114,17 @@ class DS_AllImmersedBoundary
        @param copy copied DS_AllImmersedBoundary object */
        DS_AllImmersedBoundary( DS_AllImmersedBoundary const& copy );
        //@}
+
+     //-- Methods
+
+        /**@name Methods */
+        //@{
+        /** @brief Read the CSV file with RBS parameters */
+        void read_shape_parameters();
+
+        /** @brief Read the CSV file with RBS parameters */
+        void initialize_variables();
+        //@}
 };
 
 #endif

@@ -43,7 +43,20 @@ class DS_2DRBC: public DS_ImmersedBoundary
 
       /**@name Methods */
       //@{
+      /** @brief writes one point of RBC mesh to .vtu file
+      @param nb_edges asgasdg
+      @param nb_edges asgasdg
+      @param nb_edges asgasdg
+      @param nb_edges asgasdg
+       **/
+      void create_RBC_structure( size_t const& nb_edges
+                               , double const& radius
+                               , double const& c0
+                               , double const& c1
+                               , double const& c2
+                               , double const& rbc_orientation_angle);
 
+      void initialize_node_properties();
 
       //@}
 

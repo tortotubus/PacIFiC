@@ -23,6 +23,7 @@
 #include <FS_SolidPlugIn.hh>
 #include <FS_Grains3DPlugIn.hh>
 #include <DS_AllRigidBodies.hh>
+#include <DS_AllImmersedBoundary.hh>
 
 
 DS_DirectionSplitting const* DS_DirectionSplitting::PROTOTYPE
@@ -76,6 +77,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    , is_solids( false )
    , is_GRAINS( false )
    , is_STL( false )
+   , is_ImmersedBoundaries( false )
    , is_HE( false )
    , is_NS( false )
    , is_NSwithHE( false )
@@ -137,6 +139,15 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    if ( exp->has_entry( "Kai" ) ) {
      kai = exp->double_data( "Kai" ) ;
      exp->test_data( "Kai", "Kai>=0." ) ;
+   }
+
+   // Read Immersed boundaries presence
+   if ( exp->has_entry( "ImmersedBoundaries" ) )
+     is_ImmersedBoundaries = exp->bool_data( "ImmersedBoundaries" ) ;
+
+   if (is_ImmersedBoundaries) {
+     IB_file = exp->string_data( "IBInputFile" );
+     N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
    }
 
    // Advection scheme
@@ -293,6 +304,13 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , mu
                           , RBTemp);
       }
+   }
+
+   // Create immersed bodies objects depending
+   if (is_ImmersedBoundaries) {
+     allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
+                                                    , IB_file
+                                                    , N_IB);
    }
 
    // Create structure to input in the NS solver

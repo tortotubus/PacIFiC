@@ -19,6 +19,27 @@ using std::tuple;
 class FV_DiscreteField;
 class FV_Mesh;
 
+struct ShapeParameters {
+  double c0;
+  double c1;
+  double c2;
+  size_t N_nodes;
+  size_t N_levels;
+  // Gravity centre and radius
+  geomVector center;
+  double radius;
+};
+
+struct Node {
+  size_t number;
+  geomVector coordinates;
+  geomVector coordinates_pbc;
+  geomVector sumforce;
+  geomVector velocity;
+  geomVector angular_velocity;
+};
+
+
 /** @brief The class DS_ImmersedBoundary.
 
 A moving or stationary rigid body in the Direction Splitting solver.
@@ -51,7 +72,10 @@ class DS_ImmersedBoundary
    //-- Get Methods
       /**@name Get methods */
       //@{
+      /** @brief Returns the shape parameters of IB */
+      ShapeParameters* get_ptr_shape_parameters( );
 
+      void display_parameters();
 
       //@}
 
@@ -59,6 +83,12 @@ class DS_ImmersedBoundary
 
       /**@name Methods */
       //@{
+      /** @brief Creating the surface points on a RBC **/
+      void create_RBC_structure( );
+
+      /** @brief Initialize node properties **/
+      virtual void initialize_node_properties( ) = 0;
+
       /** @brief writes one point of RBC mesh to .vtu file **/
       virtual void write_one_point_to_VTK( double const& time
                                          , size_t const& cyclenum ) = 0;
@@ -72,7 +102,12 @@ class DS_ImmersedBoundary
 
       /**@name Parameters */
       //@{
-      
+      // Shape parameters
+      ShapeParameters shape_param;
+
+      // Vector containing all nodes properties
+      vector<Node> m_all_nodes;
+
       //@}
 
 

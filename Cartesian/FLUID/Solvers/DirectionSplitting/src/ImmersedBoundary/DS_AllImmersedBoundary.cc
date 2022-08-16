@@ -9,10 +9,13 @@ using std::endl;
 
 
 //---------------------------------------------------------------------------
-DS_AllImmersedBoundary:: DS_AllImmersedBoundary()
+DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
+                                              , string const& IB_file
+                                              , size_t const& N_IB)
 //---------------------------------------------------------------------------
-  : m_space_dimension( 2 )
-  , m_nIB( 0 )
+: m_space_dimension ( space_dimension )
+, m_IB_file ( IB_file )
+, m_nIB (N_IB)
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: DS_AllImmersedBoundary" ) ;
 
@@ -26,6 +29,10 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary()
      m_allDSimmersedboundary[i] = DS_ImmersedBoundary_BuilderFactory::
                                                    create(m_space_dimension);
   }
+
+  read_shape_parameters();
+
+  initialize_variables();
 
 }
 
@@ -66,5 +73,60 @@ DS_ImmersedBoundary* DS_AllImmersedBoundary:: get_ptr_rigid_body( size_t i )
   MAC_LABEL( "DS_AllImmersedBoundary:: get_ptr_rigid_body" ) ;
 
   return ( m_allDSimmersedboundary[i] );
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: read_shape_parameters()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_parameters" ) ;
+
+  double xp,yp,zp,Rp,c0,c1,c2;
+  size_t N_nodes, N_levels;
+
+  std::ifstream inFile;
+  std::ostringstream os2;
+  os2 << "./InputFiles/" << m_IB_file;
+  std::string filename = os2.str();
+
+  inFile.open(filename.c_str());
+  string line;
+  getline(inFile,line);
+  for (size_t i = 0; i < m_nIB; ++i) {
+     inFile >> xp >> yp >> zp >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels;
+     ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
+                                                ->get_ptr_shape_parameters();
+     geomVector position(xp,yp,zp);
+     p_shape_param->center = position;
+     p_shape_param->radius = Rp;
+     p_shape_param->c0 = c0;
+     p_shape_param->c1 = c1;
+     p_shape_param->c2 = c2;
+     p_shape_param->N_nodes = N_nodes;
+     p_shape_param->N_levels = N_levels;
+
+     m_allDSimmersedboundary[i]->display_parameters();
+  }
+  inFile.close();
+
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: initialize_variables()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: initialize_variables" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->initialize_node_properties();
+  }
 
 }
