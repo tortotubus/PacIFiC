@@ -56,7 +56,11 @@ class DS_2DRBC: public DS_ImmersedBoundary
                                , double const& c2
                                , double const& rbc_orientation_angle);
 
+      /** @brief Initializes all variables of 'Struct Node' */
       void initialize_node_properties();
+
+      /** @brief Generates the mesh for the 3D immersed body */
+      void generate_membrane_mesh();
 
       //@}
 

@@ -43,7 +43,11 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /**@name Methods */
       //@{
+      /** @brief Initializes all variables of 'Struct Node' */
       void initialize_node_properties();
+
+      /** @brief Generates the mesh for the 3D immersed body */
+      void generate_membrane_mesh();
 
       //@}
 

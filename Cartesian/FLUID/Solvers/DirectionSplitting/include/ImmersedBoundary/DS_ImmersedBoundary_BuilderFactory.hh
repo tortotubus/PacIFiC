@@ -7,9 +7,9 @@ class DS_ImmersedBoundary;
 
 /** @brief The Class DS_ImmersedBoundary_BuilderFactory.
 
-Immersed Boundary builder factory, creates an instance of rigid body using a unsigned
-integer (numebr of corners for a polyhedron or a code for other shapes) as
-the main parameter.
+Immersed Boundary builder factory, creates an instance of immersed body using an
+unsigned integer (numebr of corners for a polyhedron or a code for other shapes)
+as the main parameter.
 
 @author A. Goyal - Pacific project 2022 */
 

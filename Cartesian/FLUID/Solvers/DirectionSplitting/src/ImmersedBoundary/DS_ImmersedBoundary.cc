@@ -3,6 +3,9 @@
 #include <FV_Mesh.hh>
 #include <MAC.hh>
 using std::endl;
+using std::cout;
+using std::cin;
+using std::string;
 
 
 //---------------------------------------------------------------------------

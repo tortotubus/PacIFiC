@@ -135,19 +135,14 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    }
    STL_input.str( STL_features.rdbuf()->str() );
 
+   // Read presence of immersed boundary
+   if ( exp->has_entry( "ImmersedBoundaries" ) )
+     is_ImmersedBoundaries = exp->bool_data( "ImmersedBoundaries" ) ;
+
    // Read Kai
    if ( exp->has_entry( "Kai" ) ) {
      kai = exp->double_data( "Kai" ) ;
      exp->test_data( "Kai", "Kai>=0." ) ;
-   }
-
-   // Read Immersed boundaries presence
-   if ( exp->has_entry( "ImmersedBoundaries" ) )
-     is_ImmersedBoundaries = exp->bool_data( "ImmersedBoundaries" ) ;
-
-   if (is_ImmersedBoundaries) {
-     IB_file = exp->string_data( "IBInputFile" );
-     N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
    }
 
    // Advection scheme
@@ -306,8 +301,11 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       }
    }
 
-   // Create immersed bodies objects depending
+   // Create objects of immersed bodies classes
    if (is_ImmersedBoundaries) {
+     IB_file = exp->string_data( "IBInputFile" );
+     N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
+
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
                                                     , IB_file
                                                     , N_IB);

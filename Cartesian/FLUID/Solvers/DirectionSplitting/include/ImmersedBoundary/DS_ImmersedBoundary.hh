@@ -25,7 +25,6 @@ struct ShapeParameters {
   double c2;
   size_t N_nodes;
   size_t N_levels;
-  // Gravity centre and radius
   geomVector center;
   double radius;
 };
@@ -35,10 +34,14 @@ struct Node {
   geomVector coordinates;
   geomVector coordinates_pbc;
   geomVector sumforce;
+  geomVector sumforce_nm1;
   geomVector velocity;
   geomVector angular_velocity;
+  double initial_angle, angle_nm1, dangle_dt;
+  geomVector spring_force, bending_force, area_force, volume_force, viscous_force;
+  geomVector unit_outwards_normal_vector;
+  size_t_vector neighbors;
 };
-
 
 /** @brief The class DS_ImmersedBoundary.
 
@@ -73,7 +76,7 @@ class DS_ImmersedBoundary
       /**@name Get methods */
       //@{
       /** @brief Returns the shape parameters of IB */
-      ShapeParameters* get_ptr_shape_parameters( );
+      ShapeParameters* get_ptr_shape_parameters();
 
       void display_parameters();
 
@@ -87,7 +90,10 @@ class DS_ImmersedBoundary
       void create_RBC_structure( );
 
       /** @brief Initialize node properties **/
-      virtual void initialize_node_properties( ) = 0;
+      virtual void initialize_node_properties() = 0;
+
+      /** @brief Generates the mesh for 2D and 3D immersed bodies **/
+      virtual void generate_membrane_mesh() = 0;
 
       /** @brief writes one point of RBC mesh to .vtu file **/
       virtual void write_one_point_to_VTK( double const& time

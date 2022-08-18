@@ -54,10 +54,10 @@ class DS_AllImmersedBoundary
       /**@name Get methods */
       //@{
       /** @brief Returns a pointer to the ith DS rigid body */
-      DS_ImmersedBoundary* get_ptr_rigid_body( size_t i );
+      DS_ImmersedBoundary* get_ptr_immersed_body( size_t i );
 
       /** @brief Returns number of immersed boundaries */
-      size_t get_number_immersed_boundaries() const;
+      size_t get_number_of_immersed_boundaries() const;
 
       //@}
 
@@ -95,9 +95,9 @@ class DS_AllImmersedBoundary
       //@{
       size_t m_space_dimension; /**< Space dimension */
       size_t m_nIB; /**< number of immersed boundaries */
-      string m_IB_file;
-      vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /**< the vector of all
-    	Direction Splitting rigid bodies */
+      string m_IB_file; /** input file name containing RBC location & shape */
+      vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
+      of DS_ImmersedBoundary class */
 
       // Pointers to the constant fields and primary grid
       FV_DiscreteField const* UF ;
@@ -124,6 +124,12 @@ class DS_AllImmersedBoundary
 
         /** @brief Read the CSV file with RBS parameters */
         void initialize_variables();
+
+        /** @brief Reads number of lines in csv input data file */
+        size_t get_num_lines_in_IB_file();
+
+        /** @brief Generates the mesh for 2D and 3D immersed body */
+        void generate_immersed_body_mesh();
         //@}
 };
 
