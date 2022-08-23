@@ -104,3 +104,22 @@ void DS_2DRBC:: generate_membrane_mesh()
 
 
 }
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: eul_to_lag()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: generate_membrane_mesh" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  // FV_Mesh const* fvm = FF->primary_grid();
+
+
+  // Generate the node ID and coordinates
+  for (size_t i=0; i<num_nodes; ++i)
+  {
+  }
+}

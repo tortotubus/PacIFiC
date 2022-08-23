@@ -40,7 +40,7 @@ struct Node {
   double initial_angle, angle_nm1, dangle_dt;
   geomVector spring_force, bending_force, area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
-  size_t_vector neighbors;
+  // size_t_vector neighbors;
 };
 
 /** @brief The class DS_ImmersedBoundary.
@@ -94,6 +94,9 @@ class DS_ImmersedBoundary
 
       /** @brief Generates the mesh for 2D and 3D immersed bodies **/
       virtual void generate_membrane_mesh() = 0;
+      
+      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
+      virtual void eul_to_lag() = 0;
 
       /** @brief writes one point of RBC mesh to .vtu file **/
       virtual void write_one_point_to_VTK( double const& time

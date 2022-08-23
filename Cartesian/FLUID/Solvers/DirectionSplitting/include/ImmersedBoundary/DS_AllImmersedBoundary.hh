@@ -130,6 +130,9 @@ class DS_AllImmersedBoundary
 
         /** @brief Generates the mesh for 2D and 3D immersed body */
         void generate_immersed_body_mesh();
+        
+        /** @brief IBM:Eulerian velocity to Lagrangian velocity interpolation */
+        void eul_to_lag_velocity_interpolate();
         //@}
 };
 

@@ -49,6 +49,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Generates the mesh for the 3D immersed body */
       void generate_membrane_mesh();
 
+      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
+      void eul_to_lag();
+
       //@}
 
 
