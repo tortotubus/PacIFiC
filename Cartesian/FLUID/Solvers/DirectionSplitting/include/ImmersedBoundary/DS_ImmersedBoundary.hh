@@ -11,25 +11,30 @@
 #include <vector>
 #include <iostream>
 #include <map>
-#include <iostream>
 #include <fstream>
+#include <sstream>
 using std::ostream;
 using std::vector;
 using std::tuple;
+using std::string;
+using namespace std;
+
+
 class FV_DiscreteField;
 class FV_Mesh;
 
-struct ShapeParameters {
-  double c0;
-  double c1;
-  double c2;
-  size_t N_nodes;
-  size_t N_levels;
+struct ShapeParameters 
+{
   geomVector center;
   double radius;
+  double xroll, ypitch, zyaw;
+  double c0, c1, c2;
+  size_t N_nodes;
+  size_t N_levels;
 };
 
-struct Node {
+struct Node 
+{
   size_t number;
   geomVector coordinates;
   geomVector coordinates_pbc;
@@ -40,6 +45,7 @@ struct Node {
   double initial_angle, angle_nm1, dangle_dt;
   geomVector spring_force, bending_force, area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
+  vector<size_t> neighbors;
   // size_t_vector neighbors;
 };
 
@@ -93,14 +99,34 @@ class DS_ImmersedBoundary
       virtual void initialize_node_properties() = 0;
 
       /** @brief Generates the mesh for 2D and 3D immersed bodies **/
-      virtual void generate_membrane_mesh() = 0;
+      virtual void set_all_nodes() = 0;
+      
+      /** @brief Sets triangular elements for 2D and 3D immersed bodies */
+      virtual void set_all_trielements() = 0;
+      
+      /** @brief Sets the edges and nodes for 2D and 3D immersed bodies */
+      virtual void set_all_edges() = 0;
+      
+      /** @brief Projects shape of the membrane to sphere or biconcave **/
+      virtual void project_membrane_shape() = 0;
+      
+      /** @brief Positions the membrane from centers of mass in RBC_data.csv */
+      void position_membrane();
+      
+      /** @brief Rotates the membrane based on 3D rotation matrix 
+      2D: rotation is achieved using ONLY "yaw" angle
+      3D: rotation is achieved using roll, pitch and yaw angles */
+      void rotate_membrane();
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
       virtual void eul_to_lag() = 0;
 
       /** @brief writes one point of RBC mesh to .vtu file **/
-      virtual void write_one_point_to_VTK( double const& time
-                                         , size_t const& cyclenum ) = 0;
+      virtual void write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                           size_t const& cyclenum ) = 0;
+                                           
+      /** @brief Converts size_t to string datatype **/
+      string sizetToString( size_t const& figure ) const;
 
       //@}
 
@@ -137,6 +163,7 @@ class DS_ImmersedBoundary
       /** @brief Copy constructor
       @param copy copied DS_ImmersedBoundary object */
       DS_ImmersedBoundary( DS_ImmersedBoundary const& copy );
+      
       //@}
 };
 

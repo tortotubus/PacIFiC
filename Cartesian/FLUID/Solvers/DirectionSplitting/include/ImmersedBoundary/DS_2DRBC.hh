@@ -34,8 +34,8 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /**@name Set methods */
       //@{
       /** @brief writes one point of RBC mesh to .vtu file **/
-      void write_one_point_to_VTK( double const& time
-                                         , size_t const& cyclenum );
+      void write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                   size_t const& cyclenum );
       //@}
 
 
@@ -59,8 +59,17 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Initializes all variables of 'Struct Node' */
       void initialize_node_properties();
 
-      /** @brief Generates the mesh for the 3D immersed body */
-      void generate_membrane_mesh();
+      /** @brief Sets all nodes - number, coordinates, neighbours */
+      void set_all_nodes();
+      
+      /** @brief Sets all trielements - nodes, centers of mass, normals */
+      void set_all_trielements();
+      
+      /** @brief Sets all edges and its nodes and normals */
+      void set_all_edges();
+      
+      /** @brief Projects shape of the membrane to sphere or biconcave **/
+      void project_membrane_shape();
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag();

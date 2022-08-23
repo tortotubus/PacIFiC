@@ -131,6 +131,21 @@ class DS_AllImmersedBoundary
         /** @brief Generates the mesh for 2D and 3D immersed body */
         void generate_immersed_body_mesh();
         
+        /** @brief Projects the shape of 2D and 3D immersed body to
+        circle/sphere or biconcave disk/discoid shape */
+        void project_shape_of_immersed_body();
+        
+        /** @brief Positions the immersed body from centers of mass 
+        given in csv file fed as input */
+        void position_immersed_body();
+        
+        /** @brief Rotates the immersed body based on xroll, ypitch
+        and zyaw angles from csv file fed as input */
+        void rotate_immersed_body();
+        
+        /** @brief Writes the immersed body mesh to .vtu file */
+        void write_immersed_body_mesh_to_vtk_file();
+        
         /** @brief IBM:Eulerian velocity to Lagrangian velocity interpolation */
         void eul_to_lag_velocity_interpolate();
         //@}

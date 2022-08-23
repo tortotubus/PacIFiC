@@ -5,6 +5,8 @@ using std::endl;
 using std::cout;
 using std::cin;
 using std::string;
+using std::max;
+using namespace std;
 
 
 //---------------------------------------------------------------------------
@@ -51,6 +53,10 @@ void DS_3DRBC:: initialize_node_properties( )
   temp.volume_force(3);
   temp.area_force(3);
   temp.unit_outwards_normal_vector(3);
+  // // temp.neighbors.resize(3);
+  // // temp.neighbors.push_back(0);
+  // // temp.neighbors.push_back(0);
+  // // temp.neighbors.push_back(0);
   temp.initial_angle = 0.;
   temp.angle_nm1 = 0.;
   temp.dangle_dt = 0.;
@@ -78,7 +84,7 @@ void DS_3DRBC:: write_one_point_to_VTK( double const& time
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: generate_membrane_mesh()
+void DS_3DRBC:: set_all_nodes()
 //---------------------------------------------------------------------------
 {
   
@@ -88,7 +94,68 @@ void DS_3DRBC:: generate_membrane_mesh()
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: set_all_trielements()
+//---------------------------------------------------------------------------
+{
+  
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: set_all_edges()
+//---------------------------------------------------------------------------
+{
+  
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: project_membrane_shape()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: project_membrane_shape" ) ;
+
+  double c0 = shape_param.c0;
+  double c1 = shape_param.c1;
+  double c2 = shape_param.c2;
+  size_t num_nodes = shape_param.N_nodes;
+  double radius = shape_param.radius;
+  
+  // 3D RBC shape from Eq. 14 in Li et al, Biophysical Journal, 2005
+  for (size_t i=0;i<num_nodes;++i)
+  {
+      double x = m_all_nodes[i].coordinates(0);
+      double y = m_all_nodes[i].coordinates(1);
+      double ww = ( pow( x, 2.) + pow( y, 2. ) ) / pow( radius, 2. );
+      double z = ( m_all_nodes[i].coordinates(2) > 0. ? 1. : -1. ) * radius 
+                 * sqrt( max( 1. - ww, 0. ) ) 
+                 * ( c0 + c1 * ww + c2 * pow( ww, 2.) ) ;
+      m_all_nodes[i].coordinates(2) = z;
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                        size_t const& cyclenum )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: write_mesh_to_vtk_file()" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: eul_to_lag()
 //---------------------------------------------------------------------------
 {
+  MAC_LABEL( "DS_3DRBC:: eul_to_lag_3D()" ) ;
+
 }

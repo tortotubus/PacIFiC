@@ -40,6 +40,14 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   initialize_variables();
 
   generate_immersed_body_mesh();
+  
+  project_shape_of_immersed_body();
+  
+  position_immersed_body();
+  
+  rotate_immersed_body();
+  
+  write_immersed_body_mesh_to_vtk_file();
 
 }
 
@@ -126,6 +134,7 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
 
   double xp, yp, zp;
   double Rp;
+  double x_roll_angle, y_pitch_angle, z_yaw_angle;
   double c0, c1, c2;
   size_t N_nodes, N_levels;
 
@@ -138,11 +147,15 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
   string line;
   getline(inFile,line); // read header line of input data file
   for (size_t i = 0; i < m_nIB; ++i) {
-     inFile >> xp >> yp >> zp >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels;
+     inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
+            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels;
      ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                                 ->get_ptr_shape_parameters();
      geomVector position(xp,yp,zp);
      p_shape_param->center = position;
+     p_shape_param->xroll = x_roll_angle;
+     p_shape_param->ypitch = y_pitch_angle;
+     p_shape_param->zyaw = z_yaw_angle;
      p_shape_param->radius = Rp;
      p_shape_param->c0 = c0;
      p_shape_param->c1 = c1;
@@ -180,7 +193,66 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
   MAC_LABEL( "DS_AllImmersedBoundary:: initialize_variables" ) ;
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->generate_membrane_mesh();
+    m_allDSimmersedboundary[i]->set_all_nodes();
+    m_allDSimmersedboundary[i]->set_all_trielements();
+    m_allDSimmersedboundary[i]->set_all_edges();
+  }
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: project_shape_of_immersed_body()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: project_shape_of_immersed_body" ) ;
+  
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->project_membrane_shape();
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: position_immersed_body()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: position_immersed_body" ) ;
+  
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->position_membrane();
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: rotate_immersed_body()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: rotate_immersed_body" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->rotate_membrane();
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->write_mesh_to_vtk_file(i, 0., 0);
   }
 
 }
@@ -199,6 +271,38 @@ void DS_AllImmersedBoundary:: eul_to_lag_velocity_interpolate()
   }
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
