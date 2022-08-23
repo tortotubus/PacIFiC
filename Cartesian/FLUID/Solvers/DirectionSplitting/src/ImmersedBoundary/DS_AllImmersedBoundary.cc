@@ -41,12 +41,6 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   generate_immersed_body_mesh();
   
-  project_shape_of_immersed_body();
-  
-  position_immersed_body();
-  
-  rotate_immersed_body();
-  
   write_immersed_body_mesh_to_vtk_file();
 
 }
@@ -194,6 +188,9 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
 
   for (size_t i = 0; i < m_nIB; ++i) {
     m_allDSimmersedboundary[i]->set_all_nodes();
+    m_allDSimmersedboundary[i]->project_membrane_shape();
+    m_allDSimmersedboundary[i]->position_membrane();
+    m_allDSimmersedboundary[i]->rotate_membrane();
     m_allDSimmersedboundary[i]->set_all_trielements();
     m_allDSimmersedboundary[i]->set_all_edges();
   }

@@ -33,7 +33,8 @@ struct ShapeParameters
   size_t N_levels;
 };
 
-struct Node 
+
+struct Node
 {
   size_t number;
   geomVector coordinates;
@@ -43,11 +44,48 @@ struct Node
   geomVector velocity;
   geomVector angular_velocity;
   double initial_angle, angle_nm1, dangle_dt;
-  geomVector spring_force, bending_force, area_force, volume_force, viscous_force;
+  geomVector spring_force, bending_force;
+  geomVector area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
   vector<size_t> neighbors;
-  // size_t_vector neighbors;
 };
+
+
+struct TriElement
+{
+  size_t number;
+  vector<size_t> node_number; // contain the node numbers forming the edge
+  vector< pair<Node const*,Node const*> > varea;
+  geomVector twice_area_outwards_normal_vector;
+  geomVector center_of_mass;
+
+  double tri_area, tri_initial_area;
+  double tri_volume, tri_initial_volume;
+};
+
+
+struct Edge
+{
+  vector<size_t> node_number; // contain the node numbers forming the edge
+  geomVector ext_unit_normal; // only needed for 2D membranes
+  double initial_length;
+  double length;
+  
+  double sintheta0, costheta0;
+  pair<TriElement const*,Node*> t1v1;
+  pair<TriElement const*,Node*> t2v4;
+
+  double l0; // initial length of the spring
+  double l; // instantaneous length of the spring
+  double lmax; // maximum allowed length of the spring (often = 2.2 * l0 = l0/x0)
+  double k; // = kBT/p for the WLC spring force for each edge
+  double kp; // for the POW spring force each edge
+  double initial_angle;
+  double angle;
+  double angle_nm1;
+  double dangledt;
+};
+
 
 /** @brief The class DS_ImmersedBoundary.
 
