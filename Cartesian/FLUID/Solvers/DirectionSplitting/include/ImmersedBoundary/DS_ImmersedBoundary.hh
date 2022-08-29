@@ -22,6 +22,7 @@ using namespace std;
 
 class FV_DiscreteField;
 class FV_Mesh;
+struct Edge;
 
 struct ShapeParameters 
 {
@@ -31,6 +32,7 @@ struct ShapeParameters
   double c0, c1, c2;
   size_t N_nodes;
   size_t N_levels;
+  size_t node_spacing_with_dx; // deciding N_nodes based on this value
 };
 
 
@@ -43,11 +45,12 @@ struct Node
   geomVector sumforce_nm1;
   geomVector velocity;
   geomVector angular_velocity;
-  double initial_angle, angle_nm1, dangle_dt;
+  double angle, initial_angle, angle_nm1, dangle_dt;
   geomVector spring_force, bending_force;
   geomVector area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
-  vector<size_t> neighbors;
+  Node* neighbors[2]; // CHANGE FOR 3D
+  Edge const* edge_of_neighbors[2]; // CHANGE FOR 3D
 };
 
 
@@ -66,7 +69,9 @@ struct TriElement
 
 struct Edge
 {
-  vector<size_t> node_number; // contain the node numbers forming the edge
+  size_t number;
+  Node* n2;
+  Node* n3;
   geomVector ext_unit_normal; // only needed for 2D membranes
   double initial_length;
   double length;
@@ -133,7 +138,7 @@ class DS_ImmersedBoundary
       /** @brief Creating the surface points on a RBC **/
       void create_RBC_structure( );
 
-      /** @brief Initialize node properties **/
+      /** @brief Allocates memory & initializes node properties & attributes */
       virtual void initialize_node_properties() = 0;
 
       /** @brief Generates the mesh for 2D and 3D immersed bodies **/
@@ -141,6 +146,9 @@ class DS_ImmersedBoundary
       
       /** @brief Sets triangular elements for 2D and 3D immersed bodies */
       virtual void set_all_trielements() = 0;
+      
+      /** @brief Allocates memory & initializes edge properties & attributes */
+      virtual void initialize_edge_properties() = 0;
       
       /** @brief Sets the edges and nodes for 2D and 3D immersed bodies */
       virtual void set_all_edges() = 0;
@@ -156,6 +164,21 @@ class DS_ImmersedBoundary
       3D: rotation is achieved using roll, pitch and yaw angles */
       void rotate_membrane();
       
+      /** @brief Computes current (& initial) spring lengths */
+      virtual void compute_spring_lengths(bool init) = 0;
+      
+      /** @brief Computes the unit normal of each edge/spring */
+      virtual void compute_edge_normals() = 0;
+      
+      /** @brief Computes angle between edges */
+      virtual void compute_edge_angle(bool init) = 0;
+
+      /** @brief Computes norm of a vector variable */
+      virtual double norm(double const* v) = 0;
+      
+      /** @brief Scalar product of two vectors */
+      virtual double scalar( double const* v0, double const* v1 ) = 0;
+      
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
       virtual void eul_to_lag() = 0;
 
@@ -165,6 +188,9 @@ class DS_ImmersedBoundary
                                            
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
+      
+      /** @brief Outputs the datatype of a variable **/
+      void get_datatype_of_variable();
 
       //@}
 
@@ -180,7 +206,10 @@ class DS_ImmersedBoundary
 
       // Vector containing all nodes properties
       vector<Node> m_all_nodes;
+      vector<Edge> m_all_edges;
 
+      size_t m_nEdges;
+      size_t m_nTriangles;
       //@}
 
 

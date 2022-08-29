@@ -87,6 +87,8 @@ void DS_3DRBC:: write_one_point_to_VTK( double const& time
 void DS_3DRBC:: set_all_nodes()
 //---------------------------------------------------------------------------
 {
+  MAC_LABEL( "DS_3DRBC:: set_all_nodes" ) ;
+
   
 }
 
@@ -97,6 +99,8 @@ void DS_3DRBC:: set_all_nodes()
 void DS_3DRBC:: set_all_trielements()
 //---------------------------------------------------------------------------
 {
+  MAC_LABEL( "DS_3DRBC:: set_all_trielements" ) ;
+
   
 }
 
@@ -104,10 +108,58 @@ void DS_3DRBC:: set_all_trielements()
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: initialize_edge_properties( )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: initialize_edge_properties" ) ;
+
+}
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: set_all_edges()
 //---------------------------------------------------------------------------
 {
+  MAC_LABEL( "DS_3DRBC:: set_all_edges" ) ;
+
   
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_spring_lengths(bool init)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_spring_lengths" ) ;
+
+  
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_edge_normals()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_edge_normals" ) ;
+
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_edge_angle(bool init)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_edge_angle" ) ;
+
+
 }
 
 
@@ -117,7 +169,7 @@ void DS_3DRBC:: set_all_edges()
 void DS_3DRBC:: project_membrane_shape()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_2DRBC:: project_membrane_shape" ) ;
+  MAC_LABEL( "DS_3DRBC:: project_membrane_shape" ) ;
 
   double c0 = shape_param.c0;
   double c1 = shape_param.c1;
@@ -151,7 +203,7 @@ void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
 
 
-
+    
 //---------------------------------------------------------------------------
 void DS_3DRBC:: eul_to_lag()
 //---------------------------------------------------------------------------
@@ -159,3 +211,43 @@ void DS_3DRBC:: eul_to_lag()
   MAC_LABEL( "DS_3DRBC:: eul_to_lag_3D()" ) ;
 
 }
+
+
+
+
+
+//---------------------------------------------------------------------------
+double DS_3DRBC::norm( double const* v )
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL( "DS_3DRBC:: 3D_norm" ) ;
+    
+    return ( pow( v[0]*v[0] + v[1]*v[1] + v[2]*v[2], 0.5 ) );
+}
+
+
+
+    
+//---------------------------------------------------------------------------
+double DS_3DRBC::scalar( double const* v0, double const* v1 )
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL( "DS_3DRBC:: scalar" ) ;
+    
+    return ( v0[0] * v1[0] + v0[1] * v1[1] + v0[2] * v1[2] ); 
+}
+
+
+
+    
+//---------------------------------------------------------------------------
+void DS_3DRBC::cross_3D( double const* v0, double const* v1, double* res )
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL( "DS_3DRBC:: cross" ) ;
+    
+    res[0] = v0[1] * v1[2] - v0[2] * v1[1];
+    res[1] = v0[2] * v1[0] - v0[0] * v1[2];
+    res[2] = v0[0] * v1[1] - v0[1] * v1[0];
+} 
+

@@ -56,20 +56,41 @@ class DS_2DRBC: public DS_ImmersedBoundary
                                , double const& c2
                                , double const& rbc_orientation_angle);
 
-      /** @brief Initializes all variables of 'Struct Node' */
+      /** @brief Allocates memory & initializes node properties & attributes */
       void initialize_node_properties();
 
       /** @brief Sets all nodes - number, coordinates, neighbours */
       void set_all_nodes();
       
+      /** @brief Projects shape of the membrane to sphere or biconcave **/
+      void project_membrane_shape();
+      
       /** @brief Sets all trielements - nodes, centers of mass, normals */
       void set_all_trielements();
+      
+      /** @brief Allocates memory & initializes edge properties & attributes */
+      void initialize_edge_properties();
       
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges();
       
-      /** @brief Projects shape of the membrane to sphere or biconcave **/
-      void project_membrane_shape();
+      /** @brief Compute current (& initial) spring lengths */
+      void compute_spring_lengths(bool init);
+      
+      /** @brief Compute unit normal of each edge */
+      void compute_edge_normals();
+      
+      /** @brief Computes angle between edges */
+      void compute_edge_angle(bool init);
+
+      /** @brief Computes norm of a 2D vector or array variable */
+      double norm(double const* v);
+      
+      /** @brief Scalar product of two vectors */
+      double scalar( double const* v0, double const* v1 );
+      
+      /** @brief Cross product/vector product of two vectors */
+      double cross_2D( geomVector const v0, geomVector const v1 );
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag();

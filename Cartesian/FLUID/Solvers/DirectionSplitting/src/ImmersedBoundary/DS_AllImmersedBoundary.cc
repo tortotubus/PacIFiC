@@ -37,12 +37,9 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   read_shape_parameters();
 
-  initialize_variables();
-
   generate_immersed_body_mesh();
   
   write_immersed_body_mesh_to_vtk_file();
-
 }
 
 
@@ -131,6 +128,7 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
   double x_roll_angle, y_pitch_angle, z_yaw_angle;
   double c0, c1, c2;
   size_t N_nodes, N_levels;
+  size_t node_spacing_with_dx;
 
   std::ifstream inFile;
   std::ostringstream os2;
@@ -142,9 +140,12 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
   getline(inFile,line); // read header line of input data file
   for (size_t i = 0; i < m_nIB; ++i) {
      inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
-            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels;
+            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
+            >> node_spacing_with_dx;
+            
      ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                                 ->get_ptr_shape_parameters();
+     
      geomVector position(xp,yp,zp);
      p_shape_param->center = position;
      p_shape_param->xroll = x_roll_angle;
@@ -156,6 +157,7 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
      p_shape_param->c2 = c2;
      p_shape_param->N_nodes = N_nodes;
      p_shape_param->N_levels = N_levels;
+     p_shape_param->node_spacing_with_dx = node_spacing_with_dx;
 
      // m_allDSimmersedboundary[i]->display_parameters();
   }
@@ -184,17 +186,26 @@ void DS_AllImmersedBoundary:: initialize_variables()
 void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_AllImmersedBoundary:: initialize_variables" ) ;
+  MAC_LABEL( "DS_AllImmersedBoundary:: generate_immersed_body_mesh" ) ;
 
   for (size_t i = 0; i < m_nIB; ++i) {
+    // Node properties
+    m_allDSimmersedboundary[i]->initialize_node_properties();
     m_allDSimmersedboundary[i]->set_all_nodes();
     m_allDSimmersedboundary[i]->project_membrane_shape();
     m_allDSimmersedboundary[i]->position_membrane();
     m_allDSimmersedboundary[i]->rotate_membrane();
+    
+    // Triangle properties
     m_allDSimmersedboundary[i]->set_all_trielements();
+    
+    // Edge properties
+    m_allDSimmersedboundary[i]->initialize_edge_properties();
     m_allDSimmersedboundary[i]->set_all_edges();
+    m_allDSimmersedboundary[i]->compute_spring_lengths(true);
+    m_allDSimmersedboundary[i]->compute_edge_normals();
+    m_allDSimmersedboundary[i]->compute_edge_angle(true);
   }
-
 }
 
 

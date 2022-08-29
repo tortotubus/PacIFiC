@@ -49,14 +49,35 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Sets all nodes - number, coordinates, neighbours */
       void set_all_nodes();
       
+      /** @brief Projects shape of the membrane to sphere or biconcave **/
+      void project_membrane_shape();
+      
       /** @brief Sets all trielements - nodes, centers of mass, normals */
       void set_all_trielements();
       
+      /** @brief Allocates memory & initializes edge properties & attributes */
+      void initialize_edge_properties();
+      
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges();
+      
+      /** @brief Compute current (& initial) spring lengths */
+      void compute_spring_lengths(bool init);
+      
+      /** @brief Compute unit normal of each edge */
+      void compute_edge_normals();
 
-      /** @brief Projects shape of the membrane to sphere or biconcave **/
-      void project_membrane_shape();
+      /** @brief Computes angle between edges */
+      void compute_edge_angle(bool init);
+
+      /** @brief Computes norm of a 3D vector or array variable */
+      double norm(double const* v);
+      
+      /** @brief Scalar product of two vectors */
+      double scalar( double const* v0, double const* v1 );
+      
+      /** @brief Cross product/vector product of two vectors */
+      void cross_3D( double const* v0, double const* v1, double* res ); 
       
       /** @brief writes one point of RBC mesh to .vtu file **/
       void write_mesh_to_vtk_file( size_t IB_number, double const& time,

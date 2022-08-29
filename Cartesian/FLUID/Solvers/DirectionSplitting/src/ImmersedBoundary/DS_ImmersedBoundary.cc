@@ -81,7 +81,8 @@ void DS_ImmersedBoundary:: display_parameters()
             << shape_param.c1 << "\t"
             << shape_param.c2 << "\t"
             << shape_param.N_nodes << "\t"
-            << shape_param.N_levels << endl;
+            << shape_param.N_levels << "\t"
+            << shape_param.node_spacing_with_dx << endl;
 
 }
 
@@ -98,8 +99,6 @@ void DS_ImmersedBoundary:: position_membrane()
   double x_center = shape_param.center(0);
   double y_center = shape_param.center(1);
   double z_center = shape_param.center(2);
-  
-  cout << x_center << "\t" << y_center << "\t" << z_center << endl;
   
   for (size_t i=0;i<num_nodes;++i)
     for (size_t dir=0;dir<3;++dir)
@@ -188,3 +187,16 @@ string DS_ImmersedBoundary:: sizetToString( size_t const& figure ) const
     return ( oss.str() ); 
 }
 
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: get_datatype_of_variable()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: get_datatype_of_variable" ) ;
+
+  // cout << typeid(variable).name() << endl;
+  // // cout << typeid(m_all_edges[i].ext_unit_normal).name() << endl;
+}
