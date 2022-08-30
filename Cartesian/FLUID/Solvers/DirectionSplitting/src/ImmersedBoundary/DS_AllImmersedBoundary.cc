@@ -14,11 +14,19 @@ using std::string;
 //---------------------------------------------------------------------------
 DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                               , string const& IB_file
-                                              , size_t const& N_IB)
+                                              , size_t const& N_IB
+                                              , string const& case_type
+                                              , size_t const& nRBC_subtimesteps
+                                              , string const& dirac_type
+                                              , size_t const& periodic_dir)
 //---------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
 , m_nIB ( N_IB )
+, m_IB_case_type ( case_type )
+, m_subtimesteps_RBC ( nRBC_subtimesteps )
+, m_dirac_type ( dirac_type )
+, m_periodic_dir ( periodic_dir )
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: DS_AllImmersedBoundary" ) ;
 
@@ -35,11 +43,15 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                    create(m_space_dimension);
   }
 
-  read_shape_parameters();
+  read_shape_and_membrane_parameters();
 
   generate_immersed_body_mesh();
   
   write_immersed_body_mesh_to_vtk_file();
+  
+  preprocess_immersed_body_parameters(m_IB_case_type, m_subtimesteps_RBC);
+  
+  set_IBM_parameters(m_dirac_type, m_periodic_dir);
 }
 
 
@@ -118,10 +130,10 @@ size_t DS_AllImmersedBoundary:: get_num_lines_in_IB_file()
 
 
 //---------------------------------------------------------------------------
-void DS_AllImmersedBoundary:: read_shape_parameters()
+void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_parameters" ) ;
+  MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_and_membrane_parameters" ) ;
 
   double xp, yp, zp;
   double Rp;
@@ -129,6 +141,9 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
   double c0, c1, c2;
   size_t N_nodes, N_levels;
   size_t node_spacing_with_dx;
+  double k_spring, k_bending, k_viscous, k_area, k_volume;
+  double membrane_mass;
+  double dx = 1.; // CHANGE THIS
 
   std::ifstream inFile;
   std::ostringstream os2;
@@ -141,7 +156,8 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
   for (size_t i = 0; i < m_nIB; ++i) {
      inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
-            >> node_spacing_with_dx;
+            >> node_spacing_with_dx >> k_spring >> k_bending >> k_viscous
+            >> k_area >> k_volume >> membrane_mass;
             
      ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                                 ->get_ptr_shape_parameters();
@@ -155,10 +171,23 @@ void DS_AllImmersedBoundary:: read_shape_parameters()
      p_shape_param->c0 = c0;
      p_shape_param->c1 = c1;
      p_shape_param->c2 = c2;
-     p_shape_param->N_nodes = N_nodes;
      p_shape_param->N_levels = N_levels;
      p_shape_param->node_spacing_with_dx = node_spacing_with_dx;
-
+     p_shape_param->N_nodes = (node_spacing_with_dx != 0) 
+                              ? round ( 2.0 * MAC::pi() * Rp 
+                                / (double(node_spacing_with_dx) * dx) )
+                              : N_nodes;
+     
+     MembraneParameters* p_membrane_param = m_allDSimmersedboundary[i]
+                                                ->get_ptr_membrane_parameters();
+     
+     p_membrane_param->k_spring = k_spring;
+     p_membrane_param->k_bending = k_bending;
+     p_membrane_param->k_viscous = k_viscous;
+     p_membrane_param->k_area = k_area;
+     p_membrane_param->k_volume = k_volume;
+     p_membrane_param->mass = membrane_mass;
+     
      // m_allDSimmersedboundary[i]->display_parameters();
   }
   inFile.close();
@@ -254,6 +283,24 @@ void DS_AllImmersedBoundary:: rotate_immersed_body()
 
 
 //---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: set_IBM_parameters(string const& dirac_type
+                                               , size_t const& periodic_dir)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: set_IBM_parameters" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+     IBMParameters* p_ibm_param = m_allDSimmersedboundary[i]
+                                                ->get_ptr_IBM_parameters();
+     p_ibm_param->dirac_type = dirac_type;
+     p_ibm_param->periodic_dir = periodic_dir;
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
 //---------------------------------------------------------------------------
 {
@@ -263,6 +310,22 @@ void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
     m_allDSimmersedboundary[i]->write_mesh_to_vtk_file(i, 0., 0);
   }
 
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
+                   (string const& case_type, size_t const& num_subtimesteps_RBC)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: preprocess_immersed_body_parameters" ) ;
+  
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->preprocess_membrane_parameters(case_type
+                                                        , num_subtimesteps_RBC);
+  }
 }
 
 

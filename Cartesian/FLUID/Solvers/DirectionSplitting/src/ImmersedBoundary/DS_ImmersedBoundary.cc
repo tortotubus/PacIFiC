@@ -64,6 +64,32 @@ ShapeParameters* DS_ImmersedBoundary:: get_ptr_shape_parameters()
 
 
 //---------------------------------------------------------------------------
+MembraneParameters* DS_ImmersedBoundary:: get_ptr_membrane_parameters()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: get_ptr_membrane_parameters" ) ;
+
+  return(&membrane_param);
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+IBMParameters* DS_ImmersedBoundary:: get_ptr_IBM_parameters()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: get_ptr_IBM_parameters" ) ;
+
+  return(&ibm_param);
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_ImmersedBoundary:: display_parameters()
 //---------------------------------------------------------------------------
 {
@@ -82,8 +108,12 @@ void DS_ImmersedBoundary:: display_parameters()
             << shape_param.c2 << "\t"
             << shape_param.N_nodes << "\t"
             << shape_param.N_levels << "\t"
-            << shape_param.node_spacing_with_dx << endl;
-
+            << shape_param.node_spacing_with_dx << "\t"
+            << membrane_param.k_spring << "\t"
+            << membrane_param.k_bending << "\t"
+            << membrane_param.k_viscous << "\t"
+            << membrane_param.k_area << "\t"
+            << membrane_param.k_volume << endl;
 }
 
 
@@ -96,9 +126,6 @@ void DS_ImmersedBoundary:: position_membrane()
   MAC_LABEL( "DS_AllImmersedBoundary:: position_membrane" ) ;
   
   size_t num_nodes = shape_param.N_nodes;
-  double x_center = shape_param.center(0);
-  double y_center = shape_param.center(1);
-  double z_center = shape_param.center(2);
   
   for (size_t i=0;i<num_nodes;++i)
     for (size_t dir=0;dir<3;++dir)

@@ -170,7 +170,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       insertion_type = exp->string_data( "InsertionType" ) ;
       MAC_ASSERT( insertion_type == "Grains3D" ) ;
 
-      // Read weather the sress calculation on particle is ON/OFF
+      // Read whether the stress calculation on particle is ON/OFF
       if ( exp->has_entry( "Stress_calculation" ) )
         is_stressCal = exp->bool_data( "Stress_calculation" ) ;
 
@@ -204,7 +204,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       if ( dom->primary_grid()->is_translation_active() ) {
         if ( exp->has_entry( "Critical_Distance_Translation" ) )
            critical_distance_translation= exp->double_data(
-             										"Critical_Distance_Translation" );
+             								  "Critical_Distance_Translation" );
         else {
            string error_message=" Projection-Translation is active but ";
            error_message+="Critical_Distance_Translation is NOT defined.";
@@ -305,10 +305,19 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    if (is_ImmersedBoundaries) {
      IB_file = exp->string_data( "IBInputFile" );
      N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
+     IB_case_type = exp->string_data( "CaseType" );
+     n_RBC_timesteps = exp->int_data( "NumberOfRBCTimesteps" );
+     Dirac_type = exp->string_data( "DiracType" );
+     periodic_dir = dom->primary_grid()->get_periodic_flow_direction();
+
 
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
                                                     , IB_file
-                                                    , N_IB);
+                                                    , N_IB
+                                                    , IB_case_type
+                                                    , n_RBC_timesteps
+                                                    , Dirac_type
+                                                    , periodic_dir);
    }
 
    // Create structure to input in the NS solver

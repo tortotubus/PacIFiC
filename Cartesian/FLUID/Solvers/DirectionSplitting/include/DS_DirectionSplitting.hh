@@ -157,10 +157,16 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       string solidSolver_simulationFile;
       istringstream* solidFluid_transferStream;
       DS_AllRigidBodies* allrigidbodies;
+      
+      // Immersed boundary variables
       DS_AllImmersedBoundary* allimmersedboundary;
       bool b_particles_as_fixed_obstacles;
       string IB_file;
       size_t N_IB;
+      string IB_case_type;
+      size_t n_RBC_timesteps;
+      string Dirac_type;
+      size_t periodic_dir;
 
 
       double critical_distance_translation;

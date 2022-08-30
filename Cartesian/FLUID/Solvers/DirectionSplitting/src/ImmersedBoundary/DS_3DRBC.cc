@@ -194,6 +194,20 @@ void DS_3DRBC:: project_membrane_shape()
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: preprocess_membrane_parameters(string const& case_type
+                                           , size_t const& num_subtimesteps_RBC)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+    
+    
+    
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                         size_t const& cyclenum )
 //---------------------------------------------------------------------------

@@ -33,9 +33,6 @@ class DS_2DRBC: public DS_ImmersedBoundary
 
       /**@name Set methods */
       //@{
-      /** @brief writes one point of RBC mesh to .vtu file **/
-      void write_mesh_to_vtk_file( size_t IB_number, double const& time,
-                                   size_t const& cyclenum );
       //@}
 
 
@@ -95,6 +92,13 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag();
 
+      /** @brief Computes node based spring and bending constants **/
+      void preprocess_membrane_parameters(string const& case_type,
+                                          size_t const& num_subtimesteps_RBC);
+      
+      /** @brief writes one point of RBC mesh to .vtu file **/
+      void write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                   size_t const& cyclenum );
       //@}
 
 

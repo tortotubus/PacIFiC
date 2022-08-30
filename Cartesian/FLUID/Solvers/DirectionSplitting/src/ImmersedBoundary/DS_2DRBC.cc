@@ -85,9 +85,9 @@ void DS_2DRBC:: set_all_nodes()
 
     // Coordinates
     m_all_nodes[i].coordinates(0) = shape_param.radius
-                            * cos( 2. * M_PI * double(i) / double(num_nodes) ) ;
+                            * cos( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
     m_all_nodes[i].coordinates(1) = shape_param.radius
-                            * sin( 2. * M_PI * double(i) / double(num_nodes) ) ;
+                            * sin( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
 
     // Node neighbors
     m_all_nodes[i].neighbors[0] = 
@@ -380,12 +380,57 @@ void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
 
 
+//---------------------------------------------------------------------------
+void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
+                                           , size_t const& num_subtimesteps_RBC)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: preprocess_membrane_parameters" ) ;
+  
+  // Membrane mass to Node mass
+  membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
+  
+  // Number of subtimesteps for RBC dynamics iterations
+  membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
+  
+  // Build the Direction Splitting immersed boundary
+  if(case_type.compare("Breyannis2000case") != 0)
+  {
+    // Membrane constants to edge & node based constants
+    membrane_param.membrane_spring_constant = membrane_param.k_spring;
+    membrane_param.k_spring *= double(m_nEdges); // edge spring constant
+    membrane_param.k_bending *= double(m_nEdges); // node bending constant
+    membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
+      
+    // Timescales
+    membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.mass / 
+                               membrane_param.membrane_spring_constant, 0.5 );
+    membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.node_mass / 
+                               membrane_param.k_spring, 0.5 );
+    membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
+              * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
+              * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
+    
+    membrane_param.ntimescales = 20.;
+    membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
+                        membrane_param.node_bending_mass_spring_timescale ) 
+                        / 50. ;
+    membrane_param.tmax = double(membrane_param.ntimescales) 
+                          * membrane_param.membrane_mass_spring_timescale;
+    membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
+   }
+}
+
+
+
 
 //---------------------------------------------------------------------------
 double DS_2DRBC:: norm( double const* v )
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "DS_2DRBC:: norm" ) ;
+  MAC_LABEL( "DS_2DRBC:: norm" ) ;
     
     return ( pow( v[0]*v[0] + v[1]*v[1], 0.5 ) );
 }
@@ -397,7 +442,7 @@ double DS_2DRBC:: norm( double const* v )
 double DS_2DRBC:: scalar( double const* v0, double const* v1 )
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "RBC2D:: scalar" ) ;
+  MAC_LABEL( "RBC2D:: scalar" ) ;
     
     return ( v0[0] * v1[0] + v0[1] * v1[1] ); 
 }
@@ -409,7 +454,7 @@ double DS_2DRBC:: scalar( double const* v0, double const* v1 )
 double DS_2DRBC::cross_2D( geomVector const v0, geomVector const v1 )
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "RBC2D:: cross_2D" ) ;
+  MAC_LABEL( "RBC2D:: cross_2D" ) ;
 
     return ( v0(0) * v1(1) - v0(1) * v1(0) );
 } 

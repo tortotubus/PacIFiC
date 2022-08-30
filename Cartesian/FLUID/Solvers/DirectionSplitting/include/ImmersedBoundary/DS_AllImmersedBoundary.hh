@@ -42,7 +42,11 @@ class DS_AllImmersedBoundary
       /** @brief Default constructor */
       DS_AllImmersedBoundary(size_t const& space_dimension
                            , string const& IB_file
-                           , size_t const& N_IB);
+                           , size_t const& N_IB
+                           , string const& case_type
+                           , size_t const& n_RBC_timesteps
+                           , string const& dirac_type
+                           , size_t const& periodic_dir);
 
       /** @brief Destructor */
       ~DS_AllImmersedBoundary();
@@ -96,6 +100,10 @@ class DS_AllImmersedBoundary
       size_t m_space_dimension; /**< Space dimension */
       size_t m_nIB; /**< number of immersed boundaries */
       string m_IB_file; /** input file name containing RBC location & shape */
+      string m_IB_case_type; /* = Breyannis2000 or other cases */
+      size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
+      string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */
+      size_t m_periodic_dir; /* periodic direction - 0 for x, 1 for y & 2 for z*/
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
       of DS_ImmersedBoundary class */
 
@@ -119,8 +127,8 @@ class DS_AllImmersedBoundary
 
         /**@name Methods */
         //@{
-        /** @brief Read the CSV file with RBS parameters */
-        void read_shape_parameters();
+        /** @brief Read the CSV file with RBC parameters */
+        void read_shape_and_membrane_parameters();
 
         /** @brief Read the CSV file with RBS parameters */
         void initialize_variables();
@@ -145,6 +153,14 @@ class DS_AllImmersedBoundary
         
         /** @brief Writes the immersed body mesh to .vtu file */
         void write_immersed_body_mesh_to_vtk_file();
+        
+        /** @brief Computes node based spring, bending constants */
+        void preprocess_immersed_body_parameters(string const& case_type, 
+                                            size_t const& num_subtimesteps_RBC);
+        
+        /** @brief Sets the IBM parameters for all immersed bodies */
+        void set_IBM_parameters(string const& dirac_type
+                              , size_t const& periodic_dir);
         
         /** @brief IBM:Eulerian velocity to Lagrangian velocity interpolation */
         void eul_to_lag_velocity_interpolate();

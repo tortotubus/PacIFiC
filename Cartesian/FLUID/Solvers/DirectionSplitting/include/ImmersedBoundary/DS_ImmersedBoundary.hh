@@ -36,6 +36,30 @@ struct ShapeParameters
 };
 
 
+struct MembraneParameters
+{
+  double mass, node_mass;
+  double k_spring, k_bending, k_viscous, k_area, k_volume;
+  double membrane_spring_constant;
+  double membrane_mass_spring_timescale, edge_mass_spring_timescale;
+  double node_bending_mass_spring_timescale;
+
+  double eta_P, eta_M;
+
+  double tmax, dt;
+  size_t ntimescales;
+  size_t ntimesteps;
+  size_t n_subtimesteps_RBC;
+};
+
+
+struct IBMParameters
+{
+  size_t periodic_dir;
+  string dirac_type;
+};
+
+
 struct Node
 {
   size_t number;
@@ -51,6 +75,8 @@ struct Node
   geomVector unit_outwards_normal_vector;
   Node* neighbors[2]; // CHANGE FOR 3D
   Edge const* edge_of_neighbors[2]; // CHANGE FOR 3D
+  
+  double mass;
 };
 
 
@@ -126,8 +152,12 @@ class DS_ImmersedBoundary
       //@{
       /** @brief Returns the shape parameters of IB */
       ShapeParameters* get_ptr_shape_parameters();
-
-      void display_parameters();
+      
+      /** @brief Returns the object of MembraneParameters structure */
+      MembraneParameters* get_ptr_membrane_parameters();
+      
+      /** @brief Returns the object of IBMParameters structure */
+      IBMParameters* get_ptr_IBM_parameters();
 
       //@}
 
@@ -137,6 +167,9 @@ class DS_ImmersedBoundary
       //@{
       /** @brief Creating the surface points on a RBC **/
       void create_RBC_structure( );
+
+      /** @brief Outputs the shape and membrane parameters to screen */
+      void display_parameters();
 
       /** @brief Allocates memory & initializes node properties & attributes */
       virtual void initialize_node_properties() = 0;
@@ -182,10 +215,16 @@ class DS_ImmersedBoundary
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
       virtual void eul_to_lag() = 0;
 
-      /** @brief writes one point of RBC mesh to .vtu file **/
+      /** @brief Writes one point of RBC mesh to .vtu file **/
       virtual void write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                            size_t const& cyclenum ) = 0;
                                            
+      /** @brief Computes node based spring and bending constants **/
+      virtual void preprocess_membrane_parameters(string const& case_type,
+                                        size_t const& num_subtimesteps_RBC) = 0;
+      
+      // void apply_periodic_boundary_conditions(
+      
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       
@@ -203,6 +242,12 @@ class DS_ImmersedBoundary
       //@{
       // Shape parameters
       ShapeParameters shape_param;
+      
+      // Membrane physical property parameters
+      MembraneParameters membrane_param;
+      
+      // IBM parameters
+      IBMParameters ibm_param;
 
       // Vector containing all nodes properties
       vector<Node> m_all_nodes;
@@ -210,6 +255,7 @@ class DS_ImmersedBoundary
 
       size_t m_nEdges;
       size_t m_nTriangles;
+      
       //@}
 
 

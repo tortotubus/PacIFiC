@@ -83,6 +83,10 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                    size_t const& cyclenum );
 
+      /** @brief Computes node based spring and bending constants **/
+      void preprocess_membrane_parameters(string const& case_type,
+                                          size_t const& num_subtimesteps_RBC);
+      
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag();
 
