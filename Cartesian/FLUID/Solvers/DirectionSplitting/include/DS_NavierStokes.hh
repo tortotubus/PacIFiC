@@ -23,6 +23,7 @@ class LA_SeqVector ;
 class DS_NavierStokesSystem ;
 class LA_SeqMatrix ;
 class DS_AllRigidBodies ;
+class DS_AllImmersedBoundary ;
 
 /** For set of variables to pass from NavierStokes to System */
 struct DS2NS
@@ -40,8 +41,8 @@ struct DS2NS
   bool is_par_motion_;
   FV_DomainAndFields const* dom_ ;
   DS_AllRigidBodies* allrigidbodies_ ;
+  DS_AllImmersedBoundary* allimmersedboundary_ ;
   double critical_distance_translation_ ;
-  DS_AllImmersedBoundaries* allimmersedboundaries_ ;
 };
 
 /** @brief The Class DS_NavierStokes.

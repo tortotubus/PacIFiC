@@ -6,6 +6,8 @@
 #include <size_t_array2D.hh>
 #include <doubleArray2D.hh>
 #include <boolVector.hh>
+#include <FV_Mesh.hh>
+#include <FV_TimeIterator.hh>
 #include <MAC_assertions.hh>
 #include <MAC_Communicator.hh>
 #include <vector>
@@ -57,6 +59,7 @@ struct IBMParameters
 {
   size_t periodic_dir;
   string dirac_type;
+  size_t dim;
 };
 
 
@@ -223,7 +226,13 @@ class DS_ImmersedBoundary
       virtual void preprocess_membrane_parameters(string const& case_type,
                                         size_t const& num_subtimesteps_RBC) = 0;
       
-      // void apply_periodic_boundary_conditions(
+      /** @brief Function which calls RBC and IBM functions along with
+      periodic boundary conditions and parallelisation temporary variables */
+      void do_one_inner_iteration( FV_TimeIterator const* t_it,
+                                   size_t const& dim );
+        
+      /** @brief Applies periodic boundary condition to each immersed body */
+      virtual void apply_periodic_boundary_conditions() = 0;
       
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
@@ -276,6 +285,7 @@ class DS_ImmersedBoundary
       /** @brief Copy constructor
       @param copy copied DS_ImmersedBoundary object */
       DS_ImmersedBoundary( DS_ImmersedBoundary const& copy );
+      
       
       //@}
 };

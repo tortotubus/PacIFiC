@@ -96,9 +96,12 @@ class DS_2DRBC: public DS_ImmersedBoundary
       void preprocess_membrane_parameters(string const& case_type,
                                           size_t const& num_subtimesteps_RBC);
       
-      /** @brief writes one point of RBC mesh to .vtu file **/
+      /** @brief Writes one point of RBC mesh to .vtu file **/
       void write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                    size_t const& cyclenum );
+      
+      /** @brief Applies periodic boundary condition to each membrane **/
+      void apply_periodic_boundary_conditions();
       //@}
 
 

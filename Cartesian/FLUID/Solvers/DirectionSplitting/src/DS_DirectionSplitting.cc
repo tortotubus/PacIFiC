@@ -335,6 +335,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       inputDataNS.is_par_motion_ = is_par_motion;
       inputDataNS.dom_ = dom;
       inputDataNS.allrigidbodies_ = allrigidbodies;
+      inputDataNS.allimmersedboundary_ = allimmersedboundary;
       inputDataNS.critical_distance_translation_ = critical_distance_translation;
 
       MAC_ModuleExplorer* set = exp->create_subexplorer( 0, "DS_NavierStokes" ) ;
@@ -398,7 +399,7 @@ DS_DirectionSplitting:: do_one_inner_iteration( FV_TimeIterator const* t_it )
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_one_inner_iteration" ) ;
       start_solving_timer() ;
-      Immer
+      allimmersedboundary->do_one_inner_iteration ( t_it );
       FlowSolver->do_one_inner_iteration( t_it ) ;
       stop_solving_timer() ;
       stop_total_timer() ;

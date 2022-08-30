@@ -1,9 +1,9 @@
 #include <DS_AllImmersedBoundary.hh>
 #include <DS_ImmersedBoundary.hh>
 #include <DS_ImmersedBoundary_BuilderFactory.hh>
+#include <FV_Mesh.hh>
 #include <FV_TimeIterator.hh>
 #include <FV_DiscreteField.hh>
-#include <FV_Mesh.hh>
 #include <cmath>
 using std::endl;
 using std::cout;
@@ -325,6 +325,21 @@ void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
   for (size_t i = 0; i < m_nIB; ++i) {
     m_allDSimmersedboundary[i]->preprocess_membrane_parameters(case_type
                                                         , num_subtimesteps_RBC);
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: do_one_inner_iteration
+                             ( FV_TimeIterator const* t_it )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->do_one_inner_iteration(t_it, m_space_dimension);
   }
 }
 

@@ -8,6 +8,8 @@
 #include <boolArray2D.hh>
 #include <MAC_Communicator.hh>
 #include <MAC_DoubleVector.hh>
+#include <FV_Mesh.hh>
+#include <FV_TimeIterator.hh>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -79,6 +81,10 @@ class DS_AllImmersedBoundary
       /**@name Methods */
       //@{
 
+        /** @brief Function which calls RBC and IBM functions along with
+        periodic boundary conditions and parallelisation temporary variables */
+        void do_one_inner_iteration( FV_TimeIterator const* t_it );
+        
       //@}
 
 

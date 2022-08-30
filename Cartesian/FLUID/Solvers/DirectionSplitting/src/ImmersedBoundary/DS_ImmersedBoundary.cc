@@ -1,6 +1,7 @@
 #include <DS_ImmersedBoundary.hh>
 #include <FV_DiscreteField.hh>
 #include <FV_Mesh.hh>
+#include <FV_TimeIterator.hh>
 #include <MAC.hh>
 #include <fstream>
 #include <sstream>
@@ -197,6 +198,35 @@ void DS_ImmersedBoundary:: rotate_membrane()
         m_all_nodes[i].coordinates(dir) = coords_rotated(dir) 
                                           + shape_param.center(dir);
   }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: do_one_inner_iteration
+                           (FV_TimeIterator const* t_it, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  // apply_periodic_boundary_conditions();
+  /*
+  eul_to_lag();
+  doubleVector temp_lag_vel = copy_lag_velocity_to_vector(num_nodes);
+  MAC_comm->reduce_vector(temp_lag_vel, 0);
+  if(my_rank == is_master)
+  {
+    copy_vector_to_lag_vel(num_nodes);
+    rbc_dynamics();
+    copy_lag_position_and_force_to_vector(num_nodes);
+  }
+  copy_vector_to_lag_position_and_force(num_nodes);
+  apply_periodic_boundary_conditions();
+  lag_to_eul();
+  */
 }
 
 

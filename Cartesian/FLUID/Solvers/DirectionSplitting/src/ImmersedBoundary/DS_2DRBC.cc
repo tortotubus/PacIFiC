@@ -427,12 +427,23 @@ void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: apply_periodic_boundary_conditions()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: apply_periodic_boundary_conditions" ) ;
+    
+}
+
+
+
+
+//---------------------------------------------------------------------------
 double DS_2DRBC:: norm( double const* v )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: norm" ) ;
     
-    return ( pow( v[0]*v[0] + v[1]*v[1], 0.5 ) );
+  return ( pow( v[0]*v[0] + v[1]*v[1], 0.5 ) );
 }
 
 
@@ -444,7 +455,7 @@ double DS_2DRBC:: scalar( double const* v0, double const* v1 )
 {
   MAC_LABEL( "RBC2D:: scalar" ) ;
     
-    return ( v0[0] * v1[0] + v0[1] * v1[1] ); 
+  return ( v0[0] * v1[0] + v0[1] * v1[1] ); 
 }
 
 
@@ -456,6 +467,6 @@ double DS_2DRBC::cross_2D( geomVector const v0, geomVector const v1 )
 {
   MAC_LABEL( "RBC2D:: cross_2D" ) ;
 
-    return ( v0(0) * v1(1) - v0(1) * v1(0) );
+  return ( v0(0) * v1(1) - v0(1) * v1(0) );
 } 
 
