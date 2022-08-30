@@ -167,6 +167,7 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       size_t n_RBC_timesteps;
       string Dirac_type;
       size_t periodic_dir;
+      // boolVector const* periodic_dir;
 
 
       double critical_distance_translation;

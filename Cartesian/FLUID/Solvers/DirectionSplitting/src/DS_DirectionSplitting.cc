@@ -310,7 +310,6 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      Dirac_type = exp->string_data( "DiracType" );
      periodic_dir = dom->primary_grid()->get_periodic_flow_direction();
 
-
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
                                                     , IB_file
                                                     , N_IB
@@ -399,6 +398,7 @@ DS_DirectionSplitting:: do_one_inner_iteration( FV_TimeIterator const* t_it )
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_one_inner_iteration" ) ;
       start_solving_timer() ;
+      Immer
       FlowSolver->do_one_inner_iteration( t_it ) ;
       stop_solving_timer() ;
       stop_total_timer() ;

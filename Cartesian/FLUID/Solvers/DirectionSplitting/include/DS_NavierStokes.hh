@@ -41,6 +41,7 @@ struct DS2NS
   FV_DomainAndFields const* dom_ ;
   DS_AllRigidBodies* allrigidbodies_ ;
   double critical_distance_translation_ ;
+  DS_AllImmersedBoundaries* allimmersedboundaries_ ;
 };
 
 /** @brief The Class DS_NavierStokes.
