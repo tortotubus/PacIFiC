@@ -311,12 +311,13 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      periodic_dir = dom->primary_grid()->get_periodic_flow_direction();
 
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
-                                                    , IB_file
-                                                    , N_IB
-                                                    , IB_case_type
-                                                    , n_RBC_timesteps
-                                                    , Dirac_type
-                                                    , periodic_dir);
+                           , IB_file
+                           , N_IB
+                           , IB_case_type
+                           , dom->discrete_field( "velocity" )
+                           , n_RBC_timesteps
+                           , Dirac_type
+                           , periodic_dir);
    }
 
    // Create structure to input in the NS solver

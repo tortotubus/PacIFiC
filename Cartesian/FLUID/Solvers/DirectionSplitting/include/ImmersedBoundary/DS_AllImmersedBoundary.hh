@@ -46,6 +46,7 @@ class DS_AllImmersedBoundary
                            , string const& IB_file
                            , size_t const& N_IB
                            , string const& case_type
+                           , FV_DiscreteField const* arb_UF
                            , size_t const& n_RBC_timesteps
                            , string const& dirac_type
                            , size_t const& periodic_dir);

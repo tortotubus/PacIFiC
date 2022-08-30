@@ -16,6 +16,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                               , string const& IB_file
                                               , size_t const& N_IB
                                               , string const& case_type
+                                              , FV_DiscreteField const* arb_UF
                                               , size_t const& nRBC_subtimesteps
                                               , string const& dirac_type
                                               , size_t const& periodic_dir)
@@ -23,6 +24,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
 , m_nIB ( N_IB )
+, UF ( arb_UF )
+, MESH ( UF->primary_grid() )
 , m_IB_case_type ( case_type )
 , m_subtimesteps_RBC ( nRBC_subtimesteps )
 , m_dirac_type ( dirac_type )
@@ -339,7 +342,9 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->do_one_inner_iteration(t_it, m_space_dimension);
+    m_allDSimmersedboundary[i]->do_one_inner_iteration(t_it
+                                , MESH
+                                , m_space_dimension);
   }
 }
 

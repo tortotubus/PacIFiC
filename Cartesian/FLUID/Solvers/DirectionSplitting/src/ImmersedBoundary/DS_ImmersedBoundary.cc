@@ -205,7 +205,9 @@ void DS_ImmersedBoundary:: rotate_membrane()
 
 //---------------------------------------------------------------------------
 void DS_ImmersedBoundary:: do_one_inner_iteration
-                           (FV_TimeIterator const* t_it, size_t const& dim)
+                           (FV_TimeIterator const* t_it
+                          , FV_Mesh const* MESH
+                          , size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;

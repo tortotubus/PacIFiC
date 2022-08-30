@@ -229,6 +229,7 @@ class DS_ImmersedBoundary
       /** @brief Function which calls RBC and IBM functions along with
       periodic boundary conditions and parallelisation temporary variables */
       void do_one_inner_iteration( FV_TimeIterator const* t_it,
+                                   FV_Mesh const* MESH,
                                    size_t const& dim );
         
       /** @brief Applies periodic boundary condition to each immersed body */
