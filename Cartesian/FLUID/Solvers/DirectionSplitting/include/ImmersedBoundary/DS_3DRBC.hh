@@ -2,6 +2,8 @@
 #define _DS_3DRBC__
 
 #include <DS_ImmersedBoundary.hh>
+#include <FV_Mesh.hh>
+#include <FV_DiscreteField.hh>
 #include <string>
 using std::string;
 
@@ -87,9 +89,6 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void preprocess_membrane_parameters(string const& case_type,
                                           size_t const& num_subtimesteps_RBC);
       
-      /** @brief Applies periodic boundary condition to each membrane **/
-      void apply_periodic_boundary_conditions();
-
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag();
 

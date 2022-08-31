@@ -344,7 +344,8 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
   for (size_t i = 0; i < m_nIB; ++i) {
     m_allDSimmersedboundary[i]->do_one_inner_iteration(t_it
                                 , MESH
-                                , m_space_dimension);
+                                , m_space_dimension
+                                , m_periodic_dir);
   }
 }
 

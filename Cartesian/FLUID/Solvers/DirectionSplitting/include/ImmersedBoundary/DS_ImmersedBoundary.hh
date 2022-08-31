@@ -218,6 +218,17 @@ class DS_ImmersedBoundary
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
       virtual void eul_to_lag() = 0;
 
+      /** @brief Checks if point p1 and point p2 has 
+      connection across periodic boundary? **/
+      bool across_periodic(double p1, double p2, double length);
+
+      /** @brief Computes the periodic distance between two points */
+      double periodic_1D_distance(double p1, double p2, double length);
+
+      /** Computes distance between two points based 
+      on periodic boundary condition **/
+      double compute_dist_incl_pbc(double p1, double p2, double length);
+      
       /** @brief Writes one point of RBC mesh to .vtu file **/
       virtual void write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                            size_t const& cyclenum ) = 0;
@@ -230,11 +241,20 @@ class DS_ImmersedBoundary
       periodic boundary conditions and parallelisation temporary variables */
       void do_one_inner_iteration( FV_TimeIterator const* t_it,
                                    FV_Mesh const* MESH,
-                                   size_t const& dim );
+                                   size_t const& dim,
+                                   size_t const& periodic_dir );
         
       /** @brief Applies periodic boundary condition to each immersed body */
-      virtual void apply_periodic_boundary_conditions() = 0;
+      void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
+                                              size_t const& dim,
+                                              size_t const& periodic_dir);
       
+      /** @brief Discretised Dirac delta function
+      @param val -> the value which is to be converted using Dirac delta
+      @param Dirac_type -> Balogh, Roma, Archer **/
+      double discrete_Dirac_delta( double val, string const& Dirac_type, 
+                                   double dh, int n ) ;
+
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       

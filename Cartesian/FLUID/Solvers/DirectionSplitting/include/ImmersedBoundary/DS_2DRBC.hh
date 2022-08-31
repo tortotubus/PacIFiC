@@ -2,6 +2,8 @@
 #define _DS_2DRBC__
 
 #include <DS_ImmersedBoundary.hh>
+#include <FV_Mesh.hh>
+#include <FV_DiscreteField.hh>
 #include <string>
 using std::string;
 
@@ -101,7 +103,8 @@ class DS_2DRBC: public DS_ImmersedBoundary
                                    size_t const& cyclenum );
       
       /** @brief Applies periodic boundary condition to each membrane **/
-      void apply_periodic_boundary_conditions();
+      void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
+                                              size_t const& dim);
       //@}
 
 

@@ -1,4 +1,5 @@
 #include <DS_3DRBC.hh>
+#include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
 #include <math.h>
 using std::endl;
@@ -218,17 +219,6 @@ void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
 
     
-//---------------------------------------------------------------------------
-void DS_3DRBC:: apply_periodic_boundary_conditions()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: apply_periodic_boundary_conditions" ) ;
-    
-}
-
-
-
-
 //---------------------------------------------------------------------------
 void DS_3DRBC:: eul_to_lag()
 //---------------------------------------------------------------------------

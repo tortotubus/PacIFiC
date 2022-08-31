@@ -1,5 +1,6 @@
 #include <DS_2DRBC.hh>
 #include <doubleArray2D.hh>
+#include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
 #include <math.h>
 #include <cmath>
@@ -421,19 +422,6 @@ void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
                           * membrane_param.membrane_mass_spring_timescale;
     membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
    }
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_2DRBC:: apply_periodic_boundary_conditions()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_2DRBC:: apply_periodic_boundary_conditions" ) ;
-  
-  
-    
 }
 
 
