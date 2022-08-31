@@ -220,10 +220,12 @@ void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
     
 //---------------------------------------------------------------------------
-void DS_3DRBC:: eul_to_lag()
+void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
+                         , size_t const& dim
+                         , size_t const& comp)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: eul_to_lag_3D()" ) ;
+  MAC_LABEL( "DS_3DRBC:: eul_to_lag" ) ;
 
 }
 

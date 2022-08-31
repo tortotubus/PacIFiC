@@ -342,27 +342,17 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->do_one_inner_iteration(t_it
-                                , MESH
-                                , m_space_dimension
-                                , m_periodic_dir);
+    m_allDSimmersedboundary[i]->do_one_inner_iteration(UF
+                                                     , t_it
+                                                     , MESH
+                                                     , m_space_dimension
+                                                     , m_periodic_dir);
   }
 }
 
 
 
 
-//---------------------------------------------------------------------------
-void DS_AllImmersedBoundary:: eul_to_lag_velocity_interpolate()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_AllImmersedBoundary:: eul_to_lag_velocity_interpolate" ) ;
-
-  for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->eul_to_lag();
-  }
-
-}
 
 
 

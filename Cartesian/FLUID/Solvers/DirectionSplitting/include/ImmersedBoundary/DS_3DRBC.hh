@@ -90,7 +90,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
                                           size_t const& num_subtimesteps_RBC);
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
-      void eul_to_lag();
+      void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
+                      size_t const& comp);
+
 
       //@}
 

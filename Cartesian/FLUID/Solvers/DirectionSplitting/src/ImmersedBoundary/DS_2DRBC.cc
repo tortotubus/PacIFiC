@@ -1,7 +1,9 @@
 #include <DS_2DRBC.hh>
-#include <doubleArray2D.hh>
 #include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
+#include <MAC_Communicator.hh>
+#include <MAC_Exec.hh>
+#include <doubleArray2D.hh>
 #include <math.h>
 #include <cmath>
 #include <typeinfo>
@@ -280,18 +282,150 @@ void DS_2DRBC:: compute_edge_angle(bool init)
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: eul_to_lag()
+void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
+                         , size_t const& dim
+                         , size_t const& comp)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_2DRBC:: eul_to_lag_2D" ) ;
+  MAC_LABEL( "DS_2DRBC:: eul_to_lag" ) ;
 
-  size_t num_nodes = shape_param.N_nodes;
-  // FV_Mesh const* fvm = FF->primary_grid();
+  double xC, yC, zC;
+  double dxC, dyC, dzC;
+  double hxC, hyC, hzC; // Reciprocal of dxC, dyC, dzC
+  int Nx, Ny, Nz;
+  double r1, r2, p1, p2, q1, q2, delt1, delt2, delt; // Dirac delta variables
+  size_t istart, iend, jstart, jend, kstart, kend;
 
-
-  // Generate the node ID and coordinates
-  for (size_t i=0; i<num_nodes; ++i)
+  MAC_Communicator const* PAC_comm;
+  PAC_comm = MAC_Exec::communicator();
+  size_t my_rank = PAC_comm->rank();
+  size_t nb_procs = PAC_comm->nb_ranks();
+  size_t is_master = 0;
+  
+  FV_Mesh const* fvm = FF->primary_grid();
+  
+  size_t_vector min_unknown_index_with_halozone(dim, 0);
+  size_t_vector max_unknown_index_with_halozone(dim, 0);
+  size_t_vector min_unknown_index_without_halozone(dim, 0);
+  size_t_vector max_unknown_index_without_halozone(dim, 0);
+  doubleVector Dmin(dim), Dmax(dim);
+  doubleVector domain_min(dim), domain_max(dim);
+  doubleVector domain_length(dim);
+  
+  // Get proc's "LOCAL" indices
+  for (size_t l=0;l<dim;++l) 
   {
+      // getting boundary indices of procs WITH ghost cells/halozone cells
+      min_unknown_index_with_halozone(l) = 
+                                   FF->get_min_index_unknown_on_proc( comp, l );
+      max_unknown_index_with_halozone(l) = 
+                                   FF->get_max_index_unknown_on_proc( comp, l );
+
+      // getting boundary indices of procs WITHOUT ghost cells/halozone cells
+      min_unknown_index_without_halozone(l) = 
+                           FF->get_min_index_unknown_handled_by_proc( comp, l );
+      max_unknown_index_without_halozone(l) = 
+                           FF->get_max_index_unknown_handled_by_proc( comp, l );
+
+      // getting coordinates of domain bounds
+      Dmin(l) = fvm->get_min_coordinate_on_current_processor(l);
+      Dmax(l) = fvm->get_max_coordinate_on_current_processor(l);
+      domain_min(l) = fvm->get_main_domain_min_coordinate(l);
+      domain_max(l) = fvm->get_main_domain_max_coordinate(l);
+      domain_length(l) = domain_max(l) - domain_min(l);
+  }
+  
+  // x-direction start & end proc indices
+  istart = min_unknown_index_with_halozone(0);
+  iend = max_unknown_index_with_halozone(0);
+
+  // y-direction start & end proc indices
+  jstart = min_unknown_index_with_halozone(1);
+  jend = max_unknown_index_with_halozone(1);
+  
+  size_t kk = 0;
+          
+  // Number of cells along each Cartesian direction
+  Nx = iend - istart + 1;
+  Ny = jend - jstart + 1;
+  
+  // Mesh spacing
+  dxC = FF->get_cell_size( istart, 0, 0 ) ;
+  dyC = FF->get_cell_size( jstart, 1, 1 ) ;
+  hxC = 1.0 / dxC ;
+  hyC = 1.0 / dyC ;
+
+  // Number of nodes on each RBC
+  size_t num_nodes = shape_param.N_nodes;
+  
+  // Generate the node ID and coordinates
+  for (size_t inode=0; inode<num_nodes; ++inode)
+  {
+    // Initialising Lagrangian velocity to 0.0
+    m_all_nodes[inode].velocity(comp) = 0.;
+     
+    // Get coordinates of inode's Lagrangian marker
+    double xp = m_all_nodes[inode].coordinates_pbc(0);
+    double yp = m_all_nodes[inode].coordinates_pbc(1);
+      
+    // Condition to check if a Lagrangian node belongs to a proc
+    bool lag_cell_within_processor = 
+                               fvm->is_in_domain_on_current_processor(xp, yp);
+      
+    // if a node belongs to a processor, then compute it's
+    // Lagrangian velocity from neighbouring Eulerian nodes
+    if(lag_cell_within_processor)
+    {
+      double sum_dirac_delta = 0.0;
+      
+      for (size_t ii=min_unknown_index_with_halozone(0);
+                  ii<=max_unknown_index_with_halozone(0);
+                  ++ii) 
+      {
+        for (size_t jj=min_unknown_index_with_halozone(1);
+                    jj<=max_unknown_index_with_halozone(1);
+                    ++jj) 
+        {
+          xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
+          yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
+                  
+          // Check if Eulerian cell is within Dirac delta 2x2 stencil
+          double dist_x = 
+                compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+          double dist_y = 
+                compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+          bool eul_cell_within_Dirac_delta_stencil = 
+                        (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
+                  
+          if( eul_cell_within_Dirac_delta_stencil )
+          {
+            r1 = dist_x;
+            r1 = discrete_Dirac_delta(r1, 
+                                      ibm_param.dirac_type, 
+                                      dxC, 
+                                      Nx);
+            p1 = dist_y;
+            p1 = discrete_Dirac_delta(p1, 
+                                      ibm_param.dirac_type, 
+                                      dyC, 
+                                      Ny);
+
+            // Dirac delta function value
+            delt1 = r1 * p1;
+
+            // Numerical integration of Dirac delta function value
+            sum_dirac_delta += delt1 * dxC * dyC;
+
+            kk = 0;
+
+            // Computing Lagrangian velocity
+            m_all_nodes[inode].velocity(comp) += 
+                                FF->DOF_value( ii, jj, kk, comp, 0 ) 
+                                * delt1 * dxC * dyC;
+          }
+        }
+      }
+    }
   }
 }
 

@@ -207,7 +207,8 @@ void DS_ImmersedBoundary:: rotate_membrane()
 
 //---------------------------------------------------------------------------
 void DS_ImmersedBoundary:: do_one_inner_iteration
-                           (FV_TimeIterator const* t_it
+                           (FV_DiscreteField const* FF
+                          , FV_TimeIterator const* t_it
                           , FV_Mesh const* MESH
                           , size_t const& dim
                           , size_t const& periodic_dir)
@@ -218,7 +219,9 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   size_t num_nodes = shape_param.N_nodes;
   
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
-  eul_to_lag();
+  
+  size_t nb_comps = FF->nb_components();
+  for (size_t comp = 0; comp < nb_comps; comp++) eul_to_lag(FF, dim, comp);
   /*
   doubleVector temp_lag_vel = copy_lag_velocity_to_vector(num_nodes);
   MAC_comm->reduce_vector(temp_lag_vel, 0);
@@ -340,67 +343,69 @@ double DS_ImmersedBoundary:: discrete_Dirac_delta ( double val,
                                     string const& dirac_type, double dh, int n )
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "DS_ImmersedBoundary:: discrete_Dirac_delta" ) ;
+  MAC_LABEL( "DS_ImmersedBoundary:: discrete_Dirac_delta" ) ;
     
-    double abs_val = MAC::abs(val);
+  double abs_val = MAC::abs(val);
     
-    if(dirac_type == "Balogh") // Same as Eggleton & Popel, Phy. of Fluids, 1998
-    {
-        if( ( abs_val >= 0.0 ) && ( abs_val <= 2.0 ) )
-            return( 
-            ( 1.0 / (4.0 * dh) ) 
-            * ( 1.0 + MAC::cos( ( MAC::pi() / (2.0 * dh) ) * (val * dh) ) ) 
-            ); // val*dh is done since val is computed as (xC-xp)*hx 
-        else
-            return 0.;
-    }
-    else if(dirac_type == "Roma")
-    {
-        if( abs_val <= 0.5 )
-            return( ( 1.0 + MAC::sqrt( -3.0 * pow(val, 2) + 1 ) ) / 3.0 );
-        else if( ( abs_val >= 0.5 ) && ( abs_val <= 1.5 ) )
-            return(
-            ( 5.0 - 3.0 * abs_val 
-            - 
-            MAC::sqrt( -3.0 * pow( 1.0 - abs_val, 2 ) + 1.0 ) ) / 6.0 
-            );
-        else
-            return 0.;
-    }
-    else if(dirac_type == "Archer") // Uses more or less the equation 7 in 2011_Kruger_IBMBasics.pdf
-    {
-        if ( ( abs_val >= 0.0 ) && ( abs_val < 1.0 ) )
-            return(
-            0.125 
-            * ( 3.0 - 2.0 * abs_val 
-            + MAC::sqrt( MAC::abs( 1 + 4.0 * abs_val - 4.0 * pow(val, 2) ) ) ) 
-            );
-        else if ( ( abs_val >= 1.0 ) && ( abs_val < 2.0 ) )
-            return(
-            0.125 
-            * ( 5.0 - 2.0 * abs_val - 
-            MAC::sqrt( MAC::abs( -7.0 + 12.0 * abs_val - 4.0 * pow(val, 2) ) ) ) 
-            );
-        else
-            return 0.;
-    }
-    else if(dirac_type == "Krueger") // Uses the equation 7 in 2011_Kruger_IBMBasics.pdf
-    {
-        if ( ( abs_val >= 0.0 ) && ( abs_val < 1.0 ) )
-            return(
-            0.125 
-            * ( 3.0 - 2.0 * abs_val 
-            + MAC::sqrt( 1 + 4.0 * abs_val - 4.0 * pow(val, 2) ) ) 
-            );
-        else if ( ( abs_val >= 1.0 ) && ( abs_val < 2.0 ) )
-            return(
-            0.125 
-            * ( 5.0 - 2.0 * abs_val 
-            - MAC::sqrt( -7.0 + 12.0 * abs_val - 4.0 * pow(val, 2) ) ) 
-            );
-        else
-            return 0.;
-    }
+  if(dirac_type == "Balogh")
+  {
+      // Same as Eggleton & Popel, Phy. of Fluids, 1998
+      if( ( abs_val >= 0.0 ) && ( abs_val <= 2.0 ) )
+          return( 
+          ( 1.0 / (4.0 * dh) ) 
+          * ( 1.0 + MAC::cos( ( MAC::pi() / (2.0 * dh) ) * (val * dh) ) ) 
+          ); // val*dh is done since val is computed as (xC-xp)*hx 
+      else
+          return 0.;
+  }
+  else if(dirac_type == "Roma")
+  {
+      if( abs_val <= 0.5 )
+          return( ( 1.0 + MAC::sqrt( -3.0 * pow(val, 2) + 1 ) ) / 3.0 );
+      else if( ( abs_val >= 0.5 ) && ( abs_val <= 1.5 ) )
+          return(
+          ( 5.0 - 3.0 * abs_val 
+          - 
+          MAC::sqrt( -3.0 * pow( 1.0 - abs_val, 2 ) + 1.0 ) ) / 6.0 
+          );
+      else
+          return 0.;
+  }
+  else if(dirac_type == "Archer")
+  {
+      // Uses more or less the equation 7 in 2011_Kruger_IBMBasics.pdf
+      if ( ( abs_val >= 0.0 ) && ( abs_val < 1.0 ) )
+          return(
+          0.125 
+          * ( 3.0 - 2.0 * abs_val 
+          + MAC::sqrt( MAC::abs( 1 + 4.0 * abs_val - 4.0 * pow(val, 2) ) ) ) 
+          );
+      else if ( ( abs_val >= 1.0 ) && ( abs_val < 2.0 ) )
+          return(
+          0.125 
+          * ( 5.0 - 2.0 * abs_val - 
+          MAC::sqrt( MAC::abs( -7.0 + 12.0 * abs_val - 4.0 * pow(val, 2) ) ) ) 
+          );
+      else
+          return 0.;
+  }
+  else if(dirac_type == "Krueger") // Uses the equation 7 in 2011_Kruger_IBMBasics.pdf
+  {
+      if ( ( abs_val >= 0.0 ) && ( abs_val < 1.0 ) )
+          return(
+          0.125 
+          * ( 3.0 - 2.0 * abs_val 
+          + MAC::sqrt( 1 + 4.0 * abs_val - 4.0 * pow(val, 2) ) ) 
+          );
+      else if ( ( abs_val >= 1.0 ) && ( abs_val < 2.0 ) )
+          return(
+          0.125 
+          * ( 5.0 - 2.0 * abs_val 
+          - MAC::sqrt( -7.0 + 12.0 * abs_val - 4.0 * pow(val, 2) ) ) 
+          );
+      else
+          return 0.;
+  }
 }
 
 
@@ -410,9 +415,9 @@ double DS_ImmersedBoundary:: discrete_Dirac_delta ( double val,
 bool DS_ImmersedBoundary::across_periodic(double p1, double p2, double length)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "DS_ImmersedBoundary:: across_periodic" ) ;
+  MAC_LABEL( "DS_ImmersedBoundary:: across_periodic" ) ;
     
-    return(fabs(p1 - p2) > 0.5 * length);
+  return(fabs(p1 - p2) > 0.5 * length);
 }
 
 
@@ -423,14 +428,14 @@ double DS_ImmersedBoundary::periodic_1D_distance(double p1,
                             double p2, double length)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "DS_ImmersedBoundary:: periodic_1D_distance" ) ;
-    
-    double dist = fabs(p1 - length - p2) > 0.5 * length 
-                  ? 
-                  p1 + length - p2 
-                  : 
-                  p1 - length - p2;
-    return(dist);
+  MAC_LABEL( "DS_ImmersedBoundary:: periodic_1D_distance" ) ;
+  
+  double dist = fabs(p1 - length - p2) > 0.5 * length 
+                ? 
+                p1 + length - p2 
+                : 
+                p1 - length - p2;
+  return(dist);
 }
 
 
@@ -441,14 +446,14 @@ double DS_ImmersedBoundary::compute_dist_incl_pbc(double p1,
                                                     double p2, double length)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL( "DS_ImmersedBoundary:: compute_dist_incl_pbc" ) ;
-    
-    double dist = across_periodic(p1, p2, length) 
-                  ? 
-                  periodic_1D_distance(p1, p2, length) 
-                  : 
-                  p1 - p2;
-    return(dist);
+  MAC_LABEL( "DS_ImmersedBoundary:: compute_dist_incl_pbc" ) ;
+  
+  double dist = across_periodic(p1, p2, length) 
+                ? 
+                periodic_1D_distance(p1, p2, length) 
+                : 
+                p1 - p2;
+  return(dist);
 }
 
 

@@ -215,9 +215,6 @@ class DS_ImmersedBoundary
       /** @brief Scalar product of two vectors */
       virtual double scalar( double const* v0, double const* v1 ) = 0;
       
-      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
-      virtual void eul_to_lag() = 0;
-
       /** @brief Checks if point p1 and point p2 has 
       connection across periodic boundary? **/
       bool across_periodic(double p1, double p2, double length);
@@ -239,7 +236,8 @@ class DS_ImmersedBoundary
       
       /** @brief Function which calls RBC and IBM functions along with
       periodic boundary conditions and parallelisation temporary variables */
-      void do_one_inner_iteration( FV_TimeIterator const* t_it,
+      void do_one_inner_iteration( FV_DiscreteField const* FF,
+                                   FV_TimeIterator const* t_it,
                                    FV_Mesh const* MESH,
                                    size_t const& dim,
                                    size_t const& periodic_dir );
@@ -249,6 +247,10 @@ class DS_ImmersedBoundary
                                               size_t const& dim,
                                               size_t const& periodic_dir);
       
+      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
+      virtual void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
+                              size_t const& periodic_dir) = 0;
+
       /** @brief Discretised Dirac delta function
       @param val -> the value which is to be converted using Dirac delta
       @param Dirac_type -> Balogh, Roma, Archer **/

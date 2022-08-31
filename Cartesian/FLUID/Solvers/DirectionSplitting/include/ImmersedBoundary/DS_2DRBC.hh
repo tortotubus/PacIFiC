@@ -91,9 +91,6 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Cross product/vector product of two vectors */
       double cross_2D( geomVector const v0, geomVector const v1 );
       
-      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
-      void eul_to_lag();
-
       /** @brief Computes node based spring and bending constants **/
       void preprocess_membrane_parameters(string const& case_type,
                                           size_t const& num_subtimesteps_RBC);
@@ -105,6 +102,11 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Applies periodic boundary condition to each membrane **/
       void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
                                               size_t const& dim);
+
+      /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
+      void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
+                      size_t const& comp);
+
       //@}
 
 
