@@ -102,6 +102,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);
       
+      /** @brief Computes the perimeter */
+      double perimeter();
+      
       //@}
 
 

@@ -116,6 +116,7 @@ void DS_ImmersedBoundary:: display_parameters()
             << shape_param.node_spacing_with_dx << "\t"
             << membrane_param.k_spring << "\t"
             << membrane_param.k_bending << "\t"
+            << membrane_param.k_bending_visc << "\t"
             << membrane_param.k_viscous << "\t"
             << membrane_param.k_area << "\t"
             << membrane_param.k_volume << endl;

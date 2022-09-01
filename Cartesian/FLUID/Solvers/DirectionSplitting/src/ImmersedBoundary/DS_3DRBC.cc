@@ -614,7 +614,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
 
 
 //---------------------------------------------------------------------------
-double DS_3DRBC::norm( double const* v )
+double DS_3DRBC:: norm( double const* v )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: 3D_norm" ) ;
@@ -626,7 +626,7 @@ double DS_3DRBC::norm( double const* v )
 
     
 //---------------------------------------------------------------------------
-double DS_3DRBC::scalar( double const* v0, double const* v1 )
+double DS_3DRBC:: scalar( double const* v0, double const* v1 )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: scalar" ) ;
@@ -638,7 +638,7 @@ double DS_3DRBC::scalar( double const* v0, double const* v1 )
 
     
 //---------------------------------------------------------------------------
-void DS_3DRBC::cross_3D( double const* v0, double const* v1, double* res )
+void DS_3DRBC:: cross_3D( double const* v0, double const* v1, double* res )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: cross" ) ;
@@ -648,3 +648,18 @@ void DS_3DRBC::cross_3D( double const* v0, double const* v1, double* res )
   res[2] = v0[0] * v1[1] - v0[1] * v1[0];
 } 
 
+
+
+
+//---------------------------------------------------------------------------
+double DS_3DRBC:: perimeter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: perimeter" ) ;
+
+  double perimeter = 0.;
+  for (size_t i=0;i<m_nEdges;++i)
+      perimeter += m_all_edges[i].length;
+
+  return ( perimeter );  
+}

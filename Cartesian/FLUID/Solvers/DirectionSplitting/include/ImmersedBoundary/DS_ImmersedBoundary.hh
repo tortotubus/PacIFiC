@@ -41,7 +41,7 @@ struct ShapeParameters
 struct MembraneParameters
 {
   double mass, node_mass;
-  double k_spring, k_bending, k_viscous, k_area, k_volume;
+  double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_spring_constant;
   double membrane_mass_spring_timescale, edge_mass_spring_timescale;
   double node_bending_mass_spring_timescale;
@@ -286,6 +286,9 @@ class DS_ImmersedBoundary
                               FV_DiscreteField* FF_tag,
                               size_t const& dim, 
                               size_t const& comp) = 0;
+      
+      /** @brief Computes the perimeter = sum of all edge lengths */
+      virtual double perimeter() = 0;
       
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;

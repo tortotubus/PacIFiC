@@ -148,7 +148,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
   double c0, c1, c2;
   size_t N_nodes, N_levels;
   size_t node_spacing_with_dx;
-  double k_spring, k_bending, k_viscous, k_area, k_volume;
+  double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_mass;
   double dx = 1.; // CHANGE THIS
 
@@ -163,8 +163,8 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
   for (size_t i = 0; i < m_nIB; ++i) {
      inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
-            >> node_spacing_with_dx >> k_spring >> k_bending >> k_viscous
-            >> k_area >> k_volume >> membrane_mass;
+            >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
+            >> k_viscous >> k_area >> k_volume >> membrane_mass;
             
      ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                                 ->get_ptr_shape_parameters();
@@ -190,6 +190,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
      
      p_membrane_param->k_spring = k_spring;
      p_membrane_param->k_bending = k_bending;
+     p_membrane_param->k_bending_visc = k_bending_visc;
      p_membrane_param->k_viscous = k_viscous;
      p_membrane_param->k_area = k_area;
      p_membrane_param->k_volume = k_volume;

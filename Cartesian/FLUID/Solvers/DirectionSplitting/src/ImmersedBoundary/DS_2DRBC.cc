@@ -282,6 +282,53 @@ void DS_2DRBC:: compute_edge_angle(bool init)
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
+                                           , size_t const& num_subtimesteps_RBC)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: preprocess_membrane_parameters" ) ;
+  
+  // Membrane mass to Node mass
+  membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
+  
+  // Number of subtimesteps for RBC dynamics iterations
+  membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
+  
+  // Build the Direction Splitting immersed boundary
+  if(case_type.compare("Breyannis2000case") != 0)
+  {
+    // Membrane constants to edge & node based constants
+    membrane_param.membrane_spring_constant = membrane_param.k_spring;
+    membrane_param.k_spring *= double(m_nEdges); // edge spring constant
+    membrane_param.k_bending *= double(m_nEdges); // node bending constant
+    membrane_param.k_bending_visc /= double(m_nEdges);
+    membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
+      
+    // Timescales
+    membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.mass / 
+                               membrane_param.membrane_spring_constant, 0.5 );
+    membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.node_mass / 
+                               membrane_param.k_spring, 0.5 );
+    membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
+              * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
+              * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
+    
+    membrane_param.ntimescales = 20.;
+    membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
+                        membrane_param.node_bending_mass_spring_timescale ) 
+                        / 50. ;
+    membrane_param.tmax = double(membrane_param.ntimescales) 
+                          * membrane_param.membrane_mass_spring_timescale;
+    membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
+   }
+}
+
+
+
+
+//---------------------------------------------------------------------------
 // Interpolates Eulerian to Lagrangian velocity
 //---------------------------------------------------------------------------
 // get imin, imax, jmin, jmax which include ghost cells
@@ -616,9 +663,98 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
   MAC_LABEL( "DS_2DRBC:: rbc_dynamics_solver" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
+  double node_mass = membrane_param.node_mass;
+  double spring_constant = membrane_param.k_spring;
+  double bending_spring_constant = membrane_param.k_bending;
+  double bending_viscous_constant = membrane_param.k_bending_visc;
+  double viscous_drag_constant = membrane_param.k_viscous;
+  size_t n_sub_timesteps = membrane_param.n_subtimesteps_RBC;
   
+  double time = 0.;
+  double total_kinetic_energy = 0.;
+  double dt = dt_fluid / n_sub_timesteps;
   
+  // Compute edge normals
+  compute_edge_normals();
+  
+  // Initial perimeter
+  double initial_perimeter = perimeter();
+  
+  // Time loop
+  for (size_t iter_num=0;iter_num<n_sub_timesteps;++iter_num)
+  {
+    // Time
+    time += dt;
+    
+    // Initialize forces on all nodes
+    for (size_t inode=0;inode<num_nodes;++inode)
+        for (size_t j=0;j<dim;++j)
+            m_all_nodes[inode].sumforce(j) = 0.0;
+            
+    // Compute external unit normals to edges and edge length
+    compute_edge_normals();
+    
+    // Compute forces on all nodes
+    // Spring force
+    if(case_type.compare("Breyannis2000case") != 0)
+    {
+      size_t a = 0;
+        // // // compute_spring_force( spring_constant );
+    }
+    else
+    {
+      size_t b = 0;
+        // // // compute_linear_spring_force( spring_constant );
+    }
+        
+    // Bending resistance
+    if(case_type.compare("Breyannis2000case") != 0)
+    {
+      size_t c = 0;
+        // // // compute_bending_resistance( bending_spring_constant, bending_viscous_constant, dt );
+    }
 
+    // Viscous drag force
+    // // // compute_viscous_drag_force( viscous_drag_constant );
+
+
+    for (size_t inode=0;inode<num_nodes;++inode)
+    {
+      // Solve momentum conservation
+      // 1st order Euler explicit method
+      if ( !iter_num ) // ==> same as if(iter_num == 0)
+      {
+        for (size_t j=0;j<dim;++j)
+        {
+          m_all_nodes[inode].velocity(j) += ( dt /  node_mass ) 
+                                            * m_all_nodes[inode].sumforce(j);
+        }
+      }
+      else // 2nd order Adams-Bashforth from the 2nd time
+      {
+        for (size_t j=0;j<dim;++j)
+        {
+          m_all_nodes[inode].velocity(j) += ( dt /  node_mass ) 
+                                   * ( 1.5 * m_all_nodes[inode].sumforce(j) 
+                                   - 0.5 * m_all_nodes[inode].sumforce_nm1(j) );
+          m_all_nodes[inode].sumforce_nm1(j) = m_all_nodes[inode].sumforce(j);
+        }
+      }
+
+      // Update position/coordinates with 
+      // 2nd order Taylor series expansion
+      // x = x0 + u*dt + (1/2) * a * (dt)^2
+      for (size_t j=0;j<dim;++j)
+        m_all_nodes[inode].coordinates(j) += dt * m_all_nodes[inode].velocity(j) 
+                                        + 0.5 * ( m_all_nodes[inode].sumforce(j) 
+                                                 / node_mass ) * pow( dt, 2.0 );
+
+      // Compute total kinetic energy
+      for (size_t j=0;j<dim;++j)
+        total_kinetic_energy += 0.5 * node_mass * 
+                               pow( m_all_nodes[inode].velocity(j), 2.0 );
+    }
+  }
 }
 
 
@@ -708,52 +844,6 @@ void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
-                                           , size_t const& num_subtimesteps_RBC)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_2DRBC:: preprocess_membrane_parameters" ) ;
-  
-  // Membrane mass to Node mass
-  membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
-  
-  // Number of subtimesteps for RBC dynamics iterations
-  membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
-  
-  // Build the Direction Splitting immersed boundary
-  if(case_type.compare("Breyannis2000case") != 0)
-  {
-    // Membrane constants to edge & node based constants
-    membrane_param.membrane_spring_constant = membrane_param.k_spring;
-    membrane_param.k_spring *= double(m_nEdges); // edge spring constant
-    membrane_param.k_bending *= double(m_nEdges); // node bending constant
-    membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
-      
-    // Timescales
-    membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
-                               * pow( membrane_param.mass / 
-                               membrane_param.membrane_spring_constant, 0.5 );
-    membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
-                               * pow( membrane_param.node_mass / 
-                               membrane_param.k_spring, 0.5 );
-    membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
-              * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
-              * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
-    
-    membrane_param.ntimescales = 20.;
-    membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
-                        membrane_param.node_bending_mass_spring_timescale ) 
-                        / 50. ;
-    membrane_param.tmax = double(membrane_param.ntimescales) 
-                          * membrane_param.membrane_mass_spring_timescale;
-    membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
-   }
-}
-
-
-
-
-//---------------------------------------------------------------------------
 double DS_2DRBC:: norm( double const* v )
 //---------------------------------------------------------------------------
 {
@@ -769,7 +859,7 @@ double DS_2DRBC:: norm( double const* v )
 double DS_2DRBC:: scalar( double const* v0, double const* v1 )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "RBC2D:: scalar" ) ;
+  MAC_LABEL( "DS_2DRBC:: scalar" ) ;
     
   return ( v0[0] * v1[0] + v0[1] * v1[1] ); 
 }
@@ -778,11 +868,26 @@ double DS_2DRBC:: scalar( double const* v0, double const* v1 )
 
 
 //---------------------------------------------------------------------------
-double DS_2DRBC::cross_2D( geomVector const v0, geomVector const v1 )
+double DS_2DRBC:: cross_2D( geomVector const v0, geomVector const v1 )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "RBC2D:: cross_2D" ) ;
+  MAC_LABEL( "DS_2DRBC:: cross_2D" ) ;
 
   return ( v0(0) * v1(1) - v0(1) * v1(0) );
 } 
 
+
+
+
+//---------------------------------------------------------------------------
+double DS_2DRBC:: perimeter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: perimeter" ) ;
+
+  double perimeter = 0.;
+  for (size_t i=0;i<m_nEdges;++i)
+      perimeter += m_all_edges[i].length;
+
+  return ( perimeter );  
+}
