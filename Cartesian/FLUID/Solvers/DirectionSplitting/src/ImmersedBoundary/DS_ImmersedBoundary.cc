@@ -3,6 +3,8 @@
 #include <FV_Mesh.hh>
 #include <FV_TimeIterator.hh>
 #include <MAC.hh>
+#include <MAC_Communicator.hh>
+#include <MAC_Exec.hh>
 #include <fstream>
 #include <sstream>
 #include <math.h>
@@ -217,21 +219,31 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
   
   size_t num_nodes = shape_param.N_nodes;
+
+  MAC_Communicator const* MAC_comm;
+  MAC_comm = MAC_Exec::communicator();
+  size_t my_rank = MAC_comm->rank();
+  size_t nb_procs = MAC_comm->nb_ranks();
+  size_t is_master = 0;
   
+  // Apply periodic boundary conditions
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   
+  // Eulerian velocity to Lagrangian velocity
   size_t nb_comps = FF->nb_components();
   for (size_t comp = 0; comp < nb_comps; comp++) eul_to_lag(FF, dim, comp);
-  //doubleVector temp_lag_vel = copy_lagrangian_velocity_to_vector(num_nodes);
-  /*
+
+  doubleVector temp_lag_vel = copy_lagrangian_velocity_to_vector(dim);
   MAC_comm->reduce_vector(temp_lag_vel, 0);
+  /*
+  
   if(my_rank == is_master)
   {
-    copy_vector_to_lag_vel(num_nodes);
+    copy_vector_to_lag_vel(dim);
     rbc_dynamics();
-    copy_lag_position_and_force_to_vector(num_nodes);
+    copy_lag_position_and_force_to_vector(dim);
   }
-  copy_vector_to_lag_position_and_force(num_nodes);
+  copy_vector_to_lag_position_and_force(dim);
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   lag_to_eul();
   */
@@ -305,6 +317,33 @@ void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
       for (size_t dir=0;dir<dim;++dir)
         m_all_nodes[i].coordinates_pbc(dir) = m_all_nodes[i].coordinates(dir);
   }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+doubleVector DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
+                                                             (size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: write_mesh_to_vtk_file()" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  doubleVector d(dim * num_nodes, 0.);
+  
+  size_t j = 0;
+  for(size_t inode=0; inode<num_nodes; ++inode)
+  {
+      for(size_t dir=0; dir<dim; ++dir)
+      {
+          d(j) = m_all_nodes[inode].velocity(dir);
+          j++;
+      }
+  }
+  
+  return(d);
 }
 
 

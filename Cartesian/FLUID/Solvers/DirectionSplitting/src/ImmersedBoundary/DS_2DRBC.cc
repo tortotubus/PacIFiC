@@ -296,12 +296,6 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
   double r1, r2, p1, p2, q1, q2, delt1, delt2, delt; // Dirac delta variables
   size_t istart, iend, jstart, jend, kstart, kend;
 
-  MAC_Communicator const* PAC_comm;
-  PAC_comm = MAC_Exec::communicator();
-  size_t my_rank = PAC_comm->rank();
-  size_t nb_procs = PAC_comm->nb_ranks();
-  size_t is_master = 0;
-  
   FV_Mesh const* fvm = FF->primary_grid();
   
   size_t_vector min_unknown_index_with_halozone(dim, 0);
@@ -427,19 +421,6 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
       }
     }
   }
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_2DRBC:: copy_lagrangian_velocity_to_vector()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_2DRBC:: write_mesh_to_vtk_file()" ) ;
-
-  size_t num_nodes = shape_param.N_nodes;
-
 }
 
 

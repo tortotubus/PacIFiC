@@ -398,19 +398,6 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: copy_lagrangian_velocity_to_vector()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: write_mesh_to_vtk_file()" ) ;
-
-  size_t num_nodes = shape_param.N_nodes;
-
-}
-
-
-
-
-//---------------------------------------------------------------------------
 double DS_3DRBC::norm( double const* v )
 //---------------------------------------------------------------------------
 {
