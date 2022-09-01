@@ -242,7 +242,8 @@ class DS_ImmersedBoundary
                                    FV_TimeIterator const* t_it,
                                    FV_Mesh const* MESH,
                                    size_t const& dim,
-                                   size_t const& periodic_dir );
+                                   size_t const& periodic_dir,
+                                   string const& case_type );
         
       /** @brief Discretised Dirac delta function
       @param val -> the value which is to be converted using Dirac delta
@@ -267,6 +268,11 @@ class DS_ImmersedBoundary
       void copy_vector_to_lag_vel (doubleVector& lag_vel, 
                                            size_t const& dim);
                             
+      /** @brief Computes RBC deformation using spring-dashpot model */
+      virtual void rbc_dynamics_solver(size_t const& dim, 
+                                       double const& dt_fluid,
+                                       string const& case_type) = 0;
+      
       /** @brief Copies the Lagrangain position & force to a doubleVector */
       void copy_lag_position_and_force_to_vector
                             (doubleVector& lag_pos_and_force, size_t const& dim);

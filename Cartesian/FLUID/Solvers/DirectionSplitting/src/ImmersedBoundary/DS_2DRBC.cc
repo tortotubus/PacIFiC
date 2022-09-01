@@ -608,6 +608,23 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim, 
+                                    double const& dt_fluid, 
+                                    string const& case_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: rbc_dynamics_solver" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                         size_t const& cyclenum )
 //---------------------------------------------------------------------------

@@ -597,6 +597,23 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
+                                    double const& dt_fluid, 
+                                    string const& case_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: rbc_dynamics_solver" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 double DS_3DRBC::norm( double const* v )
 //---------------------------------------------------------------------------
 {
