@@ -315,6 +315,8 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                            , N_IB
                            , IB_case_type
                            , dom->discrete_field( "velocity" )
+                           , dom->discrete_field( "eulerian_force" )
+                           , dom->discrete_field( "eulerian_force_tag" )
                            , n_RBC_timesteps
                            , Dirac_type
                            , periodic_dir);

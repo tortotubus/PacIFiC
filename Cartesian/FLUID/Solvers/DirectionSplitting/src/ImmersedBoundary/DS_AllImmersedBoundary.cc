@@ -13,20 +13,22 @@ using std::string;
 
 //-----------------------------------------------------------------------------
 DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
-                                              , string const& IB_file
-                                              , size_t const& N_IB
-                                              , string const& case_type
-                                              , FV_DiscreteField const* arb_UF
-                                              , size_t const& nRBC_subtimesteps
-                                              , string const& dirac_type
-                                              , size_t const& periodic_dir)
+                                                , string const& IB_file
+                                                , size_t const& N_IB
+                                                , string const& case_type
+                                                , FV_DiscreteField const* arb_UF
+                                                , FV_DiscreteField* arb_EulF
+                                                , FV_DiscreteField* arb_EulF_tag
+                                                , size_t const& nRBC_subtimesteps
+                                                , string const& dirac_type
+                                                , size_t const& periodic_dir)
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
 , m_nIB ( N_IB )
 , UF ( arb_UF )
-, Eul_F ( arb_UF )
-, F_Eul_tag ( arb_UF )
+, Eul_F ( arb_EulF )
+, F_Eul_tag ( arb_EulF_tag )
 , MESH ( UF->primary_grid() )
 , m_IB_case_type ( case_type )
 , m_subtimesteps_RBC ( nRBC_subtimesteps )
