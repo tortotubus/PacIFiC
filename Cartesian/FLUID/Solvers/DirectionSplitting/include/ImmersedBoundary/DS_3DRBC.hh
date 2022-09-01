@@ -93,6 +93,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
                       size_t const& comp);
 
+      /** @brief Copies the Lagrangain velocity to a doubleVector */
+      void copy_lagrangian_velocity_to_vector();
 
       //@}
 

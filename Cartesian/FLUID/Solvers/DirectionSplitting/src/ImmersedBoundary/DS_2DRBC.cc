@@ -433,6 +433,19 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: copy_lagrangian_velocity_to_vector()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: write_mesh_to_vtk_file()" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                         size_t const& cyclenum )
 //---------------------------------------------------------------------------

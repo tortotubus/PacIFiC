@@ -242,6 +242,12 @@ class DS_ImmersedBoundary
                                    size_t const& dim,
                                    size_t const& periodic_dir );
         
+      /** @brief Discretised Dirac delta function
+      @param val -> the value which is to be converted using Dirac delta
+      @param Dirac_type -> Balogh, Roma, Archer **/
+      double discrete_Dirac_delta( double val, string const& Dirac_type, 
+                                   double dh, int n ) ;
+
       /** @brief Applies periodic boundary condition to each immersed body */
       void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
                                               size_t const& dim,
@@ -251,12 +257,9 @@ class DS_ImmersedBoundary
       virtual void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
                               size_t const& periodic_dir) = 0;
 
-      /** @brief Discretised Dirac delta function
-      @param val -> the value which is to be converted using Dirac delta
-      @param Dirac_type -> Balogh, Roma, Archer **/
-      double discrete_Dirac_delta( double val, string const& Dirac_type, 
-                                   double dh, int n ) ;
-
+      /** @brief Copies the Lagrangain velocity to a doubleVector */
+      virtual void copy_lagrangian_velocity_to_vector() = 0;
+      
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       

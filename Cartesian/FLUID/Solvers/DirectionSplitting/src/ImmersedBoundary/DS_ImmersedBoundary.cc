@@ -222,8 +222,8 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   
   size_t nb_comps = FF->nb_components();
   for (size_t comp = 0; comp < nb_comps; comp++) eul_to_lag(FF, dim, comp);
+  //doubleVector temp_lag_vel = copy_lagrangian_velocity_to_vector(num_nodes);
   /*
-  doubleVector temp_lag_vel = copy_lag_velocity_to_vector(num_nodes);
   MAC_comm->reduce_vector(temp_lag_vel, 0);
   if(my_rank == is_master)
   {
