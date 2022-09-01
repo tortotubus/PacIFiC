@@ -93,6 +93,10 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
                       size_t const& comp);
 
+      /** @brief Lagrangian to Eulerian force spreading **/
+      void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
+                      size_t const& dim, size_t const& comp);
+      
       //@}
 
 

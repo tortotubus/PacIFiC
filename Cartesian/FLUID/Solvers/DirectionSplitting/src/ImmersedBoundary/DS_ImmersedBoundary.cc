@@ -209,7 +209,9 @@ void DS_ImmersedBoundary:: rotate_membrane()
 
 //---------------------------------------------------------------------------
 void DS_ImmersedBoundary:: do_one_inner_iteration
-                           (FV_DiscreteField const* FF
+                           (FV_DiscreteField const* UF
+                          , FV_DiscreteField* Eul_F
+                          , FV_DiscreteField* F_Eul_tag
                           , FV_TimeIterator const* t_it
                           , FV_Mesh const* MESH
                           , size_t const& dim
@@ -230,8 +232,11 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   
   // Eulerian velocity to Lagrangian velocity interpolation
-  size_t nb_comps = FF->nb_components();
-  for (size_t comp = 0; comp < nb_comps; comp++) eul_to_lag(FF, dim, comp);
+  size_t nb_comps = UF->nb_components();
+  for (size_t comp = 0; comp < nb_comps; comp++) 
+  {
+    eul_to_lag(UF, dim, comp);
+  }
 
   // Allocate memory of temporary vectors
   doubleVector temp_lag_vel(dim * num_nodes, 0.); // Lagrangian velocity
@@ -251,20 +256,27 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     // // // rbc_dynamics();
     
     // Copy new Lagrangian positon & force into a doubleVector
-    // // // copy_lag_position_and_force_to_vector(dim);
+    copy_lag_position_and_force_to_vector(temp_lag_pos_and_force, dim);
   }
   
-  /*
   // Broadcast the Lagrangian position & force from master to all processors
-  MAC_comm->broadcast(e, 0);
-  copy_vector_to_lag_position_and_force(dim);
+  MAC_comm->broadcast(temp_lag_pos_and_force, 0);
+  copy_vector_to_lag_position_and_force(temp_lag_pos_and_force, dim);
   
   // Apply periodic boundary conditions
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   
   // Lagrangian to Eulerian force spreading
-  lag_to_eul();
-  */
+  // Initialising all Eulerian force cell tag value to zero
+  for (size_t comp=0;comp<nb_comps;comp++)
+  {
+      //Eul_F->set_DOFs_value(comp, 0, 0.0);
+      //F_Eul_tag->set_DOFs_value(comp, 0, 0.0);
+  }
+  for (size_t comp = 0; comp < nb_comps; comp++) 
+  {
+    //lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
+  }
 }
 
 
@@ -341,7 +353,7 @@ void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
 
 
 //---------------------------------------------------------------------------
-doubleVector DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
+void DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
                                       (doubleVector& lag_vel, size_t const& dim)
 //---------------------------------------------------------------------------
 {
@@ -358,15 +370,13 @@ doubleVector DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
         j++;
     }
   }
-  
-  return(lag_vel);
 }
 
 
 
 
 //---------------------------------------------------------------------------
-doubleVector DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector
+void DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector
                             (doubleVector& lag_pos_and_force, size_t const& dim)
 //---------------------------------------------------------------------------
 {
@@ -390,8 +400,6 @@ doubleVector DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector
         j++;
     }
   }
-  
-  return(lag_pos_and_force);
 }
 
 

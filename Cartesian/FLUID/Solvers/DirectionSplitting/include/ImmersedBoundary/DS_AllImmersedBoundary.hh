@@ -116,6 +116,8 @@ class DS_AllImmersedBoundary
 
       // Pointers to the constant fields and primary grid
       FV_DiscreteField const* UF ;
+      FV_DiscreteField* Eul_F ;
+      FV_DiscreteField* F_Eul_tag;
       FV_Mesh const* MESH ;
 
       //@}

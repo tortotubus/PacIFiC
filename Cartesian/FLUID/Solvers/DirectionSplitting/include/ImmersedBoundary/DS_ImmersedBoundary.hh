@@ -236,7 +236,9 @@ class DS_ImmersedBoundary
       
       /** @brief Function which calls RBC and IBM functions along with
       periodic boundary conditions and parallelisation temporary variables */
-      void do_one_inner_iteration( FV_DiscreteField const* FF,
+      void do_one_inner_iteration( FV_DiscreteField const* UF,
+                                   FV_DiscreteField* Eul_F,
+                                   FV_DiscreteField* F_Eul_tag,
                                    FV_TimeIterator const* t_it,
                                    FV_Mesh const* MESH,
                                    size_t const& dim,
@@ -258,17 +260,27 @@ class DS_ImmersedBoundary
                               size_t const& periodic_dir) = 0;
 
       /** @brief Copies the Lagrangain velocity to a doubleVector */
-      doubleVector copy_lagrangian_velocity_to_vector(doubleVector& lag_vel, 
+      void copy_lagrangian_velocity_to_vector(doubleVector& lag_vel, 
                                                       size_t const& dim);
       
-      /** @brief Copies the Lagrangain position & force to a doubleVector */
-      doubleVector copy_lag_position_and_force_to_vector
-                            (doubleVector& lag_pos_and_force, size_t const& dim);
-                            
       /** @brief Copies the Lagrangain position & force to a doubleVector */
       void copy_vector_to_lag_vel (doubleVector& lag_vel, 
                                            size_t const& dim);
                             
+      /** @brief Copies the Lagrangain position & force to a doubleVector */
+      void copy_lag_position_and_force_to_vector
+                            (doubleVector& lag_pos_and_force, size_t const& dim);
+                            
+      /** @brief Copies vector to Lagrangian position & force */
+      void copy_vector_to_lag_position_and_force
+                           (doubleVector& lag_pos_and_force, size_t const& dim);
+
+      /** @brief Lagrangian to Eulerian force spreading **/
+      virtual void lag_to_eul(FV_DiscreteField* FF, 
+                              FV_DiscreteField* FF_tag,
+                              size_t const& dim, 
+                              size_t const& comp) = 0;
+      
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       
