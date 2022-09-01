@@ -258,8 +258,17 @@ class DS_ImmersedBoundary
                               size_t const& periodic_dir) = 0;
 
       /** @brief Copies the Lagrangain velocity to a doubleVector */
-      doubleVector copy_lagrangian_velocity_to_vector(size_t const& dim);
+      doubleVector copy_lagrangian_velocity_to_vector(doubleVector& lag_vel, 
+                                                      size_t const& dim);
       
+      /** @brief Copies the Lagrangain position & force to a doubleVector */
+      doubleVector copy_lag_position_and_force_to_vector
+                            (doubleVector& lag_pos_and_force, size_t const& dim);
+                            
+      /** @brief Copies the Lagrangain position & force to a doubleVector */
+      void copy_vector_to_lag_vel (doubleVector& lag_vel, 
+                                           size_t const& dim);
+                            
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       

@@ -229,22 +229,40 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   // Apply periodic boundary conditions
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   
-  // Eulerian velocity to Lagrangian velocity
+  // Eulerian velocity to Lagrangian velocity interpolation
   size_t nb_comps = FF->nb_components();
   for (size_t comp = 0; comp < nb_comps; comp++) eul_to_lag(FF, dim, comp);
 
-  doubleVector temp_lag_vel = copy_lagrangian_velocity_to_vector(dim);
-  MAC_comm->reduce_vector(temp_lag_vel, 0);
-  /*
+  // Allocate memory of temporary vectors
+  doubleVector temp_lag_vel(dim * num_nodes, 0.); // Lagrangian velocity
+  doubleVector temp_lag_pos_and_force(2 * dim * num_nodes, 0.); // Lagrangian position & force
   
+  // Reduce the Lagrangian velocity across all processors
+  copy_lagrangian_velocity_to_vector(temp_lag_vel, dim);
+  MAC_comm->reduce_vector(temp_lag_vel, 0);
+  
+  // Dynamics & deformation of the RBC
   if(my_rank == is_master)
   {
-    copy_vector_to_lag_vel(dim);
-    rbc_dynamics();
-    copy_lag_position_and_force_to_vector(dim);
+    // Copy MPI_Reduce'd Lagrangian velocity to master proc velocity variable
+    copy_vector_to_lag_vel(temp_lag_vel, dim);
+    
+    // Solve for RBC dynamics using spring-dashpot model
+    // // // rbc_dynamics();
+    
+    // Copy new Lagrangian positon & force into a doubleVector
+    // // // copy_lag_position_and_force_to_vector(dim);
   }
+  
+  /*
+  // Broadcast the Lagrangian position & force from master to all processors
+  MAC_comm->broadcast(e, 0);
   copy_vector_to_lag_position_and_force(dim);
+  
+  // Apply periodic boundary conditions
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
+  
+  // Lagrangian to Eulerian force spreading
   lag_to_eul();
   */
 }
@@ -324,26 +342,109 @@ void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
 
 //---------------------------------------------------------------------------
 doubleVector DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
-                                                             (size_t const& dim)
+                                      (doubleVector& lag_vel, size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_ImmersedBoundary:: write_mesh_to_vtk_file()" ) ;
+  MAC_LABEL( "DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
-  
-  doubleVector d(dim * num_nodes, 0.);
   
   size_t j = 0;
   for(size_t inode=0; inode<num_nodes; ++inode)
   {
-      for(size_t dir=0; dir<dim; ++dir)
-      {
-          d(j) = m_all_nodes[inode].velocity(dir);
-          j++;
-      }
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        lag_vel(j) = m_all_nodes[inode].velocity(dir);
+        j++;
+    }
   }
   
-  return(d);
+  return(lag_vel);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+doubleVector DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector
+                            (doubleVector& lag_pos_and_force, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  size_t j = 0;
+  for(size_t inode=0; inode<num_nodes; ++inode)
+  {
+    // storing coordinates
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        lag_pos_and_force(j) = m_all_nodes[inode].coordinates(dir);
+        j++;
+    }
+    // storing Lagrangian force
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        lag_pos_and_force(j) = m_all_nodes[inode].sumforce(dir);
+        j++;
+    }
+  }
+  
+  return(lag_pos_and_force);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: copy_vector_to_lag_vel
+                                      (doubleVector& lag_vel, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: copy_vector_to_lag_vel" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  size_t j = 0;
+  for(size_t inode=0; inode<num_nodes; ++inode)
+  {
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        m_all_nodes[inode].velocity(dir) = lag_vel(j);
+        j++;
+    }
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: copy_vector_to_lag_position_and_force
+                            (doubleVector& lag_pos_and_force, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: copy_vector_to_lag_position_and_force" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  size_t j = 0;
+  for(size_t inode=0; inode<num_nodes; ++inode)
+  {
+    // storing coordinates
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        m_all_nodes[inode].coordinates(dir) = lag_pos_and_force(j);
+        j++;
+    }
+    // storing Lagrangian force
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+        m_all_nodes[inode].sumforce(dir) = lag_pos_and_force(j);
+        j++;
+    }
+  }
 }
 
 
