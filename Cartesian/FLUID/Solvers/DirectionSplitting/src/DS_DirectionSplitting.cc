@@ -570,6 +570,7 @@ DS_DirectionSplitting:: do_additional_savings( FV_TimeIterator const* t_it,
    // Flow solver
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_additional_savings" ) ;
+      allimmersedboundary->do_additional_savings ( t_it, cycleNumber );
       FlowSolver->do_additional_savings( t_it, cycleNumber ) ;
       stop_total_timer() ;
    }

@@ -680,6 +680,11 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
   // Initial perimeter
   double initial_perimeter = perimeter();
   
+  cout << "Before\n";
+  for (size_t inode=0;inode<num_nodes;++inode)
+    cout << m_all_nodes[inode].coordinates(0) << "\t" << m_all_nodes[inode].coordinates(1) << endl;
+
+
   // Time loop
   for (size_t iter_num=0;iter_num<n_sub_timesteps;++iter_num)
   {
@@ -688,8 +693,8 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
     
     // Initialize forces on all nodes
     for (size_t inode=0;inode<num_nodes;++inode)
-        for (size_t j=0;j<dim;++j)
-            m_all_nodes[inode].sumforce(j) = 0.0;
+      for (size_t j=0;j<dim;++j)
+        m_all_nodes[inode].sumforce(j) = 0.0;
             
     // Compute external unit normals to edges and edge length
     compute_edge_normals();
@@ -771,17 +776,17 @@ void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 
   // File name
   ofstream fileOUT;
-  string filename = "rbc" + sizetToString( IB_number ) + "_T0" + ".vtu";
+  string filename = "rbc" + sizetToString( IB_number ) + "_T" 
+                    + sizetToString( cyclenum ) + ".vtu";
   string directory = "Res/";
   string file_to_write = directory + filename.c_str();
   fileOUT.open( file_to_write, ios::out );
   
-  /*
+  
   // Add a line to pvd oss
   m_vtk_to_pvd << "<DataSet timestep=\"" << time
           	   << "\" " << "group=\"\" part=\"0\" file=\"" 
           	   << filename << "\"/>\n";
-  */
   
   
   // Header

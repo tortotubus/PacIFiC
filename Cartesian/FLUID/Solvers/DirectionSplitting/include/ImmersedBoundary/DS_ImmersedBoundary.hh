@@ -226,10 +226,6 @@ class DS_ImmersedBoundary
       on periodic boundary condition **/
       double compute_dist_incl_pbc(double p1, double p2, double length);
       
-      /** @brief Writes one point of RBC mesh to .vtu file **/
-      virtual void write_mesh_to_vtk_file( size_t IB_number, double const& time,
-                                           size_t const& cyclenum ) = 0;
-                                           
       /** @brief Computes node based spring and bending constants **/
       virtual void preprocess_membrane_parameters(string const& case_type,
                                         size_t const& num_subtimesteps_RBC) = 0;
@@ -290,6 +286,13 @@ class DS_ImmersedBoundary
       /** @brief Computes the perimeter = sum of all edge lengths */
       virtual double perimeter() = 0;
       
+      /** @brief Writes one point of RBC mesh to .vtu file **/
+      virtual void write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                           size_t const& cyclenum ) = 0;
+                                           
+      /** @brief Writes the rbc.pvd file for each RBC membrane */
+      void write_rbc_dot_pvd_file();
+      
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;
       
@@ -317,10 +320,16 @@ class DS_ImmersedBoundary
       // Vector containing all nodes properties
       vector<Node> m_all_nodes;
       vector<Edge> m_all_edges;
+      vector<TriElement> m_all_trielements;
 
       size_t m_nEdges;
       size_t m_nTriangles;
       
+      // File handlers for writing RBC coordinates files
+      ostringstream m_rbc_pvd;
+      ostringstream m_vtk_to_pvd;
+      ostringstream m_rbc_one_point_pvd;
+      ostringstream m_one_point_vtk_to_pvd;
       //@}
 
 

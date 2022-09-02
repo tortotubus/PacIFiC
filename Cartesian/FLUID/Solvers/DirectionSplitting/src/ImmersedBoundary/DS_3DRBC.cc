@@ -7,6 +7,7 @@
 #include <math.h>
 #include <cmath>
 #include <typeinfo>
+#include <iomanip>      // std::setprecision
 using std::endl;
 using std::cout;
 using std::cin;
@@ -219,6 +220,90 @@ void DS_3DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: write_mesh_to_vtk_file()" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+
+  /*
+  // File name
+  ofstream fileOUT;
+  string filename = "rbc" + sizetToString( IB_number ) + "_T" 
+                    + sizetToString( cyclenum ) + ".vtu";
+  string directory = "Res/";
+  string file_to_write = directory + filename.c_str();
+  fileOUT.open( file_to_write, ios::out );
+
+  // Add a line to pvd oss
+  m_vtk_to_pvd << "<DataSet timestep=\"" << time
+          	   << "\" " << "group=\"\" part=\"0\" file=\"" 
+          	   << filename << "\"/>\n";
+
+  // Header
+  fileOUT << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" " 
+          << "byte_order=\"LittleEndian\">" << endl;
+  fileOUT << "<UnstructuredGrid>" << endl;
+
+  // Number of nodes and triangular elements         	  
+  fileOUT << "<Piece NumberOfPoints=\"" 
+          << num_nodes 
+          << "\" NumberOfCells=\"" 
+          << m_nTriangles 
+          << "\">" 
+          << endl; 
+
+  // Write node coordinates
+  fileOUT << "<Points>" << endl;
+  fileOUT << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" " 
+          << "format=\"ascii\">" << endl;
+  for (size_t i=0;i<num_nodes;++i)
+  {
+      fileOUT << std::scientific << std::setprecision(12) 
+              << m_all_nodes[i].coordinates(0) 
+              << " " 
+              << m_all_nodes[i].coordinates(1) 
+              << " " 
+              << m_all_nodes[i].coordinates(2) << endl;
+  }
+  fileOUT << "</DataArray>" << endl;
+  fileOUT << "</Points>" << endl;
+
+  // Write triangular elements 
+  fileOUT << "<Cells>" << endl;
+  fileOUT << "<DataArray type=\"Int32\" Name=\"connectivity\" "
+  << "format=\"ascii\">" << endl;
+  for (size_t i=0;i<m_nTriangles;++i)
+      fileOUT << m_all_trielements[i].pnodes(0)->number 
+              << " " 
+              << m_all_trielements[i].pnodes(1)->number 
+              << " " 
+              << m_all_trielements[i].pnodes(2)->number 
+              << " ";
+  fileOUT << endl;  
+  fileOUT << "</DataArray>" << endl;
+  fileOUT << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">" 
+          << endl;
+  size_t offset = 3;
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+      fileOUT << offset << " ";
+      offset += 3;
+  }
+  fileOUT << endl;   
+  fileOUT << "</DataArray>" << endl;
+  fileOUT << "<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">" 
+  << endl;
+  for (size_t i=0;i<m_nTriangles;++i) 
+  {
+      fileOUT << "5 ";
+  }
+  fileOUT << endl;   
+  fileOUT << "</DataArray>" << endl;
+  fileOUT << "</Cells>" << endl;
+  fileOUT << "</Piece>" << endl;
+  fileOUT << "</UnstructuredGrid>" << endl;
+  fileOUT << "</VTKFile>" << endl;
+
+  fileOUT.close();   
+  */ 
 }
 
 

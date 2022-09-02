@@ -13,15 +13,15 @@ using std::string;
 
 //-----------------------------------------------------------------------------
 DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
-                                                , string const& IB_file
-                                                , size_t const& N_IB
-                                                , string const& case_type
-                                                , FV_DiscreteField const* arb_UF
-                                                , FV_DiscreteField* arb_EulF
-                                                , FV_DiscreteField* arb_EulF_tag
-                                                , size_t const& nRBC_subtimesteps
-                                                , string const& dirac_type
-                                                , size_t const& periodic_dir)
+                                               , string const& IB_file
+                                               , size_t const& N_IB
+                                               , string const& case_type
+                                               , FV_DiscreteField const* arb_UF
+                                               , FV_DiscreteField* arb_EulF
+                                               , FV_DiscreteField* arb_EulF_tag
+                                               , size_t const& nRBC_subtimesteps
+                                               , string const& dirac_type
+                                               , size_t const& periodic_dir)
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
@@ -54,7 +54,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   generate_immersed_body_mesh();
   
-  write_immersed_body_mesh_to_vtk_file();
+  // write_immersed_body_mesh_to_vtk_file();
   
   preprocess_immersed_body_parameters(m_IB_case_type, m_subtimesteps_RBC);
   
@@ -357,6 +357,48 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
                                                      , m_IB_case_type);
   }
 }
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_AllImmersedBoundary:: do_additional_savings
+                              ( FV_TimeIterator const* t_it,
+                                size_t const& cycleNumber )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: do_additional_savings" ) ;
+
+  for (size_t i = 0; i < m_nIB; ++i) {
+    // Writing Res/rbc_T*.vtu files for every iterations
+    m_allDSimmersedboundary[i]->write_mesh_to_vtk_file(i, t_it->time(), 
+                                                       cycleNumber);
+    // Writing Res/rbc.pvd file
+    m_allDSimmersedboundary[i]->write_rbc_dot_pvd_file();
+    
+
+    /*
+    // Writing Res/rbc_one_point_T*.vtu files for every sampled iterations
+    m_allDSimmersedboundary[i]->write_one_point_to_VTK(t_it->time(), 
+                                                       cycleNumber);
+    // Writing one point to another rbc_one_point.pvd file for tank treading
+    m_allDSimmersedboundary[i]->write_one_point_of_rbc_mesh_to_pvd_file(
+                                                     t_it->time(), cycleNumber);
+    
+
+    // Writing statistics of RBC membrane
+    m_allDSimmersedboundary[i]->compute_stats(t_it->time(), cycleNumber);
+
+
+    // Writing triangle unit normals to .vtu file
+    m_allDSimmersedboundary[i]->write_triangle_normals_to_VTK
+                                                           ("triangle_normals");
+    // writing node unit normals to .vtu file
+    m_allDSimmersedboundary[i]->write_node_normals_to_VTK("node_normals");
+    */
+  }
+}
+
 
 
 

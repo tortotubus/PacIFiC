@@ -88,6 +88,10 @@ class DS_AllImmersedBoundary
         periodic boundary conditions and parallelisation temporary variables */
         void do_one_inner_iteration( FV_TimeIterator const* t_it );
         
+        /** @brief Write the RBC coordinates .vtu and .pvd files */
+        void do_additional_savings( FV_TimeIterator const* t_it,
+                                  	size_t const& cycleNumber );
+        
       //@}
 
 

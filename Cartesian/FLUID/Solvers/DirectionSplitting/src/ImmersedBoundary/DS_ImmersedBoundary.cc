@@ -609,6 +609,41 @@ double DS_ImmersedBoundary::compute_dist_incl_pbc(double p1,
 
 
 
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: write_rbc_dot_pvd_file()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: write_rbc_dot_pvd_file" ) ;
+  
+  ofstream rbc_pvd_file( "Res/rbc.pvd", ios::out );
+  
+  // initialize pvd
+  m_rbc_pvd << "<?xml version=\"1.0\"?>" << endl;
+  m_rbc_pvd << "<VTKFile type=\"Collection\" version=\"0.1\""
+            << " byte_order=\"LittleEndian\"";
+  m_rbc_pvd << ">" << endl;
+  m_rbc_pvd << "<Collection>" << endl;
+  
+  // write time steps
+  m_rbc_pvd << m_vtk_to_pvd.str();
+            
+  // finalize pvd
+  m_rbc_pvd << "</Collection>" << endl;
+  m_rbc_pvd << "</VTKFile>" << endl;
+
+  // Write to rbc.pvd file inside Res/ directory
+  rbc_pvd_file << m_rbc_pvd.str();
+  
+  // clear the instance so that next iteration of rbc.pvd
+  // writing is free of previous iteration data
+  m_rbc_pvd.str(""); // resets string to empty
+  m_rbc_pvd.clear(); // clear any error flags
+
+  rbc_pvd_file.close();
+}
+
+
+
 
 
 

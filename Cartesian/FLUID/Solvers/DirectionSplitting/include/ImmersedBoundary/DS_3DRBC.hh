@@ -81,10 +81,6 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Cross product/vector product of two vectors */
       void cross_3D( double const* v0, double const* v1, double* res ); 
       
-      /** @brief writes one point of RBC mesh to .vtu file **/
-      void write_mesh_to_vtk_file( size_t IB_number, double const& time,
-                                   size_t const& cyclenum );
-
       /** @brief Computes node based spring and bending constants **/
       void preprocess_membrane_parameters(string const& case_type,
                                           size_t const& num_subtimesteps_RBC);
@@ -104,6 +100,13 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes the perimeter */
       double perimeter();
+      
+      /** @brief Writes one point of RBC mesh to .vtu file **/
+      void write_mesh_to_vtk_file( size_t IB_number, double const& time,
+                                   size_t const& cyclenum );
+      
+      /** @brief Writes the rbc.pvd file for each RBC membrane */
+      void write_rbc_dot_pvd_file();
       
       //@}
 
