@@ -269,6 +269,17 @@ class DS_ImmersedBoundary
                                        double const& dt_fluid,
                                        string const& case_type) = 0;
       
+      /** @brief Computes spring force */
+      virtual void compute_spring_force( size_t const& dim,
+                                         double const& spring_constant ) = 0;
+      
+      /** @brief Computes linear spring force Breyannis2000 and Bagchi2007 
+      1. Compute tension T = Es * (l/l0 -1) for each edge of a node
+      2. Compute spring force F = T_i * e_i - T_j * e_j 
+      where i and j are neighbouring edge indices of a node */
+      virtual void compute_linear_spring_force( size_t const& dim,
+                                            double const& spring_constant ) = 0;
+      
       /** @brief Copies the Lagrangain position & force to a doubleVector */
       void copy_lag_position_and_force_to_vector
                             (doubleVector& lag_pos_and_force, size_t const& dim);
@@ -291,7 +302,7 @@ class DS_ImmersedBoundary
                                            size_t const& cyclenum ) = 0;
                                            
       /** @brief Writes the rbc.pvd file for each RBC membrane */
-      void write_rbc_dot_pvd_file();
+      void write_rbc_dot_pvd_file(size_t IB_number);
       
       /** @brief Converts size_t to string datatype **/
       string sizetToString( size_t const& figure ) const;

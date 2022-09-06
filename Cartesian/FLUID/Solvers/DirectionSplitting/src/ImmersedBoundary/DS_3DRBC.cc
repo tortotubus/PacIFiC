@@ -680,6 +680,27 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 
 
 
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_spring_force(size_t const& dim, 
+                                     double const& spring_constant)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_spring_force" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_linear_spring_force(size_t const& dim, 
+                                     double const& spring_constant)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_linear_spring_force" ) ;
+}
+
+
+
 
 //---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 

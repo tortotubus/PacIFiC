@@ -94,6 +94,14 @@ class DS_3DRBC: public DS_ImmersedBoundary
                                double const& dt_fluid,
                                string const& case_type);
       
+      /** @brief Computes spring force */
+      void compute_spring_force( size_t const& dim, 
+                                 double const& spring_constant );
+      
+      /** @brief Computes spring force */
+      void compute_linear_spring_force( size_t const& dim, 
+                                 double const& spring_constant );
+      
       /** @brief Lagrangian to Eulerian force spreading **/
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);

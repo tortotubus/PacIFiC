@@ -374,7 +374,7 @@ void DS_AllImmersedBoundary:: do_additional_savings
     m_allDSimmersedboundary[i]->write_mesh_to_vtk_file(i, t_it->time(), 
                                                        cycleNumber);
     // Writing Res/rbc.pvd file
-    m_allDSimmersedboundary[i]->write_rbc_dot_pvd_file();
+    m_allDSimmersedboundary[i]->write_rbc_dot_pvd_file(i);
     
 
     /*

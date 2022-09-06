@@ -610,12 +610,15 @@ double DS_ImmersedBoundary::compute_dist_incl_pbc(double p1,
 
 
 //---------------------------------------------------------------------------
-void DS_ImmersedBoundary:: write_rbc_dot_pvd_file()
+void DS_ImmersedBoundary:: write_rbc_dot_pvd_file(size_t IB_number)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_ImmersedBoundary:: write_rbc_dot_pvd_file" ) ;
   
-  ofstream rbc_pvd_file( "Res/rbc.pvd", ios::out );
+  string filename = "rbc" + sizetToString( IB_number ) + ".pvd";
+  string rootname = "Res/";
+  string file_to_write = rootname + filename;
+  ofstream rbc_pvd_file( file_to_write, ios::out );
   
   // initialize pvd
   m_rbc_pvd << "<?xml version=\"1.0\"?>" << endl;
