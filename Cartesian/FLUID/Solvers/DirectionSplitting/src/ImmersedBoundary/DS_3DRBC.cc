@@ -66,7 +66,7 @@ void DS_3DRBC:: initialize_node_properties( )
   // // temp.neighbors.push_back(0);
   temp.initial_angle = 0.;
   temp.angle_nm1 = 0.;
-  temp.dangle_dt = 0.;
+  temp.dangledt = 0.;
   temp.number = 0;
 
   for (size_t i = 0; i < shape_param.N_nodes; i++) {
@@ -702,7 +702,6 @@ void DS_3DRBC:: compute_linear_spring_force(size_t const& dim,
 
 
 
-/*
 //---------------------------------------------------------------------------
 void DS_3DRBC:: compute_bending_resistance( size_t const& dim, 
                                         double const& bending_spring_constant,
@@ -712,7 +711,6 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
 {
   MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
 }
-*/
 
 
 

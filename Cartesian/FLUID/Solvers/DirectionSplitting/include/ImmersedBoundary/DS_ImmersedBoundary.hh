@@ -72,7 +72,7 @@ struct Node
   geomVector sumforce_nm1;
   geomVector velocity;
   geomVector angular_velocity;
-  double angle, initial_angle, angle_nm1, dangle_dt;
+  double angle, initial_angle, angle_nm1, dangledt;
   geomVector spring_force, bending_force;
   geomVector area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
@@ -281,12 +281,10 @@ class DS_ImmersedBoundary
                                             double const& spring_constant ) = 0;
       
       /** @brief Computes bending force */
-      /*
       virtual void compute_bending_resistance (size_t const& dim, 
                                          double const& bending_spring_constant,
                                          double const& bending_viscous_constant, 
                                          double const& dt ) = 0;
-      */
 
       /** @brief Computes viscous force */
       virtual void compute_viscous_drag_force( size_t const& dim, 

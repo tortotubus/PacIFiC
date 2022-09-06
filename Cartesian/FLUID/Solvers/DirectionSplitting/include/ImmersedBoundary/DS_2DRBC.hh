@@ -117,12 +117,10 @@ class DS_2DRBC: public DS_ImmersedBoundary
                                  double const& spring_constant );
       
       /** @brief Computes bending force */
-      /*
       void compute_bending_resistance( size_t const& dim, 
                                        double const& bending_spring_constant,
                                        double const& bending_viscous_constant, 
                                        double const& dt );
-      */
 
       /** @brief Computes viscous force */
       void compute_viscous_drag_force( size_t const& dim, 
