@@ -130,6 +130,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Computes transverse diameter of RBC: max(sqrt(y^2 + z^2)) */
       double compute_transverse_diameter();
       
+      /** @brief Computes Taylor Deformation Parameter & Orientation angle */
+      void compute_tdp_orientation_angle();
+      
       /** @brief Computes the perimeter */
       double perimeter();
       

@@ -1042,8 +1042,8 @@ double DS_2DRBC:: compute_axial_diameter()
   size_t node_index;
   double axial_radius, axial_dia;
 
-  double x_centroid = membrane_param.centroid_coordinates(0); // 0.
-  double y_centroid = membrane_param.centroid_coordinates(1); // 0.
+  double x_centroid = 0.; // membrane_param.centroid_coordinates(0);
+  double y_centroid = 0.; // membrane_param.centroid_coordinates(1);
   
   for (size_t inode=0;inode<num_nodes;++inode)
   {
@@ -1084,8 +1084,8 @@ double DS_2DRBC:: compute_transverse_diameter()
   size_t node_index;
   double transverse_radius, transverse_dia;
 
-  double x_centroid = membrane_param.centroid_coordinates(0); // 0.
-  double y_centroid = membrane_param.centroid_coordinates(1); // 0.
+  double x_centroid = 0.; // membrane_param.centroid_coordinates(0);
+  double y_centroid = 0.; // membrane_param.centroid_coordinates(1);
   
   for (size_t inode=0;inode<num_nodes;++inode)
   {
@@ -1109,6 +1109,45 @@ double DS_2DRBC:: compute_transverse_diameter()
   transverse_dia = 2. * transverse_radius;
       
   return(transverse_dia);
+}
+
+
+
+
+//-----------------------------------------------------------
+void DS_2DRBC:: compute_tdp_orientation_angle()
+//-----------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_tdp_orientation_angle" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double rmax = -HUGE_VAL, rmin = HUGE_VAL, theta = 0.;
+  double pi = MAC::pi();
+  double radians_to_angle_conversion = 180. / pi;
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    
+    double r = MAC::sqrt( pow(x, 2.) + pow(y, 2.) );
+    if(r > rmax)
+    {
+      rmax = r;
+      theta = (fabs(x) < 1.e-14) ? (y > 0. ? pi/2. : 3.*pi/2.) : atan2(y, x);
+      theta = (theta >= 0.) ? ((theta > pi) ? theta - pi : theta) : theta + 2.*pi;
+      theta = (theta > pi) ? theta - pi : theta; // to keep the angle between 0 and 90 degrees
+      theta *= radians_to_angle_conversion;
+    }
+    if(r < rmin)
+      rmin = r;
+  }
+  
+  membrane_param.axial_diameter = 2. * rmax;
+  membrane_param.transverse_diameter = 2. * rmin;
+  membrane_param.taylor_deformation_parameter = (rmax - rmin) / (rmax + rmin);
+  membrane_param.orientation_angle = theta;
 }
 
 
@@ -1140,7 +1179,8 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   // Opening the file
   if(cyclenum == 1)
   {
-    rbc_stats_file.open( directory + filename, ios::out );
+    string file_to_write = directory + "/" + filename;
+    rbc_stats_file.open( file_to_write, ios::out );
     rbc_stats_file << "Iteration_number" << "\t"
                     << "Time" << "\t"
                     << "Axial_diameter" << "\t"
@@ -1179,12 +1219,10 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   // Transverse diameter
   membrane_param.transverse_diameter = compute_transverse_diameter();
   
-  cout << membrane_param.axial_diameter << "\t" << membrane_param.transverse_diameter << endl; exit(3);
+  // Taylor deformation parameter and orientation angle computation
+  compute_tdp_orientation_angle();
   
   /*
-  // Taylor deformation parameter and orientation angle computation
-  compute_tdp_orientation_angle(rbcm);
-  
   // Final perimeter
   compute_edge_normals();
   double final_perimeter = perimeter();

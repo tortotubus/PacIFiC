@@ -55,7 +55,7 @@ struct MembraneParameters
   size_t n_subtimesteps_RBC;
   
   // Morphology parameters
-  double axial_diameter, transverse_diameter;
+  double axial_diameter, transverse_diameter, taylor_deformation_parameter;
   double orientation_angle;
   double avg_tangential_velocity;
   double initial_perimeter, final_perimeter;
@@ -329,6 +329,10 @@ class DS_ImmersedBoundary
       
       /** @brief Computes transverse diameter of each immersed boundary */
       virtual double compute_transverse_diameter() = 0;
+      
+      /** @brief Computes Taylor Deformation Parameter & Orientation angle for
+      each immersed boundary */
+      virtual void compute_tdp_orientation_angle() = 0;
       
       /** @brief Computes the perimeter = sum of all edge lengths */
       virtual double perimeter() = 0;
