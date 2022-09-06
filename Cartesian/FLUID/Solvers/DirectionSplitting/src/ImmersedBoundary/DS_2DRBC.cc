@@ -7,6 +7,7 @@
 #include <math.h>
 #include <cmath>
 #include <typeinfo>
+#include <iomanip>      // std::setprecision
 using std::endl;
 using std::cout;
 using std::cin;
@@ -1154,6 +1155,33 @@ void DS_2DRBC:: compute_tdp_orientation_angle()
 
 
 //---------------------------------------------------------------------------
+double DS_2DRBC:: compute_avg_tangential_velocity()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_avg_tangential_velocity" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double avg_tangential_velocity = 0.;
+  double u, v;
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+      u = m_all_nodes[inode].velocity(0);
+      v = m_all_nodes[inode].velocity(1);
+      
+      avg_tangential_velocity += MAC::sqrt( pow(u, 2.) + pow(v, 2.) );
+  }
+  
+  avg_tangential_velocity /= num_nodes;
+  
+  return(avg_tangential_velocity);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: compute_stats(string const& directory, string const& filename, 
                               size_t const& dim, double const& time, 
                               size_t const& cyclenum)
@@ -1222,7 +1250,6 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   // Taylor deformation parameter and orientation angle computation
   compute_tdp_orientation_angle();
   
-  /*
   // Final perimeter
   compute_edge_normals();
   double final_perimeter = perimeter();
@@ -1231,11 +1258,11 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   membrane_param.final_area = pow(final_perimeter, 2) / (4.0 * MAC::pi());
   
   // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
-  membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity(rbcm);
+  membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity();
   
   // Writing to file
-  rbc_stats_file << std::scientific 
-    << setprecision(16)
+  rbc_stats_file << std::scientific
+    << setprecision(12)
     << cyclenum << "\t"
     << time << "\t"
     << membrane_param.axial_diameter << "\t"
@@ -1256,7 +1283,6 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
 
   // Closing the file
   rbc_stats_file.close();
-  */
 }
 
 

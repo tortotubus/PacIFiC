@@ -785,6 +785,16 @@ void DS_3DRBC:: compute_tdp_orientation_angle()
 
 
 //---------------------------------------------------------------------------
+double DS_3DRBC:: compute_avg_tangential_velocity()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_avg_tangential_velocity" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: compute_stats(string const& directory, string const& filename, 
                               size_t const& dim, double const& time, 
                               size_t const& cyclenum)

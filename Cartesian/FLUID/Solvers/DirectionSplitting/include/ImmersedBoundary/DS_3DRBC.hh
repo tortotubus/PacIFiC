@@ -133,6 +133,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Computes Taylor Deformation Parameter & Orientation angle */
       void compute_tdp_orientation_angle();
       
+      /** @brief Computes the average tangential velocity */
+      double compute_avg_tangential_velocity();
+      
       /** @brief Computes the perimeter */
       double perimeter();
       

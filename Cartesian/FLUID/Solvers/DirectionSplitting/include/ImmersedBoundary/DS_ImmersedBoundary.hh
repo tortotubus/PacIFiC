@@ -334,6 +334,9 @@ class DS_ImmersedBoundary
       each immersed boundary */
       virtual void compute_tdp_orientation_angle() = 0;
       
+      /** @brief Computes the average tangential velocity of immersed boundary*/
+      virtual double compute_avg_tangential_velocity() = 0;
+      
       /** @brief Computes the perimeter = sum of all edge lengths */
       virtual double perimeter() = 0;
       
