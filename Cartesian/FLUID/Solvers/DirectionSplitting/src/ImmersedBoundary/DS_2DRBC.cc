@@ -743,6 +743,80 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
 
 
 
+/*
+//---------------------------------------------------------------------------
+void DS_2DRBC:: compute_bending_resistance( size_t const& dim, 
+                                        double const& bending_spring_constant,
+                                        double const& bending_viscous_constant, 
+                                        double const& dt )
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL( "DS_2DRBC:: compute_bending_resistance" ) ;
+    
+    double scalar_prod = 0., vect_prod = 0., theta = 0., moment_of_inertia = 0., f = 0.;
+    double top = 0.;
+    for (size_t inode=0;inode<rbcm->m_number_of_nodes;++inode)
+    {
+        // Compute the angle, pay attention to the sign determined by 
+        // the sign of the cross product
+        scalar_prod = min( scalar( rbcm->m_all_nodes[inode].edge_of_neighbors[0]->ext_unit_normal, rbcm->m_all_nodes[inode].edge_of_neighbors[1]->ext_unit_normal ), 1. );
+        vect_prod = cross( rbcm->m_all_nodes[inode].edge_of_neighbors[0]->ext_unit_normal, rbcm->m_all_nodes[inode].edge_of_neighbors[1]->ext_unit_normal );
+        theta = ( vect_prod > 0. ? 1. : -1. ) * acos( scalar_prod );
+
+        // Bending moment
+        moment_of_inertia = bending_spring_constant * ( theta - rbcm->m_all_nodes[inode].initial_angle );
+        moment_of_inertia += bending_viscous_constant * rbcm->m_all_nodes[inode].dangledt ;
+
+        // Bending spring forces
+        // Logic: add +f and +f to neighbouring nodes while add -2f to current node "inode" to have force balance in the entire system
+        // ***NOTE***: Alternative logic: add +f/2 and +f/2 to neighbouring nodes while add -f to current node "inode" to have force balance in the entire system
+        // Neighbor 0
+        for (size_t j=0;j<2;++j)
+        {
+            f = ( moment_of_inertia / rbcm->m_all_nodes[inode].edge_of_neighbors[0]->length ) * rbcm->m_all_nodes[inode].edge_of_neighbors[0]->ext_unit_normal[j] ;
+            rbcm->m_all_nodes[inode].neighbors[0]->sumforce[j] += f ; // adding bending force to the backward connected neighbour 
+            rbcm->m_all_nodes[inode].sumforce[j] -= f ; // adding bending force to the current node "inode"
+        }  
+
+        // Neighbor 1
+        for (size_t j=0;j<2;++j)
+        {
+            f = ( moment_of_inertia / rbcm->m_all_nodes[inode].edge_of_neighbors[1]->length ) * rbcm->m_all_nodes[inode].edge_of_neighbors[1]->ext_unit_normal[j] ;
+            rbcm->m_all_nodes[inode].neighbors[1]->sumforce[j] += f ; // adding bending force to the forward connected neighbour
+            rbcm->m_all_nodes[inode].sumforce[j] -= f ; // adding bending force to current node "inode"
+            top += f;
+        }
+        
+        // Update previous angle and d(angle)/dt
+        rbcm->m_all_nodes[inode].dangledt = ( theta - rbcm->m_all_nodes[inode].angle_nm1 ) / dt;
+        rbcm->m_all_nodes[inode].angle_nm1 = theta;
+    }
+}
+*/
+
+
+
+
+//---------------------------------------------------------------------------
+// Computes viscous drag force
+void DS_2DRBC:: compute_viscous_drag_force( size_t const& dim,
+                                           double const& viscous_drag_constant )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_viscous_drag_force" ) ;
+    
+  size_t num_nodes = shape_param.N_nodes;
+  
+  // viscous force = - c.v where c is damping constant and v is node velocity
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+        m_all_nodes[inode].sumforce(j) -= viscous_drag_constant 
+                                         * m_all_nodes[inode].velocity(j);
+} 
+
+
+
+
 //---------------------------------------------------------------------------
 void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
@@ -787,24 +861,21 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Compute forces on all nodes
     // Spring force
     if(case_type.compare("Breyannis2000case") != 0)
-    {
       compute_spring_force( dim, spring_constant );
-    }
     else
-    {
-      size_t b = 0;
         compute_linear_spring_force( dim, spring_constant );
-    }
         
     // Bending resistance
     if(case_type.compare("Breyannis2000case") != 0)
     {
-      size_t c = 0;
-        // // // compute_bending_resistance( bending_spring_constant, bending_viscous_constant, dt );
+        size_t c = 0;
+        // compute_bending_resistance( bending_spring_constant, 
+           //                          bending_viscous_constant, 
+              //                       dt );
     }
 
     // Viscous drag force
-    // // // compute_viscous_drag_force( viscous_drag_constant );
+    compute_viscous_drag_force( dim, viscous_drag_constant );
 
 
     for (size_t inode=0;inode<num_nodes;++inode)

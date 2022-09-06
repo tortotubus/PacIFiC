@@ -116,6 +116,18 @@ class DS_2DRBC: public DS_ImmersedBoundary
       void compute_linear_spring_force( size_t const& dim, 
                                  double const& spring_constant );
       
+      /** @brief Computes bending force */
+      /*
+      void compute_bending_resistance( size_t const& dim, 
+                                       double const& bending_spring_constant,
+                                       double const& bending_viscous_constant, 
+                                       double const& dt );
+      */
+
+      /** @brief Computes viscous force */
+      void compute_viscous_drag_force( size_t const& dim, 
+                                       double const& viscous_drag_constant );
+
       /** @brief Lagrangian to Eulerian force spreading **/
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);

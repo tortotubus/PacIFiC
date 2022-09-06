@@ -702,6 +702,33 @@ void DS_3DRBC:: compute_linear_spring_force(size_t const& dim,
 
 
 
+/*
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_bending_resistance( size_t const& dim, 
+                                        double const& bending_spring_constant,
+                                        double const& bending_viscous_constant, 
+                                        double const& dt )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
+}
+*/
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
+                                           double const& viscous_drag_constant )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_viscous_drag_force" ) ;
+    
+}
+
+
+
+
 //---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 

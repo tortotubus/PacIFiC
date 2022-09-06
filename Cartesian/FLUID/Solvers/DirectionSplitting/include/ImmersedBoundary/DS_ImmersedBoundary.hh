@@ -280,6 +280,18 @@ class DS_ImmersedBoundary
       virtual void compute_linear_spring_force( size_t const& dim,
                                             double const& spring_constant ) = 0;
       
+      /** @brief Computes bending force */
+      /*
+      virtual void compute_bending_resistance (size_t const& dim, 
+                                         double const& bending_spring_constant,
+                                         double const& bending_viscous_constant, 
+                                         double const& dt ) = 0;
+      */
+
+      /** @brief Computes viscous force */
+      virtual void compute_viscous_drag_force( size_t const& dim, 
+                                      double const& viscous_drag_constant ) = 0;
+
       /** @brief Copies the Lagrangain position & force to a doubleVector */
       void copy_lag_position_and_force_to_vector
                             (doubleVector& lag_pos_and_force, size_t const& dim);
