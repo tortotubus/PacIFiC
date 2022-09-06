@@ -744,6 +744,48 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
 
 
 
+//-----------------------------------------------------------
+void DS_3DRBC:: compute_centroid(size_t const& dim)
+//-----------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_centroid" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+double DS_3DRBC:: compute_axial_diameter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_axial_diameter" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+double DS_3DRBC:: compute_transverse_diameter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_transverse_diameter" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_stats(string const& directory, string const& filename, 
+                              size_t const& dim, double const& time, 
+                              size_t const& cyclenum)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_stats" ) ;
+}
+
+
+
+
 //---------------------------------------------------------------------------
 double DS_3DRBC:: norm( double const* v )
 //---------------------------------------------------------------------------

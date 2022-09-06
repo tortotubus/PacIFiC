@@ -40,18 +40,28 @@ struct ShapeParameters
 
 struct MembraneParameters
 {
+  // Physical parameters
   double mass, node_mass;
   double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_spring_constant;
   double membrane_mass_spring_timescale, edge_mass_spring_timescale;
   double node_bending_mass_spring_timescale;
+  double eta_P, eta_M; // membrane viscosity
 
-  double eta_P, eta_M;
-
+  // Temporal parameters
   double tmax, dt;
   size_t ntimescales;
   size_t ntimesteps;
   size_t n_subtimesteps_RBC;
+  
+  // Morphology parameters
+  double axial_diameter, transverse_diameter;
+  double orientation_angle;
+  double avg_tangential_velocity;
+  double initial_perimeter, final_perimeter;
+  double initial_area, final_area;
+  geomVector centroid_coordinates;
+  double total_kinetic_energy;
 };
 
 
@@ -290,6 +300,16 @@ class DS_ImmersedBoundary
       virtual void compute_viscous_drag_force( size_t const& dim, 
                                       double const& viscous_drag_constant ) = 0;
 
+      /** @brief Computes the statistics of each immersed boundary */
+      virtual void compute_stats(string const& directory, 
+                                 string const& filename, 
+                                 size_t const& dim,
+                                 double const& time, 
+                                 size_t const& cyclenum) = 0;
+      
+      /** @brief Computes the centroid of each immersed boundary */
+      virtual void compute_centroid(size_t const& dim) = 0;
+      
       /** @brief Copies the Lagrangain position & force to a doubleVector */
       void copy_lag_position_and_force_to_vector
                             (doubleVector& lag_pos_and_force, size_t const& dim);
@@ -303,6 +323,12 @@ class DS_ImmersedBoundary
                               FV_DiscreteField* FF_tag,
                               size_t const& dim, 
                               size_t const& comp) = 0;
+      
+      /** @brief Computes axial diameter of each immersed boundary */
+      virtual double compute_axial_diameter() = 0;
+      
+      /** @brief Computes transverse diameter of each immersed boundary */
+      virtual double compute_transverse_diameter() = 0;
       
       /** @brief Computes the perimeter = sum of all edge lengths */
       virtual double perimeter() = 0;
@@ -351,6 +377,18 @@ class DS_ImmersedBoundary
       ostringstream m_vtk_to_pvd;
       ostringstream m_rbc_one_point_pvd;
       ostringstream m_one_point_vtk_to_pvd;
+
+      // Filename variables for statistics computation & writing
+      string m_rootdir;
+      string m_rootname;
+      string m_video_rootname;
+      string m_kinetic_energy_rootname;
+      string m_morphology_rootname;
+      string m_force_stats_rootname;
+      string m_diameter_stats_rootname;
+      string m_rbc_one_point_rootname;
+      string m_triangle_unit_normals_rootname;
+      string m_node_unit_normals_rootname;
       //@}
 
 

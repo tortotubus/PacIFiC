@@ -195,6 +195,8 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
      p_membrane_param->k_area = k_area;
      p_membrane_param->k_volume = k_volume;
      p_membrane_param->mass = membrane_mass;
+     geomVector centroid(2);
+     p_membrane_param->centroid_coordinates = centroid;
      
      // m_allDSimmersedboundary[i]->display_parameters();
   }
@@ -378,18 +380,24 @@ void DS_AllImmersedBoundary:: do_additional_savings
     
 
     /*
-    // Writing Res/rbc_one_point_T*.vtu files for every sampled iterations
-    m_allDSimmersedboundary[i]->write_one_point_to_VTK(t_it->time(), 
-                                                       cycleNumber);
-    // Writing one point to another rbc_one_point.pvd file for tank treading
-    m_allDSimmersedboundary[i]->write_one_point_of_rbc_mesh_to_pvd_file(
-                                                     t_it->time(), cycleNumber);
+    if(false)
+    {
+      // Writing Res/rbc_one_point_T*.vtu files for every sampled iterations
+      m_allDSimmersedboundary[i]->write_one_point_to_VTK(t_it->time(), 
+                                                         cycleNumber);
+      // Writing one point to another rbc_one_point.pvd file for tank treading
+      m_allDSimmersedboundary[i]->write_one_point_of_rbc_mesh_to_pvd_file(
+                                                       t_it->time(), cycleNumber);
+    }
+    */
     
 
     // Writing statistics of RBC membrane
-    m_allDSimmersedboundary[i]->compute_stats(t_it->time(), cycleNumber);
+    m_allDSimmersedboundary[i]->compute_stats("Res", "rbc_stats.datnew", 
+                                          m_space_dimension, 
+                                          t_it->time(), cycleNumber);
 
-
+    /*
     // Writing triangle unit normals to .vtu file
     m_allDSimmersedboundary[i]->write_triangle_normals_to_VTK
                                                            ("triangle_normals");

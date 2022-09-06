@@ -116,6 +116,20 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);
       
+      /** @brief Computes the statistics of each RBC membrane */
+      void compute_stats(string const& directory, string const& filename, 
+                         size_t const& dim, double const& time, 
+                         size_t const& cyclenum);
+      
+      /** @brief Computes the centroid of each immersed boundary */
+      void compute_centroid(size_t const& dim);
+      
+      /** @brief Computes axial diameter of RBC: x_max - x_min */
+      double compute_axial_diameter();
+      
+      /** @brief Computes transverse diameter of RBC: max(sqrt(y^2 + z^2)) */
+      double compute_transverse_diameter();
+      
       /** @brief Computes the perimeter */
       double perimeter();
       

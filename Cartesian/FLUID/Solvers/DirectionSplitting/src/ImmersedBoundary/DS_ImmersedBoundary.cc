@@ -23,8 +23,6 @@ DS_ImmersedBoundary:: DS_ImmersedBoundary()
 {
   MAC_LABEL( "DS_ImmersedBoundary:: DS_ImmersedBoundary" ) ;
 
-
-
 }
 
 

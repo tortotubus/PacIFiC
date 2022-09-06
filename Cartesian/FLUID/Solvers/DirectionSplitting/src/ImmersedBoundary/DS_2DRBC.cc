@@ -193,9 +193,9 @@ void DS_2DRBC:: set_all_edges()
 
   }
 
+  // Edge of neighbors
   for (size_t i=0; i<num_nodes; ++i)
   {
-    // Edge of neighbors
     m_all_nodes[i].edge_of_neighbors[0] = 
                                  &(m_all_edges[i == 0 ? m_nEdges - 1 : i - 1 ]);
     m_all_nodes[i].edge_of_neighbors[1] = &(m_all_edges[i]);
@@ -621,30 +621,30 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
               // if( eul_cell_within_proc_domain and eul_cell_within_Dirac_delta_stencil )
               if( eul_cell_within_Dirac_delta_stencil )
               {
-                  r1 = dist_x;
-                  r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
-                  p1 = dist_y;
-                  p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
+                r1 = dist_x;
+                r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
+                p1 = dist_y;
+                p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
 
-                  // Dirac delta function value
-                  delt1 = r1 * p1;
+                // Dirac delta function value
+                delt1 = r1 * p1;
 
-                  // Numerical integration of Dirac delta function value
-                  sum_dirac_delta += delt1 * dxC * dyC;
-                  
-                  kk = 0;
+                // Numerical integration of Dirac delta function value
+                sum_dirac_delta += delt1 * dxC * dyC;
+                
+                kk = 0;
 
-                  // Computing Eulerian force
-                  euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                                + 
-                                m_all_nodes[inode].sumforce(comp)
-                                * delt1 * dxC * dyC;
-                  FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
-                  sum_euler_force += euler_force;
-                  
-                  // Assigning Eulerian force tag for each cell for debugging
-                  euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
-                  FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+                // Computing Eulerian force
+                euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                              + 
+                              m_all_nodes[inode].sumforce(comp)
+                              * delt1 * dxC * dyC;
+                FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
+                sum_euler_force += euler_force;
+                
+                // Assigning Eulerian force tag for each cell for debugging
+                euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+                FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
               }
           }
       }
@@ -843,7 +843,7 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
   compute_edge_normals();
   
   // Initial perimeter
-  double initial_perimeter = perimeter();
+  membrane_param.initial_perimeter = perimeter();
   
 
   // Time loop
@@ -865,14 +865,14 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
     if(case_type.compare("Breyannis2000case") != 0)
       compute_spring_force( dim, spring_constant );
     else
-        compute_linear_spring_force( dim, spring_constant );
+      compute_linear_spring_force( dim, spring_constant );
         
     // Bending resistance
     if(case_type.compare("Breyannis2000case") != 0)
-        compute_bending_resistance( dim,
-                                    bending_spring_constant, 
-                                    bending_viscous_constant, 
-                                    dt );
+      compute_bending_resistance( dim,
+                                  bending_spring_constant, 
+                                  bending_viscous_constant, 
+                                  dt );
 
     // Viscous drag force
     compute_viscous_drag_force( dim, viscous_drag_constant );
@@ -998,6 +998,227 @@ void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
   
   fileOUT.close();   
 
+}
+
+
+
+
+//-----------------------------------------------------------
+void DS_2DRBC:: compute_centroid(size_t const& dim)
+//-----------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_centroid" ) ;
+    
+  size_t num_nodes = shape_param.N_nodes;
+  
+  // centroid or center of mass
+  for (size_t j=0;j<dim;++j)
+  {
+    // re-initialisation to avoid wrong 
+    // centroid computation from previous 
+    // time step
+    membrane_param.centroid_coordinates(j) = 0.0;
+    
+    for (size_t inode=0;inode<num_nodes;++inode)
+      membrane_param.centroid_coordinates(j) += m_all_nodes[inode].coordinates(j);
+    
+    membrane_param.centroid_coordinates(j) /= num_nodes;
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+double DS_2DRBC:: compute_axial_diameter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_axial_diameter" ) ;
+    
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double dist_axial, euclid_dist_axial = -HUGE_VAL;
+  double x_node, y_node;
+  size_t node_index;
+  double axial_radius, axial_dia;
+
+  double x_centroid = membrane_param.centroid_coordinates(0); // 0.
+  double y_centroid = membrane_param.centroid_coordinates(1); // 0.
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    
+    dist_axial = MAC::sqrt( pow(x - x_centroid, 2.) + pow(y - y_centroid, 2) );
+    
+    if(dist_axial > euclid_dist_axial)
+    {
+      euclid_dist_axial = dist_axial;
+      node_index = inode;
+      x_node = x;
+      y_node = y;
+    }
+  }
+  
+  axial_radius = MAC::sqrt( pow(x_node - x_centroid, 2.) 
+                          + pow(y_node - y_centroid, 2) );
+  axial_dia = 2. * axial_radius;
+      
+  return(axial_dia);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+double DS_2DRBC:: compute_transverse_diameter()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_transverse_diameter" ) ;
+    
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double dist_transverse, euclid_dist_transverse = HUGE_VAL;
+  double x_node, y_node;
+  size_t node_index;
+  double transverse_radius, transverse_dia;
+
+  double x_centroid = membrane_param.centroid_coordinates(0); // 0.
+  double y_centroid = membrane_param.centroid_coordinates(1); // 0.
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    
+    dist_transverse = MAC::sqrt( pow(x - x_centroid, 2.) 
+                               + pow(y - y_centroid, 2) );
+    
+    if(dist_transverse < euclid_dist_transverse)
+    {
+      euclid_dist_transverse = dist_transverse;
+      node_index = inode;
+      x_node = x;
+      y_node = y;
+    }
+  }
+  
+  transverse_radius = MAC::sqrt( pow(x_node - x_centroid, 2.) 
+                               + pow(y_node - y_centroid, 2) );
+  transverse_dia = 2. * transverse_radius;
+      
+  return(transverse_dia);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: compute_stats(string const& directory, string const& filename, 
+                              size_t const& dim, double const& time, 
+                              size_t const& cyclenum)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_stats" ) ;
+    
+
+  m_rootdir = "Res";
+  m_rootname = "rbc";
+  m_video_rootname = "video_rbc";
+  m_kinetic_energy_rootname = "kinetic_energy.res";
+  m_morphology_rootname = "membrane_morphology.datnew";
+  m_force_stats_rootname = "force_stats.txt";
+  m_diameter_stats_rootname = "diameter_and_morphology.txt";
+  m_rbc_one_point_rootname = "rbc_one_point";
+  m_triangle_unit_normals_rootname = "triangle_unit_normals";
+  m_node_unit_normals_rootname = "node_unit_normals";
+
+
+  ofstream rbc_stats_file;
+    
+  // Opening the file
+  if(cyclenum == 1)
+  {
+    rbc_stats_file.open( directory + filename, ios::out );
+    rbc_stats_file << "Iteration_number" << "\t"
+                    << "Time" << "\t"
+                    << "Axial_diameter" << "\t"
+                    << "Transverse_diameter" << "\t"
+                    << "Taylor_deformation_parameter" << "\t"
+                    << "Orientation_angle" << "\t"
+                    << "Average_tangential_velocity" << "\t"
+                    << "Initial_perimeter" << "\t"
+                    << "Final_perimeter" << "\t"
+                    << "Final_perimeter-Initial_perimeter" << "\t"
+                    << "Final_perimeter/Initial_perimeter" << "\t"
+                    << "Initial area" << "\t"
+                    << "Final_area" << "\t"
+                    << "Centroid_x" << "\t"
+                    << "Centroid_y" << "\t"
+                    << "Total_kinetic_energy"
+                    << endl;
+                    
+    // Initial perimeter
+    compute_edge_normals();
+    membrane_param.initial_perimeter = perimeter();
+    membrane_param.initial_area = pow(membrane_param.initial_perimeter, 2) 
+                                  / (4.0 * MAC::pi());
+  }
+  else
+  {
+    rbc_stats_file.open( directory + filename, ios::app );
+  }
+  
+  // Centroid of membrane
+  compute_centroid(dim);
+
+  // Axial diameter
+  membrane_param.axial_diameter = compute_axial_diameter();
+  
+  // Transverse diameter
+  membrane_param.transverse_diameter = compute_transverse_diameter();
+  
+  cout << membrane_param.axial_diameter << "\t" << membrane_param.transverse_diameter << endl; exit(3);
+  
+  /*
+  // Taylor deformation parameter and orientation angle computation
+  compute_tdp_orientation_angle(rbcm);
+  
+  // Final perimeter
+  compute_edge_normals();
+  double final_perimeter = perimeter();
+  
+  // Final area
+  membrane_param.final_area = pow(final_perimeter, 2) / (4.0 * MAC::pi());
+  
+  // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
+  membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity(rbcm);
+  
+  // Writing to file
+  rbc_stats_file << std::scientific 
+    << setprecision(16)
+    << cyclenum << "\t"
+    << time << "\t"
+    << membrane_param.axial_diameter << "\t"
+    << membrane_param.transverse_diameter << "\t"
+    << membrane_param.taylor_deformation_parameter << "\t"
+    << membrane_param.orientation_angle << "\t"
+    << membrane_param.avg_tangential_velocity << "\t"
+    << membrane_param.initial_perimeter << "\t"
+    << membrane_param.final_perimeter << "\t"
+    << membrane_param.final_perimeter - membrane_param.initial_perimeter << "\t"
+    << membrane_param.final_perimeter / membrane_param.initial_perimeter << "\t"
+    << membrane_param.initial_area << "\t"
+    << membrane_param.final_area << "\t"
+    << membrane_param.centroid_coordinates(0) << "\t"
+    << membrane_param.centroid_coordinates(1) << "\t"
+    << membrane_param.total_kinetic_energy
+    << endl;
+
+  // Closing the file
+  rbc_stats_file.close();
+  */
 }
 
 
