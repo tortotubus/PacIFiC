@@ -117,7 +117,9 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
     */
     int lvl = get_level_IBM_stencil(&mesh->nodes[i]);
     double delta = L0/(1 << lvl);
-    mesh->nodes[i].slvl = lvl;
+    #if !(CONSTANT_MB_LEVEL)
+      mesh->nodes[i].slvl = lvl;
+    #endif
     for(int ni=-2; ni<=2; ni++) {
       for(int nj=-2; nj<=2; nj++) {
         #if dimension < 3
