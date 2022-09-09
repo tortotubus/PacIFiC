@@ -364,7 +364,7 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
   double dxC, dyC, dzC;
   double hxC, hyC, hzC; // Reciprocal of dxC, dyC, dzC
   int Nx, Ny, Nz;
-  double r1, p1, q1, delt1; // Dirac delta variables
+  double r1, p1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend;
 
   FV_Mesh const* fvm = FF->primary_grid();
@@ -462,8 +462,12 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
           bool eul_cell_within_Dirac_delta_stencil = 
                         (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
                   
-          if( eul_cell_within_Dirac_delta_stencil )
-          {
+          dist_x = (xC - xp) * hxC;
+          dist_y = (yC - yp) * hyC;
+          eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
+          
+          // if( eul_cell_within_Dirac_delta_stencil )
+          // {
             r1 = dist_x;
             r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
             p1 = dist_y;
@@ -481,7 +485,7 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
             m_all_nodes[inode].velocity(comp) += 
                                 FF->DOF_value( ii, jj, kk, comp, 0 ) 
                                 * delt1 * dxC * dyC;
-          }
+          // }
         }
       }
     }
@@ -588,67 +592,71 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   // Lagrangian to Eulerian force spreading for all nodes
   for(size_t inode=0; inode<num_nodes; ++inode)
   {
-      // Get coordinates of inode's Lagrangian marker
-      double xp = m_all_nodes[inode].coordinates_pbc(0);
-      double yp = m_all_nodes[inode].coordinates_pbc(1);
-      
-      double sum_dirac_delta = 0.;
-      double sum_euler_force = 0., euler_force_tag = 0.;
-      
-      for (size_t ii=min_unknown_index_with_halozone(0);
-                  ii<=max_unknown_index_with_halozone(0);
-                  ++ii) 
+    // Get coordinates of inode's Lagrangian marker
+    double xp = m_all_nodes[inode].coordinates_pbc(0);
+    double yp = m_all_nodes[inode].coordinates_pbc(1);
+    
+    double sum_dirac_delta = 0.;
+    double sum_euler_force = 0., euler_force_tag = 0.;
+    
+    for (size_t ii=min_unknown_index_with_halozone(0);
+                ii<=max_unknown_index_with_halozone(0);
+                ++ii) 
+    {
+      for (size_t jj=min_unknown_index_with_halozone(1);
+                  jj<=max_unknown_index_with_halozone(1);
+                  ++jj) 
       {
-          for (size_t jj=min_unknown_index_with_halozone(1);
-                      jj<=max_unknown_index_with_halozone(1);
-                      ++jj) 
-          {
-              xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
-              yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
-              
-              // Check if Eulerian cell is within processor domain
-              bool eul_cell_within_proc_domain = 
-                                 fvm->is_in_domain_on_current_processor(xC, yC);
+        xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
+        yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
+        
+        // Check if Eulerian cell is within processor domain
+        bool eul_cell_within_proc_domain = 
+                           fvm->is_in_domain_on_current_processor(xC, yC);
 
-              // Check if Eulerian cell is within Dirac delta 2x2 stencil
-              double dist_x = 
-                          compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-              double dist_y = 
-                          compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-              bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
-                                                         and 
-                                                         (fabs(dist_y) <= 2.);
-              
-              // if( eul_cell_within_proc_domain and eul_cell_within_Dirac_delta_stencil )
-              if( eul_cell_within_Dirac_delta_stencil )
-              {
-                r1 = dist_x;
-                r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
-                p1 = dist_y;
-                p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
+        // Check if Eulerian cell is within Dirac delta 2x2 stencil
+        double dist_x = 
+                    compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+        double dist_y = 
+                    compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+        bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
+                                                   and 
+                                                   (fabs(dist_y) <= 2.);
+        
+        dist_x = (xC - xp) * hxC;
+        dist_y = (yC - yp) * hyC;
+        eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
+        
+        // if( eul_cell_within_proc_domain and eul_cell_within_Dirac_delta_stencil )
+        if( eul_cell_within_Dirac_delta_stencil )
+        {
+          r1 = dist_x;
+          r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
+          p1 = dist_y;
+          p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
 
-                // Dirac delta function value
-                delt1 = r1 * p1;
+          // Dirac delta function value
+          delt1 = r1 * p1;
 
-                // Numerical integration of Dirac delta function value
-                sum_dirac_delta += delt1 * dxC * dyC;
-                
-                kk = 0;
+          // Numerical integration of Dirac delta function value
+          sum_dirac_delta += delt1 * dxC * dyC;
+          
+          kk = 0;
 
-                // Computing Eulerian force
-                euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                              + 
-                              m_all_nodes[inode].sumforce(comp)
-                              * delt1 * dxC * dyC;
-                FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
-                sum_euler_force += euler_force;
-                
-                // Assigning Eulerian force tag for each cell for debugging
-                euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
-                FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
-              }
-          }
+          // Computing Eulerian force
+          euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                        + 
+                        m_all_nodes[inode].sumforce(comp)
+                        * delt1 * dxC * dyC;
+          FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
+          sum_euler_force += euler_force;
+          
+          // Assigning Eulerian force tag for each cell for debugging
+          euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+          FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+        }
       }
+    }
   }
 }
 
@@ -756,6 +764,7 @@ void DS_2DRBC:: compute_bending_resistance( size_t const& dim,
   size_t num_nodes = shape_param.N_nodes;
   geomVector n1(2), n2(2);
   double f = 0.;
+  double top = 0.;
   
   for (size_t inode=0;inode<num_nodes;++inode)
   {
@@ -789,6 +798,7 @@ void DS_2DRBC:: compute_bending_resistance( size_t const& dim,
           * n2(j);
       m_all_nodes[inode].neighbors[1]->sumforce(j) += f ;
       m_all_nodes[inode].sumforce(j) -= f ;
+      top += f;
     }
     
     // Update previous angle and d(angle)/dt
@@ -1188,8 +1198,7 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_stats" ) ;
-    
-
+  
   m_rootdir = "Res";
   m_rootname = "rbc";
   m_video_rootname = "video_rbc";
@@ -1203,11 +1212,11 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
 
 
   ofstream rbc_stats_file;
+  string file_to_write = directory + "/" + filename;
     
   // Opening the file
   if(cyclenum == 1)
   {
-    string file_to_write = directory + "/" + filename;
     rbc_stats_file.open( file_to_write, ios::out );
     rbc_stats_file << "Iteration_number" << "\t"
                     << "Time" << "\t"
@@ -1235,7 +1244,7 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   }
   else
   {
-    rbc_stats_file.open( directory + filename, ios::app );
+    rbc_stats_file.open( file_to_write, ios::app );
   }
   
   // Centroid of membrane
@@ -1261,8 +1270,7 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity();
   
   // Writing to file
-  rbc_stats_file << std::scientific
-    << setprecision(12)
+  rbc_stats_file << std::scientific // << setprecision(12)
     << cyclenum << "\t"
     << time << "\t"
     << membrane_param.axial_diameter << "\t"

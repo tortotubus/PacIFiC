@@ -34,7 +34,7 @@ struct ShapeParameters
   double c0, c1, c2;
   size_t N_nodes;
   size_t N_levels;
-  size_t node_spacing_with_dx; // deciding N_nodes based on this value
+  double node_spacing_with_dx; // deciding N_nodes based on this value
 };
 
 
@@ -268,11 +268,11 @@ class DS_ImmersedBoundary
 
       /** @brief Copies the Lagrangain velocity to a doubleVector */
       void copy_lagrangian_velocity_to_vector(doubleVector& lag_vel, 
-                                                      size_t const& dim);
+                                              size_t const& dim);
       
       /** @brief Copies the Lagrangain position & force to a doubleVector */
-      void copy_vector_to_lag_vel (doubleVector& lag_vel, 
-                                           size_t const& dim);
+      void copy_vector_to_lagrangian_velocity (doubleVector& lag_vel, 
+                                               size_t const& dim);
                             
       /** @brief Computes RBC deformation using spring-dashpot model */
       virtual void rbc_dynamics_solver(size_t const& dim, 

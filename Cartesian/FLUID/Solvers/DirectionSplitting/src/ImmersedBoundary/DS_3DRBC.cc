@@ -801,6 +801,19 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_stats" ) ;
+
+  m_rootdir = "Res";
+  m_rootname = "rbc";
+  m_video_rootname = "video_rbc";
+  m_kinetic_energy_rootname = "kinetic_energy.res";
+  m_morphology_rootname = "membrane_morphology.datnew";
+  m_force_stats_rootname = "force_stats.txt";
+  m_diameter_stats_rootname = "diameter_and_morphology.txt";
+  m_rbc_one_point_rootname = "rbc_one_point";
+  m_triangle_unit_normals_rootname = "triangle_unit_normals";
+  m_node_unit_normals_rootname = "node_unit_normals";
+
+
 }
 
 

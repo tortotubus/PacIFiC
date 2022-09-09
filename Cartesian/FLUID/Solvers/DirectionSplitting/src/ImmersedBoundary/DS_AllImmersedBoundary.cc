@@ -50,7 +50,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                    create(m_space_dimension);
   }
 
-  read_shape_and_membrane_parameters();
+  double dx = UF->get_cell_size( 1,0, 0);
+  read_shape_and_membrane_parameters(dx);
 
   generate_immersed_body_mesh();
   
@@ -137,7 +138,8 @@ size_t DS_AllImmersedBoundary:: get_num_lines_in_IB_file()
 
 
 //---------------------------------------------------------------------------
-void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
+void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
+                                                           (double const& dx)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_and_membrane_parameters" ) ;
@@ -147,10 +149,9 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
   double x_roll_angle, y_pitch_angle, z_yaw_angle;
   double c0, c1, c2;
   size_t N_nodes, N_levels;
-  size_t node_spacing_with_dx;
+  double node_spacing_with_dx;
   double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_mass;
-  double dx = 1.; // CHANGE THIS
 
   std::ifstream inFile;
   std::ostringstream os2;
@@ -160,45 +161,45 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters()
   inFile.open(filename.c_str());
   string line;
   getline(inFile,line); // read header line of input data file
-  for (size_t i = 0; i < m_nIB; ++i) {
-     inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
-            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
-            >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-            >> k_viscous >> k_area >> k_volume >> membrane_mass;
-            
-     ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
-                                                ->get_ptr_shape_parameters();
-     
-     geomVector position(xp,yp,zp);
-     p_shape_param->center = position;
-     p_shape_param->xroll = x_roll_angle;
-     p_shape_param->ypitch = y_pitch_angle;
-     p_shape_param->zyaw = z_yaw_angle;
-     p_shape_param->radius = Rp;
-     p_shape_param->c0 = c0;
-     p_shape_param->c1 = c1;
-     p_shape_param->c2 = c2;
-     p_shape_param->N_levels = N_levels;
-     p_shape_param->node_spacing_with_dx = node_spacing_with_dx;
-     p_shape_param->N_nodes = (node_spacing_with_dx != 0) 
-                              ? round ( 2.0 * MAC::pi() * Rp 
-                                / (double(node_spacing_with_dx) * dx) )
-                              : N_nodes;
-     
-     MembraneParameters* p_membrane_param = m_allDSimmersedboundary[i]
-                                                ->get_ptr_membrane_parameters();
-     
-     p_membrane_param->k_spring = k_spring;
-     p_membrane_param->k_bending = k_bending;
-     p_membrane_param->k_bending_visc = k_bending_visc;
-     p_membrane_param->k_viscous = k_viscous;
-     p_membrane_param->k_area = k_area;
-     p_membrane_param->k_volume = k_volume;
-     p_membrane_param->mass = membrane_mass;
-     geomVector centroid(2);
-     p_membrane_param->centroid_coordinates = centroid;
-     
-     // m_allDSimmersedboundary[i]->display_parameters();
+  for (size_t i = 0; i < m_nIB; ++i) 
+  {
+    inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
+          >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
+          >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
+          >> k_viscous >> k_area >> k_volume >> membrane_mass;
+          
+    ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
+                                              ->get_ptr_shape_parameters();
+    geomVector position(xp,yp,zp);
+    p_shape_param->center = position;
+    p_shape_param->xroll = x_roll_angle;
+    p_shape_param->ypitch = y_pitch_angle;
+    p_shape_param->zyaw = z_yaw_angle;
+    p_shape_param->radius = Rp;
+    p_shape_param->c0 = c0;
+    p_shape_param->c1 = c1;
+    p_shape_param->c2 = c2;
+    p_shape_param->N_levels = N_levels;
+    p_shape_param->node_spacing_with_dx = node_spacing_with_dx;
+    p_shape_param->N_nodes = (node_spacing_with_dx != 0) 
+                            ? round ( 2.0 * MAC::pi() * Rp 
+                              / (double(node_spacing_with_dx) * dx) )
+                            : N_nodes;
+
+    
+    MembraneParameters* p_membrane_param = m_allDSimmersedboundary[i]
+                                              ->get_ptr_membrane_parameters();
+    p_membrane_param->k_spring = k_spring;
+    p_membrane_param->k_bending = k_bending;
+    p_membrane_param->k_bending_visc = k_bending_visc;
+    p_membrane_param->k_viscous = k_viscous;
+    p_membrane_param->k_area = k_area;
+    p_membrane_param->k_volume = k_volume;
+    p_membrane_param->mass = membrane_mass;
+    geomVector centroid(2);
+    p_membrane_param->centroid_coordinates = centroid;
+
+    // m_allDSimmersedboundary[i]->display_parameters();
   }
   inFile.close();
 }

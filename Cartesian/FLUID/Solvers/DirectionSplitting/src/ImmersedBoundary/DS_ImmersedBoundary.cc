@@ -228,21 +228,23 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   size_t nb_procs = MAC_comm->nb_ranks();
   size_t is_master = 0;
   
+  // Allocate memory of temporary vectors
+  size_t n1 = dim;
+  size_t n2 = 2 * dim;
+  doubleVector temp_lag_vel(n1 * num_nodes, 0.); // Lagrangian velocity
+  doubleVector temp_lag_pos_and_force(n2 * num_nodes, 0.); // Lagrangian position & force
+  
   // Apply periodic boundary conditions
   apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
   
   // Eulerian velocity to Lagrangian velocity interpolation
   size_t nb_comps = UF->nb_components();
-  for (size_t comp = 0; comp < nb_comps; comp++) 
+  for (size_t comp = 0; comp < nb_comps; comp++)
   {
     eul_to_lag(UF, dim, comp);
   }
 
-  // Allocate memory of temporary vectors
-  doubleVector temp_lag_vel(dim * num_nodes, 0.); // Lagrangian velocity
-  doubleVector temp_lag_pos_and_force(2 * dim * num_nodes, 0.); // Lagrangian position & force
-  
-  // Reduce the Lagrangian velocity across all processors
+  // MPI Reduce the Lagrangian velocity across all processors
   copy_lagrangian_velocity_to_vector(temp_lag_vel, dim);
   MAC_comm->reduce_vector(temp_lag_vel, 0);
   
@@ -250,7 +252,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   if(my_rank == is_master)
   {
     // Copy MPI_Reduce'd Lagrangian velocity to master proc velocity variable
-    copy_vector_to_lag_vel(temp_lag_vel, dim);
+    copy_vector_to_lagrangian_velocity(temp_lag_vel, dim);
     
     // Solve for RBC dynamics using spring-dashpot model
     rbc_dynamics_solver(dim, t_it->time_step(), case_type);
@@ -273,7 +275,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
       Eul_F->set_DOFs_value(comp, 0, 0.0);
       F_Eul_tag->set_DOFs_value(comp, 0, 0.0);
   }
-  for (size_t comp = 0; comp < nb_comps; comp++) 
+  for (size_t comp=0;comp<nb_comps;comp++) 
   {
     lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
   }
@@ -293,52 +295,56 @@ void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
   
   size_t num_nodes = shape_param.N_nodes;
 
-  // Assign current coordinates to coordinates_pbc variable
-  for (size_t i=0;i<num_nodes;++i)
-    for (size_t dir=0;dir<dim;++dir)
-        m_all_nodes[i].coordinates_pbc(dir) = m_all_nodes[i].coordinates(dir);
-  
-  geomVector domain_length(dim);
+  geomVector domain_length(dim, 0.);
   bool apply_periodic_bc = (periodic_dir >= 0) and (periodic_dir <= 2);
   if(apply_periodic_bc)
   {
-      // Apply periodic boundary conditions
+    // Assign current coordinates to coordinates_pbc variable
+    for (size_t i=0;i<num_nodes;++i)
       for (size_t dir=0;dir<dim;++dir)
+          m_all_nodes[i].coordinates_pbc(dir) = m_all_nodes[i].coordinates(dir);
+    
+    // Apply periodic boundary conditions
+    for (size_t dir=0;dir<dim;++dir)
+    {
+      // Get min and max bounds of domain length
+      double min = MESH->get_main_domain_min_coordinate(dir);
+      double max = MESH->get_main_domain_max_coordinate(dir);
+      domain_length(dir) = max - min;
+      
+      // Check if all nodes in immersed body moved 
+      // out of periodic domain boundary?
+      size_t num = 0;
+      for (size_t i=0;i<num_nodes;++i)
       {
-        // Get min and max bounds of domain length
-        double min = MESH->get_main_domain_min_coordinate(dir);
-        double max = MESH->get_main_domain_max_coordinate(dir);
-        domain_length(dir) = max - min;
-
-        // Check if all nodes in immersed body moved 
-        // out of periodic domain boundary?
-        size_t num = 0;
+          m_all_nodes[i].coordinates_pbc(dir) -= 
+                      MAC::floor(
+                      (m_all_nodes[i].coordinates_pbc(dir) - min)
+                      /domain_length(dir)) 
+                      * domain_length(dir);
+          
+          // check if all RBC Lagrangian nodes are out of boundary
+          if( (m_all_nodes[i].coordinates(dir) > max)
+               or 
+               (m_all_nodes[i].coordinates(dir) < min) )
+              num += 1;
+      }
+      
+      // apply periodic boundary conditions to membrane
+      // coordinates array only when all Lagrangian 
+      // nodes are out of the domain boundary
+      if(num == num_nodes)
+      {
         for (size_t i=0;i<num_nodes;++i)
         {
-            m_all_nodes[i].coordinates_pbc(dir) -= 
-                        MAC::floor(
-                        (m_all_nodes[i].coordinates_pbc(dir) - min)
-                        /domain_length(dir)) 
-                        * domain_length(dir);
-            
-            // check if all RBC Lagrangian nodes are out of boundary
-            if( (m_all_nodes[i].coordinates(dir) > max)
-                 or 
-                 (m_all_nodes[i].coordinates(dir) < min) )
-                num += 1;
+          m_all_nodes[i].coordinates(dir) -= 
+                           MAC::floor(
+                           (m_all_nodes[i].coordinates(dir) - min)
+                           /domain_length(dir)) 
+                           * domain_length(dir);
         }
-        
-        // apply periodic boundary conditions to membrane
-        // coordinates array only when all Lagrangian 
-        // nodes are out of the domain boundary
-        if(num == num_nodes)
-            for (size_t i=0;i<num_nodes;++i)
-                m_all_nodes[i].coordinates(dir) -= 
-                                 MAC::floor(
-                                 (m_all_nodes[i].coordinates(dir) - min)
-                                 /domain_length(dir)) 
-                                 * domain_length(dir);
       }
+    }
   }
   else
   {
@@ -360,13 +366,36 @@ void DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector
   MAC_LABEL( "DS_ImmersedBoundary:: copy_lagrangian_velocity_to_vector" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
+
+  size_t j = 0;
+  for(size_t inode=0; inode<num_nodes; ++inode)
+  {
+    for(size_t dir=0; dir<dim; ++dir)
+    {
+      lag_vel(j) = m_all_nodes[inode].velocity(dir);
+      j++;
+    }
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: copy_vector_to_lagrangian_velocity
+                                      (doubleVector& lag_vel, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_ImmersedBoundary:: copy_vector_to_lag_vel" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
   
   size_t j = 0;
   for(size_t inode=0; inode<num_nodes; ++inode)
   {
     for(size_t dir=0; dir<dim; ++dir)
     {
-        lag_vel(j) = m_all_nodes[inode].velocity(dir);
+        m_all_nodes[inode].velocity(dir) = lag_vel(j);
         j++;
     }
   }
@@ -397,29 +426,6 @@ void DS_ImmersedBoundary:: copy_lag_position_and_force_to_vector
     for(size_t dir=0; dir<dim; ++dir)
     {
         lag_pos_and_force(j) = m_all_nodes[inode].sumforce(dir);
-        j++;
-    }
-  }
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_ImmersedBoundary:: copy_vector_to_lag_vel
-                                      (doubleVector& lag_vel, size_t const& dim)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_ImmersedBoundary:: copy_vector_to_lag_vel" ) ;
-
-  size_t num_nodes = shape_param.N_nodes;
-  
-  size_t j = 0;
-  for(size_t inode=0; inode<num_nodes; ++inode)
-  {
-    for(size_t dir=0; dir<dim; ++dir)
-    {
-        m_all_nodes[inode].velocity(dir) = lag_vel(j);
         j++;
     }
   }
@@ -578,12 +584,12 @@ double DS_ImmersedBoundary::periodic_1D_distance(double p1,
 {
   MAC_LABEL( "DS_ImmersedBoundary:: periodic_1D_distance" ) ;
   
-  double dist = fabs(p1 - length - p2) > 0.5 * length 
+  double distance = fabs(p1 - length - p2) > 0.5 * length 
                 ? 
                 p1 + length - p2 
                 : 
                 p1 - length - p2;
-  return(dist);
+  return(distance);
 }
 
 
