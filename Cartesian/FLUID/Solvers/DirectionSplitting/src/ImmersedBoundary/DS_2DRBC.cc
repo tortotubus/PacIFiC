@@ -459,15 +459,16 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
                 compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
           double dist_y = 
                 compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-          bool eul_cell_within_Dirac_delta_stencil = 
-                        (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
+          bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
+                                                     and 
+                                                     (fabs(dist_y) <= 2.);
                   
           dist_x = (xC - xp) * hxC;
           dist_y = (yC - yp) * hyC;
           eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
           
-          // if( eul_cell_within_Dirac_delta_stencil )
-          // {
+          if( eul_cell_within_Dirac_delta_stencil )
+          {
             r1 = dist_x;
             r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
             p1 = dist_y;
@@ -485,7 +486,7 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
             m_all_nodes[inode].velocity(comp) += 
                                 FF->DOF_value( ii, jj, kk, comp, 0 ) 
                                 * delt1 * dxC * dyC;
-          // }
+          }
         }
       }
     }
