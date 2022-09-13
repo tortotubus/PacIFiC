@@ -239,7 +239,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   
   // Eulerian velocity to Lagrangian velocity interpolation
   size_t nb_comps = UF->nb_components();
-  for (size_t comp = 0; comp < nb_comps; comp++)
+  for (size_t comp=0;comp<nb_comps;comp++)
   {
     eul_to_lag(UF, dim, comp);
   }
@@ -277,7 +277,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   }
   for (size_t comp=0;comp<nb_comps;comp++) 
   {
-    lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
+    // lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
   }
 }
 
@@ -589,6 +589,7 @@ double DS_ImmersedBoundary::periodic_1D_distance(double p1,
                 p1 + length - p2 
                 : 
                 p1 - length - p2;
+
   return(distance);
 }
 
@@ -607,6 +608,7 @@ double DS_ImmersedBoundary::compute_dist_incl_pbc(double p1,
                 periodic_1D_distance(p1, p2, length) 
                 : 
                 p1 - p2;
+
   return(dist);
 }
 

@@ -457,16 +457,14 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
           // Check if Eulerian cell is within Dirac delta 2x2 stencil
           double dist_x = 
                 compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+          dist_x = (xC - xp) * hxC;
           double dist_y = 
                 compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+          dist_y = (yC - yp) * hyC;
           bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
                                                      and 
                                                      (fabs(dist_y) <= 2.);
                   
-          dist_x = (xC - xp) * hxC;
-          dist_y = (yC - yp) * hyC;
-          eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
-          
           if( eul_cell_within_Dirac_delta_stencil )
           {
             r1 = dist_x;
@@ -618,15 +616,13 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
         // Check if Eulerian cell is within Dirac delta 2x2 stencil
         double dist_x = 
                     compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+        dist_x = (xC - xp) * hxC;
         double dist_y = 
                     compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+        dist_y = (yC - yp) * hyC;
         bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
                                                    and 
                                                    (fabs(dist_y) <= 2.);
-        
-        dist_x = (xC - xp) * hxC;
-        dist_y = (yC - yp) * hyC;
-        eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) and (fabs(dist_y) <= 2.);
         
         // if( eul_cell_within_proc_domain and eul_cell_within_Dirac_delta_stencil )
         if( eul_cell_within_Dirac_delta_stencil )
