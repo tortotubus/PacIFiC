@@ -41,8 +41,9 @@ struct DS2NS
   bool is_par_motion_;
   FV_DomainAndFields const* dom_ ;
   DS_AllRigidBodies* allrigidbodies_ ;
-  DS_AllImmersedBoundary* allimmersedboundary_ ;
   double critical_distance_translation_ ;
+  bool is_ImmersedBoundaries_;
+  DS_AllImmersedBoundary* allimmersedboundary_ ;
 };
 
 /** @brief The Class DS_NavierStokes.
@@ -422,6 +423,10 @@ class DS_NavierStokes : public MAC_Object,
 
       // Grains3D variable
       DS_AllRigidBodies* allrigidbodies;
+      
+      // Immersed boundary variable
+      bool is_ImmersedBoundaries;
+      FV_DiscreteField* Eul_F;
 
       // Grid motion
       bool b_projection_translation;

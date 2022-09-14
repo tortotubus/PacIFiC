@@ -56,30 +56,32 @@ DS_NavierStokes:: DS_NavierStokes( MAC_Object* a_owner,
 //---------------------------------------------------------------------------
    : MAC_Object( a_owner )
 	, ComputingTime("Solver")
-   , UF ( fromDS.dom_->discrete_field( "velocity" ) )
-   , PF ( fromDS.dom_->discrete_field( "pressure" ) )
-   , GLOBAL_EQ( 0 )
-   , mu( fromDS.mu_ )
-   , kai( fromDS.kai_ )
-   , AdvectionScheme( fromDS.AdvectionScheme_ )
-   , AdvectionTimeAccuracy( fromDS.AdvectionTimeAccuracy_ )
-   , rho( fromDS.rho_ )
-	, b_restart ( fromDS.b_restart_ )
-   , is_solids( fromDS.is_solids_ )
+  , UF ( fromDS.dom_->discrete_field( "velocity" ) )
+  , PF ( fromDS.dom_->discrete_field( "pressure" ) )
+  , Eul_F ( fromDS.dom_->discrete_field( "eulerian_force" ) )
+  , GLOBAL_EQ( 0 )
+  , mu( fromDS.mu_ )
+  , kai( fromDS.kai_ )
+  , AdvectionScheme( fromDS.AdvectionScheme_ )
+  , AdvectionTimeAccuracy( fromDS.AdvectionTimeAccuracy_ )
+  , rho( fromDS.rho_ )
+ 	, b_restart ( fromDS.b_restart_ )
+  , is_solids( fromDS.is_solids_ )
 	, is_stressCal ( fromDS.is_stressCal_ )
 	, ViscousStressOrder ( fromDS.ViscousStressOrder_ )
 	, stressCalFreq ( fromDS.stressCalFreq_ )
 	, is_par_motion ( fromDS.is_par_motion_ )
 	, allrigidbodies ( fromDS.allrigidbodies_ )
-   , b_projection_translation( fromDS.dom_->primary_grid()
+	, is_ImmersedBoundaries ( fromDS.is_ImmersedBoundaries_ )
+  , b_projection_translation( fromDS.dom_->primary_grid()
 														->is_translation_active() )
-   , b_grid_has_been_translated_since_last_output( false )
-   , b_grid_has_been_translated_at_previous_time( false )
-   , critical_distance_translation( fromDS.critical_distance_translation_ )
-   , translation_direction( 0 )
-   , bottom_coordinate( 0. )
-   , translated_distance( 0. )
-   , gravity_vector( 0 )
+  , b_grid_has_been_translated_since_last_output( false )
+  , b_grid_has_been_translated_at_previous_time( false )
+  , critical_distance_translation( fromDS.critical_distance_translation_ )
+  , translation_direction( 0 )
+  , bottom_coordinate( 0. )
+  , translated_distance( 0. )
+  , gravity_vector( 0 )
 {
    MAC_LABEL( "DS_NavierStokes:: DS_NavierStokes" ) ;
    MAC_ASSERT( UF->discretization_type() == "staggered" ) ;
@@ -2034,6 +2036,12 @@ DS_NavierStokes:: assemble_DS_un_at_rhs ( FV_TimeIterator const* t_it,
 
 
                if ( cpp==comp ) rhs += - bodyterm*dxC*dyC*dzC;
+               
+               if ( is_ImmersedBoundaries ) {
+                 double bodyForce = Eul_F->DOF_value( i, j, k, comp, 0 ) 
+                                    / ( dxC * dyC * dzC );
+                 rhs += bodyForce * dxC * dyC * dzC;
+               }
 
                if (is_solids) {
                   if (void_frac->operator()(p) != 0) {
