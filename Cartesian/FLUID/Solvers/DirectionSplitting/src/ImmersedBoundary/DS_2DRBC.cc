@@ -1134,7 +1134,7 @@ void DS_2DRBC:: compute_tdp_orientation_angle()
   MAC_LABEL( "DS_2DRBC:: compute_tdp_orientation_angle" ) ;
   
   size_t num_nodes = shape_param.N_nodes;
-  
+    
   double rmax = -HUGE_VAL, rmin = HUGE_VAL, theta = 0.;
   double pi = MAC::pi();
   double radians_to_angle_conversion = 180. / pi;
@@ -1153,6 +1153,7 @@ void DS_2DRBC:: compute_tdp_orientation_angle()
       theta = (theta > pi) ? theta - pi : theta; // to keep the angle between 0 and 90 degrees
       theta *= radians_to_angle_conversion;
     }
+    
     if(r < rmin)
       rmin = r;
   }
