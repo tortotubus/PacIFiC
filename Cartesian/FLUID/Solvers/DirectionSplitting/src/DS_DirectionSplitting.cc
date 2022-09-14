@@ -317,6 +317,8 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                            , dom->discrete_field( "velocity" )
                            , dom->discrete_field( "eulerian_force" )
                            , dom->discrete_field( "eulerian_force_tag" )
+                           , rho
+                           , mu
                            , n_RBC_timesteps
                            , Dirac_type
                            , periodic_dir);
@@ -338,8 +340,10 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       inputDataNS.is_par_motion_ = is_par_motion;
       inputDataNS.dom_ = dom;
       inputDataNS.allrigidbodies_ = allrigidbodies;
-      inputDataNS.allimmersedboundary_ = allimmersedboundary;
       inputDataNS.critical_distance_translation_ = critical_distance_translation;
+      inputDataNS.is_ImmersedBoundaries_ = is_ImmersedBoundaries;
+      if (is_ImmersedBoundaries)
+        inputDataNS.allimmersedboundary_ = allimmersedboundary;
 
       MAC_ModuleExplorer* set = exp->create_subexplorer( 0, "DS_NavierStokes" ) ;
       FlowSolver = DS_NavierStokes::create( this, set, inputDataNS ) ;
@@ -402,7 +406,8 @@ DS_DirectionSplitting:: do_one_inner_iteration( FV_TimeIterator const* t_it )
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_one_inner_iteration" ) ;
       start_solving_timer() ;
-      allimmersedboundary->do_one_inner_iteration ( t_it );
+      if (is_ImmersedBoundaries)
+        allimmersedboundary->do_one_inner_iteration ( t_it );
       FlowSolver->do_one_inner_iteration( t_it ) ;
       stop_solving_timer() ;
       stop_total_timer() ;
@@ -570,7 +575,8 @@ DS_DirectionSplitting:: do_additional_savings( FV_TimeIterator const* t_it,
    // Flow solver
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_additional_savings" ) ;
-      allimmersedboundary->do_additional_savings ( t_it, cycleNumber );
+      if (is_ImmersedBoundaries)
+        allimmersedboundary->do_additional_savings ( t_it, cycleNumber );
       FlowSolver->do_additional_savings( t_it, cycleNumber ) ;
       stop_total_timer() ;
    }

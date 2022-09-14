@@ -93,12 +93,9 @@ class DS_2DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes node based spring and bending constants **/
       void preprocess_membrane_parameters(string const& case_type,
+                                          double const& mu,
                                           size_t const& num_subtimesteps_RBC);
       
-      /** @brief Applies periodic boundary condition to each membrane **/
-      void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
-                                              size_t const& dim);
-
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
                       size_t const& comp);

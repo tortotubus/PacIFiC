@@ -49,6 +49,8 @@ class DS_AllImmersedBoundary
                            , FV_DiscreteField const* arb_UF
                            , FV_DiscreteField* arb_EulF
                            , FV_DiscreteField* arb_EulF_tag
+                           , double const& arb_rho
+                           , double const& arb_mu
                            , size_t const& n_RBC_timesteps
                            , string const& dirac_type
                            , size_t const& periodic_dir);
@@ -119,6 +121,9 @@ class DS_AllImmersedBoundary
       size_t m_periodic_dir; /* periodic direction - 0 for x, 1 for y & 2 for z*/
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
       of DS_ImmersedBoundary class */
+      double m_rho;
+      double m_mu;
+      
 
       // Pointers to the constant fields and primary grid
       FV_DiscreteField const* UF ;
@@ -143,7 +148,8 @@ class DS_AllImmersedBoundary
         /**@name Methods */
         //@{
         /** @brief Read the CSV file with RBC parameters */
-        void read_shape_and_membrane_parameters(double const& dx);
+        void read_shape_and_membrane_parameters(string const& case_type,
+                                                double const& dx);
 
         /** @brief Read the CSV file with RBS parameters */
         void initialize_variables();
@@ -171,6 +177,7 @@ class DS_AllImmersedBoundary
         
         /** @brief Computes node based spring, bending constants */
         void preprocess_immersed_body_parameters(string const& case_type, 
+                                            double const& mu,
                                             size_t const& num_subtimesteps_RBC);
         
         /** @brief Sets the IBM parameters for all immersed bodies */

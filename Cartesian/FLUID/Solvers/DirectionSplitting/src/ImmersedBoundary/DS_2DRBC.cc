@@ -216,7 +216,7 @@ void DS_2DRBC:: compute_spring_lengths(bool init)
   
   for (size_t i=0;i<m_nEdges;++i)
   {
-    for (size_t j = 0; j < 2; ++j)
+    for (size_t j=0;j<2;++j)
     {
         diff[j] = m_all_edges[i].n3->coordinates(j) 
                   - m_all_edges[i].n2->coordinates(j);
@@ -239,7 +239,7 @@ void DS_2DRBC:: compute_edge_normals()
   
   for (size_t i=0;i<m_nEdges;++i)
   {
-    for (size_t j = 0; j < 2; ++j)
+    for (size_t j=0;j<2;++j)
     {
         diff[j] = m_all_edges[i].n3->coordinates(j) 
                   - m_all_edges[i].n2->coordinates(j);
@@ -284,6 +284,7 @@ void DS_2DRBC:: compute_edge_angle(bool init)
 
 //---------------------------------------------------------------------------
 void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
+                                           , double const& mu
                                            , size_t const& num_subtimesteps_RBC)
 //---------------------------------------------------------------------------
 {
@@ -295,11 +296,12 @@ void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
   // Number of subtimesteps for RBC dynamics iterations
   membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
   
+  // Membrane constants to edge & node based constants
+  membrane_param.membrane_spring_constant = membrane_param.k_spring;
+
   // Build the Direction Splitting immersed boundary
   if(case_type.compare("Breyannis2000case") != 0)
   {
-    // Membrane constants to edge & node based constants
-    membrane_param.membrane_spring_constant = membrane_param.k_spring;
     membrane_param.k_spring *= double(m_nEdges); // edge spring constant
     membrane_param.k_bending *= double(m_nEdges); // node bending constant
     membrane_param.k_bending_visc /= double(m_nEdges);
@@ -323,7 +325,13 @@ void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
     membrane_param.tmax = double(membrane_param.ntimescales) 
                           * membrane_param.membrane_mass_spring_timescale;
     membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
-   }
+  }
+  else
+  {
+    membrane_param.k_spring = mu * membrane_param.ShearRate * shape_param.radius 
+                              / membrane_param.CapillaryNumber;
+    membrane_param.membrane_spring_constant = membrane_param.k_spring;
+  }
 }
 
 
@@ -457,10 +465,10 @@ void DS_2DRBC:: eul_to_lag(FV_DiscreteField const* FF
           // Check if Eulerian cell is within Dirac delta 2x2 stencil
           double dist_x = 
                 compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-          dist_x = (xC - xp) * hxC;
+          // // dist_x = (xC - xp) * hxC;
           double dist_y = 
                 compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-          dist_y = (yC - yp) * hyC;
+          // // dist_y = (yC - yp) * hyC;
           bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
                                                      and 
                                                      (fabs(dist_y) <= 2.);
@@ -530,8 +538,6 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   int Nx, Ny, Nz;
   double r1, p1, q1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend;
-  double euler_force; // temporary Eulerian force summation variable
-  double euler_force_tag; // temporary Eulerian force tag for each cell
 
   FV_Mesh const* fvm = FF->primary_grid() ;
   
@@ -614,12 +620,10 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                            fvm->is_in_domain_on_current_processor(xC, yC);
 
         // Check if Eulerian cell is within Dirac delta 2x2 stencil
-        double dist_x = 
-                    compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-        dist_x = (xC - xp) * hxC;
-        double dist_y = 
-                    compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-        dist_y = (yC - yp) * hyC;
+        double dist_x = compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+        // // dist_x = (xC - xp) * hxC;
+        double dist_y = compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+        // // dist_y = (yC - yp) * hyC;
         bool eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
                                                    and 
                                                    (fabs(dist_y) <= 2.);
@@ -641,15 +645,15 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
           kk = 0;
 
           // Computing Eulerian force
-          euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                        + 
-                        m_all_nodes[inode].sumforce(comp)
-                        * delt1 * dxC * dyC;
+          double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                               + 
+                               m_all_nodes[inode].sumforce(comp)
+                               * delt1 * dxC * dyC;
           FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
           sum_euler_force += euler_force;
           
           // Assigning Eulerian force tag for each cell for debugging
-          euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+          double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
           FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
         }
       }
@@ -711,7 +715,7 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
 
   size_t num_nodes = shape_param.N_nodes;
   double Iij[2], length = 0.;
-    
+  
   for (size_t inode=0;inode<num_nodes;++inode)
   {
     // Loop over neighboring nodes
@@ -725,6 +729,7 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
                  - m_all_nodes[inode].coordinates(j);
           
       // spring length
+      length = m_all_nodes[inode].edge_of_neighbors[k]->length;
       length = norm(Iij);
       
       // normalization of unit spring vector for components of spring force

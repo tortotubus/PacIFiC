@@ -272,12 +272,12 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   // Initialising all Eulerian force cell tag value to zero
   for (size_t comp=0;comp<nb_comps;comp++)
   {
-      Eul_F->set_DOFs_value(comp, 0, 0.0);
-      F_Eul_tag->set_DOFs_value(comp, 0, 0.0);
+    Eul_F->set_DOFs_value(comp, 0, 0.0);
+    F_Eul_tag->set_DOFs_value(comp, 0, 0.0);
   }
   for (size_t comp=0;comp<nb_comps;comp++) 
   {
-    // lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
+    lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
   }
 }
 

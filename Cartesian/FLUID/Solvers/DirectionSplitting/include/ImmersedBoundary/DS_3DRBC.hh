@@ -83,6 +83,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes node based spring and bending constants **/
       void preprocess_membrane_parameters(string const& case_type,
+                                          double const& mu,
                                           size_t const& num_subtimesteps_RBC);
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */

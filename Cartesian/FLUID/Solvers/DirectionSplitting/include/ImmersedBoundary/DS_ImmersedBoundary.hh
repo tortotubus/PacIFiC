@@ -47,6 +47,7 @@ struct MembraneParameters
   double membrane_mass_spring_timescale, edge_mass_spring_timescale;
   double node_bending_mass_spring_timescale;
   double eta_P, eta_M; // membrane viscosity
+  double ReynoldsNumber, CapillaryNumber, ShearRate;
 
   // Temporal parameters
   double tmax, dt;
@@ -238,6 +239,7 @@ class DS_ImmersedBoundary
       
       /** @brief Computes node based spring and bending constants **/
       virtual void preprocess_membrane_parameters(string const& case_type,
+                                        double const& mu,
                                         size_t const& num_subtimesteps_RBC) = 0;
       
       /** @brief Function which calls RBC and IBM functions along with

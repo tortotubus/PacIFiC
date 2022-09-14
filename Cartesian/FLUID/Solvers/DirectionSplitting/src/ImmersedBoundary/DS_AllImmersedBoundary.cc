@@ -19,6 +19,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , FV_DiscreteField const* arb_UF
                                                , FV_DiscreteField* arb_EulF
                                                , FV_DiscreteField* arb_EulF_tag
+                                               , double const& arb_rho
+                                               , double const& arb_mu
                                                , size_t const& nRBC_subtimesteps
                                                , string const& dirac_type
                                                , size_t const& periodic_dir)
@@ -29,6 +31,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 , UF ( arb_UF )
 , Eul_F ( arb_EulF )
 , F_Eul_tag ( arb_EulF_tag )
+, m_rho ( arb_rho )
+, m_mu ( arb_mu )
 , MESH ( UF->primary_grid() )
 , m_IB_case_type ( case_type )
 , m_subtimesteps_RBC ( nRBC_subtimesteps )
@@ -51,13 +55,13 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   }
 
   double dx = UF->get_cell_size( 1,0, 0);
-  read_shape_and_membrane_parameters(dx);
+  read_shape_and_membrane_parameters(m_IB_case_type, dx);
 
   generate_immersed_body_mesh();
   
   // write_immersed_body_mesh_to_vtk_file();
   
-  preprocess_immersed_body_parameters(m_IB_case_type, m_subtimesteps_RBC);
+  preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC);
   
   set_IBM_parameters(m_dirac_type, m_periodic_dir);
 }
@@ -139,7 +143,8 @@ size_t DS_AllImmersedBoundary:: get_num_lines_in_IB_file()
 
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
-                                                           (double const& dx)
+                                               (string const& case_type,
+                                                double const& dx)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_and_membrane_parameters" ) ;
@@ -152,6 +157,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
   double node_spacing_with_dx;
   double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_mass;
+  double ReynoldsNumber, CapillaryNumber, ShearRate;
 
   std::ifstream inFile;
   std::ostringstream os2;
@@ -166,7 +172,8 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
           >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
           >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-          >> k_viscous >> k_area >> k_volume >> membrane_mass;
+          >> k_viscous >> k_area >> k_volume >> membrane_mass
+          >> ReynoldsNumber >> CapillaryNumber >> ShearRate;
           
     ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                               ->get_ptr_shape_parameters();
@@ -198,6 +205,12 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     p_membrane_param->mass = membrane_mass;
     geomVector centroid(2);
     p_membrane_param->centroid_coordinates = centroid;
+    if(case_type.compare("Breyannis2000case") == 0)
+    {
+      p_membrane_param->ReynoldsNumber = ReynoldsNumber;
+      p_membrane_param->CapillaryNumber = CapillaryNumber;
+      p_membrane_param->ShearRate = ShearRate;
+    }
 
     // m_allDSimmersedboundary[i]->display_parameters();
   }
@@ -328,13 +341,15 @@ void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
 
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
-                   (string const& case_type, size_t const& num_subtimesteps_RBC)
+                   (string const& case_type, double const& mu,
+                    size_t const& num_subtimesteps_RBC)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: preprocess_immersed_body_parameters" ) ;
   
   for (size_t i = 0; i < m_nIB; ++i) {
     m_allDSimmersedboundary[i]->preprocess_membrane_parameters(case_type
+                                                        , mu
                                                         , num_subtimesteps_RBC);
   }
 }
@@ -371,7 +386,7 @@ void DS_AllImmersedBoundary:: do_additional_savings
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: do_additional_savings" ) ;
-
+  
   for (size_t i = 0; i < m_nIB; ++i) {
     // Writing Res/rbc_T*.vtu files for every iterations
     m_allDSimmersedboundary[i]->write_mesh_to_vtk_file(i, t_it->time(), 
