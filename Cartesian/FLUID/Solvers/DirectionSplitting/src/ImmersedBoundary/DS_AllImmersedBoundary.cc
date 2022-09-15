@@ -54,7 +54,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                    create(m_space_dimension);
   }
 
-  double dx = UF->get_cell_size( 1,0, 0);
+  double dx = UF->get_cell_size(1, 0, 0);
   read_shape_and_membrane_parameters(m_IB_case_type, dx);
 
   generate_immersed_body_mesh();
@@ -169,11 +169,21 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
   getline(inFile,line); // read header line of input data file
   for (size_t i = 0; i < m_nIB; ++i) 
   {
-    inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
-          >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
-          >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-          >> k_viscous >> k_area >> k_volume >> membrane_mass
-          >> ReynoldsNumber >> CapillaryNumber >> ShearRate;
+    if(case_type.compare("Breyannis2000case") != 0)
+    {
+      inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
+            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
+            >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
+            >> k_viscous >> k_area >> k_volume >> membrane_mass;
+    }
+    else
+    {
+      inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
+            >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
+            >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
+            >> k_viscous >> k_area >> k_volume >> membrane_mass
+            >> ReynoldsNumber >> CapillaryNumber >> ShearRate;
+    }
           
     ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                               ->get_ptr_shape_parameters();
