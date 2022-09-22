@@ -162,6 +162,8 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       DS_AllImmersedBoundary* allimmersedboundary;
       bool b_particles_as_fixed_obstacles;
       string IB_file;
+      string Mesh3D_file;
+      bool MatlabNumbering;
       size_t N_IB;
       string IB_case_type;
       size_t n_RBC_timesteps;

@@ -5,6 +5,8 @@
 #include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
 #include <string>
+#include <fstream>
+#include <sstream>
 using std::string;
 
 
@@ -56,19 +58,32 @@ class DS_2DRBC: public DS_ImmersedBoundary
                                , double const& rbc_orientation_angle);
 
       /** @brief Allocates memory & initializes node properties & attributes */
-      void initialize_node_properties();
+      void initialize_node_properties(string const& mesh_filename,
+                                      size_t const& dim);
 
       /** @brief Sets all nodes - number, coordinates, neighbours */
-      void set_all_nodes();
+      void set_all_nodes(istream& fileIN, size_t const& dim);
       
       /** @brief Projects shape of the membrane to sphere or biconcave **/
       void project_membrane_shape();
       
+      /** @brief Allocates memory & initializes all variables of 'Struct TriElements' */
+      void initialize_triangle_properties(size_t const& num_triangles,
+                                          size_t const& dim);
+      
       /** @brief Sets all trielements - nodes, centers of mass, normals */
-      void set_all_trielements();
+      void set_all_trielements(istream& fileIN, size_t const& dim,
+                               bool const& MatlabNumb);
+      
+      /** @brief Computes the area, normals and centre of mass of each triangle */
+      void compute_triangle_area_normals_centre_of_mass(bool init,
+                                                        size_t const& dim);
+      
+      /** @brief Sets the neighbors of each node from triangle nodes */
+      void set_all_node_neighbors();
       
       /** @brief Allocates memory & initializes edge properties & attributes */
-      void initialize_edge_properties();
+      void initialize_edge_properties(size_t const& dim);
       
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges();

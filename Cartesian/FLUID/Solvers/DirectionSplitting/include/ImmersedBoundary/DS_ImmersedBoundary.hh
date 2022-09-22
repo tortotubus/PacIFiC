@@ -87,8 +87,10 @@ struct Node
   geomVector spring_force, bending_force;
   geomVector area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
-  Node* neighbors[2]; // CHANGE FOR 3D
-  Edge const* edge_of_neighbors[2]; // CHANGE FOR 3D
+  Node* neighbors[2]; // FOR 2D
+  Edge const* edge_of_neighbors[2]; // FOR 2D
+  vector<Node const*> neighbors_3D; // FOR 3D
+  vector<double> initial_spring_length;
   
   double mass;
 };
@@ -96,6 +98,7 @@ struct Node
 
 struct TriElement
 {
+  Node* pnodes[3]; // FOR 3D
   size_t number;
   vector<size_t> node_number; // contain the node numbers forming the edge
   vector< pair<Node const*,Node const*> > varea;
@@ -186,16 +189,29 @@ class DS_ImmersedBoundary
       void display_parameters();
 
       /** @brief Allocates memory & initializes node properties & attributes */
-      virtual void initialize_node_properties() = 0;
+      virtual void initialize_node_properties(string const& mesh_filename,
+                                              size_t const& dim) = 0;
 
       /** @brief Generates the mesh for 2D and 3D immersed bodies **/
-      virtual void set_all_nodes() = 0;
+      virtual void set_all_nodes(istream& fileIN, size_t const& dim) = 0;
+      
+      /** @brief Allocates memory & initializes all variables of 'Struct TriElements' */
+      virtual void initialize_triangle_properties(size_t const& num_triangles,
+                                                  size_t const& dim) = 0;
       
       /** @brief Sets triangular elements for 2D and 3D immersed bodies */
-      virtual void set_all_trielements() = 0;
+      virtual void set_all_trielements(istream& fileIN, size_t const& dim,
+                                       bool const& MatlabNumb) = 0;
+      
+      /** @brief Sets the neighbors of each node from triangle nodes */
+      virtual void set_all_node_neighbors() = 0;
+      
+      /** @brief Computes the area, normals and centre of mass of each triangle */
+      virtual void compute_triangle_area_normals_centre_of_mass(bool init,
+                                                        size_t const& dim) = 0;
       
       /** @brief Allocates memory & initializes edge properties & attributes */
-      virtual void initialize_edge_properties() = 0;
+      virtual void initialize_edge_properties(size_t const& dim) = 0;
       
       /** @brief Sets the edges and nodes for 2D and 3D immersed bodies */
       virtual void set_all_edges() = 0;
@@ -375,6 +391,7 @@ class DS_ImmersedBoundary
 
       // Vector containing all nodes properties
       vector<Node> m_all_nodes;
+      // // // list<Edge> m_all_edges;
       vector<Edge> m_all_edges;
       vector<TriElement> m_all_trielements;
 

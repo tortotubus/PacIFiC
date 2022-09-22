@@ -44,6 +44,8 @@ class DS_AllImmersedBoundary
       /** @brief Default constructor */
       DS_AllImmersedBoundary(size_t const& space_dimension
                            , string const& IB_file
+                           , string const& Mesh3D_file
+                           , bool const& MatlabNumbering
                            , size_t const& N_IB
                            , string const& case_type
                            , FV_DiscreteField const* arb_UF
@@ -115,6 +117,8 @@ class DS_AllImmersedBoundary
       size_t m_space_dimension; /**< Space dimension */
       size_t m_nIB; /**< number of immersed boundaries */
       string m_IB_file; /** input file name containing RBC location & shape */
+      string m_3DMesh_file; /** 3D RBC mesh file in .dat format */
+      bool m_Matlab_numbering; /** Matlab numbering for Fedosov mesh files */
       string m_IB_case_type; /* = Breyannis2000 or other cases */
       size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
       string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */

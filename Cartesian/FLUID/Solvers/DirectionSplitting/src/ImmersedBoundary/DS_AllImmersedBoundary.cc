@@ -14,6 +14,8 @@ using std::string;
 //-----------------------------------------------------------------------------
 DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , string const& IB_file
+                                               , string const& Mesh3D_file
+                                               , bool const& MatlabNumbering
                                                , size_t const& N_IB
                                                , string const& case_type
                                                , FV_DiscreteField const* arb_UF
@@ -27,6 +29,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
+, m_3DMesh_file ( Mesh3D_file )
+, m_Matlab_numbering ( MatlabNumbering )
 , m_nIB ( N_IB )
 , UF ( arb_UF )
 , Eul_F ( arb_EulF )
@@ -59,7 +63,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   generate_immersed_body_mesh();
   
-  // write_immersed_body_mesh_to_vtk_file();
+  // write_immersed_body_mesh_to_vtk_file(); exit(3);
   
   preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC);
   
@@ -185,6 +189,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
             >> ReynoldsNumber >> CapillaryNumber >> ShearRate;
     }
           
+    // Assigning values to shape parameter variables
     ShapeParameters* p_shape_param =  m_allDSimmersedboundary[i]
                                               ->get_ptr_shape_parameters();
     geomVector position(xp,yp,zp);
@@ -204,6 +209,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
                             : N_nodes;
 
     
+    // Assigning values to membrane parameter variables
     MembraneParameters* p_membrane_param = m_allDSimmersedboundary[i]
                                               ->get_ptr_membrane_parameters();
     p_membrane_param->k_spring = k_spring;
@@ -230,17 +236,22 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
 
 
 
+/*
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: initialize_variables()
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: initialize_variables" ) ;
 
-  for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->initialize_node_properties();
-  }
+  ifstream fileIN( m_3DMesh_file.c_str(), ios::in );
 
+  for (size_t i = 0; i < m_nIB; ++i) {
+    m_allDSimmersedboundary[i]->initialize_node_properties(fileIN);
+  }
+  
+  fileIN.close();
 }
+*/
 
 
 
@@ -250,25 +261,38 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: generate_immersed_body_mesh" ) ;
+  
+  ifstream fileIN( m_3DMesh_file.c_str(), ios::in );
 
   for (size_t i = 0; i < m_nIB; ++i) {
+
     // Node properties
-    m_allDSimmersedboundary[i]->initialize_node_properties();
-    m_allDSimmersedboundary[i]->set_all_nodes();
+    m_allDSimmersedboundary[i]->initialize_node_properties(m_3DMesh_file, 
+                                                           m_space_dimension);
+    m_allDSimmersedboundary[i]->set_all_nodes(fileIN, m_space_dimension);
     m_allDSimmersedboundary[i]->project_membrane_shape();
     m_allDSimmersedboundary[i]->position_membrane();
     m_allDSimmersedboundary[i]->rotate_membrane();
     
     // Triangle properties
-    m_allDSimmersedboundary[i]->set_all_trielements();
+    m_allDSimmersedboundary[i]->set_all_trielements(fileIN, m_space_dimension,  
+                                                    m_Matlab_numbering);
+    m_allDSimmersedboundary[i]->compute_triangle_area_normals_centre_of_mass
+                                                      (true, m_space_dimension);
+    
+    // Node neighbors
+    m_allDSimmersedboundary[i]->set_all_node_neighbors();
+    
     
     // Edge properties
-    m_allDSimmersedboundary[i]->initialize_edge_properties();
+    m_allDSimmersedboundary[i]->initialize_edge_properties(m_space_dimension);
     m_allDSimmersedboundary[i]->set_all_edges();
     m_allDSimmersedboundary[i]->compute_spring_lengths(true);
     m_allDSimmersedboundary[i]->compute_edge_normals();
     m_allDSimmersedboundary[i]->compute_edge_angle(true);
   }
+  
+  fileIN.close();
 }
 
 

@@ -5,6 +5,8 @@
 #include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
 #include <string>
+#include <fstream>
+#include <sstream>
 using std::string;
 
 
@@ -45,21 +47,46 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /**@name Methods */
       //@{
-      /** @brief Initializes all variables of 'Struct Node' */
-      void initialize_node_properties();
+      /** @brief Allocates memory & initializes all variables of 'Struct Node' */
+      void initialize_node_properties(string const& mesh_filename,
+                                      size_t const& dim);
 
       /** @brief Sets all nodes - number, coordinates, neighbours */
-      void set_all_nodes();
+      void set_all_nodes(istream& fileIN, size_t const& dim);
+      
+      /** @brief Computes the radius of RBC from coordinates ASSUMING centroid
+      of membrane to be (0, 0, 0) */
+      void set_radius(size_t const& num_nodes, size_t const& dim);
+      
+      /** @brief Scales the node coordinates and RBC radius */
+      void scale_all_node_coordinates(size_t const& num_nodes, 
+                                      size_t const& dim);
+      
+      /** @brief Computes the area, normals and centre of mass of each triangle */
+      void compute_triangle_area_normals_centre_of_mass(bool init,
+                                                        size_t const& dim);
+      
+      /** @brief Sets the neighbors of each node from triangle nodes */
+      void set_all_node_neighbors();
       
       /** @brief Projects shape of the membrane to sphere or biconcave **/
       void project_membrane_shape();
       
+      /** @brief Allocates memory & initializes all variables of 'Struct TriElements' */
+      void initialize_triangle_properties(size_t const& num_triangles,
+                                          size_t const& dim);
+      
       /** @brief Sets all trielements - nodes, centers of mass, normals */
-      void set_all_trielements();
+      void set_all_trielements(istream& fileIN, size_t const& dim,
+                               bool const& MatlabNumb);
       
       /** @brief Allocates memory & initializes edge properties & attributes */
-      void initialize_edge_properties();
+      void initialize_edge_properties(size_t const& dim);
       
+      /** @brief Returns a pointer to the edge if it already exists in the list,
+      otherwise returns NULL */
+      Edge* does_edge_exist( Node const* n2_, Node const* n3_ );
+
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges();
       
@@ -71,7 +98,11 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /** @brief Computes angle between edges */
       void compute_edge_angle(bool init);
-
+      
+      /** @brief Computes the normal to each triangle = 0.5 * area of triangle */
+      void compute_twice_area_vector
+      (vector< pair<Node const*,Node const*> > const& ppnodes, double* res );
+      
       /** @brief Computes norm of a 3D vector or array variable */
       double norm(double const* v);
       

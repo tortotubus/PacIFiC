@@ -8,6 +8,8 @@
 #include <cmath>
 #include <typeinfo>
 #include <iomanip>      // std::setprecision
+#include <fstream>
+#include <sstream>
 using std::endl;
 using std::cout;
 using std::cin;
@@ -40,7 +42,8 @@ DS_2DRBC:: ~DS_2DRBC()
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: initialize_node_properties()
+void DS_2DRBC:: initialize_node_properties(string const& mesh_filename,
+                                           size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: initialize_node_properties()" ) ;
@@ -48,18 +51,18 @@ void DS_2DRBC:: initialize_node_properties()
   m_all_nodes.reserve(shape_param.N_nodes);
 
   Node temp;
-  temp.coordinates(2);
-  temp.coordinates_pbc(2);
-  temp.velocity(2);
-  temp.angular_velocity(2);
-  temp.sumforce(2);
-  temp.sumforce_nm1(2);
-  temp.spring_force(2);
-  temp.bending_force(2);
-  temp.viscous_force(2);
-  temp.volume_force(2);
-  temp.area_force(2);
-  temp.unit_outwards_normal_vector(2);
+  temp.coordinates(dim);
+  temp.coordinates_pbc(dim);
+  temp.velocity(dim);
+  temp.angular_velocity(dim);
+  temp.sumforce(dim);
+  temp.sumforce_nm1(dim);
+  temp.spring_force(dim);
+  temp.bending_force(dim);
+  temp.viscous_force(dim);
+  temp.volume_force(dim);
+  temp.area_force(dim);
+  temp.unit_outwards_normal_vector(dim);
   temp.initial_angle = 0.;
   temp.angle_nm1 = 0.;
   temp.dangledt = 0.;
@@ -74,7 +77,7 @@ void DS_2DRBC:: initialize_node_properties()
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: set_all_nodes()
+void DS_2DRBC:: set_all_nodes(istream& fileIN, size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: set_all_nodes" ) ;
@@ -89,9 +92,9 @@ void DS_2DRBC:: set_all_nodes()
 
     // Coordinates
     m_all_nodes[i].coordinates(0) = shape_param.radius
-                            * cos( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
+                       * cos( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
     m_all_nodes[i].coordinates(1) = shape_param.radius
-                            * sin( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
+                       * sin( 2. * MAC::pi() * double(i) / double(num_nodes) ) ;
 
     // Node neighbors
     m_all_nodes[i].neighbors[0] = 
@@ -132,7 +135,19 @@ void DS_2DRBC:: project_membrane_shape()
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: set_all_trielements()
+void DS_2DRBC:: initialize_triangle_properties(size_t const& num_triangles,
+                                               size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: initialize_triangle_properties()" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
+                                    bool const& MatlabNumb)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: set_all_trielements" ) ;
@@ -142,7 +157,28 @@ void DS_2DRBC:: set_all_trielements()
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: initialize_edge_properties()
+void DS_2DRBC:: compute_triangle_area_normals_centre_of_mass(bool init,
+                                                    size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_triangle_area_normals_centre_of_mass" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: set_all_node_neighbors()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: set_all_node_neighbors" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: initialize_edge_properties(size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: initialize_edge_properties" ) ;
