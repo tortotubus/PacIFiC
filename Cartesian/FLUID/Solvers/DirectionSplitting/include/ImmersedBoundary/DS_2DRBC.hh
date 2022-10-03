@@ -86,10 +86,10 @@ class DS_2DRBC: public DS_ImmersedBoundary
       void initialize_edge_properties(size_t const& dim);
       
       /** @brief Sets all edges and its nodes and normals */
-      void set_all_edges();
+      void set_all_edges(size_t const& dim);
       
       /** @brief Compute current (& initial) spring lengths */
-      void compute_spring_lengths(bool init);
+      void compute_spring_lengths(bool init, size_t const& dim);
       
       /** @brief Compute unit normal of each edge */
       void compute_edge_normals();
@@ -98,10 +98,10 @@ class DS_2DRBC: public DS_ImmersedBoundary
       void compute_edge_angle(bool init);
 
       /** @brief Computes norm of a 2D vector or array variable */
-      double norm(double const* v);
+      double norm(geomVector& v);
       
       /** @brief Scalar product of two vectors */
-      double scalar( double const* v0, double const* v1 );
+      double scalar( geomVector const& v0, geomVector const& v1 );
       
       /** @brief Cross product/vector product of two vectors */
       double cross_2D( geomVector const v0, geomVector const v1 );

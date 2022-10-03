@@ -210,7 +210,7 @@ void DS_2DRBC:: initialize_edge_properties(size_t const& dim)
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: set_all_edges()
+void DS_2DRBC:: set_all_edges(size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: set_all_edges" ) ;
@@ -243,18 +243,18 @@ void DS_2DRBC:: set_all_edges()
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: compute_spring_lengths(bool init)
+void DS_2DRBC:: compute_spring_lengths(bool init, size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_spring_lengths" ) ;
   
-  double diff[2];
+  geomVector diff(2);
   
   for (size_t i=0;i<m_nEdges;++i)
   {
-    for (size_t j=0;j<2;++j)
+    for (size_t j=0;j<dim;++j)
     {
-        diff[j] = m_all_edges[i].n3->coordinates(j) 
+        diff(j) = m_all_edges[i].n3->coordinates(j) 
                   - m_all_edges[i].n2->coordinates(j);
     }
     m_all_edges[i].length = norm( diff );
@@ -271,21 +271,21 @@ void DS_2DRBC:: compute_edge_normals()
 {
   MAC_LABEL( "DS_2DRBC:: compute_edge_normals" ) ;
   
-  double diff[2];
+  geomVector diff(2);
   
   for (size_t i=0;i<m_nEdges;++i)
   {
     for (size_t j=0;j<2;++j)
     {
-        diff[j] = m_all_edges[i].n3->coordinates(j) 
+        diff(j) = m_all_edges[i].n3->coordinates(j) 
                   - m_all_edges[i].n2->coordinates(j);
     }
 
     m_all_edges[i].length = norm( diff );
 
-    m_all_edges[i].ext_unit_normal(0) =   diff[1]
+    m_all_edges[i].ext_unit_normal(0) =   diff(1)
                                           / m_all_edges[i].length;
-    m_all_edges[i].ext_unit_normal(1) = - diff[0]
+    m_all_edges[i].ext_unit_normal(1) = - diff(0)
                                           / m_all_edges[i].length;
   }
 }
@@ -708,7 +708,8 @@ void DS_2DRBC:: compute_spring_force(size_t const& dim,
   MAC_LABEL( "DS_2DRBC:: compute_spring_force" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
-  double Iij[2], length = 0.;
+  geomVector Iij(dim);
+  double length = 0.;
   
   for (size_t inode=0;inode<num_nodes;++inode)
   {
@@ -719,7 +720,7 @@ void DS_2DRBC:: compute_spring_force(size_t const& dim,
     {
       // spring vector
       for (size_t j=0;j<dim;++j)
-        Iij[j] = m_all_nodes[inode].neighbors[k]->coordinates(j) 
+        Iij(j) = m_all_nodes[inode].neighbors[k]->coordinates(j) 
                  - m_all_nodes[inode].coordinates(j);
           
       // spring length
@@ -727,14 +728,14 @@ void DS_2DRBC:: compute_spring_force(size_t const& dim,
       
       // normalization of unit spring vector for components of spring force
       for (size_t j=0;j<dim;++j)
-        Iij[j] /= length;
+        Iij(j) /= length;
 
       // spring force computation = k(l - l_0)
       double initial_spring_length = 
                         m_all_nodes[inode].edge_of_neighbors[k]->initial_length;
       for (size_t j=0;j<dim;++j)
         m_all_nodes[inode].sumforce(j) += spring_constant *
-                                    ( length - initial_spring_length ) * Iij[j];
+                                    ( length - initial_spring_length ) * Iij(j);
     }
   }
 } 
@@ -750,7 +751,8 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
   MAC_LABEL( "DS_2DRBC:: compute_linear_spring_force" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
-  double Iij[2], length = 0.;
+  geomVector Iij(dim);
+  double length = 0.;
   
   for (size_t inode=0;inode<num_nodes;++inode)
   {
@@ -761,7 +763,7 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
     {
       // spring vector
       for (size_t j=0;j<dim;++j)
-        Iij[j] = m_all_nodes[inode].neighbors[k]->coordinates(j) 
+        Iij(j) = m_all_nodes[inode].neighbors[k]->coordinates(j) 
                  - m_all_nodes[inode].coordinates(j);
           
       // spring length
@@ -770,7 +772,7 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
       
       // normalization of unit spring vector for components of spring force
       for (size_t j=0;j<dim;++j)
-        Iij[j] /= length;
+        Iij(j) /= length;
 
       // initial spring length
       double initial_spring_length = 
@@ -782,7 +784,7 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
       
       // compute spring force
       for (size_t j=0;j<dim;++j)
-        m_all_nodes[inode].sumforce(j) += tension * Iij[j];
+        m_all_nodes[inode].sumforce(j) += tension * Iij(j);
     }
   }
 } 
@@ -1336,24 +1338,24 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
 
 
 //---------------------------------------------------------------------------
-double DS_2DRBC:: norm( double const* v )
+double DS_2DRBC:: norm( geomVector& v )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: norm" ) ;
     
-  return ( pow( v[0]*v[0] + v[1]*v[1], 0.5 ) );
+  return ( pow( v(0)*v(0) + v(1)*v(1), 0.5 ) );
 }
 
 
 
 
 //---------------------------------------------------------------------------
-double DS_2DRBC:: scalar( double const* v0, double const* v1 )
+double DS_2DRBC:: scalar( geomVector const& v0, geomVector const& v1 )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: scalar" ) ;
     
-  return ( v0[0] * v1[0] + v0[1] * v1[1] ); 
+  return ( v0(0) * v1(0) + v0(1) * v1(1) ); 
 }
 
 
