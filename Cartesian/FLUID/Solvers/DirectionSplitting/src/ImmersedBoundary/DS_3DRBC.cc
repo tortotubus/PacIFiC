@@ -18,6 +18,10 @@ using std::string;
 using std::max;
 using namespace std;
 
+#define TOLERANCE 0.05
+#define SMALL     0.001
+#define SMALLER   0.00001
+
 
 //---------------------------------------------------------------------------
 DS_3DRBC:: DS_3DRBC()
@@ -47,7 +51,7 @@ void DS_3DRBC:: initialize_node_properties(string const& mesh_filename,
                                            size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: initialize_node_properties()" ) ;
+  MAC_LABEL( "DS_3DRBC:: initialize_node_properties" ) ;
   
   // Read number of nodes for each RBC3D into the variable
   ifstream fileIN( mesh_filename.c_str(), ios::in );
@@ -90,7 +94,7 @@ void DS_3DRBC:: write_one_point_to_VTK( double const& time
                                    , size_t const& cyclenum )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: write_one_point_to_VTK()" ) ;
+  MAC_LABEL( "DS_3DRBC:: write_one_point_to_VTK" ) ;
 
 }
 
@@ -128,14 +132,14 @@ void DS_3DRBC:: set_all_nodes(istream& fileIN, size_t const& dim)
 void DS_3DRBC:: set_radius(size_t const& num_nodes, size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: set_radius()" ) ;
+  MAC_LABEL( "DS_3DRBC:: set_radius" ) ;
 
   // Compute radius of membrane ASSUMING membrane centroid is (0, 0, 0)
   shape_param.radius = 0.;
-  double coords[dim];
+  geomVector coords(dim);
   for (size_t i=0;i<num_nodes;++i)
   {
-    for (size_t j=0;j<dim;++j) coords[j] = m_all_nodes[i].coordinates(j);
+    for (size_t j=0;j<dim;++j) coords(j) = m_all_nodes[i].coordinates(j);
 
     shape_param.radius = max( shape_param.radius, norm(coords) );
   }
@@ -149,13 +153,14 @@ void DS_3DRBC:: scale_all_node_coordinates(size_t const& num_nodes,
                                            size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: scale_all_node_coordinates()" ) ;
+  MAC_LABEL( "DS_3DRBC:: scale_all_node_coordinates" ) ;
   
   // Scaling of node coordinates
   double scaling_factor = 1.;
   for (size_t i=0;i<num_nodes;++i)
-      for (size_t j=0;j<dim;++j)
-          m_all_nodes[i].coordinates(j) *= scaling_factor;
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[i].coordinates(j) *= scaling_factor;
+  
   // Scaling the radius based on scaling factor
   shape_param.radius *= scaling_factor;
 }
@@ -168,7 +173,7 @@ void DS_3DRBC:: initialize_triangle_properties(size_t const& num_triangles,
                                                size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: initialize_triangle_properties()" ) ;
+  MAC_LABEL( "DS_3DRBC:: initialize_triangle_properties" ) ;
   
   m_all_trielements.reserve(num_triangles);
   
@@ -184,7 +189,6 @@ void DS_3DRBC:: initialize_triangle_properties(size_t const& num_triangles,
   for (size_t i = 0; i < num_triangles; i++) {
     m_all_trielements.push_back(temp);
   }
-
 }
 
 
@@ -219,14 +223,14 @@ void DS_3DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
     m_all_trielements[i].number = i;
     m_all_trielements[i].pnodes[0] = &(m_all_nodes[n1]);
     m_all_trielements[i].pnodes[1] = &(m_all_nodes[n2]);
-    m_all_trielements[i].pnodes[2] = &(m_all_nodes[n3]);    
+    m_all_trielements[i].pnodes[2] = &(m_all_nodes[n3]);
   }
   
   // Define the 2 vectors to compute the outwards oriented twice area normal 
   // vector
   Node const* pnode = NULL;
   pair<Node const*,Node const*> pp(pnode,pnode);
-  double twav[dim];
+  geomVector twav(dim);
   for (size_t i=0;i<m_nTriangles;++i)
   {
     // Compute center of mass
@@ -251,12 +255,10 @@ void DS_3DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
 
     // Compute twice area vector 
     compute_twice_area_vector( m_all_trielements[i].varea, twav );
+
     // Compute scalar product with center of the triangle as
     // an approximation of a radial vector at the center of the triangle
-    double centre[dim];
-    for (size_t j=0;j<dim;++j) centre[j] = m_all_trielements[i].center_of_mass(j);
-    
-    double prod = scalar( centre, twav );
+    double prod = scalar( m_all_trielements[i].center_of_mass, twav );
 
     // If hav is negative, swap second node in each pair
     if ( prod < 0. )
@@ -265,11 +267,9 @@ void DS_3DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
         m_all_trielements[i].varea[1].second = m_all_trielements[i].pnodes[1];    
     }
 
-    // Compute twice area normal vector 
-    double normal[dim];
-    for (size_t j=0;j<dim;++j)
-      normal[j] = m_all_trielements[i].twice_area_outwards_normal_vector(j);
-    compute_twice_area_vector( m_all_trielements[i].varea, normal );
+    // Compute twice area normal vector
+    compute_twice_area_vector( m_all_trielements[i].varea, 
+                       m_all_trielements[i].twice_area_outwards_normal_vector );
   }
 }
 
@@ -286,16 +286,11 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
   for (size_t i=0;i<m_nTriangles;++i)
   {
     // Compute normals of triangle
-    double normal[dim];
-    for (size_t j=0;j<dim;++j)
-      normal[j] = m_all_trielements[i].twice_area_outwards_normal_vector(j);
-      
-    compute_twice_area_vector( m_all_trielements[i].varea, normal );
-    
-    m_all_trielements[i].tri_area = 0.5 * norm(normal);
-    
-    for (size_t j=0;j<dim;++j)
-      m_all_trielements[i].twice_area_outwards_normal_vector(j) = normal[j];
+    compute_twice_area_vector( m_all_trielements[i].varea, 
+                       m_all_trielements[i].twice_area_outwards_normal_vector );
+
+    m_all_trielements[i].tri_area = 0.5 
+                 * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
     
     if(init) 
       m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_area;
@@ -305,8 +300,8 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
     {
       m_all_trielements[i].center_of_mass(j) = 
       ( m_all_trielements[i].pnodes[0]->coordinates(j) +
-      m_all_trielements[i].pnodes[1]->coordinates(j) +
-      m_all_trielements[i].pnodes[2]->coordinates(j) ) / 3.;
+        m_all_trielements[i].pnodes[1]->coordinates(j) +
+        m_all_trielements[i].pnodes[2]->coordinates(j) ) / 3.;
     }
   }
 }
@@ -325,14 +320,14 @@ void DS_3DRBC::set_all_node_neighbors()
   set<Node const*> ww;
   vector< set<Node const*> > neighbors( num_nodes, ww );
   
-  size_t n0, n1, n2;
-
   // Searches the neighbors
-  for (size_t i=0;i<m_nTriangles;++i)
+  for (vector<TriElement>::const_iterator il=m_all_trielements.begin();
+       il!=m_all_trielements.end();
+       il++)
   {
-    n0 = m_all_trielements[i].pnodes[0]->number;
-    n1 = m_all_trielements[i].pnodes[1]->number;
-    n2 = m_all_trielements[i].pnodes[2]->number;
+    size_t n0 = ((il->pnodes)[0])->number;
+    size_t n1 = ((il->pnodes)[1])->number;
+    size_t n2 = ((il->pnodes)[2])->number;
 
     neighbors[n0].insert( &(m_all_nodes[n1]) );
     neighbors[n0].insert( &(m_all_nodes[n2]) ); 
@@ -354,8 +349,9 @@ void DS_3DRBC::set_all_node_neighbors()
     m_all_nodes[i].neighbors_3D.reserve(nn);
     for (size_t j=0;j<nn;++j) m_all_nodes[i].neighbors_3D.push_back(pp);      
 
-    m_all_nodes[i].initial_spring_length.reserve(nn);
-    for (size_t j=0;j<nn;++j) m_all_nodes[i].initial_spring_length.push_back(zero);
+    m_all_nodes[i].initial_spring_length.reserve(nn); 
+    for (size_t j=0;j<nn;++j) 
+      m_all_nodes[i].initial_spring_length.push_back(zero);
 
 
     // Sets pointers to neighbor and initial length 
@@ -384,6 +380,12 @@ void DS_3DRBC:: initialize_edge_properties(size_t const& dim)
   Edge temp;
   temp.ext_unit_normal(dim);
   temp.initial_length = 0.;
+  temp.t1v1.first = &(m_all_trielements[0]);
+  temp.t1v1.second = m_all_trielements[0].pnodes[0];
+  temp.t2v4.first = &(m_all_trielements[0]);
+  temp.t2v4.second = m_all_trielements[0].pnodes[0];
+  temp.n2 = m_all_trielements[0].pnodes[0];
+  temp.n3 = m_all_trielements[0].pnodes[0];
   temp.length = 0.;
   temp.sintheta0 = 0.;
   temp.costheta0 = 0.;
@@ -397,13 +399,14 @@ void DS_3DRBC:: initialize_edge_properties(size_t const& dim)
   temp.angle_nm1 = 0.;
   temp.dangledt = 0.;
 
-  for (size_t i=0;i<m_nEdges;++i) m_all_edges.push_back(temp);
+  for (size_t i=0;i<m_nEdges;++i) 
+    m_all_edges.push_back(temp);
 }
 
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: set_all_edges()
+void DS_3DRBC:: set_all_edges(size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: set_all_edges" ) ;
@@ -417,15 +420,12 @@ void DS_3DRBC:: set_all_edges()
   ed.t2v4.second = NULL;
   ed.sintheta0 = ed.costheta0 = 0.;
   Edge* ped = NULL;
-  
-  double scalar_prod = 0., vect_prod = 0.; // Anirudh addition
-  double s = 0.;
 
   // Create edges
   ed.number = -1;
   for (size_t i=0;i<m_nTriangles;++i)
   {
-    for (size_t j=0;j<3;++j)
+    for (size_t j=0;j<dim;++j)
     {
       ped = does_edge_exist( m_all_trielements[i].pnodes[j], m_all_trielements[i].pnodes[j == 2 ? 0 : j+1] );
 
@@ -445,82 +445,105 @@ void DS_3DRBC:: set_all_edges()
       }
     }
   }
-
-  cout << "here\n"; exit(3);
-
-  /*
-  // Check the order of n2 - n3, otherwise swap
-  double a21[3], a31[3], a24[3], a34[3], xi[3], zeta[3], ximzeta[3], t1cmt2c[3];
-  double crossp[3], n2n3[3];
-  double sprod = 0.;
+  
+  // Check if n2-n3 are correctly ordered else swap them
+  // i.e., check if normals of triangles on either side 
+  // of edge match original normals from set_all_trielements()
   Node* buffer = NULL;
-  for (list<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+  for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
   {
-    // a21
-    for (size_t j=0;j<3;++j)
-      a21[j] = il->t1v1.second->coordinates[j] - il->n2->coordinates[j];
-
-    // a31
-    for (size_t j=0;j<3;++j)
-      a31[j] = il->t1v1.second->coordinates[j] - il->n3->coordinates[j];
-
-    // Compute cross product xi = a21 x a31
-    cross( a21, a31, xi );
+    geomVector normal_t1(dim);
+    for (size_t j=0;j<dim;++j) 
+      normal_t1(j) = il->t1v1.first->twice_area_outwards_normal_vector(j);
     
-    // Compare xi to triangular element normal
-    // If different swap n2 and n3
-    if ( ! compare( xi, il->t1v1.first->twice_area_outwards_normal_vector, 1.e-10 ) )
+    geomVector normal_t2(dim);
+    for (size_t j=0;j<dim;++j) 
+      normal_t2(j) = il->t2v4.first->twice_area_outwards_normal_vector(j);
+    
+    // a21 = a1 - a2 = vector from node 2 to node 1
+    geomVector a21(dim);
+    for (size_t j=0;j<dim;++j) 
+      a21(j) = il->t1v1.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+    
+    // a31 = a1 - a3 = vector from node 3 to node 1
+    geomVector a31(dim);
+    for (size_t j=0;j<dim;++j) a31(j) = il->t1v1.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+    
+    // Chi = a21 x a31
+    geomVector Chi(dim);
+    cross_3D(a21, a31, Chi);
+    
+    if (!compare( Chi, normal_t1, 1.e-10 ))
+    //if(scalar(Chi, normal_t1) < 0.)
     {
       buffer = il->n2;
       il->n2 = il->n3;
-      il->n3 = buffer; 
-
-      // a21
-      for (size_t j=0;j<3;++j)
-          a21[j] = il->t1v1.second->coordinates[j] - il->n2->coordinates[j];
-
-      // a31
-      for (size_t j=0;j<3;++j)
-          a31[j] = il->t1v1.second->coordinates[j] - il->n3->coordinates[j];
-
-      // Compute cross product xi = a21 x a31
-      cross( a21, a31, xi );
+      il->n3 = buffer;
+      
+      // a21 = a1 - a2 = vector from node 2 to node 1
+      for (size_t j=0;j<dim;++j) a21(j) = il->t1v1.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+      
+      // a31 = a1 - a3 = vector from node 3 to node 1
+      for (size_t j=0;j<dim;++j) a31(j) = il->t1v1.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+      
+      // Chi = a21 x a31
+      cross_3D(a21, a31, Chi);
     }
     
-    // Check that xi = a21 x a31 and zeta = a34 x a24 are the same as the
-    // outwards vector computed at the triangular element level
-    // a34
-    for (size_t j=0;j<3;++j)
-      a34[j] = il->t2v4.second->coordinates[j] - il->n3->coordinates[j];
-
-    // a24
-    for (size_t j=0;j<3;++j)
-      a24[j] = il->t2v4.second->coordinates[j] - il->n2->coordinates[j];
-
-    // Compute cross product zeta = a34 x a24
-    cross( a34, a24, zeta );    
-
-    if ( ! compare( xi, il->t1v1.first->twice_area_outwards_normal_vector, 1.e-10 ) 
-         || 
-         ! compare( zeta, il->t2v4.first->twice_area_outwards_normal_vector, 1.e-10 ) )
-      cout << "Numbering problem in edge " << il->n2->number << "-" << il->n3->number << endl;
-
-    // Compute cos(theta_0) and sin(theta_0)
-    il->costheta0 = scalar( xi, zeta ) / ( norm(xi) * norm(zeta) ) ;
-    for (size_t j=0;j<3;++j) ximzeta[j] = xi[j] - zeta[j];
-    for (size_t j=0;j<3;++j) t1cmt2c[j] = il->t1v1.first->center_of_mass[j] - il->t2v4.first->center_of_mass[j];
-    sprod = scalar( ximzeta, t1cmt2c );
-    il->sintheta0 = sprod >= 0. ? sqrt( 1. - pow( il->costheta0, 2. ) ) : - sqrt( 1. - pow( il->costheta0, 2. ) );
     
-    // Compute initial angle
-    cross( xi, zeta, crossp );
-    for (size_t j=0;j<3;++j) n2n3[j] =  il->n3->coordinates[j] - il->n2->coordinates[j];
-    double vnxizeta = scalar( crossp, n2n3 );
-    il->initial_angle = ( vnxizeta > 0. ? 1. : -1. ) * acos( max( - 1., min( il->costheta0, 1. ) ) );
-    il->angle_nm1 = il->initial_angle; // initial angle at t = t_{n-1}
-    il->dangledt = 0.; // d\theta/dt
+    
+    // a34 = a4 - a3 = vector from node 3 to node 4
+    geomVector a34(dim);
+    for (size_t j=0;j<dim;++j) a34(j) = il->t2v4.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+    
+    // a24 = a4 - a2 = vector from node 2 to node 4
+    geomVector a24(dim);
+    for (size_t j=0;j<dim;++j) a24(j) = il->t2v4.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+    
+    // Gamma = a34 x a24
+    geomVector Gamma(dim);
+    cross_3D(a34, a24, Gamma);
+    
+    
+    if ( (!compare(Chi, normal_t1, 1.e-10)) or (!compare(Gamma, normal_t2, 1.e-10)) )
+    //if( (scalar(Chi, normal_t1) < 0.) || (scalar(Gamma, normal_t2) < 0.) )
+    {
+      cout << "Numbering problem in edge connected by nodes " << il->n2->number << "-" << il->n3->number << endl;
+    }
+
+
+    double A1 = 0.5 * norm(Chi);
+    double A2 = 0.5 * norm(Gamma);
+    
+    // Compute chi - gamma
+    geomVector Chi_minus_Gamma(dim);
+    for (size_t j=0;j<dim;++j) Chi_minus_Gamma(j) = Chi(j) - Gamma(j);
+    
+
+    // Compute tc1 - tc2
+    geomVector tc1(dim), tc2(dim);
+    for (size_t j=0;j<dim;++j) tc1(j) = (il->t1v1.second->coordinates(j) + il->n2->coordinates(j) + il->n3->coordinates(j))/3.;
+    for (size_t j=0;j<dim;++j) tc2(j) = (il->n2->coordinates(j) + il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/3.;
+    geomVector tc1_minus_tc2(dim);
+    for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = tc1(j) - tc2(j); // /order_of_magnitude_of_radius;
+    double dot_product = scalar(Chi_minus_Gamma, tc1_minus_tc2);
+
+
+    // Compute costheta
+    il->costheta0 = scalar(Chi, Gamma)/A1/A2/4.0;
+    if(il->costheta0 >  1.) il->costheta0 =  1.;
+    if(il->costheta0 < -1.) il->costheta0 = -1.;
+    il->initial_angle = acos(il->costheta0);
+    if(dot_product < 0.) il->initial_angle *= -1.;
+    
+
+    // Compute sintheta (with a clipping for values above 0.5 or so)
+    il->sintheta0 = sin(il->initial_angle);
+    if(fabs(il->sintheta0) < SMALLER) il->sintheta0 = SMALLER;
+    
+    il->angle_nm1 = il->initial_angle;
+    il->dangledt = 0.;
   }
-  */
 }
 
 
@@ -534,7 +557,7 @@ Edge* DS_3DRBC::does_edge_exist( Node const* n2_, Node const* n3_ )
   
   Edge* ped = NULL;
   bool found = false;
-  for (list<Edge>::iterator il=m_all_edges.begin();
+  for (vector<Edge>::iterator il=m_all_edges.begin();
        il!=m_all_edges.end() && !found;
        il++)
   {
@@ -543,7 +566,7 @@ Edge* DS_3DRBC::does_edge_exist( Node const* n2_, Node const* n3_ )
     {
         ped = &(*il);
         found = true;
-    }  
+    }
   }
 
   return ( ped );
@@ -553,12 +576,46 @@ Edge* DS_3DRBC::does_edge_exist( Node const* n2_, Node const* n3_ )
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: compute_spring_lengths(bool init)
+bool DS_3DRBC:: compare( geomVector const& v0, 
+                         geomVector const& v1, 
+                         double const& eps )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: compute_spring_lengths" ) ;
-
+  MAC_LABEL( "DS_3DRBC:: compare" ) ;
   
+  return ( fabs( v0(0) - v1(0) ) < eps
+        && fabs( v0(1) - v1(1) ) < eps
+        && fabs( v0(2) - v1(2) ) < eps );
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_spring_lengths(bool init, size_t const& dim)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_spring_lengths" );
+  
+  /*
+  size_t num_nodes = shape_param.N_nodes;
+  
+  size_t nn = 0;
+  for (size_t i=0;i<num_nodes;++i)
+  {
+    nn = m_all_nodes[i].initial_spring_length.size();
+    for (size_t j=0;j<nn;++j)
+    {
+      double length = 0.;
+      for (size_t k=0;k<dim;++k)
+      {
+        length += pow(m_all_nodes[i].coordinates(k)
+                    - m_all_nodes[i].neighbors[j]->coordinates(k), 2.);
+      }
+      m_all_nodes[i].initial_spring_length[j] = pow( length, 0.5 );
+    }
+  }
+  */
 }
 
 
@@ -624,9 +681,51 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& case_type,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+  
+  // Membrane mass to Node mass
+  membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
+  
+  // Number of subtimesteps for RBC dynamics iterations
+  membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
+  
+  // Membrane constants to edge & node based constants
+  membrane_param.membrane_spring_constant = membrane_param.k_spring;
+  
+  // Build the Direction Splitting immersed boundary
+  if(case_type.compare("Breyannis2000case") != 0)
+  {
+    /*
+    membrane_param.k_spring *= double(m_nEdges); // edge spring constant
+    membrane_param.k_bending *= double(m_nEdges); // node bending constant
+    membrane_param.k_bending_visc /= double(m_nEdges);
+    membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
+      
+    // Timescales
+    membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.mass / 
+                               membrane_param.membrane_spring_constant, 0.5 );
+    membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
+                               * pow( membrane_param.node_mass / 
+                               membrane_param.k_spring, 0.5 );
+    membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
+              * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
+              * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
     
-    
-    
+    membrane_param.ntimescales = 20.;
+    membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
+                        membrane_param.node_bending_mass_spring_timescale ) 
+                        / 50. ;
+    membrane_param.tmax = double(membrane_param.ntimescales) 
+                          * membrane_param.membrane_mass_spring_timescale;
+    membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
+    */
+  }
+  else
+  {
+    membrane_param.k_spring = mu * membrane_param.ShearRate * shape_param.radius 
+                              / membrane_param.CapillaryNumber;
+    membrane_param.membrane_spring_constant = membrane_param.k_spring;
+  }
 }
 
 
@@ -634,19 +733,19 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& case_type,
 
 //---------------------------------------------------------------------------
 void DS_3DRBC::compute_twice_area_vector
-      (vector< pair<Node const*,Node const*> > const& ppnodes, double* res )
+      (vector< pair<Node const*,Node const*> > const& ppnodes, geomVector& res )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_twice_area_vector" ) ;
   
-  double v0[3];
-  double v1[3];
+  geomVector v0(3);
+  geomVector v1(3);
 
   for (size_t j=0;j<3;++j)
   {
-    v0[j] = ppnodes[0].second->coordinates(j) 
+    v0(j) = ppnodes[0].second->coordinates(j) 
             - ppnodes[0].first->coordinates(j);
-    v1[j] = ppnodes[1].second->coordinates(j) 
+    v1(j) = ppnodes[1].second->coordinates(j) 
             - ppnodes[1].first->coordinates(j);
   }
 
@@ -1174,6 +1273,62 @@ void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
+                                                        size_t const& dim )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_total_surface_area_total_volume" ) ;
+  
+  // Total surface area
+  membrane_param.total_area = 0.;
+  for (size_t i=0;i<m_nTriangles;++i)
+    membrane_param.total_area += m_all_trielements[i].tri_area;
+    
+  // Compute center of mass of each triangle
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+    for (size_t j=0;j<dim;++j)
+    {
+      m_all_trielements[i].center_of_mass(j) = 
+      ( m_all_trielements[i].pnodes[0]->coordinates(j) +
+        m_all_trielements[i].pnodes[1]->coordinates(j) +
+        m_all_trielements[i].pnodes[2]->coordinates(j) ) / 3.;
+    }
+  }
+  if ( init ) membrane_param.initial_area = membrane_param.total_area;
+
+
+  // Center of mass of the membrane
+  for (size_t j=0;j<dim;++j) 
+    membrane_param.centroid_coordinates(j) = 0.;
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+    for (size_t j=0;j<dim;++j)
+    {
+      membrane_param.centroid_coordinates(j) += m_all_trielements[i].tri_area 
+                                       * m_all_trielements[i].center_of_mass(j);
+    }
+  }
+  for (size_t j=0;j<dim;++j) 
+    membrane_param.centroid_coordinates(j) /= membrane_param.total_area;
+
+
+  // Total volume
+  membrane_param.total_volume = 0.;
+  geomVector relpos(dim);
+  double oneoversix = 1./6.;
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+    for (size_t j=0;j<dim;++j) relpos(j) = m_all_trielements[i].center_of_mass(j) - membrane_param.centroid_coordinates(j);
+    membrane_param.total_volume += oneoversix * scalar( m_all_trielements[i].twice_area_outwards_normal_vector, relpos );
+  }
+  if ( init ) membrane_param.initial_volume = membrane_param.total_volume; 
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type)
@@ -1182,9 +1337,76 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   MAC_LABEL( "DS_3DRBC:: rbc_dynamics_solver" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
+  double node_mass = membrane_param.node_mass;
+  double spring_constant = membrane_param.k_spring;
+  double bending_spring_constant = membrane_param.k_bending;
+  double bending_viscous_constant = membrane_param.k_bending_visc;
+  double viscous_drag_constant = membrane_param.k_viscous;
+  size_t n_sub_timesteps = membrane_param.n_subtimesteps_RBC;
   
+  double time = 0.;
+  double total_kinetic_energy = 0.;
+  double dt = dt_fluid / n_sub_timesteps;
   
+  // Compute initial area & volume of membrane
+  compute_total_surface_area_total_volume(true, dim);
 
+  // Time loop
+  for (size_t iter_num=0;iter_num<n_sub_timesteps;++iter_num)
+  {
+    // Time
+    time += dt;
+    
+    // Initialize forces on all nodes
+    for (size_t inode=0;inode<num_nodes;++inode)
+      for (size_t j=0;j<dim;++j)
+        m_all_nodes[inode].sumforce(j) = 0.0;
+        
+    /*
+    // Compute normals, areas and center of mass of triangles
+    compute_triangle_area_normals_centre_of_mass();
+    
+    // Compute total surface area and total volume and write to file
+    compute_total_surface_area_total_volume();
+
+    // Compute forces on all nodes
+    // Spring force
+    compute_spring_force_anthony( spring_constant );
+
+    // Bending resistance
+    compute_bending_resistance_anthony( bending_constant );
+
+    // Viscous drag force
+    compute_viscous_drag_force_anthony( viscous_drag_constant );
+
+    // Volume conservation force
+    compute_volume_conservation_force_anthony( volume_conservation_constant );
+
+    // Triangle surface area conservation force
+    compute_triangle_surface_area_conservation_force_anthony( triangle_surface_area_conservation_constant );
+
+    // Compute new velocity and position
+    for (size_t i=0;i<m_number_of_nodes;++i)
+    {
+      // Solve momentum conservation
+      if ( !iter_num ) // First order explicit at the 1st time
+        for (j=0;j<3;++j)
+          m_all_nodes[i].velocity[j] += ( dt /  node_mass ) * m_all_nodes[i].sumforce[j];
+      else // 2nd order Adams-Bashforth from the 2nd time
+      {
+        for (j=0;j<3;++j)
+        {
+          m_all_nodes[i].velocity[j] += ( dt /  node_mass ) * ( 1.5 * m_all_nodes[i].sumforce[j] - 0.5 * m_all_nodes[i].sumforce_nm1[j] ) ;
+          m_all_nodes[i].sumforce_nm1[j] = m_all_nodes[i].sumforce[j];
+        } 			       
+      }      
+
+      // Update position with 2nd order Taylor series expansion
+      for (j=0;j<3;++j)
+        m_all_nodes[i].coordinates[j] += dt * m_all_nodes[i].velocity[j] + 0.5 * ( m_all_nodes[i].sumforce[j] / node_mass ) * pow( dt, 2. );               	
+    }
+    */
+  }
 }
 
 
@@ -1266,38 +1488,40 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
 
 
 //---------------------------------------------------------------------------
-double DS_3DRBC:: norm( double const* v )
+double DS_3DRBC:: norm( geomVector& v )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: 3D_norm" ) ;
     
-  return ( pow( v[0]*v[0] + v[1]*v[1] + v[2]*v[2], 0.5 ) );
+  return ( pow( v(0)*v(0) + v(1)*v(1) + v(2)*v(2), 0.5 ) );
 }
 
 
 
     
 //---------------------------------------------------------------------------
-double DS_3DRBC:: scalar( double const* v0, double const* v1 )
+double DS_3DRBC:: scalar( geomVector const& v0, geomVector const& v1 )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: scalar" ) ;
     
-  return ( v0[0] * v1[0] + v0[1] * v1[1] + v0[2] * v1[2] ); 
+  return ( v0(0) * v1(0) + v0(1) * v1(1) + v0(2) * v1(2) ); 
 }
 
 
 
     
 //---------------------------------------------------------------------------
-void DS_3DRBC:: cross_3D( double const* v0, double const* v1, double* res )
+void DS_3DRBC:: cross_3D( geomVector const& v0, 
+                          geomVector const& v1, 
+                          geomVector& res )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: cross" ) ;
     
-  res[0] = v0[1] * v1[2] - v0[2] * v1[1];
-  res[1] = v0[2] * v1[0] - v0[0] * v1[2];
-  res[2] = v0[0] * v1[1] - v0[1] * v1[0];
+  res(0) = v0(1) * v1(2) - v0(2) * v1(1);
+  res(1) = v0(2) * v1(0) - v0(0) * v1(2);
+  res(2) = v0(0) * v1(1) - v0(1) * v1(0);
 } 
 
 

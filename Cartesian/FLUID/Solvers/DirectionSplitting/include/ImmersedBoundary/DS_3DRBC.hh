@@ -87,11 +87,14 @@ class DS_3DRBC: public DS_ImmersedBoundary
       otherwise returns NULL */
       Edge* does_edge_exist( Node const* n2_, Node const* n3_ );
 
+      /** @brief Returns whether 2 sets of coordinates are identical up to eps */
+      bool compare( geomVector const& v0, geomVector const& v1, double const& eps );
+      
       /** @brief Sets all edges and its nodes and normals */
-      void set_all_edges();
+      void set_all_edges(size_t const& dim);
       
       /** @brief Compute current (& initial) spring lengths */
-      void compute_spring_lengths(bool init);
+      void compute_spring_lengths(bool init, size_t const& dim);
       
       /** @brief Compute unit normal of each edge */
       void compute_edge_normals();
@@ -101,16 +104,16 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes the normal to each triangle = 0.5 * area of triangle */
       void compute_twice_area_vector
-      (vector< pair<Node const*,Node const*> > const& ppnodes, double* res );
+      (vector< pair<Node const*,Node const*> > const& ppnodes, geomVector& res );
       
       /** @brief Computes norm of a 3D vector or array variable */
-      double norm(double const* v);
+      double norm(geomVector& v);
       
       /** @brief Scalar product of two vectors */
-      double scalar( double const* v0, double const* v1 );
+      double scalar( geomVector const& v0, geomVector const& v1 );
       
       /** @brief Cross product/vector product of two vectors */
-      void cross_3D( double const* v0, double const* v1, double* res ); 
+      void cross_3D( geomVector const& v0, geomVector const& v1, geomVector& res );
       
       /** @brief Computes node based spring and bending constants **/
       void preprocess_membrane_parameters(string const& case_type,
@@ -148,6 +151,10 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);
       
+      /** @brief Computes total area & total volume of RBC membrane */
+      void compute_total_surface_area_total_volume( bool init, 
+                                                    size_t const& dim );
+
       /** @brief Computes the statistics of each RBC membrane */
       void compute_stats(string const& directory, string const& filename, 
                          size_t const& dim, double const& time, 

@@ -60,7 +60,8 @@ struct MembraneParameters
   double orientation_angle;
   double avg_tangential_velocity;
   double initial_perimeter, final_perimeter;
-  double initial_area, final_area;
+  double initial_area, final_area, total_area;
+  double initial_volume, final_volume, total_volume;
   geomVector centroid_coordinates;
   double total_kinetic_energy;
 };
@@ -214,7 +215,7 @@ class DS_ImmersedBoundary
       virtual void initialize_edge_properties(size_t const& dim) = 0;
       
       /** @brief Sets the edges and nodes for 2D and 3D immersed bodies */
-      virtual void set_all_edges() = 0;
+      virtual void set_all_edges(size_t const& dim) = 0;
       
       /** @brief Projects shape of the membrane to sphere or biconcave **/
       virtual void project_membrane_shape() = 0;
@@ -228,7 +229,7 @@ class DS_ImmersedBoundary
       void rotate_membrane();
       
       /** @brief Computes current (& initial) spring lengths */
-      virtual void compute_spring_lengths(bool init) = 0;
+      virtual void compute_spring_lengths(bool init, size_t const& dim) = 0;
       
       /** @brief Computes the unit normal of each edge/spring */
       virtual void compute_edge_normals() = 0;
@@ -237,10 +238,10 @@ class DS_ImmersedBoundary
       virtual void compute_edge_angle(bool init) = 0;
 
       /** @brief Computes norm of a vector variable */
-      virtual double norm(double const* v) = 0;
+      virtual double norm(geomVector& v) = 0;
       
       /** @brief Scalar product of two vectors */
-      virtual double scalar( double const* v0, double const* v1 ) = 0;
+      virtual double scalar( geomVector const& v0, geomVector const& v1 ) = 0;
       
       /** @brief Checks if point p1 and point p2 has 
       connection across periodic boundary? **/
@@ -391,7 +392,6 @@ class DS_ImmersedBoundary
 
       // Vector containing all nodes properties
       vector<Node> m_all_nodes;
-      // // // list<Edge> m_all_edges;
       vector<Edge> m_all_edges;
       vector<TriElement> m_all_trielements;
 

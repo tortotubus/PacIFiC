@@ -304,10 +304,13 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    // Create objects of immersed bodies classes
    if (is_ImmersedBoundaries) {
      IB_file = exp->string_data( "IBInputFile" );
+     
      if(exp->has_entry("Mesh3DFile")) 
       Mesh3D_file = exp->string_data( "Mesh3DFile" );
+      
      if(exp->has_entry("MatlabNumbering")) 
       MatlabNumbering = exp->bool_data( "MatlabNumbering" );
+      
      N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
      IB_case_type = exp->string_data( "CaseType" );
      n_RBC_timesteps = exp->int_data( "NumberOfRBCTimesteps" );

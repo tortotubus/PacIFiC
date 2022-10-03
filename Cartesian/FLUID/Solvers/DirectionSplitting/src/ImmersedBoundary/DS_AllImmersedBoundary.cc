@@ -59,7 +59,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   }
 
   double dx = UF->get_cell_size(1, 0, 0);
-  read_shape_and_membrane_parameters(m_IB_case_type, dx);
+  read_shape_and_membrane_parameters(m_IB_case_type, dx, m_space_dimension);
 
   generate_immersed_body_mesh();
   
@@ -148,7 +148,8 @@ size_t DS_AllImmersedBoundary:: get_num_lines_in_IB_file()
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
                                                (string const& case_type,
-                                                double const& dx)
+                                                double const& dx,
+                                                size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: read_shape_and_membrane_parameters" ) ;
@@ -219,8 +220,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     p_membrane_param->k_area = k_area;
     p_membrane_param->k_volume = k_volume;
     p_membrane_param->mass = membrane_mass;
-    geomVector centroid(2);
-    p_membrane_param->centroid_coordinates = centroid;
+    p_membrane_param->centroid_coordinates = position;
     if(case_type.compare("Breyannis2000case") == 0)
     {
       p_membrane_param->ReynoldsNumber = ReynoldsNumber;
@@ -271,25 +271,34 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
                                                            m_space_dimension);
     m_allDSimmersedboundary[i]->set_all_nodes(fileIN, m_space_dimension);
     m_allDSimmersedboundary[i]->project_membrane_shape();
-    m_allDSimmersedboundary[i]->position_membrane();
-    m_allDSimmersedboundary[i]->rotate_membrane();
     
     // Triangle properties
     m_allDSimmersedboundary[i]->set_all_trielements(fileIN, m_space_dimension,  
                                                     m_Matlab_numbering);
-    m_allDSimmersedboundary[i]->compute_triangle_area_normals_centre_of_mass
-                                                      (true, m_space_dimension);
     
     // Node neighbors
     m_allDSimmersedboundary[i]->set_all_node_neighbors();
     
     
+    // Initial triangle area and normals
+    m_allDSimmersedboundary[i]->compute_triangle_area_normals_centre_of_mass
+                                                      (true, m_space_dimension);
+
     // Edge properties
     m_allDSimmersedboundary[i]->initialize_edge_properties(m_space_dimension);
-    m_allDSimmersedboundary[i]->set_all_edges();
-    m_allDSimmersedboundary[i]->compute_spring_lengths(true);
+    m_allDSimmersedboundary[i]->set_all_edges(m_space_dimension);
+
+    // Initial spring length
+    m_allDSimmersedboundary[i]->compute_spring_lengths(true, m_space_dimension);
+    
+    // Edge normals and angles
     m_allDSimmersedboundary[i]->compute_edge_normals();
     m_allDSimmersedboundary[i]->compute_edge_angle(true);
+
+
+    // Position and rotate the immersed body
+    m_allDSimmersedboundary[i]->position_membrane();
+    m_allDSimmersedboundary[i]->rotate_membrane();
   }
   
   fileIN.close();

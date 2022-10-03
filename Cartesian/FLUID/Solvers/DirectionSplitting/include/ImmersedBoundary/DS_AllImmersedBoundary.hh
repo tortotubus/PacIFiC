@@ -153,7 +153,8 @@ class DS_AllImmersedBoundary
         //@{
         /** @brief Read the CSV file with RBC parameters */
         void read_shape_and_membrane_parameters(string const& case_type,
-                                                double const& dx);
+                                                double const& dx,
+                                                size_t const& dim);
 
         /** @brief Read the CSV file with RBS parameters */
         void initialize_variables();
