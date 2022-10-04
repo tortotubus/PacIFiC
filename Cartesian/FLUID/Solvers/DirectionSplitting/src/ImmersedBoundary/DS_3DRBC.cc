@@ -598,7 +598,6 @@ void DS_3DRBC:: compute_spring_lengths(bool init, size_t const& dim)
 {
   MAC_LABEL( "DS_3DRBC:: compute_spring_lengths" );
   
-  /*
   size_t num_nodes = shape_param.N_nodes;
   
   size_t nn = 0;
@@ -616,7 +615,6 @@ void DS_3DRBC:: compute_spring_lengths(bool init, size_t const& dim)
       m_all_nodes[i].initial_spring_length[j] = pow( length, 0.5 );
     }
   }
-  */
 }
 
 
@@ -987,17 +985,19 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
             // Check if Eulerian cell is within Dirac delta 2x2 stencil
             double dist_x = 
                 compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-            dist_x = (xC - xp) * hxC;
+            // // dist_x = (xC - xp) * hxC;
             double dist_y = 
                 compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-            dist_y = (yC - yp) * hyC;
+            // // dist_y = (yC - yp) * hyC;
             double dist_z = 
                 compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
-            dist_z = (zC - zp) * hzC;
+            // // dist_z = (zC - zp) * hzC;
             bool eul_cell_within_Dirac_delta_stencil = 
                                                  (fabs(dist_x) <= 2.) 
-                                             and (fabs(dist_y) <= 2.) 
-                                             and (fabs(dist_z) <= 2.);
+                                                 and 
+                                                 (fabs(dist_y) <= 2.) 
+                                                 and 
+                                                 (fabs(dist_z) <= 2.);
             
             if( eul_cell_within_Dirac_delta_stencil )
             {
@@ -1064,10 +1064,8 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   double dxC, dyC, dzC;
   double hxC, hyC, hzC; // Reciprocal of dxC, dyC, dzC
   int Nx, Ny, Nz;
-  double r1, r2, p1, p2, q1, q2, delt1, delt2, delt; // Dirac delta variables
+  double r1, p1, q1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend, kstart, kend;
-  double euler_force; // temporary Eulerian force summation variable
-  double euler_force_tag; // temporary Eulerian force tag for each cell for debugging
 
   FV_Mesh const* fvm = FF->primary_grid() ;
 
@@ -1161,13 +1159,13 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
           // Check if Eulerian cell is within Dirac delta 2x2 stencil
           double dist_x = 
                   compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-          dist_x = (xC - xp) * hxC;
+          // // dist_x = (xC - xp) * hxC;
           double dist_y = 
                   compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-          dist_y = (yC - yp) * hyC;
+          // // dist_y = (yC - yp) * hyC;
           double dist_z = 
                   compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
-          dist_z = (zC - zp) * hzC;
+          // // dist_z = (zC - zp) * hzC;
           bool eul_cell_within_Dirac_delta_stencil = 
                                                    (fabs(dist_x) <= 2.) 
                                                    and 
@@ -1194,18 +1192,16 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
             sum_dirac_delta += delt1 * dxC * dyC * dzC;
             
             // Computing Eulerian force
-            euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                          + 
-                          m_all_nodes[inode].sumforce(comp) 
-                          * delt1 * dxC * dyC * dzC;
+            double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                                 + 
+                                 m_all_nodes[inode].sumforce(comp) 
+                                 * delt1 * dxC * dyC * dzC;
             FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
             sum_euler_force += euler_force;
             
             // Assigning Eulerian force tag for each cell for debugging
-            euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) 
-                              + 1.0;
-            FF_tag->set_DOF_value(ii, jj, kk, comp, 0, 
-                                  euler_force_tag);
+            double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+            FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
           }
         }
       }
