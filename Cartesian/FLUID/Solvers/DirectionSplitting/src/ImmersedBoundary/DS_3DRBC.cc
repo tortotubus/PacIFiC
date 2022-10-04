@@ -1300,6 +1300,7 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
           m_all_nodes[i].sumforce(k) += spring_constant 
                 * ( length - m_all_nodes[i].initial_spring_length[j] ) * Iij(k);
       }
+      // // cout << "Spring force at node " << i << " = " << m_all_nodes[i].sumforce(0) << "\t" << m_all_nodes[i].sumforce(1) << "\t" << m_all_nodes[i].sumforce(2) << endl;
     }
   }
 } 
@@ -1492,11 +1493,11 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Spring force
     compute_spring_force( dim, spring_constant, "Anthony" );
 
+    /*
     // Bending resistance
     compute_bending_resistance( dim, bending_spring_constant, 
                                 bending_viscous_constant, dt, "Anthony" );
 
-    /*
     // Viscous drag force
     compute_viscous_drag_force( viscous_drag_constant );
 
@@ -1525,17 +1526,20 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
                                         * 
                                         ( 1.5 * m_all_nodes[i].sumforce(j) 
                                         - 0.5 * m_all_nodes[i].sumforce_nm1(j) );
+                                        
           m_all_nodes[i].sumforce_nm1(j) = m_all_nodes[i].sumforce(j);
         } 			       
-      }      
+      }
 
       // Update position with 2nd order Taylor series expansion
       for (size_t j=0;j<dim;++j)
+      {
         m_all_nodes[i].coordinates(j) += dt 
                                          * m_all_nodes[i].velocity(j) 
                                          + 0.5 
                                          * ( m_all_nodes[i].sumforce(j) / node_mass ) 
                                          * pow( dt, 2. );
+      }
     }
   }
 }
