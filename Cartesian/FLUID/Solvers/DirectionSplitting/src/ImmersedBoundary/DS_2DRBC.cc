@@ -855,7 +855,8 @@ void DS_2DRBC:: compute_bending_resistance( size_t const& dim,
 //---------------------------------------------------------------------------
 // Computes viscous drag force
 void DS_2DRBC:: compute_viscous_drag_force( size_t const& dim,
-                                           double const& viscous_drag_constant )
+                                           double const& viscous_drag_constant,
+                                           string const& force_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_viscous_drag_force" ) ;
