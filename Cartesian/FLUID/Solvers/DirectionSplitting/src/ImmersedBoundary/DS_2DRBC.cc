@@ -572,7 +572,7 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   double dxC, dyC, dzC;
   double hxC, hyC, hzC; // Reciprocal of dxC, dyC, dzC
   int Nx, Ny, Nz;
-  double r1, p1, q1, delt1; // Dirac delta variables
+  double r1, p1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend;
 
   FV_Mesh const* fvm = FF->primary_grid() ;
