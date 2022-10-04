@@ -610,7 +610,7 @@ void DS_3DRBC:: compute_spring_lengths(bool init, size_t const& dim)
       for (size_t k=0;k<dim;++k)
       {
         length += pow(m_all_nodes[i].coordinates(k)
-                    - m_all_nodes[i].neighbors[j]->coordinates(k), 2.);
+                    - m_all_nodes[i].neighbors_3D[j]->coordinates(k), 2.);
       }
       m_all_nodes[i].initial_spring_length[j] = pow( length, 0.5 );
     }
