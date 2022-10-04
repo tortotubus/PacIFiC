@@ -335,7 +335,7 @@ void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
   // Membrane constants to edge & node based constants
   membrane_param.membrane_spring_constant = membrane_param.k_spring;
 
-  // Build the Direction Splitting immersed boundary
+  // Set the spring constant values
   if(case_type.compare("Breyannis2000case") != 0)
   {
     membrane_param.k_spring *= double(m_nEdges); // edge spring constant
@@ -702,7 +702,8 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 
 //---------------------------------------------------------------------------
 void DS_2DRBC:: compute_spring_force(size_t const& dim, 
-                                     double const& spring_constant)
+                                     double const& spring_constant,
+                                     string const& force_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_spring_force" ) ;
@@ -796,7 +797,8 @@ void DS_2DRBC:: compute_linear_spring_force( size_t const& dim,
 void DS_2DRBC:: compute_bending_resistance( size_t const& dim, 
                                          double const& bending_spring_constant,
                                          double const& bending_viscous_constant, 
-                                         double const& dt )
+                                         double const& dt,
+                                         string const& force_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_bending_resistance" ) ;

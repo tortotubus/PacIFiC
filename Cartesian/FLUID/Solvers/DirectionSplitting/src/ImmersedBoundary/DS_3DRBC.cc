@@ -509,6 +509,7 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
     //if( (scalar(Chi, normal_t1) < 0.) || (scalar(Gamma, normal_t2) < 0.) )
     {
       cout << "Numbering problem in edge connected by nodes " << il->n2->number << "-" << il->n3->number << endl;
+      exit(3);
     }
 
 
@@ -691,7 +692,7 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& case_type,
   // Membrane constants to edge & node based constants
   membrane_param.membrane_spring_constant = membrane_param.k_spring;
   
-  // Build the Direction Splitting immersed boundary
+  // Set the spring constant values
   if(case_type.compare("Breyannis2000case") != 0)
   {
     /*
@@ -881,17 +882,11 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
 
   double xC, yC, zC;
   double dxC, dyC, dzC;
-  double hxC, hyC, hzC;
+  double hxC, hyC, hzC; // Reciprocal of dxC, dyC, dzC
   int Nx, Ny, Nz;
-  double r1, r2, p1, p2, q1, q2, delt1, delt2, delt;
+  double r1, p1, q1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend, kstart, kend;
 
-  MAC_Communicator const* PAC_comm;
-  PAC_comm = MAC_Exec::communicator();
-  size_t my_rank = PAC_comm->rank();
-  size_t nb_procs = PAC_comm->nb_ranks();
-  size_t is_master = 0;
-  
   FV_Mesh const* fvm = FF->primary_grid();
   
   size_t_vector min_unknown_index_with_halozone(dim, 0);
@@ -966,10 +961,6 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
     // Condition to check if a Lagrangian node belongs to a proc
     bool lag_cell_within_processor = 
                              fvm->is_in_domain_on_current_processor(xp, yp, zp);
-    // // // bool eul_cell_in_domain = (xp > Dmin(0)) && 
-    // // //                           (xp <= Dmax(0)) && 
-    // // //                           (yp > Dmin(1)) && 
-    // // //                           (yp <= Dmax(1));
     
     // if a node belongs to a processor, then compute it's
     // Lagrangian velocity from neighbouring Eulerian nodes
@@ -1226,53 +1217,6 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: compute_spring_force(size_t const& dim, 
-                                     double const& spring_constant)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: compute_spring_force" ) ;
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_3DRBC:: compute_linear_spring_force(size_t const& dim, 
-                                     double const& spring_constant)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: compute_linear_spring_force" ) ;
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_3DRBC:: compute_bending_resistance( size_t const& dim, 
-                                        double const& bending_spring_constant,
-                                        double const& bending_viscous_constant, 
-                                        double const& dt )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
-                                           double const& viscous_drag_constant )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: compute_viscous_drag_force" ) ;
-    
-}
-
-
-
-
-//---------------------------------------------------------------------------
 void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
                                                         size_t const& dim )
 //---------------------------------------------------------------------------
@@ -1329,6 +1273,184 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC::compute_spring_force( size_t const& dim,
+                                     double const& spring_constant,
+                                     string const& force_type )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_spring_force" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  if(force_type.compare("Anthony") == 0)
+  {
+    geomVector Iij(dim);
+    double length = 0.;
+    
+    for (size_t i=0;i<num_nodes;++i)
+    {
+      size_t nn = m_all_nodes[i].neighbors_3D.size();
+      for (size_t j=0;j<nn;++j)
+      {
+        for (size_t k=0;k<dim;++k) 
+          Iij(k) = m_all_nodes[i].neighbors_3D[j]->coordinates(k) 
+                   - m_all_nodes[i].coordinates(k);
+                   
+        length = norm( Iij );
+        
+        for (size_t k=0;k<dim;++k) Iij(k) /= length;
+        
+        for (size_t k=0;k<dim;++k)
+          m_all_nodes[i].sumforce(k) += spring_constant 
+                * ( length - m_all_nodes[i].initial_spring_length[j] ) * Iij(k);
+      }
+    }
+  }
+} 
+
+
+
+    
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_linear_spring_force(size_t const& dim, 
+                                     double const& spring_constant)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_linear_spring_force" ) ;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_bending_resistance( size_t const& dim, 
+                                        double const& bending_spring_constant,
+                                        double const& bending_viscous_constant, 
+                                        double const& dt,
+                                        string const& force_type )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
+
+  geomVector a21(dim), a31(dim), a24(dim), a34(dim);
+  geomVector Chi(dim), Gamma(dim), crossp(dim), n2n3(dim);
+  double angle = 0., dot = 0., mi = 0.;
+  double lever1 = 0., lever4 = 0., nxi = 0., nzeta = 0.;
+
+  if(force_type.compare("Anthony") == 0)
+  {
+    for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+    {
+      // a21
+      for (size_t j=0;j<dim;++j)
+        a21(j) =  il->t1v1.second->coordinates(j) - il->n2->coordinates(j);
+
+      // a31
+      for (size_t j=0;j<dim;++j)
+        a31(j) = il->t1v1.second->coordinates(j) - il->n3->coordinates(j);
+
+      // Compute cross product Chi = a21 x a31
+      cross_3D( a21, a31, Chi );
+      nxi = norm(Chi);
+      for (size_t j=0;j<dim;++j) Chi(j) /= nxi;
+
+      // a34
+      for (size_t j=0;j<dim;++j)
+        a34(j) =  il->t2v4.second->coordinates(j) - il->n3->coordinates(j);
+
+      // a24
+      for (size_t j=0;j<dim;++j)
+        a24(j) = il->t2v4.second->coordinates(j) - il->n2->coordinates(j);
+
+      // Compute cross product Gamma = a34 x a24
+      cross_3D( a34, a24, Gamma );
+      nzeta = norm(Gamma);
+      for (size_t j=0;j<dim;++j) Gamma(j) /= nzeta;        
+
+
+      double A1 = 0.5 * norm(Chi);
+      double A2 = 0.5 * norm(Gamma);
+      
+      // Compute chi - gamma
+      geomVector Chi_minus_Gamma(dim);
+      for (size_t j=0;j<dim;++j) Chi_minus_Gamma(j) = Chi(j) - Gamma(j);
+      
+
+      // Compute tc1 - tc2
+      geomVector tc1(dim), tc2(dim);
+      for (size_t j=0;j<dim;++j) tc1(j) = (il->t1v1.second->coordinates(j) + il->n2->coordinates(j) + il->n3->coordinates(j))/3.;
+      for (size_t j=0;j<dim;++j) tc2(j) = (il->n2->coordinates(j) + il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/3.;
+      geomVector tc1_minus_tc2(dim);
+      for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = tc1(j) - tc2(j); // /order_of_magnitude_of_radius;
+      double dot_product = scalar(Chi_minus_Gamma, tc1_minus_tc2);
+
+
+      // Compute costheta
+      double costheta = scalar(Chi, Gamma)/A1/A2/4.0;
+      if(costheta >  1.) costheta =  1.;
+      if(costheta < -1.) costheta = -1.;
+      angle = acos(costheta);
+      if(dot_product < 0.) angle *= -1.;
+
+      // Compute sintheta (with a clipping for values above 0.5 or so)
+      double sintheta = sin(angle);
+      if(fabs(sintheta) < SMALLER) sintheta = SMALLER;
+      
+      il->angle_nm1 = angle;
+      il->dangledt = 0.;
+      
+      /*
+      // Compute angle
+      dot = scalar( Chi, Gamma ) ;
+      cross_3D( Chi, Gamma, crossp );
+      for (size_t j=0;j<dim;++j)
+        n2n3(j) =  il->n3->coordinates(j) - il->n2->coordinates(j);
+      double vnxizeta = scalar( crossp, n2n3 );    
+      angle = ( vnxizeta > 0. ? 1. : -1. ) 
+              * acos( max( - 1., min( il->costheta0, 1. ) ) );
+      */
+
+      // Bending moment
+      mi = bending_spring_constant * ( angle - il->initial_angle );    
+
+      // Bending spring forces
+      // Triangle 1
+      lever1 = 0.5 * ( norm( a21 ) + norm( a31 ) );
+      for (size_t j=0;j<dim;++j)
+      {
+        il->t1v1.second->sumforce(j) += ( mi / lever1 ) * Chi(j);
+        il->n2->sumforce(j) -= 0.5 * ( mi / lever1 ) * Chi(j);
+        il->n3->sumforce(j) -= 0.5 * ( mi / lever1 ) * Chi(j);
+      }
+
+      // Triangle 2
+      lever4 = 0.5 * ( norm( a34 ) + norm( a24 ) );
+      for (size_t j=0;j<dim;++j)
+      {
+        il->t2v4.second->sumforce(j) += ( mi / lever4 ) * Gamma(j);
+        il->n2->sumforce(j) -= 0.5 * ( mi / lever4 ) * Gamma(j);
+        il->n3->sumforce(j) -= 0.5 * ( mi / lever4 ) * Gamma(j);
+      }
+    }
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
+                                           double const& viscous_drag_constant )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_viscous_drag_force" ) ;
+    
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type)
@@ -1342,6 +1464,8 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   double bending_spring_constant = membrane_param.k_bending;
   double bending_viscous_constant = membrane_param.k_bending_visc;
   double viscous_drag_constant = membrane_param.k_viscous;
+  double area_force_constant = membrane_param.k_area;
+  double volume_force_constant = membrane_param.k_volume;
   size_t n_sub_timesteps = membrane_param.n_subtimesteps_RBC;
   
   double time = 0.;
@@ -1362,50 +1486,61 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
       for (size_t j=0;j<dim;++j)
         m_all_nodes[inode].sumforce(j) = 0.0;
         
-    /*
     // Compute normals, areas and center of mass of triangles
-    compute_triangle_area_normals_centre_of_mass();
+    compute_triangle_area_normals_centre_of_mass(false, dim);
     
     // Compute total surface area and total volume and write to file
-    compute_total_surface_area_total_volume();
+    compute_total_surface_area_total_volume(false, dim);
 
     // Compute forces on all nodes
     // Spring force
-    compute_spring_force_anthony( spring_constant );
+    compute_spring_force( dim, spring_constant, "Anthony" );
 
     // Bending resistance
-    compute_bending_resistance_anthony( bending_constant );
+    compute_bending_resistance( dim, bending_spring_constant, 
+                                bending_viscous_constant, dt, "Anthony" );
 
+    /*
     // Viscous drag force
-    compute_viscous_drag_force_anthony( viscous_drag_constant );
+    compute_viscous_drag_force( viscous_drag_constant );
 
     // Volume conservation force
-    compute_volume_conservation_force_anthony( volume_conservation_constant );
+    compute_volume_conservation_force( volume_conservation_constant );
 
     // Triangle surface area conservation force
-    compute_triangle_surface_area_conservation_force_anthony( triangle_surface_area_conservation_constant );
+    compute_triangle_surface_area_conservation_force( triangle_surface_area_conservation_constant );
+    */
 
     // Compute new velocity and position
-    for (size_t i=0;i<m_number_of_nodes;++i)
+    for (size_t i=0;i<num_nodes;++i)
     {
       // Solve momentum conservation
       if ( !iter_num ) // First order explicit at the 1st time
-        for (j=0;j<3;++j)
-          m_all_nodes[i].velocity[j] += ( dt /  node_mass ) * m_all_nodes[i].sumforce[j];
+      {
+        for (size_t j=0;j<dim;++j)
+          m_all_nodes[i].velocity(j) += ( dt /  node_mass ) 
+                                        * m_all_nodes[i].sumforce(j);
+      }
       else // 2nd order Adams-Bashforth from the 2nd time
       {
-        for (j=0;j<3;++j)
+        for (size_t j=0;j<dim;++j)
         {
-          m_all_nodes[i].velocity[j] += ( dt /  node_mass ) * ( 1.5 * m_all_nodes[i].sumforce[j] - 0.5 * m_all_nodes[i].sumforce_nm1[j] ) ;
-          m_all_nodes[i].sumforce_nm1[j] = m_all_nodes[i].sumforce[j];
+          m_all_nodes[i].velocity(j) += ( dt /  node_mass ) 
+                                        * 
+                                        ( 1.5 * m_all_nodes[i].sumforce(j) 
+                                        - 0.5 * m_all_nodes[i].sumforce_nm1(j) );
+          m_all_nodes[i].sumforce_nm1(j) = m_all_nodes[i].sumforce(j);
         } 			       
       }      
 
       // Update position with 2nd order Taylor series expansion
-      for (j=0;j<3;++j)
-        m_all_nodes[i].coordinates[j] += dt * m_all_nodes[i].velocity[j] + 0.5 * ( m_all_nodes[i].sumforce[j] / node_mass ) * pow( dt, 2. );               	
+      for (size_t j=0;j<dim;++j)
+        m_all_nodes[i].coordinates(j) += dt 
+                                         * m_all_nodes[i].velocity(j) 
+                                         + 0.5 
+                                         * ( m_all_nodes[i].sumforce(j) / node_mass ) 
+                                         * pow( dt, 2. );
     }
-    */
   }
 }
 

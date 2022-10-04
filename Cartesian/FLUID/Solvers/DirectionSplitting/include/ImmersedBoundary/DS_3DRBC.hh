@@ -131,7 +131,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes spring force */
       void compute_spring_force( size_t const& dim, 
-                                 double const& spring_constant );
+                                 double const& spring_constant,
+                                 string const& force_type = "Fedosov" );
       
       /** @brief Computes spring force */
       void compute_linear_spring_force( size_t const& dim, 
@@ -141,7 +142,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void compute_bending_resistance( size_t const& dim, 
                                        double const& bending_spring_constant,
                                        double const& bending_viscous_constant, 
-                                       double const& dt );
+                                       double const& dt,
+                                       string const& force_type = "Fedosov" );
 
       /** @brief Computes viscous force */
       void compute_viscous_drag_force( size_t const& dim, 

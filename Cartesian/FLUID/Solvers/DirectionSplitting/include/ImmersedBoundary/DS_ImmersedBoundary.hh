@@ -300,7 +300,8 @@ class DS_ImmersedBoundary
       
       /** @brief Computes spring force */
       virtual void compute_spring_force( size_t const& dim,
-                                         double const& spring_constant ) = 0;
+                                         double const& spring_constant,
+                                         string const& force_type = "Fedosov" ) = 0;
       
       /** @brief Computes linear spring force Breyannis2000 and Bagchi2007 
       1. Compute tension T = Es * (l/l0 -1) for each edge of a node
@@ -313,7 +314,8 @@ class DS_ImmersedBoundary
       virtual void compute_bending_resistance (size_t const& dim, 
                                          double const& bending_spring_constant,
                                          double const& bending_viscous_constant, 
-                                         double const& dt ) = 0;
+                                         double const& dt,
+                                         string const& force_type = "Fedosov" ) = 0;
 
       /** @brief Computes viscous force */
       virtual void compute_viscous_drag_force( size_t const& dim, 
