@@ -319,7 +319,8 @@ class DS_ImmersedBoundary
 
       /** @brief Computes viscous force */
       virtual void compute_viscous_drag_force( size_t const& dim, 
-                                      double const& viscous_drag_constant ) = 0;
+                                     double const& viscous_drag_constant,
+                                     string const& force_type = "Fedosov" ) = 0;
 
       /** @brief Computes the statistics of each immersed boundary */
       virtual void compute_stats(string const& directory, 

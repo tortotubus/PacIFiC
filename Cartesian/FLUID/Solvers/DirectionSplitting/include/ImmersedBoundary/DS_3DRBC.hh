@@ -147,7 +147,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /** @brief Computes viscous force */
       void compute_viscous_drag_force( size_t const& dim, 
-                                       double const& viscous_drag_constant );
+                                       double const& viscous_drag_constant,
+                                       string const& force_type = "Fedosov" );
 
       /** @brief Lagrangian to Eulerian force spreading **/
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,

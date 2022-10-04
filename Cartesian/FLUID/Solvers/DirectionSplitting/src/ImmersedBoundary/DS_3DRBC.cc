@@ -374,6 +374,7 @@ void DS_3DRBC:: initialize_edge_properties(size_t const& dim)
 {
   MAC_LABEL( "DS_3DRBC:: initialize_edge_properties" ) ;
 
+  /*
   // Allocate memory for m_all_edges object
   m_all_edges.reserve(m_nEdges);
   
@@ -384,8 +385,8 @@ void DS_3DRBC:: initialize_edge_properties(size_t const& dim)
   temp.t1v1.second = m_all_trielements[0].pnodes[0];
   temp.t2v4.first = &(m_all_trielements[0]);
   temp.t2v4.second = m_all_trielements[0].pnodes[0];
-  temp.n2 = m_all_trielements[0].pnodes[0];
-  temp.n3 = m_all_trielements[0].pnodes[0];
+  // // temp.n2 = m_all_trielements[0].pnodes[0];
+  // // temp.n3 = m_all_trielements[9].pnodes[1];
   temp.length = 0.;
   temp.sintheta0 = 0.;
   temp.costheta0 = 0.;
@@ -401,6 +402,7 @@ void DS_3DRBC:: initialize_edge_properties(size_t const& dim)
 
   for (size_t i=0;i<m_nEdges;++i) 
     m_all_edges.push_back(temp);
+  */
 }
 
 
@@ -1437,11 +1439,42 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
 
 //---------------------------------------------------------------------------
 void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
-                                           double const& viscous_drag_constant )
+                                            double const& viscous_drag_constant,
+                                            string const& force_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_viscous_drag_force" ) ;
     
+  if(force_type.compare("Anthony") == 0)
+  {
+    // This is not Fedosov's model but a simplified model of isotropic 
+    // compression/extension of the surface area using the vectors
+    // connection the nodes to the center of mass of each triangle
+
+    double coef = 0., norm_unit_relpos = 0.;
+    geomVector unit_relpos(dim);
+    for (size_t i=0;i<m_nTriangles;++i)
+    {
+      coef = membrane_param.k_area 
+             * ( m_all_trielements[i].tri_area - m_all_trielements[i].tri_initial_area ) 
+             / m_all_trielements[i].tri_initial_area ;
+             
+      for (size_t k=0;k<dim;++k)
+      {
+        for (size_t j=0;j<dim;++j)
+          unit_relpos(j) = m_all_trielements[i].center_of_mass(j) 
+                           - m_all_trielements[i].pnodes[k]->coordinates(j);
+          
+        norm_unit_relpos = norm( unit_relpos );
+        
+        for (size_t j=0;j<dim;++j) 
+          unit_relpos(j) /= norm_unit_relpos;
+
+        for (size_t j=0;j<dim;++j)
+          m_all_trielements[i].pnodes[k]->sumforce(j) += coef * unit_relpos(j);
+      }
+    }
+  }
 }
 
 
@@ -1493,11 +1526,11 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Spring force
     compute_spring_force( dim, spring_constant, "Anthony" );
 
-    /*
     // Bending resistance
     compute_bending_resistance( dim, bending_spring_constant, 
                                 bending_viscous_constant, dt, "Anthony" );
 
+    /*
     // Viscous drag force
     compute_viscous_drag_force( viscous_drag_constant );
 
