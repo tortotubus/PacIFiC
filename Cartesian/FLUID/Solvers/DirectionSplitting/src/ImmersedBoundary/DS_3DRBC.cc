@@ -1298,11 +1298,46 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
         
         for (size_t k=0;k<dim;++k) Iij(k) /= length;
         
+        double initial_spring_length = m_all_nodes[i].initial_spring_length[j];
+        
         for (size_t k=0;k<dim;++k)
           m_all_nodes[i].sumforce(k) += spring_constant 
-                * ( length - m_all_nodes[i].initial_spring_length[j] ) * Iij(k);
+                * ( length - initial_spring_length ) * Iij(k);
       }
-      // // cout << "Spring force at node " << i << " = " << m_all_nodes[i].sumforce(0) << "\t" << m_all_nodes[i].sumforce(1) << "\t" << m_all_nodes[i].sumforce(2) << endl;
+    }
+  }
+  else if(force_type.compare("Breyannis2000") == 0)
+  {
+    geomVector Iij(dim);
+    double length = 0.;
+    
+    for (size_t i=0;i<num_nodes;++i)
+    {
+      size_t nn = m_all_nodes[i].neighbors_3D.size();
+      for (size_t j=0;j<nn;++j)
+      {
+        // spring force vector
+        for (size_t k=0;k<dim;++k) 
+          Iij(k) = m_all_nodes[i].neighbors_3D[j]->coordinates(k) 
+                   - m_all_nodes[i].coordinates(k);
+                   
+        // spring length
+        length = norm( Iij );
+        
+        // normalised spring force vector
+        for (size_t k=0;k<dim;++k) Iij(k) /= length;
+        
+        // initial spring length
+        double initial_spring_length = m_all_nodes[i].initial_spring_length[j];
+        
+        // tension along the spring
+        double tension = spring_constant 
+                         * ( (length / initial_spring_length) - 1. );
+        
+        // Compute spring force
+        for (size_t k=0;k<dim;++k)
+          m_all_nodes[i].sumforce(k) += tension * Iij(k);
+      }
     }
   }
 } 
