@@ -6,6 +6,7 @@
 #include <size_t_array2D.hh>
 #include <doubleArray2D.hh>
 #include <boolArray2D.hh>
+#include <boolVector.hh>
 #include <MAC_Communicator.hh>
 #include <MAC_DoubleVector.hh>
 #include <FV_Mesh.hh>
@@ -54,8 +55,7 @@ class DS_AllImmersedBoundary
                            , double const& arb_rho
                            , double const& arb_mu
                            , size_t const& n_RBC_timesteps
-                           , string const& dirac_type
-                           , size_t const& periodic_dir);
+                           , string const& dirac_type);
 
       /** @brief Destructor */
       ~DS_AllImmersedBoundary();
@@ -122,7 +122,6 @@ class DS_AllImmersedBoundary
       string m_IB_case_type; /* = Breyannis2000 or other cases */
       size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
       string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */
-      size_t m_periodic_dir; /* periodic direction - 0 for x, 1 for y & 2 for z*/
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
       of DS_ImmersedBoundary class */
       double m_rho;
@@ -134,6 +133,7 @@ class DS_AllImmersedBoundary
       FV_DiscreteField* Eul_F ;
       FV_DiscreteField* F_Eul_tag;
       FV_Mesh const* MESH ;
+      boolVector const* U_periodic_comp;
 
       //@}
 
@@ -151,6 +151,7 @@ class DS_AllImmersedBoundary
 
         /**@name Methods */
         //@{
+        
         /** @brief Read the CSV file with RBC parameters */
         void read_shape_and_membrane_parameters(string const& case_type,
                                                 double const& dx,
@@ -186,8 +187,7 @@ class DS_AllImmersedBoundary
                                             size_t const& num_subtimesteps_RBC);
         
         /** @brief Sets the IBM parameters for all immersed bodies */
-        void set_IBM_parameters(string const& dirac_type
-                              , size_t const& periodic_dir);
+        void set_IBM_parameters(string const& dirac_type);
         
         /** @brief IBM:Eulerian velocity to Lagrangian velocity interpolation */
         void eul_to_lag_velocity_interpolate();

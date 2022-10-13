@@ -1,6 +1,7 @@
 #include <DS_AllImmersedBoundary.hh>
 #include <DS_ImmersedBoundary.hh>
 #include <DS_ImmersedBoundary_BuilderFactory.hh>
+#include <boolVector.hh>
 #include <FV_Mesh.hh>
 #include <FV_TimeIterator.hh>
 #include <FV_DiscreteField.hh>
@@ -24,24 +25,22 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , double const& arb_rho
                                                , double const& arb_mu
                                                , size_t const& nRBC_subtimesteps
-                                               , string const& dirac_type
-                                               , size_t const& periodic_dir)
+                                               , string const& dirac_type)
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
 , m_3DMesh_file ( Mesh3D_file )
 , m_Matlab_numbering ( MatlabNumbering )
 , m_nIB ( N_IB )
+, m_IB_case_type ( case_type )
 , UF ( arb_UF )
 , Eul_F ( arb_EulF )
 , F_Eul_tag ( arb_EulF_tag )
 , m_rho ( arb_rho )
 , m_mu ( arb_mu )
-, MESH ( UF->primary_grid() )
-, m_IB_case_type ( case_type )
 , m_subtimesteps_RBC ( nRBC_subtimesteps )
 , m_dirac_type ( dirac_type )
-, m_periodic_dir ( periodic_dir )
+, MESH ( UF->primary_grid() )
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: DS_AllImmersedBoundary" ) ;
 
@@ -58,6 +57,9 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                    create(m_space_dimension);
   }
 
+  // Get periodic directions in the domain
+  U_periodic_comp = MESH->get_periodic_directions();
+
   double dx = UF->get_cell_size(1, 0, 0);
   read_shape_and_membrane_parameters(m_IB_case_type, dx, m_space_dimension);
 
@@ -67,7 +69,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   
   preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC);
   
-  set_IBM_parameters(m_dirac_type, m_periodic_dir);
+  set_IBM_parameters(m_dirac_type);
 }
 
 
@@ -350,17 +352,20 @@ void DS_AllImmersedBoundary:: rotate_immersed_body()
 
 
 //---------------------------------------------------------------------------
-void DS_AllImmersedBoundary:: set_IBM_parameters(string const& dirac_type
-                                               , size_t const& periodic_dir)
+void DS_AllImmersedBoundary:: set_IBM_parameters(string const& dirac_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: set_IBM_parameters" ) ;
-
+  
   for (size_t i = 0; i < m_nIB; ++i) {
      IBMParameters* p_ibm_param = m_allDSimmersedboundary[i]
                                                 ->get_ptr_IBM_parameters();
      p_ibm_param->dirac_type = dirac_type;
-     p_ibm_param->periodic_dir = periodic_dir;
+     
+     /*
+     for (size_t dir=0;dir<dim;++dir)
+       p_ibm_param->periodic_dir[dir] = periodic_dir->operator()(dir);
+     */
   }
 }
 
@@ -408,14 +413,14 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->do_one_inner_iteration(UF
-                                                     , Eul_F
-                                                     , F_Eul_tag
-                                                     , t_it
-                                                     , MESH
-                                                     , m_space_dimension
-                                                     , m_periodic_dir
-                                                     , m_IB_case_type);
+    m_allDSimmersedboundary[i]->do_one_inner_iteration(UF,
+                                                       Eul_F,
+                                                       F_Eul_tag,
+                                                       t_it,
+                                                       MESH,
+                                                       m_space_dimension,
+                                                       U_periodic_comp,
+                                                       m_IB_case_type);
   }
 }
 

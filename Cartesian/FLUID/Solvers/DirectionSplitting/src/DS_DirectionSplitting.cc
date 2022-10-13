@@ -315,7 +315,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      IB_case_type = exp->string_data( "CaseType" );
      n_RBC_timesteps = exp->int_data( "NumberOfRBCTimesteps" );
      Dirac_type = exp->string_data( "DiracType" );
-     periodic_dir = dom->primary_grid()->get_periodic_flow_direction();
+
 
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
                            , IB_file
@@ -329,8 +329,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                            , rho
                            , mu
                            , n_RBC_timesteps
-                           , Dirac_type
-                           , periodic_dir);
+                           , Dirac_type);
    }
 
    // Create structure to input in the NS solver

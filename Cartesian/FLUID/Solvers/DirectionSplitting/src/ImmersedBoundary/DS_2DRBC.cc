@@ -1104,7 +1104,8 @@ double DS_2DRBC:: compute_axial_diameter()
     double x = m_all_nodes[inode].coordinates(0);
     double y = m_all_nodes[inode].coordinates(1);
     
-    dist_axial = MAC::sqrt( pow(x - x_centroid, 2.) + pow(y - y_centroid, 2) );
+    dist_axial = MAC::sqrt( pow(x - x_centroid, 2.) 
+                          + pow(y - y_centroid, 2.) );
     
     if(dist_axial > euclid_dist_axial)
     {
@@ -1116,7 +1117,7 @@ double DS_2DRBC:: compute_axial_diameter()
   }
   
   axial_radius = MAC::sqrt( pow(x_node - x_centroid, 2.) 
-                          + pow(y_node - y_centroid, 2) );
+                          + pow(y_node - y_centroid, 2.) );
   axial_dia = 2. * axial_radius;
       
   return(axial_dia);
@@ -1147,7 +1148,7 @@ double DS_2DRBC:: compute_transverse_diameter()
     double y = m_all_nodes[inode].coordinates(1);
     
     dist_transverse = MAC::sqrt( pow(x - x_centroid, 2.) 
-                               + pow(y - y_centroid, 2) );
+                               + pow(y - y_centroid, 2.) );
     
     if(dist_transverse < euclid_dist_transverse)
     {
@@ -1159,7 +1160,7 @@ double DS_2DRBC:: compute_transverse_diameter()
   }
   
   transverse_radius = MAC::sqrt( pow(x_node - x_centroid, 2.) 
-                               + pow(y_node - y_centroid, 2) );
+                               + pow(y_node - y_centroid, 2.) );
   transverse_dia = 2. * transverse_radius;
       
   return(transverse_dia);
@@ -1246,7 +1247,7 @@ void DS_2DRBC:: compute_stats(string const& directory, string const& filename,
   m_rootdir = "Res";
   m_rootname = "rbc";
   m_video_rootname = "video_rbc";
-  m_kinetic_energy_rootname = "kinetic_energy.res";
+  m_kinetic_energy_rootname = "kinetic_energy.txt";
   m_morphology_rootname = "membrane_morphology.datnew";
   m_force_stats_rootname = "force_stats.txt";
   m_diameter_stats_rootname = "diameter_and_morphology.txt";

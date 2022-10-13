@@ -58,6 +58,7 @@ struct MembraneParameters
   // Morphology parameters
   double axial_diameter, transverse_diameter, taylor_deformation_parameter;
   double orientation_angle;
+  double orientation_roll_angle, orientation_pitch_angle, orientation_yaw_angle;
   double avg_tangential_velocity;
   double initial_perimeter, final_perimeter;
   double initial_area, final_area, total_area;
@@ -69,7 +70,6 @@ struct MembraneParameters
 
 struct IBMParameters
 {
-  size_t periodic_dir;
   string dirac_type;
   size_t dim;
 };
@@ -267,8 +267,8 @@ class DS_ImmersedBoundary
                                    FV_TimeIterator const* t_it,
                                    FV_Mesh const* MESH,
                                    size_t const& dim,
-                                   size_t const& periodic_dir,
-                                   string const& case_type );
+                                   boolVector const* is_periodic,
+                                   string const& case_type);
         
       /** @brief Discretised Dirac delta function
       @param val -> the value which is to be converted using Dirac delta
@@ -279,7 +279,7 @@ class DS_ImmersedBoundary
       /** @brief Applies periodic boundary condition to each immersed body */
       void apply_periodic_boundary_conditions(FV_Mesh const* MESH,
                                               size_t const& dim,
-                                              size_t const& periodic_dir);
+                                              boolVector const* is_periodic);
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation **/
       virtual void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 

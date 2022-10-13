@@ -5,6 +5,7 @@
 #include <MAC.hh>
 #include <MAC_Communicator.hh>
 #include <MAC_Exec.hh>
+#include <boolVector.hh>
 #include <fstream>
 #include <sstream>
 #include <math.h>
@@ -214,7 +215,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
                           , FV_TimeIterator const* t_it
                           , FV_Mesh const* MESH
                           , size_t const& dim
-                          , size_t const& periodic_dir
+                          , boolVector const* is_periodic
                           , string const& case_type)
 //---------------------------------------------------------------------------
 {
@@ -235,7 +236,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   doubleVector temp_lag_pos_and_force(n2 * num_nodes, 0.); // Lagrangian position & force
   
   // Apply periodic boundary conditions
-  apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
+  apply_periodic_boundary_conditions(MESH, dim, is_periodic);
   
   // Eulerian velocity to Lagrangian velocity interpolation
   size_t nb_comps = UF->nb_components();
@@ -266,7 +267,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   copy_vector_to_lag_position_and_force(temp_lag_pos_and_force, dim);
   
   // Apply periodic boundary conditions
-  apply_periodic_boundary_conditions(MESH, dim, periodic_dir);
+  apply_periodic_boundary_conditions(MESH, dim, is_periodic);
   
   // Lagrangian to Eulerian force spreading
   // Initialising all Eulerian force cell tag value to zero
@@ -288,15 +289,21 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
 void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
                              ( FV_Mesh const* MESH
                              , size_t const& dim
-                             , size_t const& periodic_dir)
+                             , boolVector const* is_periodic)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: apply_periodic_boundary_conditions" ) ;
   
   size_t num_nodes = shape_param.N_nodes;
-
+  
   geomVector domain_length(dim, 0.);
-  bool apply_periodic_bc = (periodic_dir >= 0) and (periodic_dir <= 2);
+  
+  bool apply_periodic_bc = (is_periodic->operator()(0))
+                           or
+                           (is_periodic->operator()(1))
+                           or
+                           (is_periodic->operator()(2));
+                           
   if(apply_periodic_bc)
   {
     // Assign current coordinates to coordinates_pbc variable
@@ -307,41 +314,44 @@ void DS_ImmersedBoundary:: apply_periodic_boundary_conditions
     // Apply periodic boundary conditions
     for (size_t dir=0;dir<dim;++dir)
     {
-      // Get min and max bounds of domain length
-      double min = MESH->get_main_domain_min_coordinate(dir);
-      double max = MESH->get_main_domain_max_coordinate(dir);
-      domain_length(dir) = max - min;
-      
-      // Check if all nodes in immersed body moved 
-      // out of periodic domain boundary?
-      size_t num = 0;
-      for (size_t i=0;i<num_nodes;++i)
+      if(is_periodic->operator()(dir))
       {
-          m_all_nodes[i].coordinates_pbc(dir) -= 
-                      MAC::floor(
-                      (m_all_nodes[i].coordinates_pbc(dir) - min)
-                      /domain_length(dir)) 
-                      * domain_length(dir);
-          
-          // check if all RBC Lagrangian nodes are out of boundary
-          if( (m_all_nodes[i].coordinates(dir) > max)
-               or 
-               (m_all_nodes[i].coordinates(dir) < min) )
-              num += 1;
-      }
-      
-      // apply periodic boundary conditions to membrane
-      // coordinates array only when all Lagrangian 
-      // nodes are out of the domain boundary
-      if(num == num_nodes)
-      {
+        // Get min and max bounds of domain length
+        double min = MESH->get_main_domain_min_coordinate(dir);
+        double max = MESH->get_main_domain_max_coordinate(dir);
+        domain_length(dir) = max - min;
+        
+        // Check if all nodes in immersed body moved 
+        // out of periodic domain boundary?
+        size_t num = 0;
         for (size_t i=0;i<num_nodes;++i)
         {
-          m_all_nodes[i].coordinates(dir) -= 
-                           MAC::floor(
-                           (m_all_nodes[i].coordinates(dir) - min)
-                           /domain_length(dir)) 
-                           * domain_length(dir);
+            m_all_nodes[i].coordinates_pbc(dir) -= 
+                        MAC::floor(
+                        (m_all_nodes[i].coordinates_pbc(dir) - min)
+                        /domain_length(dir)) 
+                        * domain_length(dir);
+            
+            // check if all RBC Lagrangian nodes are out of boundary
+            if( (m_all_nodes[i].coordinates(dir) > max)
+                 or 
+                 (m_all_nodes[i].coordinates(dir) < min) )
+                num += 1;
+        }
+        
+        // apply periodic boundary conditions to membrane
+        // coordinates array only when all Lagrangian 
+        // nodes are out of the domain boundary
+        if(num == num_nodes)
+        {
+          for (size_t i=0;i<num_nodes;++i)
+          {
+            m_all_nodes[i].coordinates(dir) -= 
+                             MAC::floor(
+                             (m_all_nodes[i].coordinates(dir) - min)
+                             /domain_length(dir)) 
+                             * domain_length(dir);
+          }
         }
       }
     }

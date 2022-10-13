@@ -166,6 +166,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Computes the centroid of each immersed boundary */
       void compute_centroid(size_t const& dim);
       
+      /** @brief Computes membrane area, centroid and volume of each membrane */
+      void compute_membrane_area_centroid_volume( size_t const& dim );
+      
       /** @brief Computes axial diameter of RBC: x_max - x_min */
       double compute_axial_diameter();
       

@@ -270,6 +270,11 @@ void DS_3DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
     // Compute twice area normal vector
     compute_twice_area_vector( m_all_trielements[i].varea, 
                        m_all_trielements[i].twice_area_outwards_normal_vector );
+    if(isinf(m_all_trielements[i].twice_area_outwards_normal_vector(0)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(1)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(2)))
+    {
+      cout << "normals are infinity\n";
+      exit(3);
+    }
   }
 }
 
@@ -288,6 +293,12 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
     // Compute normals of triangle
     compute_twice_area_vector( m_all_trielements[i].varea, 
                        m_all_trielements[i].twice_area_outwards_normal_vector );
+
+    if(isinf(m_all_trielements[i].twice_area_outwards_normal_vector(0)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(1)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(2)))
+    {
+      cout << "normals are infinity\n";
+      exit(3);
+    }
 
     m_all_trielements[i].tri_area = 0.5 
                  * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
@@ -1271,6 +1282,46 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC::compute_membrane_area_centroid_volume( size_t const& dim )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_membrane_area_centroid_volume" ) ;
+  
+  // Membrane surface area
+  membrane_param.total_area = 0.;
+  for (size_t i=0;i<m_nTriangles;++i)
+    membrane_param.total_area += m_all_trielements[i].tri_area;
+    
+  // Membrane centroid
+  for (size_t j=0;j<dim;++j) 
+    membrane_param.centroid_coordinates(j) = 0.;
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+    for (size_t j=0;j<dim;++j)
+    {
+      membrane_param.centroid_coordinates(j) += m_all_trielements[i].tri_area 
+                                       * m_all_trielements[i].center_of_mass(j);
+    }
+  }
+  for (size_t j=0;j<dim;++j) 
+    membrane_param.centroid_coordinates(j) /= membrane_param.total_area;
+
+
+  // Membrane volume
+  membrane_param.total_volume = 0.;
+  geomVector relpos(dim);
+  double oneoversix = 1./6.;
+  for (size_t i=0;i<m_nTriangles;++i)
+  {
+    for (size_t j=0;j<dim;++j) relpos(j) = m_all_trielements[i].center_of_mass(j) - membrane_param.centroid_coordinates(j);
+    membrane_param.total_volume += oneoversix * scalar( m_all_trielements[i].twice_area_outwards_normal_vector, relpos );
+  }
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC::compute_spring_force( size_t const& dim,
                                      double const& spring_constant,
                                      string const& force_type )
@@ -1306,52 +1357,53 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
       }
     }
   }
-  else if(force_type.compare("Breyannis2000") == 0)
-  {
-    geomVector Iij(dim);
-    double length = 0.;
-    
-    for (size_t i=0;i<num_nodes;++i)
-    {
-      size_t nn = m_all_nodes[i].neighbors_3D.size();
-      for (size_t j=0;j<nn;++j)
-      {
-        // spring force vector
-        for (size_t k=0;k<dim;++k) 
-          Iij(k) = m_all_nodes[i].neighbors_3D[j]->coordinates(k) 
-                   - m_all_nodes[i].coordinates(k);
-                   
-        // spring length
-        length = norm( Iij );
-        
-        // normalised spring force vector
-        for (size_t k=0;k<dim;++k) Iij(k) /= length;
-        
-        // initial spring length
-        double initial_spring_length = m_all_nodes[i].initial_spring_length[j];
-        
-        // tension along the spring
-        double tension = spring_constant 
-                         * ( (length / initial_spring_length) - 1. );
-        
-        // Compute spring force
-        for (size_t k=0;k<dim;++k)
-          m_all_nodes[i].sumforce(k) += tension * Iij(k);
-      }
-    }
-  }
 } 
 
 
 
     
 //---------------------------------------------------------------------------
-void DS_3DRBC:: compute_linear_spring_force(size_t const& dim, 
-                                     double const& spring_constant)
+void DS_3DRBC:: compute_linear_spring_force( size_t const& dim, 
+                                             double const& spring_constant )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_linear_spring_force" ) ;
-}
+  
+  size_t num_nodes = shape_param.N_nodes;
+  geomVector Iij(dim);
+  double length = 0.;
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    size_t nn = m_all_nodes[inode].neighbors_3D.size();
+    
+    for (size_t j=0;j<nn;++j)
+    {
+      // spring force vector
+      for (size_t k=0;k<dim;++k) 
+        Iij(k) = m_all_nodes[inode].neighbors_3D[j]->coordinates(k) 
+                 - m_all_nodes[inode].coordinates(k);
+                 
+      // spring length
+      length = norm(Iij);
+      
+      // normalised spring force vector
+      for (size_t k=0;k<dim;++k)
+        Iij(k) /= length;
+      
+      // initial spring length
+      double initial_spring_length = m_all_nodes[inode].initial_spring_length[j];
+      
+      // tension along the spring
+      double tension = spring_constant 
+                       * ( (length / initial_spring_length) - 1. );
+      
+      // Compute spring force
+      for (size_t k=0;k<dim;++k)
+        m_all_nodes[inode].sumforce(k) += tension * Iij(k);
+    }
+  }
+} 
 
 
 
@@ -1365,7 +1417,7 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
-
+  
   geomVector a21(dim), a31(dim), a24(dim), a34(dim);
   geomVector Chi(dim), Gamma(dim), crossp(dim), n2n3(dim);
   double angle = 0., dot = 0., mi = 0.;
@@ -1537,6 +1589,12 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   double total_kinetic_energy = 0.;
   double dt = dt_fluid / n_sub_timesteps;
   
+  MAC_Communicator const* MAC_comm;
+  MAC_comm = MAC_Exec::communicator();
+  size_t my_rank = MAC_comm->rank();
+  size_t nb_procs = MAC_comm->nb_ranks();
+  size_t is_master = 0;
+  
   // Compute initial area & volume of membrane
   compute_total_surface_area_total_volume(true, dim);
 
@@ -1556,14 +1614,28 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     
     // Compute total surface area and total volume and write to file
     compute_total_surface_area_total_volume(false, dim);
+    
+    // cout << "Proc id = " << my_rank << "\ttime = " << time << "\tMembrane centroid = " << membrane_param.centroid_coordinates(0) << "\t" << membrane_param.centroid_coordinates(1) << "\t" << membrane_param.centroid_coordinates(2) << endl;
+    if(isnan(membrane_param.centroid_coordinates(0)) or isnan(membrane_param.centroid_coordinates(1)) or isnan(membrane_param.centroid_coordinates(2)))
+    {
+      cout << "Membrane centroid NaN\n";
+      exit(3);
+    }
 
     // Compute forces on all nodes
     // Spring force
-    compute_spring_force( dim, spring_constant, "Anthony" );
+    if(case_type.compare("Breyannis2000case") != 0)
+      compute_spring_force( dim, spring_constant, "Anthony" );
+    else
+      compute_linear_spring_force( dim, spring_constant );
+        
 
     // Bending resistance
-    compute_bending_resistance( dim, bending_spring_constant, 
-                                bending_viscous_constant, dt, "Anthony" );
+    if(case_type.compare("Breyannis2000case") != 0)
+    {
+      compute_bending_resistance( dim, bending_spring_constant, 
+                                  bending_viscous_constant, dt, "none" );
+    }
 
     /*
     // Viscous drag force
@@ -1598,6 +1670,9 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
           m_all_nodes[i].sumforce_nm1(j) = m_all_nodes[i].sumforce(j);
         } 			       
       }
+      
+      // cout << "time = " << time << "\tinode = " << i << "\tforce = " << m_all_nodes[i].sumforce(0) << "\t" << m_all_nodes[i].sumforce(1) << "\t" << m_all_nodes[i].sumforce(2) << endl;
+      // cout << "time = " << time << "\tinode = " << i << "\tvelocity = " << m_all_nodes[i].velocity(0) << "\t" << m_all_nodes[i].velocity(1) << "\t" << m_all_nodes[i].velocity(2) << endl;
 
       // Update position with 2nd order Taylor series expansion
       for (size_t j=0;j<dim;++j)
@@ -1630,6 +1705,31 @@ double DS_3DRBC:: compute_axial_diameter()
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_axial_diameter" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double axial_radius = 0.;
+  
+  double x_centroid = 0.; // membrane_param.centroid_coordinates(0);
+  double y_centroid = 0.; // membrane_param.centroid_coordinates(1);
+  double z_centroid = 0.; // membrane_param.centroid_coordinates(2);
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    double z = m_all_nodes[inode].coordinates(2);
+    
+    double dist_axial = MAC::sqrt( pow(x - x_centroid, 2.)
+                                 + pow(y - y_centroid, 2.)
+                                 + pow(z - z_centroid, 2.) );
+    
+    axial_radius = max(axial_radius, dist_axial);
+  }
+
+  double axial_diameter = 2. * axial_radius;
+  
+  return(axial_diameter);
 }
 
 
@@ -1640,6 +1740,31 @@ double DS_3DRBC:: compute_transverse_diameter()
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_transverse_diameter" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double euclid_dist_transverse = -HUGE_VAL;
+  double transverse_radius = 0.;
+  double y_node, z_node;
+  size_t node_index;
+  
+  double y_centroid = 0.; // membrane_param.centroid_coordinates(1);
+  double z_centroid = 0.; // membrane_param.centroid_coordinates(2);
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double y = m_all_nodes[inode].coordinates(1);
+    double z = m_all_nodes[inode].coordinates(2);
+    
+    double dist_transverse = sqrt( pow(y - y_centroid, 2.)
+                                 + pow(z - z_centroid, 2.) );
+  
+    transverse_radius = max(transverse_radius, dist_transverse);
+  }
+  
+  double transverse_diameter = 2. * transverse_radius;
+  
+  return(transverse_diameter);
 }
 
 
@@ -1650,6 +1775,56 @@ void DS_3DRBC:: compute_tdp_orientation_angle()
 //-----------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_tdp_orientation_angle" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  // Taylor Deformation Parameter (TDP)
+  double ad = membrane_param.axial_diameter;
+  double td = membrane_param.transverse_diameter;
+  membrane_param.taylor_deformation_parameter = (ad - td) / (ad + td);
+
+
+  // Orientation angle
+  double x_centroid = 0.; // membrane_param.centroid_coordinates(0);
+  double y_centroid = 0.; // membrane_param.centroid_coordinates(1);
+  double z_centroid = 0.; // membrane_param.centroid_coordinates(2);
+  
+  double axial_radius = 0.;
+  double pi = MAC::pi();
+  double radians_to_angle_conversion = 180. / pi;
+  double theta;
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    double z = m_all_nodes[inode].coordinates(2);
+    
+    double dist_axial = MAC::sqrt( pow(x - x_centroid, 2.)
+                                 + pow(y - y_centroid, 2.)
+                                 + pow(z - z_centroid, 2.) );
+    
+    if(dist_axial > axial_radius)
+    {
+      // Orientation angle with respect to x-axis
+      double roll = x / MAC::sqrt(pow(x, 2.) + pow(y, 2.) + pow(z, 2.));
+      theta = acos(roll);
+      theta = (theta > pi) ? theta - pi : theta; // to keep the angle between 0 and 90 degrees
+      membrane_param.orientation_roll_angle = theta * radians_to_angle_conversion;
+      
+      // Orientation angle with respect to y-axis
+      double pitch = y / MAC::sqrt(pow(x, 2.) + pow(y, 2.) + pow(z, 2.));
+      theta = acos(pitch);
+      theta = (theta > pi) ? theta - pi : theta; // to keep the angle between 0 and 90 degrees
+      membrane_param.orientation_pitch_angle = theta * radians_to_angle_conversion;
+      
+      // Orientation angle with respect to z-axis
+      double yaw = z / MAC::sqrt(pow(x, 2.) + pow(y, 2.) + pow(z, 2.));
+      theta = acos(yaw);
+      theta = (theta > pi) ? theta - pi : theta; // to keep the angle between 0 and 90 degrees
+      membrane_param.orientation_yaw_angle = theta * radians_to_angle_conversion;
+    }
+  }
 }
 
 
@@ -1676,7 +1851,7 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   m_rootdir = "Res";
   m_rootname = "rbc";
   m_video_rootname = "video_rbc";
-  m_kinetic_energy_rootname = "kinetic_energy.res";
+  m_kinetic_energy_rootname = "kinetic_energy.txt";
   m_morphology_rootname = "membrane_morphology.datnew";
   m_force_stats_rootname = "force_stats.txt";
   m_diameter_stats_rootname = "diameter_and_morphology.txt";
@@ -1685,6 +1860,78 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   m_node_unit_normals_rootname = "node_unit_normals";
 
 
+  ofstream rbc_stats_file;
+  string file_to_write = directory + "/" + filename;
+    
+  // Opening the file
+  if(cyclenum == 1)
+  {
+    rbc_stats_file.open( file_to_write, ios::out );
+    rbc_stats_file << "Iteration_number" << "\t"
+                    << "Time" << "\t"
+                    << "Axial_diameter" << "\t"
+                    << "Transverse_diameter" << "\t"
+                    << "Taylor_deformation_parameter" << "\t"
+                    << "Orientation_roll_angle" << "\t"
+                    << "Orientation_pitch_angle" << "\t"
+                    << "Orientation_yaw_angle" << "\t"
+                    // << "Average_tangential_velocity" << "\t"
+                    << "Initial_area" << "\t"
+                    << "Final_area" << "\t"
+                    << "Initial_volume" << "\t"
+                    << "Final_volume" << "\t"
+                    << "Centroid_x" << "\t"
+                    << "Centroid_y" << "\t"
+                    << "Centroid_z" << "\t"
+                    // << "Total_kinetic_energy"
+                    << endl;
+                    
+  }
+  else
+  {
+    rbc_stats_file.open( file_to_write, ios::app );
+  }
+  
+  // Membrane area, volume & centroid
+  // // compute_membrane_area_centroid_volume(dim);
+
+  // Axial diameter
+  membrane_param.axial_diameter = compute_axial_diameter();
+  
+  // Transverse diameter
+  membrane_param.transverse_diameter = compute_transverse_diameter();
+  
+  // Taylor deformation parameter and orientation angle computation
+  compute_tdp_orientation_angle();
+  
+  /*
+  // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
+  membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity();
+  */
+  
+  // Writing to file
+  rbc_stats_file << std::scientific // << setprecision(12)
+    << cyclenum << "\t"
+    << time << "\t"
+    << membrane_param.axial_diameter << "\t"
+    << membrane_param.transverse_diameter << "\t"
+    << membrane_param.taylor_deformation_parameter << "\t"
+    << membrane_param.orientation_roll_angle << "\t"
+    << membrane_param.orientation_pitch_angle << "\t"
+    << membrane_param.orientation_yaw_angle << "\t"
+    // << membrane_param.avg_tangential_velocity << "\t"
+    << membrane_param.initial_area << "\t"
+    << membrane_param.total_area << "\t"
+    << membrane_param.initial_volume << "\t"
+    << membrane_param.total_volume << "\t"
+    << membrane_param.centroid_coordinates(0) << "\t"
+    << membrane_param.centroid_coordinates(1) << "\t"
+    << membrane_param.centroid_coordinates(2) << "\t"
+    // << membrane_param.total_kinetic_energy
+    << endl;
+
+  // Closing the file
+  rbc_stats_file.close();
 }
 
 
