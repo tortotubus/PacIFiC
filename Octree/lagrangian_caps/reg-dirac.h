@@ -182,7 +182,8 @@ void populate_vector_leaves(Point point, vector v, coord* a, int depth) {
     if (is_leaf(cell))
       foreach_dimension() v.x[] += a->x/(1 << (dimension*depth));
     else
-    foreach_child() populate_vector_leaves(point, v, a, depth + 1);
+      foreach_child()
+        populate_vector_leaves(point, v, a, depth + 1);
   }
 }
 
@@ -195,25 +196,25 @@ the intention is to include them in the forcing).
 trace
 void lag2eul(vector forcing, lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
+    double sdelta; // sdelta for "stencil delta"
+    #if CONSTANT_MB_LEVEL
+      sdelta = Delta;
+    #else
+      sdelta = L0/(1 << mesh->nodes[i].slvl);
+    #endif
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
-        double sdelta; // sdelta for "stencil delta"
-        #if CONSTANT_MB_LEVEL
-          sdelta = Delta;
-        #else
-          sdelta = L0/(1 << mesh->nodes[i].slvl);
-        #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
         dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
         #if dimension > 2
-        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
+          dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
         #endif
         #if dimension < 3
-        if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
-          double weight =
-            (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
-            /(sq(4*sdelta));
+          if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
+            double weight =
+              (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
+              /(sq(4*sdelta));
         #else
           if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta &&
             fabs(dist.z) <= 2*sdelta) {
@@ -238,15 +239,15 @@ the Lagrangian mesh.
 trace
 void eul2lag(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
+    double sdelta; // sdelta for "stencil delta"
+    #if CONSTANT_MB_LEVEL
+      sdelta = Delta;
+    #else
+      sdelta = L0/(1 << mesh->nodes[i].slvl);
+    #endif
     foreach_dimension() mesh->nodes[i].lagVel.x = 0.;
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
-        double sdelta; // sdelta for "stencil delta"
-        #if CONSTANT_MB_LEVEL
-          sdelta = Delta;
-        #else
-          sdelta = L0/(1 << mesh->nodes[i].slvl);
-        #endif
         coord dist;
         dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
         dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
@@ -263,10 +264,10 @@ void eul2lag(lagMesh* mesh) {
           double weight = (1 + cos(.5*pi*dist.x/sdelta))*
             (1 + cos(.5*pi*dist.y/sdelta))*(1 + cos(.5*pi*dist.z/sdelta))/64.;
         #endif
-        coord iu; // iu for "interpolated u"
-        foreach_dimension() iu.x = 0.;
-        read_vector_leaves(point, u, &iu, 0);
-        foreach_dimension() mesh->nodes[i].lagVel.x += weight*iu.x;
+          coord iu; // iu for "interpolated u"
+          foreach_dimension() iu.x = 0.;
+          read_vector_leaves(point, u, &iu, 0);
+          foreach_dimension() mesh->nodes[i].lagVel.x += weight*iu.x;
         }
       }
     }
@@ -281,17 +282,26 @@ void eul2lag(lagMesh* mesh) {
 }
 
 /**
-The function below fills a scalar field "stencils" with noise in all "cached"
+The functions below fills a scalar field "stencils" with noise in all "cached"
 cells. Passing this scalar to the \textit{adapt_wavelet} function ensure all
 the 5x5(x5) stencils around the Lagrangian nodes are at the same level.
 */
-#if dimension < 3
-  #define STENCIL_TAG (sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise()))
-#else
-  #define STENCIL_TAG (sq(dist.x + dist.y + dist.z)/\
-    cube(2.*sdelta)*(2.+noise()))
-#endif
-// #define STENCIL_TAG (point.level - 3) // used for debugging
+// #if dimension < 3
+//   #define STENCIL_TAG (sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise()))
+// #else
+//   #define STENCIL_TAG (sq(dist.x + dist.y + dist.z)/\
+//     cube(2.*sdelta)*(2.+noise()))
+// #endif
+#define STENCIL_TAG (point.level - 3) // used for debugging
+
+void tag_stencil_leaves(Point point, coord dist, double sdelta) {
+  if (is_local(cell)) {
+    if (is_leaf(cell))
+      foreach_dimension() stencils[] = STENCIL_TAG;
+    else
+    foreach_child() tag_stencil_leaves(point, dist, sdelta);
+  }
+}
 
 trace
 void tag_ibm_stencils_one_caps(lagMesh* mesh) {
@@ -317,41 +327,11 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
           if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta
             && fabs(dist.z) <= 2*sdelta) {
         #endif
-        #if CONSTANT_MB_LEVEL
-          stencils[] = STENCIL_TAG;
-        #else
-          if (is_leaf(cell)) {
-            stencils[] = STENCIL_TAG;
-          }
-          else {
-            foreach_child() {
-              if (is_local(cell)) {
-                if (is_leaf(cell)) {
-                  stencils[] = STENCIL_TAG;
-                }
-                else {
-                  foreach_child() {
-                    if (is_local(cell)) {
-                      if (is_leaf(cell)) {
-                        stencils[] = STENCIL_TAG;
-                      }
-                      else fprintf(stderr, "Error: too many different levels in"
-                        "one IBM stencil\n");
-                    }
-                  }
-                }
-              }
-            }
-          }
-        #endif
+          tag_stencil_leaves(point, dist, sdelta);
         }
       }
     }
   }
-
-  #if OLD_QCC
-  boundary({stencils});
-  #endif
 }
 
 trace
