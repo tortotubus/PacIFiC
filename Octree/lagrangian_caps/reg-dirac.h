@@ -60,44 +60,45 @@ Point locate_lvl(struct _locate_lvl p) {
 }
 
 int get_level_IBM_stencil(lagNode* node) {
-  #if CONSTANT_MB_LVL
-    return grid->maxdepth;
-  #else
-    #if dimension < 3
-      Point point = locate(node->pos.x, node->pos.y);
-    #else
-      Point point = locate(node->pos.x, node->pos.y, node->pos.z);
-    #endif
-    int lvl = point.level;
-    bool complete_stencil = false;
-    while (!complete_stencil) {
-      complete_stencil = true;
-      bool changed_lvl = false;
-      double delta = (L0/(1 << lvl));
-      for(int ni=-2; ni<=2; ni++) {
-        for(int nj=-2; nj<=2 && !changed_lvl ; nj++) {
-          #if dimension < 3
-          point = locate(POS_PBC_X(node->pos.x + ni*delta),
-            POS_PBC_Y(node->pos.y + nj*delta));
-          #else
-          for(int nk=-2; nk<=2; nk++) {
-            point = locate(POS_PBC_X(node->pos.x + ni*delta),
-              POS_PBC_Y(node->pos.y + nj*delta),
-              POS_PBC_Z(node->pos.z + nk*delta));
-          #endif
-          if (point.level < lvl) {
-            lvl = point.level;
-            changed_lvl = true;
-            complete_stencil = false;
-          }
-        #if dimension > 2
-          }
-        #endif
-        }
-      }
-    }
-    return lvl;
-  #endif
+  // #if CONSTANT_MB_LVL
+  //   return grid->maxdepth;
+  // #else
+  //   #if dimension < 3
+  //     Point point = locate(node->pos.x, node->pos.y);
+  //   #else
+  //     Point point = locate(node->pos.x, node->pos.y, node->pos.z);
+  //   #endif
+  //   int lvl = point.level;
+  //   bool complete_stencil = false;
+  //   while (!complete_stencil) {
+  //     complete_stencil = true;
+  //     bool changed_lvl = false;
+  //     double delta = (L0/(1 << lvl));
+  //     for(int ni=-2; ni<=2; ni++) {
+  //       for(int nj=-2; nj<=2 && !changed_lvl ; nj++) {
+  //         #if dimension < 3
+  //         point = locate(POS_PBC_X(node->pos.x + ni*delta),
+  //           POS_PBC_Y(node->pos.y + nj*delta));
+  //         #else
+  //         for(int nk=-2; nk<=2; nk++) {
+  //           point = locate(POS_PBC_X(node->pos.x + ni*delta),
+  //             POS_PBC_Y(node->pos.y + nj*delta),
+  //             POS_PBC_Z(node->pos.z + nk*delta));
+  //         #endif
+  //         if (point.level < lvl) {
+  //           lvl = point.level;
+  //           changed_lvl = true;
+  //           complete_stencil = false;
+  //         }
+  //       #if dimension > 2
+  //         }
+  //       #endif
+  //       }
+  //     }
+  //   }
+  //   return lvl;
+  // #endif
+  return MAXLEVEL - 1;
 }
 
 
@@ -167,7 +168,8 @@ void generate_lag_stencils() {
 The two functions below are useful in case the cells of a given stencil are not
 at the same level. The first function averages the values of a vector v into a
 coord a, while the second function stores the content of a coord a into a
-vector v. */
+vector v.
+*/
 void read_vector_leaves(Point point, vector v, coord* a, int depth) {
   if (is_local(cell)) {
     if (is_leaf(cell))
@@ -286,13 +288,13 @@ The functions below fills a scalar field "stencils" with noise in all "cached"
 cells. Passing this scalar to the \textit{adapt_wavelet} function ensure all
 the 5x5(x5) stencils around the Lagrangian nodes are at the same level.
 */
-// #if dimension < 3
-//   #define STENCIL_TAG (sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise()))
-// #else
-//   #define STENCIL_TAG (sq(dist.x + dist.y + dist.z)/\
-//     cube(2.*sdelta)*(2.+noise()))
-// #endif
-#define STENCIL_TAG (point.level - 3) // used for debugging
+#if dimension < 3
+  #define STENCIL_TAG (sq(dist.x + dist.y)/sq(2.*sdelta)*(2.+noise()))
+#else
+  #define STENCIL_TAG (sq(dist.x + dist.y + dist.z)/\
+    cube(2.*sdelta)*(2.+noise()))
+#endif
+// #define STENCIL_TAG (point.level - 3) // used for debugging
 
 void tag_stencil_leaves(Point point, coord dist, double sdelta) {
   if (is_local(cell)) {
