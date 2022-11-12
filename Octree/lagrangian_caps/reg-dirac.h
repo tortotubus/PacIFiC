@@ -60,45 +60,45 @@ Point locate_lvl(struct _locate_lvl p) {
 }
 
 int get_level_IBM_stencil(lagNode* node) {
-  // #if CONSTANT_MB_LVL
-  //   return grid->maxdepth;
-  // #else
-  //   #if dimension < 3
-  //     Point point = locate(node->pos.x, node->pos.y);
-  //   #else
-  //     Point point = locate(node->pos.x, node->pos.y, node->pos.z);
-  //   #endif
-  //   int lvl = point.level;
-  //   bool complete_stencil = false;
-  //   while (!complete_stencil) {
-  //     complete_stencil = true;
-  //     bool changed_lvl = false;
-  //     double delta = (L0/(1 << lvl));
-  //     for(int ni=-2; ni<=2; ni++) {
-  //       for(int nj=-2; nj<=2 && !changed_lvl ; nj++) {
-  //         #if dimension < 3
-  //         point = locate(POS_PBC_X(node->pos.x + ni*delta),
-  //           POS_PBC_Y(node->pos.y + nj*delta));
-  //         #else
-  //         for(int nk=-2; nk<=2; nk++) {
-  //           point = locate(POS_PBC_X(node->pos.x + ni*delta),
-  //             POS_PBC_Y(node->pos.y + nj*delta),
-  //             POS_PBC_Z(node->pos.z + nk*delta));
-  //         #endif
-  //         if (point.level < lvl) {
-  //           lvl = point.level;
-  //           changed_lvl = true;
-  //           complete_stencil = false;
-  //         }
-  //       #if dimension > 2
-  //         }
-  //       #endif
-  //       }
-  //     }
-  //   }
-  //   return lvl;
-  // #endif
-  return MAXLEVEL - 1;
+  #if CONSTANT_MB_LVL
+    return grid->maxdepth;
+  #else
+    #if dimension < 3
+      Point point = locate(node->pos.x, node->pos.y);
+    #else
+      Point point = locate(node->pos.x, node->pos.y, node->pos.z);
+    #endif
+    int lvl = point.level;
+    bool complete_stencil = false;
+    while (!complete_stencil) {
+      complete_stencil = true;
+      bool changed_lvl = false;
+      double delta = (L0/(1 << lvl));
+      for(int ni=-2; ni<=2; ni++) {
+        for(int nj=-2; nj<=2 && !changed_lvl ; nj++) {
+          #if dimension < 3
+          point = locate(POS_PBC_X(node->pos.x + ni*delta),
+            POS_PBC_Y(node->pos.y + nj*delta));
+          #else
+          for(int nk=-2; nk<=2; nk++) {
+            point = locate(POS_PBC_X(node->pos.x + ni*delta),
+              POS_PBC_Y(node->pos.y + nj*delta),
+              POS_PBC_Z(node->pos.z + nk*delta));
+          #endif
+          if (point.level < lvl) {
+            lvl = point.level;
+            changed_lvl = true;
+            complete_stencil = false;
+          }
+        #if dimension > 2
+          }
+        #endif
+        }
+      }
+    }
+    return lvl;
+  #endif
+  // return MAXLEVEL - 1;
 }
 
 
@@ -179,13 +179,15 @@ void read_vector_leaves(Point point, vector v, coord* a, int depth) {
   }
 }
 
-void populate_vector_leaves(Point point, vector v, coord* a, int depth) {
+/** Unlike the function above, we don't need to divide the values associated
+to children cells since this correction is cancelled by the smaller delta in
+those cells. */
+void populate_vector_leaves(Point point, vector v, coord* a) {
   if (is_local(cell)) {
     if (is_leaf(cell))
-      foreach_dimension() v.x[] += a->x/(1 << (dimension*depth));
+      foreach_dimension() v.x[] += a->x;
     else
-      foreach_child()
-        populate_vector_leaves(point, v, a, depth + 1);
+      foreach_child() populate_vector_leaves(point, v, a);
   }
 }
 
@@ -200,7 +202,7 @@ void lag2eul(vector forcing, lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     double sdelta; // sdelta for "stencil delta"
     #if CONSTANT_MB_LEVEL
-      sdelta = Delta;
+      sdelta = MB_DELTA;
     #else
       sdelta = L0/(1 << mesh->nodes[i].slvl);
     #endif
@@ -216,18 +218,18 @@ void lag2eul(vector forcing, lagMesh* mesh) {
           if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta) {
             double weight =
               (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
-              /(sq(4*sdelta));
+              /sq(4.*sdelta);
         #else
           if (fabs(dist.x) <= 2*sdelta && fabs(dist.y) <= 2*sdelta &&
             fabs(dist.z) <= 2*sdelta) {
             double weight =
               (1 + cos(.5*pi*dist.x/sdelta))*(1 + cos(.5*pi*dist.y/sdelta))
-              *(1 + cos(.5*pi*dist.z/sdelta))/(cube(4*sdelta));
+              *(1 + cos(.5*pi*dist.z/sdelta))/cube(4.*sdelta);
         #endif
           coord weighted_forcing;
           foreach_dimension()
             weighted_forcing.x = weight*mesh->nodes[i].lagForce.x;
-          populate_vector_leaves(point, forcing, &weighted_forcing, 0);
+          populate_vector_leaves(point, forcing, &weighted_forcing);
         }
       }
     }
@@ -243,7 +245,7 @@ void eul2lag(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     double sdelta; // sdelta for "stencil delta"
     #if CONSTANT_MB_LEVEL
-      sdelta = Delta;
+      sdelta = MB_DELTA;
     #else
       sdelta = L0/(1 << mesh->nodes[i].slvl);
     #endif
