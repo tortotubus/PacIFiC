@@ -156,13 +156,45 @@ void DS_3DRBC:: scale_all_node_coordinates(size_t const& num_nodes,
   MAC_LABEL( "DS_3DRBC:: scale_all_node_coordinates" ) ;
   
   // Scaling of node coordinates
-  double scaling_factor = 1.;
   for (size_t i=0;i<num_nodes;++i)
     for (size_t j=0;j<dim;++j)
-      m_all_nodes[i].coordinates(j) *= scaling_factor;
+      m_all_nodes[i].coordinates(j) *= shape_param.scaling_factor;
   
   // Scaling the radius based on scaling factor
-  shape_param.radius *= scaling_factor;
+  shape_param.radius *= shape_param.scaling_factor;
+  
+  // Order of magnitude of radius of 3D RBC
+  shape_param.order_of_magnitude_of_radius 
+                                   = pow(10., floor(log10(shape_param.radius)));
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: project_membrane_shape()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: project_membrane_shape" ) ;
+
+  double c0 = shape_param.c0;
+  double c1 = shape_param.c1;
+  double c2 = shape_param.c2;
+  size_t num_nodes = shape_param.N_nodes;
+  double radius = shape_param.radius;
+  
+  // 3D RBC shape from Eq. 14 in Li et al, Biophysical Journal, 2005
+  for (size_t i=0;i<num_nodes;++i)
+  {
+    double x = m_all_nodes[i].coordinates(0);
+    double y = m_all_nodes[i].coordinates(1);
+    double ww = ( pow( x, 2.) + pow( y, 2. ) ) / pow( radius, 2. );
+    double z = ( m_all_nodes[i].coordinates(2) > 0. ? 1. : -1. ) 
+               * radius 
+               * sqrt( max( 1. - ww, 0. ) ) 
+               * ( c0 + c1 * ww + c2 * pow( ww, 2.) ) ;
+    m_all_nodes[i].coordinates(2) = z;
+  }
 }
 
 
@@ -358,7 +390,7 @@ void DS_3DRBC::set_all_node_neighbors()
     // Allocate
     nn = neighbors[i].size();
     m_all_nodes[i].neighbors_3D.reserve(nn);
-    for (size_t j=0;j<nn;++j) m_all_nodes[i].neighbors_3D.push_back(pp);      
+    for (size_t j=0;j<nn;++j) m_all_nodes[i].neighbors_3D.push_back(pp);
 
     m_all_nodes[i].initial_spring_length.reserve(nn); 
     for (size_t j=0;j<nn;++j) 
@@ -652,35 +684,6 @@ void DS_3DRBC:: compute_edge_angle(bool init)
   MAC_LABEL( "DS_3DRBC:: compute_edge_angle" ) ;
 
 
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void DS_3DRBC:: project_membrane_shape()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_3DRBC:: project_membrane_shape" ) ;
-
-  double c0 = shape_param.c0;
-  double c1 = shape_param.c1;
-  double c2 = shape_param.c2;
-  size_t num_nodes = shape_param.N_nodes;
-  double radius = shape_param.radius;
-  
-  // 3D RBC shape from Eq. 14 in Li et al, Biophysical Journal, 2005
-  for (size_t i=0;i<num_nodes;++i)
-  {
-    double x = m_all_nodes[i].coordinates(0);
-    double y = m_all_nodes[i].coordinates(1);
-    double ww = ( pow( x, 2.) + pow( y, 2. ) ) / pow( radius, 2. );
-    double z = ( m_all_nodes[i].coordinates(2) > 0. ? 1. : -1. ) 
-               * radius 
-               * sqrt( max( 1. - ww, 0. ) ) 
-               * ( c0 + c1 * ww + c2 * pow( ww, 2.) ) ;
-    m_all_nodes[i].coordinates(2) = z;
-  }
 }
 
 
