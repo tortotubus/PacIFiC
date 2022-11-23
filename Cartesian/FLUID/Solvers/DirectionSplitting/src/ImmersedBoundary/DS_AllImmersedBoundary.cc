@@ -164,6 +164,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
   double node_spacing_with_dx;
   double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
   double membrane_mass;
+  double scaling_factor;
   double ReynoldsNumber, CapillaryNumber, ShearRate;
 
   std::ifstream inFile;
@@ -181,14 +182,14 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
       inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
             >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-            >> k_viscous >> k_area >> k_volume >> membrane_mass;
+            >> k_viscous >> k_area >> k_volume >> membrane_mass >> scaling_factor;
     }
     else
     {
       inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
             >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-            >> k_viscous >> k_area >> k_volume >> membrane_mass
+            >> k_viscous >> k_area >> k_volume >> membrane_mass >> scaling_factor
             >> ReynoldsNumber >> CapillaryNumber >> ShearRate;
     }
           
@@ -210,6 +211,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
                             ? round ( 2.0 * MAC::pi() * Rp 
                               / (double(node_spacing_with_dx) * dx) )
                             : N_nodes;
+    p_shape_param->scaling_factor = scaling_factor;
 
     
     // Assigning values to membrane parameter variables
