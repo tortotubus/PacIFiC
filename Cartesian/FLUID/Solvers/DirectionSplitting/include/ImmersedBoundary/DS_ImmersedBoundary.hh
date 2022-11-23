@@ -35,6 +35,8 @@ struct ShapeParameters
   size_t N_nodes;
   size_t N_levels;
   double node_spacing_with_dx; // deciding N_nodes based on this value
+  double scaling_factor; // for scaling the coordinates & radius of immersed body
+  double order_of_magnitude_of_radius;
 };
 
 
