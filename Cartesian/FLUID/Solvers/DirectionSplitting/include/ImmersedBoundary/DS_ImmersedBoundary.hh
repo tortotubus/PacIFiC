@@ -366,11 +366,19 @@ class DS_ImmersedBoundary
                       string const& model_type = "NumericalMembraneModel" ) = 0;
 
       /** @brief Computes viscous force */
-      virtual void compute_viscous_drag_force( size_t const& dim, 
+      virtual void compute_viscous_drag_force(size_t const& dim, 
                       double const& viscous_drag_constant,
                       double const& dt,
                       string const& model_type = "NumericalMembraneModel" ) = 0;
 
+      /** @brief Computes volume conservation force */
+      virtual void compute_volume_conservation_force(size_t const& dim,
+                      string const& model_type = "NumericalMembraneModel" ) = 0;
+      
+      /** @brief Computes area conservation force */
+      virtual void compute_area_conservation_force(size_t const& dim,
+                      string const& model_type = "NumericalMembraneModel" ) = 0;
+      
       /** @brief Computes the statistics of each immersed boundary */
       virtual void compute_stats(string const& directory, 
                                  string const& filename, 

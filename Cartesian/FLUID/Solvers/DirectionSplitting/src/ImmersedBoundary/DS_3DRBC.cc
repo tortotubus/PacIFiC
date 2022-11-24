@@ -338,7 +338,7 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
                  * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
     
     if(init) 
-      m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_area;
+      m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_initial_area;
 
     // Compute center of mass
     for (size_t j=0;j<dim;++j)
@@ -2054,6 +2054,222 @@ void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: compute_volume_conservation_force(size_t const& dim,
+                                                  string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_volume_conservation_force" ) ;
+
+  geomVector a21(dim), a31(dim), a13(dim), a32(dim), xi(dim);
+  geomVector node_1_comp(dim), node_2_comp(dim), node_3_comp(dim);
+  double f1, f2, f3;
+  geomVector triangle_centroid(dim);
+  double beta_v;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+  double kv = membrane_param.k_volume;
+  
+  // Initialising all area forces to 0.0
+  for (size_t i=0;i<num_nodes;++i)
+      for (size_t j=0;j<dim;++j)
+          m_all_nodes[i].volume_force(j) = 0.;
+          
+  // Computing area forces based on looping over triangles
+  for (size_t i=0;i<m_nTriangles;++i) 
+  {
+      size_t n1_num = m_all_trielements[i].pnodes[0]->number; // Node 1's number
+      size_t n2_num = m_all_trielements[i].pnodes[1]->number; // Node 2's number
+      size_t n3_num = m_all_trielements[i].pnodes[2]->number; // Node 3's number
+      
+      // Get each triangle's center of mass vector pointing from membrane centroid to triangle center of mass
+      for (size_t j=0;j<dim;++j) triangle_centroid(j) = (m_all_trielements[i].center_of_mass(j) - membrane_param.centroid_coordinates(j)) / order_of_magnitude_of_radius;
+      
+      
+      // a21
+      for (size_t j=0;j<dim;++j)
+          a21(j) = (m_all_trielements[i].pnodes[0]->coordinates(j) - m_all_trielements[i].pnodes[1]->coordinates(j))/order_of_magnitude_of_radius;
+          
+      // a31
+      for (size_t j=0;j<dim;++j)
+          a13(j) = (m_all_trielements[i].pnodes[2]->coordinates(j) - m_all_trielements[i].pnodes[0]->coordinates(j))/order_of_magnitude_of_radius;
+      
+      // a32
+      for (size_t j=0;j<dim;++j)
+          a32(j) = (m_all_trielements[i].pnodes[1]->coordinates(j) - m_all_trielements[i].pnodes[2]->coordinates(j))/order_of_magnitude_of_radius;
+      
+      
+      // outward pointing normal to the triangle
+      for (size_t j=0;j<dim;++j) xi(j) = (m_all_trielements[i].twice_area_outwards_normal_vector(j)) / pow(order_of_magnitude_of_radius, 2.);
+
+      
+      // Converting quantities to non-dimensional units
+      geomVector a21_M(dim), a13_M(dim), a32_M(dim);
+      geomVector xi_M(dim);
+      geomVector center_of_mass_M(dim);
+      for (size_t j=0;j<dim;++j)
+      {
+          xi_M(j) = xi(j); // / pow(order_of_magnitude_of_radius, 2);
+          a21_M(j) = a21(j); // / order_of_magnitude_of_radius;
+          a13_M(j) = a13(j); // / order_of_magnitude_of_radius;
+          a32_M(j) = a32(j); // / order_of_magnitude_of_radius;
+          center_of_mass_M(j) = triangle_centroid(j); // - membrane_param.centroid_coordinates(j)) / order_of_magnitude_of_radius;
+      }
+
+      
+      // t_c x a32, tc x a13, tc x a21
+      cross_3D(center_of_mass_M, a32_M, node_1_comp);
+      cross_3D(center_of_mass_M, a13_M, node_2_comp);
+      cross_3D(center_of_mass_M, a21_M, node_3_comp);
+      
+      double fedosov_mesh_reversal = 1.;
+      
+      // Nodal force
+      beta_v = - kv * ((membrane_param.total_volume - membrane_param.initial_volume)/membrane_param.initial_volume);
+      // Node 1
+      for (size_t j=0;j<dim;++j)
+      {
+          f1 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_1_comp(j) * fedosov_mesh_reversal);
+          m_all_trielements[i].pnodes[0]->sumforce(j) += f1;
+          m_all_trielements[i].pnodes[0]->volume_force(j) += f1;
+      }
+      // Node 2
+      for (size_t j=0;j<dim;++j)
+      {
+          f2 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_2_comp(j) * fedosov_mesh_reversal);
+          m_all_trielements[i].pnodes[1]->sumforce(j) += f2;
+          m_all_trielements[i].pnodes[1]->volume_force(j) += f2;
+      }
+      // Node 3
+      for (size_t j=0;j<dim;++j)
+      {
+          f3 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_3_comp(j) * fedosov_mesh_reversal);
+          m_all_trielements[i].pnodes[2]->sumforce(j) += f3;
+          m_all_trielements[i].pnodes[2]->volume_force(j) += f3;
+      }
+  }
+  
+  // magnitude of volume force on node "i"
+  membrane_param.mean_volume_force_magnitude = 0.;
+  for (size_t i=0;i<num_nodes;++i)
+      membrane_param.mean_volume_force_magnitude += norm(m_all_nodes[i].volume_force);
+  
+  // Mean area force
+  membrane_param.mean_volume_force_magnitude /= num_nodes;
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
+                                                string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_area_conservation_force" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+  double ka = membrane_param.k_area;
+  double kd = membrane_param.k_area_local;
+
+  geomVector a21(dim), a31(dim), a13(dim), a32(dim), xi(dim);
+  geomVector node_1_comp(dim), node_2_comp(dim), node_3_comp(dim);
+  double f1, f2, f3;
+  string pot;
+  
+  // Initialising all area forces to 0.0
+  for (size_t i=0;i<num_nodes;++i)
+      for (size_t j=0;j<dim;++j) 
+          m_all_nodes[i].area_force(j) = 0.;
+  
+  // Computing area forces based on looping over triangles
+  for (size_t i=0;i<m_nTriangles;++i) 
+  {
+      size_t n1_num = m_all_trielements[i].pnodes[0]->number; // Node 1's number/index
+      size_t n2_num = m_all_trielements[i].pnodes[1]->number; // Node 2's number/index
+      size_t n3_num = m_all_trielements[i].pnodes[2]->number; // Node 3's number/index
+      
+      // a21
+      for (size_t j=0;j<dim;++j)
+          a21(j) = (m_all_trielements[i].pnodes[0]->coordinates(j) - m_all_trielements[i].pnodes[1]->coordinates(j))/order_of_magnitude_of_radius;
+          
+      // a31
+      for (size_t j=0;j<dim;++j)
+          a13(j) = (m_all_trielements[i].pnodes[2]->coordinates(j) - m_all_trielements[i].pnodes[0]->coordinates(j))/order_of_magnitude_of_radius;
+      
+      // a32
+      for (size_t j=0;j<dim;++j)
+          a32(j) = (m_all_trielements[i].pnodes[1]->coordinates(j) - m_all_trielements[i].pnodes[2]->coordinates(j))/order_of_magnitude_of_radius;
+          
+      // outward pointing normal to the triangle
+      for (size_t j=0;j<dim;++j) xi(j) = (m_all_trielements[i].twice_area_outwards_normal_vector(j)) / pow(order_of_magnitude_of_radius, 2.);
+      
+      
+      double beta_global = - ka * ( (membrane_param.total_area - membrane_param.initial_area) / membrane_param.initial_area );
+      double A_k = m_all_trielements[i].tri_area / pow(order_of_magnitude_of_radius, 2.); // scaling the area of the triangle to model length units with 1e-6 as model length
+      double global = beta_global / ( 4. * A_k );
+      
+      double beta_local = - kd * ( (m_all_trielements[i].tri_area - m_all_trielements[i].tri_initial_area) / m_all_trielements[i].tri_initial_area );
+      double local = beta_local / ( 4. * A_k );
+      
+      // Converting quantities to non-dimensional units
+      geomVector a21_M(dim), a13_M(dim), a32_M(dim);
+      geomVector xi_M(dim);
+      for (size_t j=0;j<dim;++j)
+      {
+          xi_M(j) = xi(j); // / pow(order_of_magnitude_of_radius, 2.);
+          a21_M(j) = a21(j); // / order_of_magnitude_of_radius;
+          a13_M(j) = a13(j); // / order_of_magnitude_of_radius;
+          a32_M(j) = a32(j); // / order_of_magnitude_of_radius;
+      }
+      
+      cross_3D( xi_M, a32_M, node_1_comp );
+      cross_3D( xi_M, a13_M, node_2_comp );
+      cross_3D( xi_M, a21_M, node_3_comp );
+      
+      double fedosov_mesh_reversal = 1.;
+      
+      // Nodal force
+      // Node 1
+      for (size_t j=0;j<dim;++j)
+      {
+          f1 = (global + local) * node_1_comp(j) * fedosov_mesh_reversal;
+          m_all_trielements[i].pnodes[0]->sumforce(j) += f1; // node 1
+          m_all_trielements[i].pnodes[0]->area_force(j) += f1; // node 1
+      }
+      // Node 2
+      for (size_t j=0;j<dim;++j)
+      {
+          f2 = (global + local) * node_2_comp(j) * fedosov_mesh_reversal;
+          m_all_trielements[i].pnodes[1]->sumforce(j) += f2; // node 2
+          m_all_trielements[i].pnodes[1]->area_force(j) += f2; // node 2
+      }
+      // Node 3
+      for (size_t j=0;j<dim;++j)
+      {
+          f3 = (global + local) * node_3_comp(j) * fedosov_mesh_reversal;
+          m_all_trielements[i].pnodes[2]->sumforce(j) += f3; // node 3
+          m_all_trielements[i].pnodes[2]->area_force(j) += f3; // node 3
+      }
+  }
+  
+  // magnitude of area force on node "i"
+  membrane_param.mean_area_force_magnitude = 0.;
+  for (size_t i=0;i<num_nodes;++i)
+  {
+      // magnitude of spring force on node "i"
+      membrane_param.mean_area_force_magnitude += norm(m_all_nodes[i].area_force);
+  }
+  
+  // Mean area force
+  membrane_param.mean_area_force_magnitude /= num_nodes;
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type,
@@ -2115,10 +2331,10 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
 
     /*
     // Volume conservation force
-    compute_volume_conservation_force( volume_conservation_constant );
+    compute_volume_conservation_force( dim, model_type );
 
     // Triangle surface area conservation force
-    compute_triangle_surface_area_conservation_force( triangle_surface_area_conservation_constant );
+    compute_area_conservation_force( dim, model_type );
     */
 
     membrane_param.total_kinetic_energy = 0.;

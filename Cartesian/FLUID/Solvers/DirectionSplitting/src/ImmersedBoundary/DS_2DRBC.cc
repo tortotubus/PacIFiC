@@ -884,6 +884,30 @@ void DS_2DRBC:: compute_viscous_drag_force( size_t const& dim,
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: compute_volume_conservation_force(size_t const& dim,
+                                                  string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_volume_conservation_force" ) ;
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_2DRBC:: compute_area_conservation_force(size_t const& dim,
+                                                string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: compute_area_conservation_force" ) ;
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type,
