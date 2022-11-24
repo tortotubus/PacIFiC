@@ -93,18 +93,6 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges(size_t const& dim);
       
-      /** @brief Initializes immersed body material properties in physical units
-      for the "detailed numerial membrane model (NMM)" **/
-      void init_membrane_parameters_in_physical_units();
-      
-      /** @brief Initializes RBC material properties in model units
-      for the "detailed numerial membrane model (NMM)" **/
-      void init_membrane_parameters_in_model_units();
-      
-      /** @brief Compute the timescale of RBC 
-      for the "detailed numerial membrane model (NMM)" **/
-      void scaling_membrane_params_from_physical_to_model_units();
-      
       /** @brief Compute current (& initial) spring lengths */
       void compute_spring_lengths(bool init, size_t const& dim);
       
@@ -131,7 +119,23 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void preprocess_membrane_parameters(string const& model_type,
                                           string const& case_type,
                                           double const& mu,
-                                          size_t const& num_subtimesteps_RBC);
+                                          size_t const& num_subtimesteps_RBC,
+                                          size_t const& dim);
+      
+      /** @brief Initializes immersed body material properties in physical units
+      for the "detailed numerial membrane model (NMM)" **/
+      void init_membrane_parameters_in_physical_units();
+      
+      /** @brief Initializes RBC material properties in model units
+      for the "detailed numerial membrane model (NMM)" **/
+      void init_membrane_parameters_in_model_units();
+      
+      /** @brief Compute the timescale of RBC 
+      for the "detailed numerial membrane model (NMM)" **/
+      void scaling_membrane_params_from_physical_to_model_units();
+      
+      /** @brief Compute the spring constants for WLC and POW spring force model **/
+      void compute_spring_constant_values(size_t const& dim);
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 

@@ -67,7 +67,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   
   // write_immersed_body_mesh_to_vtk_file(); exit(3);
   
-  preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC);
+  preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC,
+                                      m_space_dimension);
   
   set_IBM_parameters(m_dirac_type);
 }
@@ -392,7 +393,8 @@ void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
                    (string const& case_type, double const& mu,
-                    size_t const& num_subtimesteps_RBC)
+                    size_t const& num_subtimesteps_RBC, 
+                    size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: preprocess_immersed_body_parameters" ) ;
@@ -402,7 +404,8 @@ void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
                                                        ("NumericalMembraneModel"
                                                         , case_type
                                                         , mu
-                                                        , num_subtimesteps_RBC);
+                                                        , num_subtimesteps_RBC
+                                                        , dim);
   }
 }
 

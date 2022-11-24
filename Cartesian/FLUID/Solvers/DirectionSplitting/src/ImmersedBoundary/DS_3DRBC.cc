@@ -766,17 +766,13 @@ void DS_3DRBC:: scaling_membrane_params_from_physical_to_model_units()
 
 
 
-/*
 //---------------------------------------------------------------------------
-void DS_3DRBC:: compute_spring_constant_values()
+void DS_3DRBC:: compute_spring_constant_values(size_t const& dim)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+  MAC_LABEL( "DS_3DRBC:: compute_spring_constant_values" ) ;
   
-  //------------------------------------------------------//
-  // With scaling the lengths of the springs to model units
-  //-----------------------------------------------------//
-  double x0 = mem.x0;
+  double x0 = membrane_param.x0;
   double alpha_1 = 1./(4.*pow(1-x0, 2.));
   double alpha_2 = 1./4.;
   double alpha_3 = x0;
@@ -789,28 +785,33 @@ void DS_3DRBC:: compute_spring_constant_values()
   
   double denominator = sqrt(3.) * (beta + 3. * alpha);
   
-  double length_component[3];
+  double O_R = shape_param.order_of_magnitude_of_radius;
+  double mu0_M = membrane_param.mu0_M;
+  
+  geomVector length_component(dim);
   double edge_length;
   
-  for (list<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+  for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
   {
-      for (size_t j=0;j<3;++j) length_component[j] = il->n2->coordinates[j] - il->n3->coordinates[j];
-      edge_length = norm(length_component);
-      
-      // Initial length of each spring
-      il->l0 = edge_length;
-      
-      // Max allowed length of each spring
-      il->lmax = il->l0 / mem.x0;
-      
-      // double l0_M = mem.mean_edge_length / pow(10., floor(log10(mem.mean_edge_length)));
-      double l0_M = il->l0 / order_of_magnitude_of_radius; //  / pow(10., floor(log10(mem.mean_edge_length)))  // I choose 1 micron as the factor to upgrade the length from micro-metre to length in model units
-      
-      il->k =  ( 4. * mem.mu0_M * l0_M ) / denominator; // = kBT/p quantity, i.e., kBT/p = k for WLC spring force
-      il->kp = ( 4. * mem.mu0_M * alpha * pow(l0_M, 3.) ) / denominator; // for POW spring force
+    for (size_t j=0;j<dim;++j) 
+      length_component(j) = il->n2->coordinates(j) - il->n3->coordinates(j);
+
+    edge_length = norm(length_component);
+    
+    // Initial length of each spring
+    il->l0 = edge_length;
+    
+    // Max allowed length of each spring
+    il->lmax = il->l0 / x0;
+    
+    // Spring length in model units with O_R being scale of reference
+    double l0_M = il->l0 / O_R;
+    
+    // Spring constant values
+    il->k =  ( 4. * mu0_M * l0_M ) / denominator; // kBT/p in WLC spring model
+    il->kp = ( 4. * mu0_M * alpha * pow(l0_M, 3.) ) / denominator; // = kp in POW spring model
   }
 }
-*/
 
 
 
@@ -819,7 +820,8 @@ void DS_3DRBC:: compute_spring_constant_values()
 void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
                                              string const& case_type,
                                              double const& mu,
-                                             size_t const& num_subtimesteps_RBC)
+                                             size_t const& num_subtimesteps_RBC,
+                                             size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
@@ -836,7 +838,7 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
     scaling_membrane_params_from_physical_to_model_units();
     
     // Compute WLC and POW spring constant values for each spring using mu0, x0, l0, lmax
-    // // compute_spring_constant_values();
+    compute_spring_constant_values(dim);
   }
   else
   {

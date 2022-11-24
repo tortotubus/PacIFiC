@@ -322,7 +322,8 @@ void DS_2DRBC:: compute_edge_angle(bool init)
 void DS_2DRBC:: preprocess_membrane_parameters(string const& model_type
                                            , string const& case_type
                                            , double const& mu
-                                           , size_t const& num_subtimesteps_RBC)
+                                           , size_t const& num_subtimesteps_RBC
+                                           , size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: preprocess_membrane_parameters" ) ;

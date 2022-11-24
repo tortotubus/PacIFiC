@@ -184,7 +184,8 @@ class DS_AllImmersedBoundary
         /** @brief Computes node based spring, bending constants */
         void preprocess_immersed_body_parameters(string const& case_type, 
                                             double const& mu,
-                                            size_t const& num_subtimesteps_RBC);
+                                            size_t const& num_subtimesteps_RBC,
+                                            size_t const& dim);
         
         /** @brief Sets the IBM parameters for all immersed bodies */
         void set_IBM_parameters(string const& dirac_type);

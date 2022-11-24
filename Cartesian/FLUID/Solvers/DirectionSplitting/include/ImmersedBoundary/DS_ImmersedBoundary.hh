@@ -289,7 +289,8 @@ class DS_ImmersedBoundary
       virtual void preprocess_membrane_parameters(string const& model_type,
                                         string const& case_type,
                                         double const& mu,
-                                        size_t const& num_subtimesteps_RBC) = 0;
+                                        size_t const& num_subtimesteps_RBC,
+                                        size_t const& dim) = 0;
       
       /** @brief Function which calls RBC and IBM functions along with
       periodic boundary conditions and parallelisation temporary variables */
