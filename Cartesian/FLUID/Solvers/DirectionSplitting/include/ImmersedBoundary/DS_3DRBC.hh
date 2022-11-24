@@ -134,8 +134,12 @@ class DS_3DRBC: public DS_ImmersedBoundary
       for the "detailed numerial membrane model (NMM)" **/
       void scaling_membrane_params_from_physical_to_model_units();
       
-      /** @brief Compute the spring constants for WLC and POW spring force model **/
-      void compute_spring_constant_values(size_t const& dim);
+      /** @brief Compute spring constants values for WLC and POW spring forces
+      in model units **/
+      void compute_spring_constant_values_in_model_units(size_t const& dim);
+      
+      /** @brief Compute bending constant value in model units **/
+      void compute_bending_constant_values_in_model_units (size_t const& dim);
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 

@@ -767,7 +767,7 @@ void DS_3DRBC:: scaling_membrane_params_from_physical_to_model_units()
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: compute_spring_constant_values(size_t const& dim)
+void DS_3DRBC:: compute_spring_constant_values_in_model_units(size_t const& dim)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_spring_constant_values" ) ;
@@ -817,6 +817,25 @@ void DS_3DRBC:: compute_spring_constant_values(size_t const& dim)
 
 
 //---------------------------------------------------------------------------
+void RBC3D::compute_bending_constant_values_in_model_units()
+//---------------------------------------------------------------------------
+{
+  double kbending_P = membrane_param.kbending_P;
+  double D0_P = membrane_param.D0_P;
+  double mu0_P = membrane_param.mu0_P;
+  double D0_M = membrane_param.D0_M;
+  
+  // Computing non-dimensional quantity
+  double gamma = kbending_P / (pow(D0_P, 2.) * mu0_P);
+  
+  // Computing bending constant in model units
+  membrane_param.kbending_M = gamma * pow(D0_M, 2.) * mu0_M;
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
                                              string const& case_type,
                                              double const& mu,
@@ -837,8 +856,11 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
     // Scaling membrane material properties from physical units to model units
     scaling_membrane_params_from_physical_to_model_units();
     
-    // Compute WLC and POW spring constant values for each spring using mu0, x0, l0, lmax
-    compute_spring_constant_values(dim);
+    // Compute spring constant values in model units
+    compute_spring_constant_values_in_model_units(dim);
+    
+    // Compute bending constant value in model units
+    compute_bending_constant_values_in_model_units();
   }
   else
   {
