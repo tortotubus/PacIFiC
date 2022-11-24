@@ -44,7 +44,7 @@ struct MembraneParameters
 {
   // Physical parameters
   double mass, node_mass;
-  double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_volume;
+  double k_spring, k_bending, k_bending_visc, k_viscous, k_area, k_area_local, k_volume;
   double membrane_spring_constant;
   double membrane_mass_spring_timescale, edge_mass_spring_timescale;
   double node_bending_mass_spring_timescale;
@@ -259,10 +259,6 @@ class DS_ImmersedBoundary
       2D: rotation is achieved using ONLY "yaw" angle
       3D: rotation is achieved using roll, pitch and yaw angles */
       void rotate_membrane();
-      
-      /** @brief Initializes immersed body material properties in physical units
-      for the "detailed numerial membrane model (NMM)" **/
-      virtual void init_membrane_parameters_physical_units() = 0;
       
       /** @brief Computes current (& initial) spring lengths */
       virtual void compute_spring_lengths(bool init, size_t const& dim) = 0;

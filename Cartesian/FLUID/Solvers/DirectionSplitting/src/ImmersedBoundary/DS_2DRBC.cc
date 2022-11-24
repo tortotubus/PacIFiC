@@ -243,17 +243,6 @@ void DS_2DRBC:: set_all_edges(size_t const& dim)
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: init_membrane_parameters_physical_units()
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_2DRBC:: init_membrane_parameters_physical_units" );
-  
-}
-
-
-
-
-//---------------------------------------------------------------------------
 void DS_2DRBC:: compute_spring_lengths(bool init, size_t const& dim)
 //---------------------------------------------------------------------------
 {

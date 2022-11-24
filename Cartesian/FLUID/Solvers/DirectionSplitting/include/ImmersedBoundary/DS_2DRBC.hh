@@ -88,10 +88,6 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges(size_t const& dim);
       
-      /** @brief Initializes immersed body material properties in physical units
-      for the "detailed numerial membrane model (NMM)" **/
-      void init_membrane_parameters_physical_units();
-      
       /** @brief Compute current (& initial) spring lengths */
       void compute_spring_lengths(bool init, size_t const& dim);
       
