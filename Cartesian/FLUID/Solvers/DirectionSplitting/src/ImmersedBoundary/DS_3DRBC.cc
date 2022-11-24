@@ -499,20 +499,20 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
   {
     geomVector normal_t1(dim);
     for (size_t j=0;j<dim;++j) 
-      normal_t1(j) = il->t1v1.first->twice_area_outwards_normal_vector(j);
+      normal_t1(j) = il->t1v1.first->twice_area_outwards_normal_vector(j) / pow(order_of_magnitude_of_radius, 2.);
     
     geomVector normal_t2(dim);
     for (size_t j=0;j<dim;++j) 
-      normal_t2(j) = il->t2v4.first->twice_area_outwards_normal_vector(j);
+      normal_t2(j) = il->t2v4.first->twice_area_outwards_normal_vector(j) / pow(order_of_magnitude_of_radius, 2.);
     
     // a21 = a1 - a2 = vector from node 2 to node 1
     geomVector a21(dim);
     for (size_t j=0;j<dim;++j) 
-      a21(j) = il->t1v1.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+      a21(j) = (il->t1v1.second->coordinates(j) - il->n2->coordinates(j))/order_of_magnitude_of_radius;
     
     // a31 = a1 - a3 = vector from node 3 to node 1
     geomVector a31(dim);
-    for (size_t j=0;j<dim;++j) a31(j) = il->t1v1.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+    for (size_t j=0;j<dim;++j) a31(j) = (il->t1v1.second->coordinates(j) - il->n3->coordinates(j))/order_of_magnitude_of_radius;
     
     // Chi = a21 x a31
     geomVector Chi(dim);
@@ -526,10 +526,10 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
       il->n3 = buffer;
       
       // a21 = a1 - a2 = vector from node 2 to node 1
-      for (size_t j=0;j<dim;++j) a21(j) = il->t1v1.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+      for (size_t j=0;j<dim;++j) a21(j) = (il->t1v1.second->coordinates(j) - il->n2->coordinates(j))/order_of_magnitude_of_radius;
       
       // a31 = a1 - a3 = vector from node 3 to node 1
-      for (size_t j=0;j<dim;++j) a31(j) = il->t1v1.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+      for (size_t j=0;j<dim;++j) a31(j) = (il->t1v1.second->coordinates(j) - il->n3->coordinates(j))/order_of_magnitude_of_radius;
       
       // Chi = a21 x a31
       cross_3D(a21, a31, Chi);
@@ -539,11 +539,11 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
     
     // a34 = a4 - a3 = vector from node 3 to node 4
     geomVector a34(dim);
-    for (size_t j=0;j<dim;++j) a34(j) = il->t2v4.second->coordinates(j) - il->n3->coordinates(j); // /order_of_magnitude_of_radius;
+    for (size_t j=0;j<dim;++j) a34(j) = (il->t2v4.second->coordinates(j) - il->n3->coordinates(j))/order_of_magnitude_of_radius;
     
     // a24 = a4 - a2 = vector from node 2 to node 4
     geomVector a24(dim);
-    for (size_t j=0;j<dim;++j) a24(j) = il->t2v4.second->coordinates(j) - il->n2->coordinates(j); // /order_of_magnitude_of_radius;
+    for (size_t j=0;j<dim;++j) a24(j) = (il->t2v4.second->coordinates(j) - il->n2->coordinates(j))/order_of_magnitude_of_radius;
     
     // Gamma = a34 x a24
     geomVector Gamma(dim);
@@ -571,7 +571,7 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
     for (size_t j=0;j<dim;++j) tc1(j) = (il->t1v1.second->coordinates(j) + il->n2->coordinates(j) + il->n3->coordinates(j))/3.;
     for (size_t j=0;j<dim;++j) tc2(j) = (il->n2->coordinates(j) + il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/3.;
     geomVector tc1_minus_tc2(dim);
-    for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = tc1(j) - tc2(j); // /order_of_magnitude_of_radius;
+    for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = (tc1(j) - tc2(j))/order_of_magnitude_of_radius;
     double dot_product = scalar(Chi_minus_Gamma, tc1_minus_tc2);
 
 
