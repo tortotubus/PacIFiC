@@ -512,7 +512,8 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
     
     // a31 = a1 - a3 = vector from node 3 to node 1
     geomVector a31(dim);
-    for (size_t j=0;j<dim;++j) a31(j) = (il->t1v1.second->coordinates(j) - il->n3->coordinates(j))/order_of_magnitude_of_radius;
+    for (size_t j=0;j<dim;++j) 
+      a31(j) = (il->t1v1.second->coordinates(j) - il->n3->coordinates(j))/order_of_magnitude_of_radius;
     
     // Chi = a21 x a31
     geomVector Chi(dim);
@@ -719,6 +720,7 @@ void DS_3DRBC:: init_membrane_parameters_in_model_units()
 {
   MAC_LABEL( "DS_3DRBC:: init_membrane_parameters_model_units" );
   
+  membrane_param.node_mass_M = 1.; // TO BE VERIFIED
   membrane_param.mu0_M = 100.; // model unit's shear modulus
   membrane_param.k_area = 4900.; // ka
   membrane_param.k_area_local = 100.; // kd
@@ -1408,6 +1410,7 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
   for (size_t i=0;i<m_nTriangles;++i)
     membrane_param.total_area += m_all_trielements[i].tri_area;
     
+  /*
   // Compute center of mass of each triangle
   for (size_t i=0;i<m_nTriangles;++i)
   {
@@ -1420,6 +1423,7 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
     }
   }
   if ( init ) membrane_param.initial_area = membrane_param.total_area;
+  */
 
 
   // Center of mass of the membrane
@@ -1495,18 +1499,18 @@ void DS_3DRBC::compute_membrane_area_centroid_volume( size_t const& dim )
 //---------------------------------------------------------------------------
 void DS_3DRBC::compute_spring_force( size_t const& dim,
                                      double const& spring_constant,
-                                     string const& force_type )
+                                     string const& model_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_spring_force" ) ;
   
   size_t num_nodes = shape_param.N_nodes;
+
+  geomVector Iij(dim);
+  double length = 0.;
   
-  if(force_type.compare("Anthony") == 0)
+  if(model_type.compare("Simplified") == 0)
   {
-    geomVector Iij(dim);
-    double length = 0.;
-    
     for (size_t i=0;i<num_nodes;++i)
     {
       size_t nn = m_all_nodes[i].neighbors_3D.size();
@@ -1527,6 +1531,82 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
                 * ( length - initial_spring_length ) * Iij(k);
       }
     }
+  }
+  else
+  {
+    geomVector f_WLC(dim);
+    geomVector f_POW(dim);
+    
+    membrane_param.mean_WLC_spring_force_magnitude = 0.;
+    membrane_param.mean_POW_spring_force_magnitude = 0.;
+    
+    for (size_t i=0;i<m_number_of_nodes;++i)
+    {
+        for (size_t j=0;j<3;++j)
+        {
+            m_all_nodes[i].WLC_force[j] = 0.;
+            m_all_nodes[i].POW_force[j] = 0.;
+        }
+    }
+        
+    for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+    {
+        // Computing the unit vector
+        for (size_t j=0;j<3;++j) Iij[j] = il->n2->coordinates[j] - il->n3->coordinates[j]; // vector from node 3 to node 2 or node j to node i
+        length = norm ( Iij );
+        for (size_t j=0;j<3;++j) Iij[j] /= length;
+        
+        double x = length / il->lmax;
+        double alpha_1 = 1. / (4. * pow(1.-x, 2.));
+        double alpha_2 = 1./4.;
+        double alpha_3 = x;
+        double alpha = alpha_1 - alpha_2 + alpha_3;
+
+        double l_M = length / order_of_magnitude_of_radius; // I choose 1 micron as the factor to upgrade the length in micro-metre to length in model units
+        double beta = 1. / pow(l_M, 2.);
+
+        for (size_t j=0;j<3;++j)
+        {
+            // WLC force
+            f_WLC[j] = - il->k * alpha * Iij[j];
+            il->n2->sumforce[j]  +=  f_WLC[j];
+            il->n3->sumforce[j]  += -f_WLC[j];
+            il->n2->WLC_force[j] +=  f_WLC[j];
+            il->n3->WLC_force[j] += -f_WLC[j];
+
+            // POW force
+            f_POW[j] = il->kp * beta * Iij[j];
+            il->n2->sumforce[j]  +=  f_POW[j];
+            il->n3->sumforce[j]  += -f_POW[j];
+            il->n2->WLC_force[j] +=  f_POW[j];
+            il->n3->WLC_force[j] += -f_POW[j];
+        }
+    }
+    
+    for (size_t i=0;i<m_number_of_nodes;++i)
+    {
+        // WLC force
+        membrane_param.mean_WLC_spring_force_magnitude += sqrt( pow(m_all_nodes[i].WLC_force[0], 2.) + 
+                                                     pow(m_all_nodes[i].WLC_force[1], 2.) + 
+                                                     pow(m_all_nodes[i].WLC_force[2], 2.) );
+            
+        // POW force
+        membrane_param.mean_POW_spring_force_magnitude += sqrt( pow(m_all_nodes[i].POW_force[0], 2.) + 
+                                                     pow(m_all_nodes[i].POW_force[1], 2.) + 
+                                                     pow(m_all_nodes[i].POW_force[2], 2.) );
+    }
+    
+    // Mean spring force
+    membrane_param.mean_WLC_spring_force_magnitude /= m_number_of_nodes;
+    membrane_param.mean_POW_spring_force_magnitude /= m_number_of_nodes;
+
+
+    // Mean sum force magnitude over all nodes
+    double mean_sumforce_magnitude = 0.;
+    for (size_t i=0;i<m_number_of_nodes;++i)
+        for (size_t j=0;j<3;++j)
+            mean_sumforce_magnitude += sqrt( pow(m_all_nodes[i].sumforce[0], 2.) + pow(m_all_nodes[i].sumforce[1], 2.) + pow(m_all_nodes[i].sumforce[2], 2.) );
+    mean_sumforce_magnitude /= m_number_of_nodes;
   }
 } 
 
@@ -1594,7 +1674,7 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
   double angle = 0., dot = 0., mi = 0.;
   double lever1 = 0., lever4 = 0., nxi = 0., nzeta = 0.;
 
-  if(force_type.compare("Anthony") == 0)
+  if(force_type.compare("Simplified") == 0)
   {
     for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
     {
@@ -1741,13 +1821,14 @@ void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
 //---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
-                                    string const& case_type)
+                                    string const& case_type,
+                                    string const& model_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: rbc_dynamics_solver" ) ;
 
   size_t num_nodes = shape_param.N_nodes;
-  double node_mass = membrane_param.node_mass;
+  double node_mass = membrane_param.node_mass_M; // TO BE VERIFIED OF ITS VALUE
   double spring_constant = membrane_param.k_spring;
   double bending_spring_constant = membrane_param.k_bending;
   double bending_viscous_constant = membrane_param.k_bending_visc;
@@ -1757,7 +1838,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   size_t n_sub_timesteps = membrane_param.n_subtimesteps_RBC;
   
   double time = 0.;
-  double total_kinetic_energy = 0.;
+  double membrane_param.total_kinetic_energy = 0.;
   double dt = dt_fluid / n_sub_timesteps;
   
   MAC_Communicator const* MAC_comm;
@@ -1786,27 +1867,13 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Compute total surface area and total volume and write to file
     compute_total_surface_area_total_volume(false, dim);
     
-    // cout << "Proc id = " << my_rank << "\ttime = " << time << "\tMembrane centroid = " << membrane_param.centroid_coordinates(0) << "\t" << membrane_param.centroid_coordinates(1) << "\t" << membrane_param.centroid_coordinates(2) << endl;
-    if(isnan(membrane_param.centroid_coordinates(0)) or isnan(membrane_param.centroid_coordinates(1)) or isnan(membrane_param.centroid_coordinates(2)))
-    {
-      cout << "Membrane centroid NaN\n";
-      exit(3);
-    }
-
     // Compute forces on all nodes
     // Spring force
-    if(case_type.compare("Breyannis2000case") != 0)
-      compute_spring_force( dim, spring_constant, "Anthony" );
-    else
-      compute_linear_spring_force( dim, spring_constant );
-        
+    compute_spring_force( dim, spring_constant, model_type );
 
     // Bending resistance
-    if(case_type.compare("Breyannis2000case") != 0)
-    {
-      compute_bending_resistance( dim, bending_spring_constant, 
-                                  bending_viscous_constant, dt, "none" );
-    }
+    compute_bending_resistance( dim, bending_spring_constant, 
+                                bending_viscous_constant, dt, model_type );
 
     /*
     // Viscous drag force
@@ -1819,17 +1886,19 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     compute_triangle_surface_area_conservation_force( triangle_surface_area_conservation_constant );
     */
 
+    membrane_param.total_kinetic_energy = 0.;
+
     // Compute new velocity and position
     for (size_t i=0;i<num_nodes;++i)
     {
       // Solve momentum conservation
-      if ( !iter_num ) // First order explicit at the 1st time
+      if ( !iter_num ) // First order explicit at the 1st time loop iteration
       {
         for (size_t j=0;j<dim;++j)
           m_all_nodes[i].velocity(j) += ( dt /  node_mass ) 
                                         * m_all_nodes[i].sumforce(j);
       }
-      else // 2nd order Adams-Bashforth from the 2nd time
+      else // 2nd order Adams-Bashforth from the 2nd time loop iteration
       {
         for (size_t j=0;j<dim;++j)
         {
@@ -1842,9 +1911,6 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
         } 			       
       }
       
-      // cout << "time = " << time << "\tinode = " << i << "\tforce = " << m_all_nodes[i].sumforce(0) << "\t" << m_all_nodes[i].sumforce(1) << "\t" << m_all_nodes[i].sumforce(2) << endl;
-      // cout << "time = " << time << "\tinode = " << i << "\tvelocity = " << m_all_nodes[i].velocity(0) << "\t" << m_all_nodes[i].velocity(1) << "\t" << m_all_nodes[i].velocity(2) << endl;
-
       // Update position with 2nd order Taylor series expansion
       for (size_t j=0;j<dim;++j)
       {
@@ -1854,6 +1920,11 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
                                          * ( m_all_nodes[i].sumforce(j) / node_mass ) 
                                          * pow( dt, 2. );
       }
+
+      // Compute total kinetic energy
+      for (size_t j=0;j<dim;++j)
+        membrane_param.total_kinetic_energy += 0.5 * node_mass * 
+                                     pow( m_all_nodes[inode].velocity(j), 2.0 );
     }
   }
 }
