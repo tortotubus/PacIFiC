@@ -149,12 +149,12 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void rbc_dynamics_solver(size_t const& dim, 
                                double const& dt_fluid,
                                string const& case_type,
-                               string const& model_type);
+                               string const& model_type = "NumericalMembraneModel" );
       
       /** @brief Computes spring force */
       void compute_spring_force( size_t const& dim, 
                                  double const& spring_constant,
-                                 string const& force_type = "Fedosov" );
+                                 string const& model_type = "NumericalMembraneModel" );
       
       /** @brief Computes spring force */
       void compute_linear_spring_force( size_t const& dim, 
@@ -165,12 +165,13 @@ class DS_3DRBC: public DS_ImmersedBoundary
                                        double const& bending_spring_constant,
                                        double const& bending_viscous_constant, 
                                        double const& dt,
-                                       string const& force_type = "Fedosov" );
+                                       string const& model_type = "NumericalMembraneModel" );
 
       /** @brief Computes viscous force */
       void compute_viscous_drag_force( size_t const& dim, 
                                        double const& viscous_drag_constant,
-                                       string const& force_type = "Fedosov" );
+                                       double const& dt,
+                                       string const& model_type = "NumericalMembraneModel" );
 
       /** @brief Lagrangian to Eulerian force spreading **/
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,

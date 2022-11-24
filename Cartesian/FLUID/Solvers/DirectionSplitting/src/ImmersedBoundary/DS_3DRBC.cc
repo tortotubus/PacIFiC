@@ -1938,12 +1938,13 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
 //---------------------------------------------------------------------------
 void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
                                             double const& viscous_drag_constant,
-                                            string const& force_type )
+                                            double const& dt,
+                                            string const& model_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_viscous_drag_force" ) ;
     
-  if(force_type.compare("Anthony") == 0)
+  if(model_type.compare("Simplified") == 0)
   {
     // This is not Fedosov's model but a simplified model of isotropic 
     // compression/extension of the surface area using the vectors
@@ -1972,6 +1973,80 @@ void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
           m_all_trielements[i].pnodes[k]->sumforce(j) += coef * unit_relpos(j);
       }
     }
+  }
+  else
+  {
+    size_t num_nodes = shape_param.N_nodes;
+    double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+    double eta_M = membrane_param.eta_M;
+
+    geomVector eij(dim);
+    geomVector vij(dim);
+    geomVector vij_M(dim);
+
+    membrane_param.mean_viscous_force_magnitude = 0.;
+    
+    // (x) ------------------- (x)
+    //  i                       j
+    // Nodes i and j of a spring
+    // Computing viscous force as two lines of code for nodes i and j
+    geomVector vjmvi(dim);
+    geomVector vimvj(dim);
+
+    // Making all the viscous force to 0.0
+    for (size_t i=0;i<num_nodes;++i)
+        for (size_t j=0;j<dim;++j) 
+            m_all_nodes[i].viscous_force(j) = 0.;
+        
+    for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+    {
+        // Vector of each spring
+        for (size_t j=0;j<dim;++j)
+            eij(j) = il->n3->coordinates(j) - il->n2->coordinates(j);
+        
+        // Length of each spring
+        double length = norm ( eij );
+        
+        // Unit vector of each spring
+        for (size_t j=0;j<dim;++j) 
+            eij(j) /= length;
+
+        // Relative velocity between nodes i and j
+        for (size_t j=0;j<dim;++j)
+        {
+            vimvj(j) = (il->n2->velocity(j) - il->n3->velocity(j)) * (dt/order_of_magnitude_of_radius);
+            vjmvi(j) = (il->n3->velocity(j) - il->n2->velocity(j)) * (dt/order_of_magnitude_of_radius);
+        }
+    
+        // Projection of relative velocity on the spring unit vector
+        double vimvj_dot_eij = scalar(vimvj, eij);
+        double vjmvi_dot_eij = scalar(vjmvi, eij);
+        
+        // Viscous force computation
+        double constant_1 = 12.0 / (13.0 * sqrt(3.0));
+        double constant_2 =  4.0 / (13.0 * sqrt(3.0)); // gamma_C = gamma_T/3
+        double gamma_T = constant_1 * eta_M; // T = translational component
+        double gamma_C = constant_2 * eta_M; // C = central component
+        for (size_t j=0;j<dim;++j)
+        {
+            // Viscous force on node i
+            double f_i = - (gamma_T * vimvj(j) + gamma_C * vimvj_dot_eij * eij(j));
+            il->n2->sumforce(j) += f_i;
+            il->n2->viscous_force(j) += f_i;
+
+            // Viscous force on node j
+            double f_j = - (gamma_T * vjmvi(j) + gamma_C * vjmvi_dot_eij * eij(j));
+            il->n3->sumforce(j) += f_j;
+            il->n3->viscous_force(j) += f_j;
+        }
+    }
+
+    // Computing mean viscous force magnitude
+    for (size_t i=0;i<num_nodes;++i)
+        membrane_param.mean_viscous_force_magnitude += norm(m_all_nodes[i].viscous_force);
+    
+    // Mean viscous force
+    membrane_param.mean_viscous_force_magnitude /= num_nodes;
   }
 }
 
@@ -2035,10 +2110,10 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     compute_bending_resistance( dim, bending_spring_constant, 
                                 bending_viscous_constant, dt, model_type );
 
-    /*
     // Viscous drag force
-    compute_viscous_drag_force( viscous_drag_constant );
+    compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
+    /*
     // Volume conservation force
     compute_volume_conservation_force( volume_conservation_constant );
 

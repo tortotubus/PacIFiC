@@ -342,14 +342,14 @@ class DS_ImmersedBoundary
                             
       /** @brief Computes RBC deformation using spring-dashpot model */
       virtual void rbc_dynamics_solver(size_t const& dim, 
-                                       double const& dt_fluid,
-                                       string const& case_type,
-                                       string const& model_type) = 0;
+                       double const& dt_fluid,
+                       string const& case_type,
+                       string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes spring force */
       virtual void compute_spring_force( size_t const& dim,
-                                         double const& spring_constant,
-                                         string const& force_type = "Fedosov" ) = 0;
+                      double const& spring_constant,
+                      string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes linear spring force Breyannis2000 and Bagchi2007 
       1. Compute tension T = Es * (l/l0 -1) for each edge of a node
@@ -360,15 +360,16 @@ class DS_ImmersedBoundary
       
       /** @brief Computes bending force */
       virtual void compute_bending_resistance (size_t const& dim, 
-                                         double const& bending_spring_constant,
-                                         double const& bending_viscous_constant, 
-                                         double const& dt,
-                                         string const& force_type = "Fedosov" ) = 0;
+                      double const& bending_spring_constant,
+                      double const& bending_viscous_constant, 
+                      double const& dt,
+                      string const& model_type = "NumericalMembraneModel" ) = 0;
 
       /** @brief Computes viscous force */
       virtual void compute_viscous_drag_force( size_t const& dim, 
-                                     double const& viscous_drag_constant,
-                                     string const& force_type = "Fedosov" ) = 0;
+                      double const& viscous_drag_constant,
+                      double const& dt,
+                      string const& model_type = "NumericalMembraneModel" ) = 0;
 
       /** @brief Computes the statistics of each immersed boundary */
       virtual void compute_stats(string const& directory, 

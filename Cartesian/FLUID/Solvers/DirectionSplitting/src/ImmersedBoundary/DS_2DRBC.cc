@@ -712,7 +712,7 @@ void DS_2DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
 //---------------------------------------------------------------------------
 void DS_2DRBC:: compute_spring_force(size_t const& dim, 
                                      double const& spring_constant,
-                                     string const& force_type)
+                                     string const& model_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_spring_force" ) ;
@@ -807,7 +807,7 @@ void DS_2DRBC:: compute_bending_resistance( size_t const& dim,
                                          double const& bending_spring_constant,
                                          double const& bending_viscous_constant, 
                                          double const& dt,
-                                         string const& force_type )
+                                         string const& model_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_bending_resistance" ) ;
@@ -865,7 +865,8 @@ void DS_2DRBC:: compute_bending_resistance( size_t const& dim,
 // Computes viscous drag force
 void DS_2DRBC:: compute_viscous_drag_force( size_t const& dim,
                                            double const& viscous_drag_constant,
-                                           string const& force_type )
+                                           double const& dt,
+                                           string const& model_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_viscous_drag_force" ) ;
@@ -927,7 +928,7 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Compute forces on all nodes
     // Spring force
     if(case_type.compare("Breyannis2000case") != 0)
-      compute_spring_force( dim, spring_constant );
+      compute_spring_force( dim, spring_constant, model_type );
     else
       compute_linear_spring_force( dim, spring_constant );
         
@@ -936,10 +937,11 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
       compute_bending_resistance( dim,
                                   bending_spring_constant, 
                                   bending_viscous_constant, 
-                                  dt );
+                                  dt,
+                                  model_type );
 
     // Viscous drag force
-    compute_viscous_drag_force( dim, viscous_drag_constant );
+    compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
 
     for (size_t inode=0;inode<num_nodes;++inode)
