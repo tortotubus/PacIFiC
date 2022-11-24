@@ -93,6 +93,10 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Sets all edges and its nodes and normals */
       void set_all_edges(size_t const& dim);
       
+      /** @brief Initializes immersed body material properties in physical units
+      for the "detailed numerial membrane model (NMM)" **/
+      void init_membrane_parameters_physical_units();
+      
       /** @brief Compute current (& initial) spring lengths */
       void compute_spring_lengths(bool init, size_t const& dim);
       
@@ -116,7 +120,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void cross_3D( geomVector const& v0, geomVector const& v1, geomVector& res );
       
       /** @brief Computes node based spring and bending constants **/
-      void preprocess_membrane_parameters(string const& case_type,
+      void preprocess_membrane_parameters(string const& model_type,
+                                          string const& case_type,
                                           double const& mu,
                                           size_t const& num_subtimesteps_RBC);
       

@@ -243,6 +243,17 @@ void DS_2DRBC:: set_all_edges(size_t const& dim)
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: init_membrane_parameters_physical_units()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: init_membrane_parameters_physical_units" );
+  
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: compute_spring_lengths(bool init, size_t const& dim)
 //---------------------------------------------------------------------------
 {
@@ -319,54 +330,62 @@ void DS_2DRBC:: compute_edge_angle(bool init)
 
 
 //---------------------------------------------------------------------------
-void DS_2DRBC:: preprocess_membrane_parameters(string const& case_type
+void DS_2DRBC:: preprocess_membrane_parameters(string const& model_type
+                                           , string const& case_type
                                            , double const& mu
                                            , size_t const& num_subtimesteps_RBC)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: preprocess_membrane_parameters" ) ;
   
-  // Membrane mass to Node mass
-  membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
-  
-  // Number of subtimesteps for RBC dynamics iterations
-  membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
-  
-  // Membrane constants to edge & node based constants
-  membrane_param.membrane_spring_constant = membrane_param.k_spring;
-
-  // Set the spring constant values
-  if(case_type.compare("Breyannis2000case") != 0)
+  if(model_type.compare("NumericalMembraneModel") == 0) // if it is detailed numerical membrane model
   {
-    membrane_param.k_spring *= double(m_nEdges); // edge spring constant
-    membrane_param.k_bending *= double(m_nEdges); // node bending constant
-    membrane_param.k_bending_visc /= double(m_nEdges);
-    membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
-      
-    // Timescales
-    membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
-                               * pow( membrane_param.mass / 
-                               membrane_param.membrane_spring_constant, 0.5 );
-    membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
-                               * pow( membrane_param.node_mass / 
-                               membrane_param.k_spring, 0.5 );
-    membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
-              * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
-              * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
-    
-    membrane_param.ntimescales = 20.;
-    membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
-                        membrane_param.node_bending_mass_spring_timescale ) 
-                        / 50. ;
-    membrane_param.tmax = double(membrane_param.ntimescales) 
-                          * membrane_param.membrane_mass_spring_timescale;
-    membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
+    // Nothing to do since NMM is valid for 3D RBC
   }
   else
   {
-    membrane_param.k_spring = mu * membrane_param.ShearRate * shape_param.radius 
-                              / membrane_param.CapillaryNumber;
+    // Membrane mass to Node mass
+    membrane_param.node_mass = membrane_param.mass / double(shape_param.N_nodes);
+    
+    // Number of subtimesteps for RBC dynamics iterations
+    membrane_param.n_subtimesteps_RBC = num_subtimesteps_RBC;
+    
+    // Membrane constants to edge & node based constants
     membrane_param.membrane_spring_constant = membrane_param.k_spring;
+
+    // Set the spring constant values
+    if(case_type.compare("Breyannis2000case") != 0)
+    {
+      membrane_param.k_spring *= double(m_nEdges); // edge spring constant
+      membrane_param.k_bending *= double(m_nEdges); // node bending constant
+      membrane_param.k_bending_visc /= double(m_nEdges);
+      membrane_param.k_viscous /= double(m_nEdges); // node viscous constant
+        
+      // Timescales
+      membrane_param.membrane_mass_spring_timescale = 2. * MAC::pi() 
+                                 * pow( membrane_param.mass / 
+                                 membrane_param.membrane_spring_constant, 0.5 );
+      membrane_param.edge_mass_spring_timescale = 2. * MAC::pi() 
+                                 * pow( membrane_param.node_mass / 
+                                 membrane_param.k_spring, 0.5 );
+      membrane_param.node_bending_mass_spring_timescale = 2. * MAC::pi() 
+                * ( 2. * MAC::pi() * shape_param.radius / double(m_nEdges) ) 
+                * pow( membrane_param.node_mass / membrane_param.k_bending, 0.5 );
+      
+      membrane_param.ntimescales = 20.;
+      membrane_param.dt = min( membrane_param.edge_mass_spring_timescale, 
+                          membrane_param.node_bending_mass_spring_timescale ) 
+                          / 50. ;
+      membrane_param.tmax = double(membrane_param.ntimescales) 
+                            * membrane_param.membrane_mass_spring_timescale;
+      membrane_param.ntimesteps = size_t(membrane_param.tmax / membrane_param.dt);
+    }
+    else
+    {
+      membrane_param.k_spring = mu * membrane_param.ShearRate * shape_param.radius 
+                                / membrane_param.CapillaryNumber;
+      membrane_param.membrane_spring_constant = membrane_param.k_spring;
+    }
   }
 }
 

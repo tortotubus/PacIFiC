@@ -48,8 +48,38 @@ struct MembraneParameters
   double membrane_spring_constant;
   double membrane_mass_spring_timescale, edge_mass_spring_timescale;
   double node_bending_mass_spring_timescale;
-  double eta_P, eta_M; // membrane viscosity
+
+  // Flow physics parameters
   double ReynoldsNumber, CapillaryNumber, ShearRate;
+  
+  // Detailed "numerical membrane model (NMM)" parameters in 'physical' units
+  double mu0_P; // Shear modulus in N/m 
+  double Y_P; // Young's modulus in N/m
+  double x0; // Maximum allowable extension of spring length --> x0 = l/lmax
+  double D0_P; // Diameter of immersed body in micro-metre
+  double kc_P; // Bending rigidity of immersed body in Joules
+  double kbending_P; // Bending constant of immersed body
+  double eta_P; // membrane viscosity
+  double eta_plasma_P; // Dynamic viscosity of fluid surrounding immersed body
+  double eta_cytoplasm_P; // Dynamic viscosity of fluid inside immersed body
+  double rho_plasma_P; // Density of fluid surrounding immersed body in in kg/m^3
+  double rho_P; // Density of immersed body
+  double m; // exponent in POW spring force model
+  double alpha; // exponent in time scale calculation
+  double t; // timescale of the immersed body in seconds
+  
+  // // NMM parameters in 'model' units
+  double node_mass_M;
+  double mu0_M;
+  double Y_M;
+  double D0_M;
+  double kc_M;
+  double kbending_M;
+  double eta_M;
+  double eta_plasma_M;
+  double eta_cytoplasm_M;
+  double rho_plasma_M;
+  double rho_M;
 
   // Temporal parameters
   double tmax, dt;
@@ -230,6 +260,10 @@ class DS_ImmersedBoundary
       3D: rotation is achieved using roll, pitch and yaw angles */
       void rotate_membrane();
       
+      /** @brief Initializes immersed body material properties in physical units
+      for the "detailed numerial membrane model (NMM)" **/
+      virtual void init_membrane_parameters_physical_units() = 0;
+      
       /** @brief Computes current (& initial) spring lengths */
       virtual void compute_spring_lengths(bool init, size_t const& dim) = 0;
       
@@ -257,7 +291,8 @@ class DS_ImmersedBoundary
       double compute_dist_incl_pbc(double p1, double p2, double length);
       
       /** @brief Computes node based spring and bending constants **/
-      virtual void preprocess_membrane_parameters(string const& case_type,
+      virtual void preprocess_membrane_parameters(string const& model_type,
+                                        string const& case_type,
                                         double const& mu,
                                         size_t const& num_subtimesteps_RBC) = 0;
       

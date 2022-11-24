@@ -398,7 +398,9 @@ void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
   MAC_LABEL( "DS_AllImmersedBoundary:: preprocess_immersed_body_parameters" ) ;
   
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundary[i]->preprocess_membrane_parameters(case_type
+    m_allDSimmersedboundary[i]->preprocess_membrane_parameters
+                                                       ("NumericalMembraneModel"
+                                                        , case_type
                                                         , mu
                                                         , num_subtimesteps_RBC);
   }
