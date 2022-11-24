@@ -1549,7 +1549,7 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
     
     for (size_t i=0;i<num_nodes;++i)
     {
-        for (size_t j=0;j<3;++j)
+        for (size_t j=0;j<dim;++j)
         {
             m_all_nodes[i].WLC_force(j) = 0.;
             m_all_nodes[i].POW_force(j) = 0.;
@@ -1559,14 +1559,14 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
     for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
     {
         // Computing the spring vector from node 3 to node 2, i.e., node j to i
-        for (size_t j=0;j<3;++j)
+        for (size_t j=0;j<dim;++j)
           Iij(j) = il->n2->coordinates(j) - il->n3->coordinates(j); 
 
         // Spring length
         length = norm ( Iij );
 
         // Normalizing the spring vector to unit vector
-        for (size_t j=0;j<3;++j)
+        for (size_t j=0;j<dim;++j)
           Iij(j) /= length;
         
         // WLC spring prefactor
@@ -1580,7 +1580,7 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
         double l_M = length / order_of_magnitude_of_radius;
         double beta = 1. / pow(l_M, 2.);
 
-        for (size_t j=0;j<3;++j)
+        for (size_t j=0;j<dim;++j)
         {
             // WLC force
             f_WLC(j) = - il->k * alpha * Iij(j);
@@ -1664,17 +1664,21 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
                                         double const& bending_spring_constant,
                                         double const& bending_viscous_constant, 
                                         double const& dt,
-                                        string const& force_type )
+                                        string const& model_type )
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_bending_resistance" ) ;
   
   geomVector a21(dim), a31(dim), a24(dim), a34(dim);
   geomVector Chi(dim), Gamma(dim), crossp(dim), n2n3(dim);
+  geomVector Chi_minus_Gamma(dim), tc1_minus_tc2(dim), tc1(dim), tc2(dim);
   double angle = 0., dot = 0., mi = 0.;
   double lever1 = 0., lever4 = 0., nxi = 0., nzeta = 0.;
+  
+  size_t num_nodes = shape_param.N_nodes;
 
-  if(force_type.compare("Simplified") == 0)
+
+  if(model_type.compare("Simplified") == 0)
   {
     for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
     {
@@ -1769,6 +1773,162 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
         il->n3->sumforce(j) -= 0.5 * ( mi / lever4 ) * Gamma(j);
       }
     }
+  }
+  else // Detailed numerical membrane model (NMM)
+  {
+    double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+    
+    // Setting bending_force variable to 0.0
+    for (size_t inode=0;inode<num_nodes;++inode)
+        for (size_t j=0;j<dim;++j)
+            m_all_nodes[inode].bending_force(j) = 0.;
+            
+    
+    for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+    {
+        // Steps for computing bending force
+        
+        //  1. Compute a21, a31
+        // a21 = a1 - a2 = vector from node 2 to node 1
+        for (size_t j=0;j<dim;++j) 
+          a21(j) = (-il->t1v1.second->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a31 = a1 - a3 = vector from node 3 to node 1
+        for (size_t j=0;j<dim;++j) 
+          a31(j) = (-il->t1v1.second->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        
+        //  2. Compute chi
+        cross_3D(a21, a31, Chi);
+        
+        
+        //  3. Compute a34, a24
+        // a34 = a4 - a3 = vector from node 3 to node 4
+        for (size_t j=0;j<dim;++j) 
+          a34(j) = (-il->t2v4.second->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a24 = a4 - a2 = vector from node 2 to node 4
+        for (size_t j=0;j<dim;++j) 
+          a24(j) = (-il->t2v4.second->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+        
+        
+        //  4. Compute gamma
+        cross_3D(a34, a24, Gamma);
+            
+            
+        double A1 = 0.5 * norm(Chi);
+        double A2 = 0.5 * norm(Gamma);
+            
+        //  6. Compute chi - gamma
+        for (size_t j=0;j<dim;++j) Chi_minus_Gamma(j) = Chi(j) - Gamma(j);
+            
+        
+        //  7. Compute tc1 - tc2
+        for (size_t j=0;j<dim;++j) tc1(j) = (il->t1v1.second->coordinates(j) + il->n2->coordinates(j) + il->n3->coordinates(j))/3.;
+        for (size_t j=0;j<dim;++j) tc2(j) = (il->n2->coordinates(j) + il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/3.;
+        for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = (tc1(j) - tc2(j))/order_of_magnitude_of_radius;
+        double dot_product = scalar(Chi_minus_Gamma, tc1_minus_tc2);
+
+
+        //  5. Compute costheta
+        double costheta = scalar(Chi, Gamma)/A1/A2/4.0;
+            
+        
+        //  6. Compute sintheta (with a clipping for values above 0.5 or so)
+        if(costheta >  1.) costheta =  1.;
+        if(costheta < -1.) costheta = -1.;
+        double theta = acos(costheta);
+        if(dot_product < 0.) theta *= -1.;
+        double sintheta = sin(theta);
+        if(fabs(sintheta) < SMALLER) sintheta = SMALLER;
+        double siinv = 1. / sintheta;
+            
+
+
+
+            
+        //  7. Compute a12, a13, a43, a42, a32, a23
+        // a12 = a2 - a1 = vector from node 1 to node 2
+        geomVector a12(dim);
+        for (size_t j=0;j<dim;++j) a12(j) = (-il->n2->coordinates(j) + il->t1v1.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a13 = a3 - a1 = vector from node node 1 to node 3
+        geomVector a13(dim);
+        for (size_t j=0;j<dim;++j) a13(j) = (-il->n3->coordinates(j) + il->t1v1.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a43 = a3 - a4 = vector from node 4 to node 3
+        geomVector a43(dim);
+        for (size_t j=0;j<dim;++j) a43(j) = (-il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a42 = a2 - a4 = vector from node 4 to node 2
+        geomVector a42(dim);
+        for (size_t j=0;j<dim;++j) a42(j) = (-il->n2->coordinates(j) + il->t2v4.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a32 = a2 - a3 = vector from node 3 to node 2
+        geomVector a32(dim);
+        for (size_t j=0;j<dim;++j) a32(j) = (-il->n2->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a23 = a3 - a2 = vector from node to node 3
+        geomVector a23(dim);
+        for (size_t j=0;j<dim;++j) a23(j) = (-il->n3->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+            
+            
+        //  8. Compute beta_b
+        double beta_b = membrane_param.kbending_M * (sintheta * il->costheta0 - costheta * il->sintheta0) * siinv;
+        
+        //  9. Compute b11, b12, b22
+        double b11 = - beta_b*costheta/A1/A1/4.0;
+        double b12 =   beta_b/A1/A2/4.0;
+        double b22 = - beta_b*costheta/A2/A2/4.0;
+            
+
+        //  10. Compute nodal forces
+        // Node 1
+        geomVector Chi_cross_a32(dim);
+        cross_3D(Chi, a32, Chi_cross_a32);
+        geomVector Gamma_cross_a32(dim);
+        cross_3D(Gamma, a32, Gamma_cross_a32);
+        for (size_t j=0;j<dim;++j) il->t1v1.second->sumforce(j) += b11 * Chi_cross_a32(j) + b12 * Gamma_cross_a32(j);
+        for (size_t j=0;j<dim;++j) il->t1v1.second->bending_force(j) += b11 * Chi_cross_a32(j) + b12 * Gamma_cross_a32(j);
+        
+        // Node 2
+        geomVector Chi_cross_a13(dim);
+        cross_3D(Chi, a13, Chi_cross_a13);
+        geomVector Chi_cross_a34(dim);
+        cross_3D(Chi, a34, Chi_cross_a34);
+        geomVector Gamma_cross_a13(dim);
+        cross_3D(Gamma, a13, Gamma_cross_a13);
+        geomVector Gamma_cross_a34(dim);
+        cross_3D(Gamma, a34, Gamma_cross_a34);
+        for (size_t j=0;j<dim;++j) il->n2->sumforce(j) += b11 * Chi_cross_a13(j) + b12 * (Chi_cross_a34(j) + Gamma_cross_a13(j)) + b22 * Gamma_cross_a34(j);
+        for (size_t j=0;j<dim;++j) il->n2->bending_force(j) += b11 * Chi_cross_a13(j) + b12 * (Chi_cross_a34(j) + Gamma_cross_a13(j)) + b22 * Gamma_cross_a34(j);
+        
+        // Node 3
+        geomVector Chi_cross_a21(dim);
+        cross_3D(Chi, a21, Chi_cross_a21);
+        geomVector Chi_cross_a42(dim);
+        cross_3D(Chi, a42, Chi_cross_a42);
+        geomVector Gamma_cross_a21(dim);
+        cross_3D(Gamma, a21, Gamma_cross_a21);
+        geomVector Gamma_cross_a42(dim);
+        cross_3D(Gamma, a42, Gamma_cross_a42);
+        for (size_t j=0;j<dim;++j) il->n3->sumforce(j) += b11 * Chi_cross_a21(j) + b12 * (Chi_cross_a42(j) + Gamma_cross_a21(j)) + b22 * Gamma_cross_a42(j);
+        for (size_t j=0;j<dim;++j) il->n3->bending_force(j) += b11 * Chi_cross_a21(j) + b12 * (Chi_cross_a42(j) + Gamma_cross_a21(j)) + b22 * Gamma_cross_a42(j);
+        
+        // Node 4
+        geomVector Chi_cross_a23(dim);
+        cross_3D(Chi, a23, Chi_cross_a23);
+        geomVector Gamma_cross_a23(dim);
+        cross_3D(Gamma, a23, Gamma_cross_a23);
+        for (size_t j=0;j<dim;++j) il->t2v4.second->sumforce(j) += b12 * Chi_cross_a23(j) + b22 * Gamma_cross_a23(j);
+        for (size_t j=0;j<dim;++j) il->t2v4.second->bending_force(j) += b12 * Chi_cross_a23(j) + b22 * Gamma_cross_a23(j);
+    }
+    
+    // Compute mean bending force magnitude
+    membrane_param.mean_bending_force_magnitude = 0.;
+    for (size_t inode=0;inode<num_nodes;++inode)
+        membrane_param.mean_bending_force_magnitude += norm(m_all_nodes[inode].bending_force);
+    membrane_param.mean_bending_force_magnitude /= num_nodes;
   }
 }
 
