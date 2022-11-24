@@ -719,7 +719,6 @@ void DS_3DRBC:: init_membrane_parameters_in_model_units()
 {
   MAC_LABEL( "DS_3DRBC:: init_membrane_parameters_model_units" );
   
-  /*
   membrane_param.mu0_M = 100.; // model unit's shear modulus
   membrane_param.k_area = 4900.; // ka
   membrane_param.k_area_local = 100.; // kd
@@ -727,8 +726,91 @@ void DS_3DRBC:: init_membrane_parameters_in_model_units()
   membrane_param.D0_M = 7.82; // 8.25; // given by "user"
   membrane_param.eta_M = 6.6; // 1.8; // 6.6 * 10.; // in model units // I think this is the value we choose just like choosing membrane_param.D0_M
   membrane_param.eta_plasma_M = 10.; // in model units -- need better value prediction mathematically or analytically
-  */
 }
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: scaling_membrane_params_from_physical_to_model_units()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+  
+  double mu0_M = membrane_param.mu0_M;
+  double ka = membrane_param.k_area;
+  double kd = membrane_param.k_area_local;
+  double Y_P = membrane_param.Y_P;
+  double D0_P = membrane_param.D0_P;
+  double D0_M = membrane_param.D0_M;
+  double eta_P = membrane_param.eta_P;
+  double eta_M = membrane_param.eta_M;
+  double alpha = membrane_param.alpha;
+  
+  // Compression/Volumetric/Bulk modulus of membrane in model units
+  double K_M = 2. * mu0_M + ka + kd;
+                               
+  // Young's modulus of membrane in model units
+  double Y_M = 4. * K_M * mu0_M / (K_M + mu0_M);
+  
+  
+  // // time scale
+  membrane_param.t = pow( ((D0_P * eta_P/Y_P) / (D0_M * eta_M/Y_M)), alpha );
+  
+  // // membrane_param.t = pow( ((D0_P * eta_P/mu0_P) / (D0_M * eta_M/mu0_M)), alpha );
+  // // membrane_param.t = pow( ((D0_P * eta_plasma_P/mu0_P) / (D0_M * eta_plasma_M/mu0_M)), alpha );
+  
+  
+}
+
+
+
+
+/*
+//---------------------------------------------------------------------------
+void DS_3DRBC:: compute_spring_constant_values()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+  
+  //------------------------------------------------------//
+  // With scaling the lengths of the springs to model units
+  //-----------------------------------------------------//
+  double x0 = mem.x0;
+  double alpha_1 = 1./(4.*pow(1-x0, 2.));
+  double alpha_2 = 1./4.;
+  double alpha_3 = x0;
+  double alpha = alpha_1 - alpha_2 + alpha_3;
+  
+  double beta_1 = x0/(2.*pow(1-x0, 3.));
+  double beta_2 = 1./(4.*pow(1-x0, 2.));
+  double beta_3 = 1./4.;
+  double beta = beta_1 - beta_2 + beta_3;
+  
+  double denominator = sqrt(3.) * (beta + 3. * alpha);
+  
+  double length_component[3];
+  double edge_length;
+  
+  for (list<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+  {
+      for (size_t j=0;j<3;++j) length_component[j] = il->n2->coordinates[j] - il->n3->coordinates[j];
+      edge_length = norm(length_component);
+      
+      // Initial length of each spring
+      il->l0 = edge_length;
+      
+      // Max allowed length of each spring
+      il->lmax = il->l0 / mem.x0;
+      
+      // double l0_M = mem.mean_edge_length / pow(10., floor(log10(mem.mean_edge_length)));
+      double l0_M = il->l0 / order_of_magnitude_of_radius; //  / pow(10., floor(log10(mem.mean_edge_length)))  // I choose 1 micron as the factor to upgrade the length from micro-metre to length in model units
+      
+      il->k =  ( 4. * mem.mu0_M * l0_M ) / denominator; // = kBT/p quantity, i.e., kBT/p = k for WLC spring force
+      il->kp = ( 4. * mem.mu0_M * alpha * pow(l0_M, 3.) ) / denominator; // for POW spring force
+  }
+}
+*/
 
 
 
@@ -749,6 +831,12 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
     
     // Initialize membrane material properties in model units
     init_membrane_parameters_in_model_units();
+    
+    // Scaling membrane material properties from physical units to model units
+    scaling_membrane_params_from_physical_to_model_units();
+    
+    // Compute WLC and POW spring constant values for each spring using mu0, x0, l0, lmax
+    // // compute_spring_constant_values();
   }
   else
   {

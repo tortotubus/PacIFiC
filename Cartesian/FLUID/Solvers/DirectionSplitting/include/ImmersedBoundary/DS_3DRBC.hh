@@ -97,9 +97,13 @@ class DS_3DRBC: public DS_ImmersedBoundary
       for the "detailed numerial membrane model (NMM)" **/
       void init_membrane_parameters_in_physical_units();
       
-      /** @brief Initializes immersed body material properties in model units
+      /** @brief Initializes RBC material properties in model units
       for the "detailed numerial membrane model (NMM)" **/
       void init_membrane_parameters_in_model_units();
+      
+      /** @brief Compute the timescale of RBC 
+      for the "detailed numerial membrane model (NMM)" **/
+      void scaling_membrane_params_from_physical_to_model_units();
       
       /** @brief Compute current (& initial) spring lengths */
       void compute_spring_lengths(bool init, size_t const& dim);
