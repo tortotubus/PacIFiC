@@ -71,7 +71,6 @@ struct MembraneParameters
   // // NMM parameters in 'model' units
   double node_mass_M;
   double mu0_M;
-  double Y_M;
   double D0_M;
   double kc_M;
   double kbending_M;
