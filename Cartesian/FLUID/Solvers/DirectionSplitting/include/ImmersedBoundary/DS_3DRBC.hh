@@ -139,7 +139,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void compute_spring_constant_values_in_model_units(size_t const& dim);
       
       /** @brief Compute bending constant value in model units **/
-      void compute_bending_constant_values_in_model_units (size_t const& dim);
+      void compute_bending_constant_values_in_model_units();
       
       /** @brief IBM: Eulerian velocity to Lagrangian velocity interpolation */
       void eul_to_lag(FV_DiscreteField const* FF, size_t const& dim, 
@@ -148,7 +148,8 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Computes RBC deformation using spring-dashpot model */
       void rbc_dynamics_solver(size_t const& dim, 
                                double const& dt_fluid,
-                               string const& case_type);
+                               string const& case_type,
+                               string const& model_type);
       
       /** @brief Computes spring force */
       void compute_spring_force( size_t const& dim, 

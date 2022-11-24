@@ -67,11 +67,13 @@ void DS_3DRBC:: initialize_node_properties(string const& mesh_filename,
   temp.angular_velocity(dim);
   temp.sumforce(dim);
   temp.sumforce_nm1(dim);
+  temp.WLC_force(dim);
+  temp.POW_force(dim);
   temp.spring_force(dim);
   temp.bending_force(dim);
-  temp.viscous_force(dim);
-  temp.volume_force(dim);
   temp.area_force(dim);
+  temp.volume_force(dim);
+  temp.viscous_force(dim);
   temp.unit_outwards_normal_vector(dim);
   set<Node const*> ww;
   vector< set<Node const*> > neighbors_3D( shape_param.N_nodes, ww );
@@ -491,6 +493,8 @@ void DS_3DRBC:: set_all_edges(size_t const& dim)
     }
   }
   
+  double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+  
   // Check if n2-n3 are correctly ordered else swap them
   // i.e., check if normals of triangles on either side 
   // of edge match original normals from set_all_trielements()
@@ -819,13 +823,14 @@ void DS_3DRBC:: compute_spring_constant_values_in_model_units(size_t const& dim)
 
 
 //---------------------------------------------------------------------------
-void RBC3D::compute_bending_constant_values_in_model_units()
+void DS_3DRBC:: compute_bending_constant_values_in_model_units()
 //---------------------------------------------------------------------------
 {
   double kbending_P = membrane_param.kbending_P;
   double D0_P = membrane_param.D0_P;
   double mu0_P = membrane_param.mu0_P;
   double D0_M = membrane_param.D0_M;
+  double mu0_M = membrane_param.mu0_M;
   
   // Computing non-dimensional quantity
   double gamma = kbending_P / (pow(D0_P, 2.) * mu0_P);
@@ -1534,79 +1539,74 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
   }
   else
   {
+    double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+    
     geomVector f_WLC(dim);
     geomVector f_POW(dim);
     
     membrane_param.mean_WLC_spring_force_magnitude = 0.;
     membrane_param.mean_POW_spring_force_magnitude = 0.;
     
-    for (size_t i=0;i<m_number_of_nodes;++i)
+    for (size_t i=0;i<num_nodes;++i)
     {
         for (size_t j=0;j<3;++j)
         {
-            m_all_nodes[i].WLC_force[j] = 0.;
-            m_all_nodes[i].POW_force[j] = 0.;
+            m_all_nodes[i].WLC_force(j) = 0.;
+            m_all_nodes[i].POW_force(j) = 0.;
         }
     }
         
     for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
     {
-        // Computing the unit vector
-        for (size_t j=0;j<3;++j) Iij[j] = il->n2->coordinates[j] - il->n3->coordinates[j]; // vector from node 3 to node 2 or node j to node i
+        // Computing the spring vector from node 3 to node 2, i.e., node j to i
+        for (size_t j=0;j<3;++j)
+          Iij(j) = il->n2->coordinates(j) - il->n3->coordinates(j); 
+
+        // Spring length
         length = norm ( Iij );
-        for (size_t j=0;j<3;++j) Iij[j] /= length;
+
+        // Normalizing the spring vector to unit vector
+        for (size_t j=0;j<3;++j)
+          Iij(j) /= length;
         
+        // WLC spring prefactor
         double x = length / il->lmax;
         double alpha_1 = 1. / (4. * pow(1.-x, 2.));
         double alpha_2 = 1./4.;
         double alpha_3 = x;
         double alpha = alpha_1 - alpha_2 + alpha_3;
 
-        double l_M = length / order_of_magnitude_of_radius; // I choose 1 micron as the factor to upgrade the length in micro-metre to length in model units
+        // POW spring prefactor
+        double l_M = length / order_of_magnitude_of_radius;
         double beta = 1. / pow(l_M, 2.);
 
         for (size_t j=0;j<3;++j)
         {
             // WLC force
-            f_WLC[j] = - il->k * alpha * Iij[j];
-            il->n2->sumforce[j]  +=  f_WLC[j];
-            il->n3->sumforce[j]  += -f_WLC[j];
-            il->n2->WLC_force[j] +=  f_WLC[j];
-            il->n3->WLC_force[j] += -f_WLC[j];
+            f_WLC(j) = - il->k * alpha * Iij(j);
+            il->n2->sumforce(j)  +=  f_WLC(j);
+            il->n3->sumforce(j)  += -f_WLC(j);
+            il->n2->WLC_force(j) +=  f_WLC(j);
+            il->n3->WLC_force(j) += -f_WLC(j);
 
             // POW force
-            f_POW[j] = il->kp * beta * Iij[j];
-            il->n2->sumforce[j]  +=  f_POW[j];
-            il->n3->sumforce[j]  += -f_POW[j];
-            il->n2->WLC_force[j] +=  f_POW[j];
-            il->n3->WLC_force[j] += -f_POW[j];
+            f_POW(j) = il->kp * beta * Iij(j);
+            il->n2->sumforce(j)  +=  f_POW(j);
+            il->n3->sumforce(j)  += -f_POW(j);
+            il->n2->WLC_force(j) +=  f_POW(j);
+            il->n3->WLC_force(j) += -f_POW(j);
         }
     }
     
-    for (size_t i=0;i<m_number_of_nodes;++i)
+    for (size_t i=0;i<num_nodes;++i)
     {
-        // WLC force
-        membrane_param.mean_WLC_spring_force_magnitude += sqrt( pow(m_all_nodes[i].WLC_force[0], 2.) + 
-                                                     pow(m_all_nodes[i].WLC_force[1], 2.) + 
-                                                     pow(m_all_nodes[i].WLC_force[2], 2.) );
-            
-        // POW force
-        membrane_param.mean_POW_spring_force_magnitude += sqrt( pow(m_all_nodes[i].POW_force[0], 2.) + 
-                                                     pow(m_all_nodes[i].POW_force[1], 2.) + 
-                                                     pow(m_all_nodes[i].POW_force[2], 2.) );
+        membrane_param.mean_WLC_spring_force_magnitude += norm(m_all_nodes[i].WLC_force);
+        membrane_param.mean_POW_spring_force_magnitude += norm(m_all_nodes[i].POW_force);
     }
     
     // Mean spring force
-    membrane_param.mean_WLC_spring_force_magnitude /= m_number_of_nodes;
-    membrane_param.mean_POW_spring_force_magnitude /= m_number_of_nodes;
-
-
-    // Mean sum force magnitude over all nodes
-    double mean_sumforce_magnitude = 0.;
-    for (size_t i=0;i<m_number_of_nodes;++i)
-        for (size_t j=0;j<3;++j)
-            mean_sumforce_magnitude += sqrt( pow(m_all_nodes[i].sumforce[0], 2.) + pow(m_all_nodes[i].sumforce[1], 2.) + pow(m_all_nodes[i].sumforce[2], 2.) );
-    mean_sumforce_magnitude /= m_number_of_nodes;
+    membrane_param.mean_WLC_spring_force_magnitude /= num_nodes;
+    membrane_param.mean_POW_spring_force_magnitude /= num_nodes;
   }
 } 
 
@@ -1838,8 +1838,8 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   size_t n_sub_timesteps = membrane_param.n_subtimesteps_RBC;
   
   double time = 0.;
-  double membrane_param.total_kinetic_energy = 0.;
   double dt = dt_fluid / n_sub_timesteps;
+  membrane_param.total_kinetic_energy = 0.;
   
   MAC_Communicator const* MAC_comm;
   MAC_comm = MAC_Exec::communicator();
@@ -1924,7 +1924,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
       // Compute total kinetic energy
       for (size_t j=0;j<dim;++j)
         membrane_param.total_kinetic_energy += 0.5 * node_mass * 
-                                     pow( m_all_nodes[inode].velocity(j), 2.0 );
+                                     pow( m_all_nodes[i].velocity(j), 2.0 );
     }
   }
 }

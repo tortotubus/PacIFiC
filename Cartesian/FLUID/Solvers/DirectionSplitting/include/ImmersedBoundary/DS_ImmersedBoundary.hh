@@ -95,6 +95,14 @@ struct MembraneParameters
   double initial_area, final_area, total_area;
   double initial_volume, final_volume, total_volume;
   geomVector centroid_coordinates;
+  
+  // Statistics variables
+  double mean_WLC_spring_force_magnitude;
+  double mean_POW_spring_force_magnitude;
+  double mean_bending_force_magnitude;
+  double mean_viscous_force_magnitude;
+  double mean_volume_force_magnitude;
+  double mean_area_force_magnitude;
   double total_kinetic_energy;
 };
 
@@ -113,11 +121,16 @@ struct Node
   geomVector coordinates_pbc;
   geomVector sumforce;
   geomVector sumforce_nm1;
+  geomVector WLC_force;
+  geomVector POW_force;
+  geomVector spring_force;
+  geomVector bending_force;
+  geomVector area_force;
+  geomVector volume_force;
+  geomVector viscous_force;
   geomVector velocity;
   geomVector angular_velocity;
   double angle, initial_angle, angle_nm1, dangledt;
-  geomVector spring_force, bending_force;
-  geomVector area_force, volume_force, viscous_force;
   geomVector unit_outwards_normal_vector;
   Node* neighbors[2]; // FOR 2D
   Edge const* edge_of_neighbors[2]; // FOR 2D
@@ -301,7 +314,8 @@ class DS_ImmersedBoundary
                                    FV_Mesh const* MESH,
                                    size_t const& dim,
                                    boolVector const* is_periodic,
-                                   string const& case_type);
+                                   string const& case_type,
+                                   string const& model_type);
         
       /** @brief Discretised Dirac delta function
       @param val -> the value which is to be converted using Dirac delta
@@ -329,7 +343,8 @@ class DS_ImmersedBoundary
       /** @brief Computes RBC deformation using spring-dashpot model */
       virtual void rbc_dynamics_solver(size_t const& dim, 
                                        double const& dt_fluid,
-                                       string const& case_type) = 0;
+                                       string const& case_type,
+                                       string const& model_type) = 0;
       
       /** @brief Computes spring force */
       virtual void compute_spring_force( size_t const& dim,

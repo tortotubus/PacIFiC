@@ -164,6 +164,7 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       string IB_file;
       string Mesh3D_file;
       bool MatlabNumbering;
+      string MembraneModelType;
       size_t N_IB;
       string IB_case_type;
       size_t n_RBC_timesteps;

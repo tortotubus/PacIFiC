@@ -308,8 +308,11 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      if(exp->has_entry("Mesh3DFile")) 
       Mesh3D_file = exp->string_data( "Mesh3DFile" );
       
-     if(exp->has_entry("MatlabNumbering")) 
+     if(exp->has_entry("MatlabNumbering"))
       MatlabNumbering = exp->bool_data( "MatlabNumbering" );
+      
+     if(exp->has_entry("MembraneModelType"))
+      MembraneModelType = exp->bool_data( "MembraneModelType" );
       
      N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
      IB_case_type = exp->string_data( "CaseType" );
@@ -322,6 +325,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                            , Mesh3D_file
                            , MatlabNumbering
                            , N_IB
+                           , MembraneModelType
                            , IB_case_type
                            , dom->discrete_field( "velocity" )
                            , dom->discrete_field( "eulerian_force" )

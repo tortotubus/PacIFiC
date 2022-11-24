@@ -120,7 +120,8 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Computes RBC deformation using spring-dashpot model */
       void rbc_dynamics_solver(size_t const& dim, 
                                double const& dt_fluid,
-                               string const& case_type);
+                               string const& case_type,
+                               string const& model_type);
       
       /** @brief Computes spring force */
       void compute_spring_force( size_t const& dim, 

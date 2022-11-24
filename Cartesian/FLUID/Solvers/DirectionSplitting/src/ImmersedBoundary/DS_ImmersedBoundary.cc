@@ -216,7 +216,8 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
                           , FV_Mesh const* MESH
                           , size_t const& dim
                           , boolVector const* is_periodic
-                          , string const& case_type)
+                          , string const& case_type
+                          , string const& model_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: do_one_inner_iteration" ) ;
@@ -256,7 +257,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     copy_vector_to_lagrangian_velocity(temp_lag_vel, dim);
     
     // Solve for RBC dynamics using spring-dashpot model
-    rbc_dynamics_solver(dim, t_it->time_step(), case_type);
+    rbc_dynamics_solver(dim, t_it->time_step(), case_type, model_type);
     
     // Copy new Lagrangian positon & force into a doubleVector
     copy_lag_position_and_force_to_vector(temp_lag_pos_and_force, dim);

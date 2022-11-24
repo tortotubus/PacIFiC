@@ -48,6 +48,7 @@ class DS_AllImmersedBoundary
                            , string const& Mesh3D_file
                            , bool const& MatlabNumbering
                            , size_t const& N_IB
+                           , string const& MembraneModelType
                            , string const& case_type
                            , FV_DiscreteField const* arb_UF
                            , FV_DiscreteField* arb_EulF
@@ -122,6 +123,7 @@ class DS_AllImmersedBoundary
       string m_IB_case_type; /* = Breyannis2000 or other cases */
       size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
       string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */
+      string m_model_type; /* Membrane force model type - Simplified, NumericalMembraneModel */
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
       of DS_ImmersedBoundary class */
       double m_rho;

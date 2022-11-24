@@ -18,6 +18,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , string const& Mesh3D_file
                                                , bool const& MatlabNumbering
                                                , size_t const& N_IB
+                                               , string const& MembraneModelType
                                                , string const& case_type
                                                , FV_DiscreteField const* arb_UF
                                                , FV_DiscreteField* arb_EulF
@@ -32,6 +33,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 , m_3DMesh_file ( Mesh3D_file )
 , m_Matlab_numbering ( MatlabNumbering )
 , m_nIB ( N_IB )
+, m_model_type ( MembraneModelType )
 , m_IB_case_type ( case_type )
 , UF ( arb_UF )
 , Eul_F ( arb_EulF )
@@ -427,7 +429,8 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
                                                        MESH,
                                                        m_space_dimension,
                                                        U_periodic_comp,
-                                                       m_IB_case_type);
+                                                       m_IB_case_type,
+                                                       m_model_type);
   }
 }
 
