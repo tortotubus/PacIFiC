@@ -19,14 +19,15 @@ not with Cartesian nor multigrids}.
 #define POS_PBC_Z(Z) ((u.x.boundary[top] != periodic_bc) ? (Z) : (((Z) > L0/2.) ? (Z) - L0 : (Z)))
 
 #ifdef MB_LEVEL
-  #define CONSTANT_MB_LEVEL 1
+  #define CONSTANT_STENCIL_LEVEL 1
 #endif
-#ifndef CONSTANT_MB_LEVEL
-  #define CONSTANT_MB_LEVEL 1
+#ifndef CONSTANT_STENCIL_LEVEL
+  #define CONSTANT_STENCIL_LEVEL 1
 #endif
-#if CONSTANT_MB_LEVEL
+#if CONSTANT_STENCIL_LEVEL
   #ifndef MB_LEVEL
     #define MB_LEVEL (grid->maxdepth)
+    #define FINEST_MB_LEVEL 1
   #endif
 #endif
 
@@ -64,7 +65,7 @@ Point locate_lvl(struct _locate_lvl p) {
 }
 
 int get_level_IBM_stencil(lagNode* node) {
-  #if CONSTANT_MB_LEVEL
+  #if CONSTANT_STENCIL_LEVEL
     return MB_LEVEL;
   #else
     #if dimension < 3
@@ -121,7 +122,7 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
     */
     int lvl = get_level_IBM_stencil(&mesh->nodes[i]);
     double delta = L0/(1 << lvl);
-    #if !(CONSTANT_MB_LEVEL)
+    #if !(CONSTANT_STENCIL_LEVEL)
       mesh->nodes[i].slvl = lvl;
     #endif
     for(int ni=-2; ni<=2; ni++) {
@@ -137,7 +138,7 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
             POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta),
             POS_PBC_Z(mesh->nodes[i].pos.z + nk*delta));
         #endif
-        #if CONSTANT_MB_LEVEL
+        #if CONSTANT_STENCIL_LEVEL
           if (point.level >= 0 && point.level < MB_LEVEL)
             fprintf(stderr,
               "Warning: Lagrangian stencil not fully resolved.\n");
@@ -204,7 +205,7 @@ trace
 void lag2eul(vector forcing, lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     double sdelta; // sdelta for "stencil delta"
-    #if CONSTANT_MB_LEVEL
+    #if CONSTANT_STENCIL_LEVEL
       sdelta = L0/(1 << MB_LEVEL);
     #else
       sdelta = L0/(1 << mesh->nodes[i].slvl);
@@ -247,7 +248,7 @@ trace
 void eul2lag(lagMesh* mesh) {
   for(int i=0; i<mesh->nlp; i++) {
     double sdelta; // sdelta for "stencil delta"
-    #if CONSTANT_MB_LEVEL
+    #if CONSTANT_STENCIL_LEVEL
       sdelta = L0/(1 << MB_LEVEL);
     #else
       sdelta = L0/(1 << mesh->nodes[i].slvl);
@@ -289,7 +290,7 @@ void eul2lag(lagMesh* mesh) {
 }
 
 /**
-The functions below fills a scalar field "stencils" with noise in all "cached"
+The functions below fills a scalar field "stencils" with noise in all cached
 cells. Passing this scalar to the \textit{adapt_wavelet} function ensure all
 the 5x5(x5) stencils around the Lagrangian nodes are at the same level.
 */
@@ -318,7 +319,7 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
         double sdelta; // sdelta for "stencil delta"
-        #if CONSTANT_MB_LEVEL
+        #if CONSTANT_STENCIL_LEVEL
           sdelta = L0/(1 << MB_LEVEL);
         #else
           sdelta = L0/(1 << mesh->nodes[i].slvl);
