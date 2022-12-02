@@ -67,7 +67,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   generate_immersed_body_mesh();
   
-  // write_immersed_body_mesh_to_vtk_file(); exit(3);
+  write_immersed_body_mesh_to_vtk_file(); exit(3);
   
   preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC,
                                       m_space_dimension);

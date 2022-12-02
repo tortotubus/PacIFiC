@@ -312,7 +312,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
       MatlabNumbering = exp->bool_data( "MatlabNumbering" );
       
      if(exp->has_entry("MembraneModelType"))
-      MembraneModelType = exp->bool_data( "MembraneModelType" );
+      MembraneModelType = exp->string_data( "MembraneModelType" );
       
      N_IB = exp->int_data( "NumberOfImmersedBoundaries" );
      IB_case_type = exp->string_data( "CaseType" );

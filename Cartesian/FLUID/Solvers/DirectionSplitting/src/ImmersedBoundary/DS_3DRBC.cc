@@ -239,7 +239,6 @@ void DS_3DRBC:: set_all_trielements(istream& fileIN, size_t const& dim,
   
   // Reads the number of nodes
   fileIN >> m_nTriangles;
-  cout << "Number of triangles = " << m_nTriangles << endl;
   
   // Allocate memory for members of "TriElement" structure
   initialize_triangle_properties(m_nTriangles, dim);
