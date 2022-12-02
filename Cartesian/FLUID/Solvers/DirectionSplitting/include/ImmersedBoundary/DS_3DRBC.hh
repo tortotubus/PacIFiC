@@ -181,6 +181,9 @@ class DS_3DRBC: public DS_ImmersedBoundary
       void compute_area_conservation_force(size_t const& dim,
                           string const& model_type = "NumericalMembraneModel" );
 
+      /** @brief Converts the value of force from model to physical units **/
+      double convert_model_to_physical_units(double f_M);
+      
       /** @brief Lagrangian to Eulerian force spreading */
       void lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                       size_t const& dim, size_t const& comp);

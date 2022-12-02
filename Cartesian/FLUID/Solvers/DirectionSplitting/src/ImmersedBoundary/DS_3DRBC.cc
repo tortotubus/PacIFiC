@@ -2270,6 +2270,30 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
 
 
 //---------------------------------------------------------------------------
+// Converts the external force from model units to physical units
+double DS_3DRBC:: convert_model_to_physical_units(double f_M)
+//---------------------------------------------------------------------------
+{
+  double mu0_M = membrane_param.mu0_M;
+  double D0_M = membrane_param.D0_M;
+  double mu0_P = membrane_param.mu0_P;
+  double D0_P = membrane_param.D0_P;
+  
+  // kappa = f_M / (mu0_M * D0_M) = f_P / (mu0_P * D0_P) = const.
+  
+  // non-dimensional quantity
+  double kappa =  f_M / (mu0_M * D0_M);
+  
+  // external force in physical units
+  double f_P = kappa * mu0_P * D0_P;
+  
+  return ( f_P );
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type,
@@ -2342,6 +2366,11 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Compute new velocity and position
     for (size_t i=0;i<num_nodes;++i)
     {
+      // Convert force from model to physical units before advecting coords
+      for (size_t j=0;j<dim;++j)
+        m_all_nodes[i].sumforce(j) = convert_model_to_physical_units
+                                                   (m_all_nodes[i].sumforce(j));
+
       // Solve momentum conservation
       if ( !iter_num ) // First order explicit at the 1st time loop iteration
       {
