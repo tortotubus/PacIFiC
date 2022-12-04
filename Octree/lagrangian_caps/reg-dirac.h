@@ -30,6 +30,7 @@ not with Cartesian nor multigrids}.
     #define FINEST_MB_LEVEL 1
   #endif
 #endif
+#define CHANGING_STENCIL_LEVEL (!(CONSTANT_STENCIL_LEVEL))
 
 struct _locate_lvl {int lvl; double x, y, z;};
 
@@ -122,7 +123,7 @@ void generate_lag_stencils_one_caps(lagMesh* mesh) {
     */
     int lvl = get_level_IBM_stencil(&mesh->nodes[i]);
     double delta = L0/(1 << lvl);
-    #if !(CONSTANT_STENCIL_LEVEL)
+    #if CHANGING_STENCIL_LEVEL
       mesh->nodes[i].slvl = lvl;
     #endif
     for(int ni=-2; ni<=2; ni++) {
