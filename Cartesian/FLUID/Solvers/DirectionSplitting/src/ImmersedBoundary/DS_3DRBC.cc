@@ -740,7 +740,7 @@ void DS_3DRBC:: init_membrane_parameters_in_model_units()
 void DS_3DRBC:: scaling_membrane_params_from_physical_to_model_units()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
+  MAC_LABEL( "DS_3DRBC:: scaling_membrane_params_from_physical_to_model_units" ) ;
   
   double mu0_M = membrane_param.mu0_M;
   double ka = membrane_param.k_area;
@@ -2320,10 +2320,11 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   size_t my_rank = MAC_comm->rank();
   size_t nb_procs = MAC_comm->nb_ranks();
   size_t is_master = 0;
+  string pot;
   
   // Compute initial area & volume of membrane
   compute_total_surface_area_total_volume(true, dim);
-
+  
   // Time loop
   for (size_t iter_num=0;iter_num<n_sub_timesteps;++iter_num)
   {
@@ -2345,6 +2346,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Spring force
     compute_spring_force( dim, spring_constant, model_type );
 
+    /*
     // Bending resistance
     compute_bending_resistance( dim, bending_spring_constant, 
                                 bending_viscous_constant, dt, model_type );
@@ -2352,7 +2354,6 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Viscous drag force
     compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
-    /*
     // Volume conservation force
     compute_volume_conservation_force( dim, model_type );
 
@@ -2365,11 +2366,6 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Compute new velocity and position
     for (size_t i=0;i<num_nodes;++i)
     {
-      // Convert force from model to physical units before advecting coords
-      for (size_t j=0;j<dim;++j)
-        m_all_nodes[i].sumforce(j) = convert_model_to_physical_units
-                                                   (m_all_nodes[i].sumforce(j));
-
       // Solve momentum conservation
       if ( !iter_num ) // First order explicit at the 1st time loop iteration
       {
@@ -2404,7 +2400,17 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
       for (size_t j=0;j<dim;++j)
         membrane_param.total_kinetic_energy += 0.5 * node_mass * 
                                      pow( m_all_nodes[i].velocity(j), 2.0 );
+
+      // Convert force from model to physical units
+      // // // cout << "Node = " << i << "\t";
+      for (size_t j=0;j<dim;++j)
+      {
+        // // // // m_all_nodes[i].sumforce(j) = convert_model_to_physical_units(m_all_nodes[i].sumforce(j));
+        // // // cout << m_all_nodes[i].sumforce(j) << "\t";
+      }
+      // // // cout << endl;
     }
+    // // // cin >> pot;
   }
 }
 

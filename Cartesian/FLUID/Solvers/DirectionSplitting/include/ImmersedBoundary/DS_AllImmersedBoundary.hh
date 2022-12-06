@@ -56,7 +56,8 @@ class DS_AllImmersedBoundary
                            , double const& arb_rho
                            , double const& arb_mu
                            , size_t const& n_RBC_timesteps
-                           , string const& dirac_type);
+                           , string const& dirac_type
+                           , bool const& debug_mode);
 
       /** @brief Destructor */
       ~DS_AllImmersedBoundary();
@@ -184,7 +185,8 @@ class DS_AllImmersedBoundary
         void write_immersed_body_mesh_to_vtk_file();
         
         /** @brief Computes node based spring, bending constants */
-        void preprocess_immersed_body_parameters(string const& case_type, 
+        void preprocess_immersed_body_parameters(string const& model_type,
+                                            string const& case_type, 
                                             double const& mu,
                                             size_t const& num_subtimesteps_RBC,
                                             size_t const& dim);

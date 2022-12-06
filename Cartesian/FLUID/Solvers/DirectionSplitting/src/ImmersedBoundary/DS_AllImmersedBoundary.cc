@@ -26,7 +26,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , double const& arb_rho
                                                , double const& arb_mu
                                                , size_t const& nRBC_subtimesteps
-                                               , string const& dirac_type)
+                                               , string const& dirac_type
+                                               , bool const& debug_mode)
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
@@ -67,10 +68,10 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 
   generate_immersed_body_mesh();
   
-  write_immersed_body_mesh_to_vtk_file(); exit(3);
+  if(debug_mode) write_immersed_body_mesh_to_vtk_file(); exit(3);
   
-  preprocess_immersed_body_parameters(m_IB_case_type, m_mu, m_subtimesteps_RBC,
-                                      m_space_dimension);
+  preprocess_immersed_body_parameters(m_model_type, m_IB_case_type, m_mu, 
+                                      m_subtimesteps_RBC, m_space_dimension);
   
   set_IBM_parameters(m_dirac_type);
 }
@@ -228,6 +229,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     p_membrane_param->k_volume = k_volume;
     p_membrane_param->mass = membrane_mass;
     p_membrane_param->centroid_coordinates = position;
+    p_membrane_param->n_subtimesteps_RBC = m_subtimesteps_RBC;
     if(case_type.compare("Breyannis2000case") == 0)
     {
       p_membrane_param->ReynoldsNumber = ReynoldsNumber;
@@ -394,8 +396,8 @@ void DS_AllImmersedBoundary:: write_immersed_body_mesh_to_vtk_file()
 
 //---------------------------------------------------------------------------
 void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
-                   (string const& case_type, double const& mu,
-                    size_t const& num_subtimesteps_RBC, 
+                   (string const& model_type, string const& case_type, 
+                    double const& mu, size_t const& num_subtimesteps_RBC, 
                     size_t const& dim)
 //---------------------------------------------------------------------------
 {
@@ -403,7 +405,7 @@ void DS_AllImmersedBoundary:: preprocess_immersed_body_parameters
   
   for (size_t i = 0; i < m_nIB; ++i) {
     m_allDSimmersedboundary[i]->preprocess_membrane_parameters
-                                                       ("NumericalMembraneModel"
+                                                         (model_type
                                                         , case_type
                                                         , mu
                                                         , num_subtimesteps_RBC
