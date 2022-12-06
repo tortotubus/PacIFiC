@@ -851,7 +851,7 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
 {
   MAC_LABEL( "DS_3DRBC:: preprocess_membrane_parameters" ) ;
   
-  if(model_type.compare("NumericalMembraneModel") == 0) // if it is detailed numerical membrane model
+  if(model_type.compare("NumericalMembraneModel") == 0) // if it is detailed numerical membrane model (NMM)
   {
     // Initialize membrane material properties in physical units
     init_membrane_parameters_in_physical_units();
@@ -2405,7 +2405,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
       // // // cout << "Node = " << i << "\t";
       for (size_t j=0;j<dim;++j)
       {
-        // // // // m_all_nodes[i].sumforce(j) = convert_model_to_physical_units(m_all_nodes[i].sumforce(j));
+        m_all_nodes[i].sumforce(j) = convert_model_to_physical_units(m_all_nodes[i].sumforce(j));
         // // // cout << m_all_nodes[i].sumforce(j) << "\t";
       }
       // // // cout << endl;

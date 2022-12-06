@@ -63,16 +63,25 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   // Get periodic directions in the domain
   U_periodic_comp = MESH->get_periodic_directions();
 
+  // Read the shape and membrane based parameters
   double dx = UF->get_cell_size(1, 0, 0);
   read_shape_and_membrane_parameters(m_IB_case_type, dx, m_space_dimension);
 
+  // Generate the nodes, edges and triangles for the mesh
   generate_immersed_body_mesh();
   
-  if(debug_mode) write_immersed_body_mesh_to_vtk_file(); exit(3);
+  // Write the mesh to file "if needed"
+  if(debug_mode)
+  {
+    write_immersed_body_mesh_to_vtk_file();
+    exit(3);
+  }
   
+  // Set the spring, bending and other "derived" parameters
   preprocess_immersed_body_parameters(m_model_type, m_IB_case_type, m_mu, 
                                       m_subtimesteps_RBC, m_space_dimension);
   
+  // Set the IBM parameters
   set_IBM_parameters(m_dirac_type);
 }
 
