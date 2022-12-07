@@ -319,7 +319,8 @@ class DS_ImmersedBoundary
                                    size_t const& dim,
                                    boolVector const* is_periodic,
                                    string const& case_type,
-                                   string const& model_type);
+                                   bool const& Matlab_numbering,
+                                   string const& model_type = "NumericalMembraneModel" );
         
       /** @brief Discretised Dirac delta function
       @param val -> the value which is to be converted using Dirac delta
@@ -348,6 +349,7 @@ class DS_ImmersedBoundary
       virtual void rbc_dynamics_solver(size_t const& dim, 
                        double const& dt_fluid,
                        string const& case_type,
+                       bool const& Matlab_numbering,
                        string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes spring force */
@@ -381,6 +383,7 @@ class DS_ImmersedBoundary
       
       /** @brief Computes area conservation force */
       virtual void compute_area_conservation_force(size_t const& dim,
+                      bool const& Matlab_numbering,
                       string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes the statistics of each immersed boundary */

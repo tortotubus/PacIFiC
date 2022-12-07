@@ -121,6 +121,7 @@ class DS_AllImmersedBoundary
       string m_IB_file; /** input file name containing RBC location & shape */
       string m_3DMesh_file; /** 3D RBC mesh file in .dat format */
       bool m_Matlab_numbering; /** Matlab numbering for Fedosov mesh files */
+      double fedosov_mesh_reversal; /** -1 when using Fedosov mesh, +1 for icosaherdon mesh */
       string m_IB_case_type; /* = Breyannis2000 or other cases */
       size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
       string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */

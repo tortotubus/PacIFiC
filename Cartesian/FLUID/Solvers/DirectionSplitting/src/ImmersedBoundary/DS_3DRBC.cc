@@ -2124,28 +2124,28 @@ void DS_3DRBC:: compute_volume_conservation_force(size_t const& dim,
       cross_3D(center_of_mass_M, a13_M, node_2_comp);
       cross_3D(center_of_mass_M, a21_M, node_3_comp);
       
-      double fedosov_mesh_reversal = 1.;
+      double force_reversal_coefficient = 1.;
       
       // Nodal force
       beta_v = - kv * ((membrane_param.total_volume - membrane_param.initial_volume)/membrane_param.initial_volume);
       // Node 1
       for (size_t j=0;j<dim;++j)
       {
-          f1 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_1_comp(j) * fedosov_mesh_reversal);
+          f1 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_1_comp(j) * force_reversal_coefficient);
           m_all_trielements[i].pnodes[0]->sumforce(j) += f1;
           m_all_trielements[i].pnodes[0]->volume_force(j) += f1;
       }
       // Node 2
       for (size_t j=0;j<dim;++j)
       {
-          f2 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_2_comp(j) * fedosov_mesh_reversal);
+          f2 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_2_comp(j) * force_reversal_coefficient);
           m_all_trielements[i].pnodes[1]->sumforce(j) += f2;
           m_all_trielements[i].pnodes[1]->volume_force(j) += f2;
       }
       // Node 3
       for (size_t j=0;j<dim;++j)
       {
-          f3 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_3_comp(j) * fedosov_mesh_reversal);
+          f3 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_3_comp(j) * force_reversal_coefficient);
           m_all_trielements[i].pnodes[2]->sumforce(j) += f3;
           m_all_trielements[i].pnodes[2]->volume_force(j) += f3;
       }
@@ -2165,6 +2165,7 @@ void DS_3DRBC:: compute_volume_conservation_force(size_t const& dim,
 
 //---------------------------------------------------------------------------
 void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
+                                                bool const& Matlab_numbering,
                                                 string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -2178,6 +2179,11 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
   geomVector a21(dim), a31(dim), a13(dim), a32(dim), xi(dim);
   geomVector node_1_comp(dim), node_2_comp(dim), node_3_comp(dim);
   double f1, f2, f3;
+  
+
+  // Force reversal coefficient
+  double force_reversal_coefficient = (Matlab_numbering) ? -1. : 1.;
+
   
   // Initialising all area forces to 0.0
   for (size_t i=0;i<num_nodes;++i)
@@ -2229,27 +2235,27 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
       cross_3D( xi_M, a13_M, node_2_comp );
       cross_3D( xi_M, a21_M, node_3_comp );
       
-      double fedosov_mesh_reversal = 1.;
+      double force_reversal_coefficient = 1.;
       
       // Nodal force
       // Node 1
       for (size_t j=0;j<dim;++j)
       {
-          f1 = (global + local) * node_1_comp(j) * fedosov_mesh_reversal;
+          f1 = (global + local) * node_1_comp(j) * force_reversal_coefficient;
           m_all_trielements[i].pnodes[0]->sumforce(j) += f1; // node 1
           m_all_trielements[i].pnodes[0]->area_force(j) += f1; // node 1
       }
       // Node 2
       for (size_t j=0;j<dim;++j)
       {
-          f2 = (global + local) * node_2_comp(j) * fedosov_mesh_reversal;
+          f2 = (global + local) * node_2_comp(j) * force_reversal_coefficient;
           m_all_trielements[i].pnodes[1]->sumforce(j) += f2; // node 2
           m_all_trielements[i].pnodes[1]->area_force(j) += f2; // node 2
       }
       // Node 3
       for (size_t j=0;j<dim;++j)
       {
-          f3 = (global + local) * node_3_comp(j) * fedosov_mesh_reversal;
+          f3 = (global + local) * node_3_comp(j) * force_reversal_coefficient;
           m_all_trielements[i].pnodes[2]->sumforce(j) += f3; // node 3
           m_all_trielements[i].pnodes[2]->area_force(j) += f3; // node 3
       }
@@ -2298,6 +2304,7 @@ double DS_3DRBC:: convert_model_to_physical_units(double f_M)
 void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim, 
                                     double const& dt_fluid, 
                                     string const& case_type,
+                                    bool const& Matlab_numbering,
                                     string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -2348,7 +2355,6 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Spring force
     compute_spring_force( dim, spring_constant, model_type );
 
-    /*
     // Bending resistance
     compute_bending_resistance( dim, bending_spring_constant, 
                                 bending_viscous_constant, dt, model_type );
@@ -2359,8 +2365,9 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Volume conservation force
     compute_volume_conservation_force( dim, model_type );
 
+    /*
     // Triangle surface area conservation force
-    compute_area_conservation_force( dim, model_type );
+    compute_area_conservation_force( dim, Matlab_numbering, model_type );
     */
 
     membrane_param.total_kinetic_energy = 0.;

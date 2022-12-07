@@ -121,6 +121,7 @@ class DS_2DRBC: public DS_ImmersedBoundary
       void rbc_dynamics_solver(size_t const& dim, 
                           double const& dt_fluid,
                           string const& case_type,
+                          bool const& Matlab_numbering,
                           string const& model_type = "NumericalMembraneModel" );
     
       /** @brief Computes spring force */
@@ -151,6 +152,7 @@ class DS_2DRBC: public DS_ImmersedBoundary
 
       /** @brief Computes area conservation force */
       void compute_area_conservation_force(size_t const& dim,
+                          bool const& Matlab_numbering,
                           string const& model_type = "NumericalMembraneModel" );
 
       /** @brief Lagrangian to Eulerian force spreading **/

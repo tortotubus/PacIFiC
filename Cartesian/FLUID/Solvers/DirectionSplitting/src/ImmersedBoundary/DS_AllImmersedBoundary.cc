@@ -446,6 +446,7 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
                                                        m_space_dimension,
                                                        U_periodic_comp,
                                                        m_IB_case_type,
+                                                       m_Matlab_numbering,
                                                        m_model_type);
   }
 }
