@@ -4,6 +4,7 @@
 #include <DS_ImmersedBoundary.hh>
 #include <FV_Mesh.hh>
 #include <FV_DiscreteField.hh>
+#include <doubleVector.hh>
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -38,8 +39,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /**@name Set methods */
       //@{
       /** @brief writes one point of RBC mesh to .vtu file **/
-      void write_one_point_to_VTK( double const& time
-                                         , size_t const& cyclenum );
+      void write_one_point_to_VTK( double const& time, size_t const& cyclenum );
       //@}
 
 
@@ -195,7 +195,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       /** @brief Computes the statistics of each RBC membrane */
       void compute_stats(string const& directory, string const& filename, 
                          size_t const& dim, double const& time, 
-                         size_t const& cyclenum);
+                         double const& final_time, size_t const& cyclenum);
       
       /** @brief Computes the centroid of each immersed boundary */
       void compute_centroid(size_t const& dim);
@@ -214,6 +214,12 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes the average tangential velocity */
       double compute_avg_tangential_velocity();
+      
+      /** @brief Computes smallest eigenvalue of gyration tensor */
+      void compute_gyration_tensor(size_t const& cyclenum,
+                                   double const& time,
+                                   string const& directory, 
+                                   string const& filename);
       
       /** @brief Computes the perimeter */
       double perimeter();

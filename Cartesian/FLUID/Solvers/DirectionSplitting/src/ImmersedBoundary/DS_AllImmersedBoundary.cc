@@ -2,6 +2,7 @@
 #include <DS_ImmersedBoundary.hh>
 #include <DS_ImmersedBoundary_BuilderFactory.hh>
 #include <boolVector.hh>
+#include <doubleVector.hh>
 #include <FV_Mesh.hh>
 #include <FV_TimeIterator.hh>
 #include <FV_DiscreteField.hh>
@@ -238,6 +239,10 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     p_membrane_param->k_volume = k_volume;
     p_membrane_param->mass = membrane_mass;
     p_membrane_param->centroid_coordinates = position;
+    size_t gyration_tensor_dim = 6;
+    p_membrane_param->gyration_tensor.reserve(gyration_tensor_dim);
+    for(size_t j=0;j<gyration_tensor_dim;++j)
+      p_membrane_param->gyration_tensor.push_back(0.);
     p_membrane_param->n_subtimesteps_RBC = m_subtimesteps_RBC;
     if(case_type.compare("Breyannis2000case") == 0)
     {
@@ -480,7 +485,9 @@ void DS_AllImmersedBoundary:: do_additional_savings
     // Writing statistics of RBC membrane
     m_allDSimmersedboundary[i]->compute_stats("Res", "rbc_stats.datnew", 
                                           m_space_dimension, 
-                                          t_it->time(), cycleNumber);
+                                          t_it->time(), 
+                                          t_it->final_time(),
+                                          cycleNumber);
 
     /*
     // Writing triangle unit normals to .vtu file

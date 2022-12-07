@@ -6,6 +6,7 @@
 #include <MAC_Communicator.hh>
 #include <MAC_Exec.hh>
 #include <boolVector.hh>
+#include <doubleVector.hh>
 #include <fstream>
 #include <sstream>
 #include <math.h>

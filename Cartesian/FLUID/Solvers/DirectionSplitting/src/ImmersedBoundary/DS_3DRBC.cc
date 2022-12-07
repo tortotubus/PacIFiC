@@ -4,6 +4,7 @@
 #include <MAC_Communicator.hh>
 #include <MAC_Exec.hh>
 #include <doubleArray2D.hh>
+#include <doubleVector.hh>
 #include <math.h>
 #include <cmath>
 #include <typeinfo>
@@ -17,6 +18,8 @@ using std::cin;
 using std::string;
 using std::max;
 using namespace std;
+
+class doubleVector;
 
 #define TOLERANCE 0.05
 #define SMALL     0.001
@@ -1536,7 +1539,7 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
       }
     }
   }
-  else
+  else if(model_type.compare("NumericalMembraneModel") == 0)
   {
     double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
     
@@ -2175,7 +2178,6 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
   geomVector a21(dim), a31(dim), a13(dim), a32(dim), xi(dim);
   geomVector node_1_comp(dim), node_2_comp(dim), node_3_comp(dim);
   double f1, f2, f3;
-  string pot;
   
   // Initialising all area forces to 0.0
   for (size_t i=0;i<num_nodes;++i)
@@ -2568,9 +2570,90 @@ double DS_3DRBC:: compute_avg_tangential_velocity()
 
 
 //---------------------------------------------------------------------------
+void DS_3DRBC:: compute_gyration_tensor(size_t const& cyclenum,
+                                        double const& time,
+                                        string const& directory, 
+                                        string const& filename)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_gyration_tensor" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  
+  double x_centroid = membrane_param.centroid_coordinates(0);
+  double y_centroid = membrane_param.centroid_coordinates(1);
+  double z_centroid = membrane_param.centroid_coordinates(2);
+  
+  for (size_t j=0;j<6;++j)
+    membrane_param.gyration_tensor[j] = 0.;
+  
+  for (size_t inode=0;inode<num_nodes;++inode)
+  {
+    double x = m_all_nodes[inode].coordinates(0);
+    double y = m_all_nodes[inode].coordinates(1);
+    double z = m_all_nodes[inode].coordinates(2);
+
+    // Gxx
+    membrane_param.gyration_tensor[0] += (x - x_centroid) * (x - x_centroid);
+    
+    // Gyy
+    membrane_param.gyration_tensor[1] += (y - y_centroid) * (y - y_centroid);
+    
+    // Gzz
+    membrane_param.gyration_tensor[2] += (z - z_centroid) * (z - z_centroid);
+    
+    // Gxy
+    membrane_param.gyration_tensor[3] += (x - x_centroid) * (y - y_centroid);
+    
+    // Gxz
+    membrane_param.gyration_tensor[4] += (x - x_centroid) * (z - z_centroid);
+    
+    // Gyz
+    membrane_param.gyration_tensor[5] += (y - y_centroid) * (z - z_centroid);
+  }
+  
+  for (size_t j=0;j<6;++j)
+    membrane_param.gyration_tensor[j] /= num_nodes;
+    
+  // Write gyration tensor to a text file
+  ofstream gyration_tensor_file;
+  string file_to_write = directory + "/" + filename;
+  if(int(cyclenum) == 1)
+  {
+    gyration_tensor_file.open( file_to_write, ios::out );
+    gyration_tensor_file << "Cyclenum" << "\t"
+                         << "Time" << "\t"
+                         << "Gxx" << "\t"
+                         << "Gyy" << "\t"
+                         << "Gzz" << "\t"
+                         << "Gxy" << "\t"
+                         << "Gxz" << "\t"
+                         << "Gyz"
+                         << endl;
+  }
+  else
+  {
+    gyration_tensor_file.open( file_to_write, ios::app );
+  }
+  
+  gyration_tensor_file << cyclenum << "\t"
+                       << time << "\t"
+                       << membrane_param.gyration_tensor[0] << "\t"
+                       << membrane_param.gyration_tensor[1] << "\t"
+                       << membrane_param.gyration_tensor[2] << "\t"
+                       << membrane_param.gyration_tensor[3] << "\t"
+                       << membrane_param.gyration_tensor[4] << "\t"
+                       << membrane_param.gyration_tensor[5]
+                       << endl;
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_3DRBC:: compute_stats(string const& directory, string const& filename, 
                               size_t const& dim, double const& time, 
-                              size_t const& cyclenum)
+                              double const& final_time, size_t const& cyclenum)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_stats" ) ;
@@ -2585,6 +2668,7 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   m_rbc_one_point_rootname = "rbc_one_point";
   m_triangle_unit_normals_rootname = "triangle_unit_normals";
   m_node_unit_normals_rootname = "node_unit_normals";
+  m_gyration_tensor_rootname = "gyration_tensor_init_final.txt";
 
 
   ofstream rbc_stats_file;
@@ -2631,6 +2715,10 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   // Taylor deformation parameter and orientation angle computation
   compute_tdp_orientation_angle();
   
+  // Compute smallest eigenvalue of Gyration tensor
+  if( (cyclenum == 1) or (abs(time - final_time) <= 1.e-8) )
+    compute_gyration_tensor(cyclenum, time, directory, m_gyration_tensor_rootname);
+  
   /*
   // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
   membrane_param.avg_tangential_velocity = compute_avg_tangential_velocity();
@@ -2638,24 +2726,24 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   
   // Writing to file
   rbc_stats_file << std::scientific // << setprecision(12)
-    << cyclenum << "\t"
-    << time << "\t"
-    << membrane_param.axial_diameter << "\t"
-    << membrane_param.transverse_diameter << "\t"
-    << membrane_param.taylor_deformation_parameter << "\t"
-    << membrane_param.orientation_roll_angle << "\t"
-    << membrane_param.orientation_pitch_angle << "\t"
-    << membrane_param.orientation_yaw_angle << "\t"
-    // << membrane_param.avg_tangential_velocity << "\t"
-    << membrane_param.initial_area << "\t"
-    << membrane_param.total_area << "\t"
-    << membrane_param.initial_volume << "\t"
-    << membrane_param.total_volume << "\t"
-    << membrane_param.centroid_coordinates(0) << "\t"
-    << membrane_param.centroid_coordinates(1) << "\t"
-    << membrane_param.centroid_coordinates(2) << "\t"
-    // << membrane_param.total_kinetic_energy
-    << endl;
+                 << cyclenum << "\t"
+                 << time << "\t"
+                 << membrane_param.axial_diameter << "\t"
+                 << membrane_param.transverse_diameter << "\t"
+                 << membrane_param.taylor_deformation_parameter << "\t"
+                 << membrane_param.orientation_roll_angle << "\t"
+                 << membrane_param.orientation_pitch_angle << "\t"
+                 << membrane_param.orientation_yaw_angle << "\t"
+                 // << membrane_param.avg_tangential_velocity << "\t"
+                 << membrane_param.initial_area << "\t"
+                 << membrane_param.total_area << "\t"
+                 << membrane_param.initial_volume << "\t"
+                 << membrane_param.total_volume << "\t"
+                 << membrane_param.centroid_coordinates(0) << "\t"
+                 << membrane_param.centroid_coordinates(1) << "\t"
+                 << membrane_param.centroid_coordinates(2) << "\t"
+                 // << membrane_param.total_kinetic_energy
+                 << endl;
 
   // Closing the file
   rbc_stats_file.close();

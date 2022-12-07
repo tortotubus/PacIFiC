@@ -160,7 +160,7 @@ class DS_2DRBC: public DS_ImmersedBoundary
       /** @brief Computes the statistics of each RBC membrane */
       void compute_stats(string const& directory, string const& filename, 
                          size_t const& dim, double const& time, 
-                         size_t const& cyclenum);
+                         double const& final_time, size_t const& cyclenum);
       
       /** @brief Computes the centroid of each immersed boundary */
       void compute_centroid(size_t const& dim);

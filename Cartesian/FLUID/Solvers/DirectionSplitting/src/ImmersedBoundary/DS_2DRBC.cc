@@ -1275,7 +1275,7 @@ double DS_2DRBC:: compute_avg_tangential_velocity()
 //---------------------------------------------------------------------------
 void DS_2DRBC:: compute_stats(string const& directory, string const& filename, 
                               size_t const& dim, double const& time, 
-                              size_t const& cyclenum)
+                              double const& final_time, size_t const& cyclenum)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_2DRBC:: compute_stats" ) ;

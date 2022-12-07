@@ -6,6 +6,7 @@
 #include <size_t_array2D.hh>
 #include <doubleArray2D.hh>
 #include <boolVector.hh>
+#include <doubleVector.hh>
 #include <FV_Mesh.hh>
 #include <FV_TimeIterator.hh>
 #include <MAC_assertions.hh>
@@ -95,6 +96,9 @@ struct MembraneParameters
   double initial_area, final_area, total_area;
   double initial_volume, final_volume, total_volume;
   geomVector centroid_coordinates;
+  vector<double> gyration_tensor;
+  double smallest_eigen_value; // smallest eigenvalue of gyration tensor
+  double init_smallest_eigen_value; // used in computing shifted eigenvalue
   
   // Statistics variables
   double mean_WLC_spring_force_magnitude;
@@ -384,6 +388,7 @@ class DS_ImmersedBoundary
                                  string const& filename, 
                                  size_t const& dim,
                                  double const& time, 
+                                 double const& final_time,
                                  size_t const& cyclenum) = 0;
       
       /** @brief Computes the centroid of each immersed boundary */
@@ -475,6 +480,7 @@ class DS_ImmersedBoundary
       string m_rbc_one_point_rootname;
       string m_triangle_unit_normals_rootname;
       string m_node_unit_normals_rootname;
+      string m_gyration_tensor_rootname;
       //@}
 
 
