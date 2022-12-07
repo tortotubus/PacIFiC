@@ -330,17 +330,11 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
     compute_twice_area_vector( m_all_trielements[i].varea, 
                        m_all_trielements[i].twice_area_outwards_normal_vector );
 
-    if(isinf(m_all_trielements[i].twice_area_outwards_normal_vector(0)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(1)) or isinf(m_all_trielements[i].twice_area_outwards_normal_vector(2)))
-    {
-      cout << "normals are infinity\n";
-      exit(3);
-    }
-
     m_all_trielements[i].tri_area = 0.5 
                  * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
     
     if(init) 
-      m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_initial_area;
+      m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_area;
 
     // Compute center of mass
     for (size_t j=0;j<dim;++j)
@@ -1416,6 +1410,7 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
   membrane_param.total_area = 0.;
   for (size_t i=0;i<m_nTriangles;++i)
     membrane_param.total_area += m_all_trielements[i].tri_area;
+  if ( init ) membrane_param.initial_area = membrane_param.total_area;
     
   /*
   // Compute center of mass of each triangle
@@ -1429,7 +1424,6 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
         m_all_trielements[i].pnodes[2]->coordinates(j) ) / 3.;
     }
   }
-  if ( init ) membrane_param.initial_area = membrane_param.total_area;
   */
 
 
@@ -2199,25 +2193,41 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
       
       // a21
       for (size_t j=0;j<dim;++j)
-          a21(j) = (m_all_trielements[i].pnodes[0]->coordinates(j) - m_all_trielements[i].pnodes[1]->coordinates(j))/order_of_magnitude_of_radius;
+          a21(j) = (m_all_trielements[i].pnodes[0]->coordinates(j) 
+                    - 
+                    m_all_trielements[i].pnodes[1]->coordinates(j))
+                    / order_of_magnitude_of_radius;
           
       // a31
       for (size_t j=0;j<dim;++j)
-          a13(j) = (m_all_trielements[i].pnodes[2]->coordinates(j) - m_all_trielements[i].pnodes[0]->coordinates(j))/order_of_magnitude_of_radius;
+          a13(j) = (m_all_trielements[i].pnodes[2]->coordinates(j) 
+                    - m_all_trielements[i].pnodes[0]->coordinates(j))
+                    / order_of_magnitude_of_radius;
       
       // a32
       for (size_t j=0;j<dim;++j)
-          a32(j) = (m_all_trielements[i].pnodes[1]->coordinates(j) - m_all_trielements[i].pnodes[2]->coordinates(j))/order_of_magnitude_of_radius;
+          a32(j) = (m_all_trielements[i].pnodes[1]->coordinates(j) 
+                    - 
+                    m_all_trielements[i].pnodes[2]->coordinates(j))
+                    / order_of_magnitude_of_radius;
           
       // outward pointing normal to the triangle
-      for (size_t j=0;j<dim;++j) xi(j) = (m_all_trielements[i].twice_area_outwards_normal_vector(j)) / pow(order_of_magnitude_of_radius, 2.);
+      for (size_t j=0;j<dim;++j) 
+        xi(j) = (m_all_trielements[i].twice_area_outwards_normal_vector(j)) 
+                / pow(order_of_magnitude_of_radius, 2.);
       
       
-      double beta_global = - ka * ( (membrane_param.total_area - membrane_param.initial_area) / membrane_param.initial_area );
+      // Global area force contribution
+      double ratio_global = (membrane_param.total_area - membrane_param.initial_area) 
+                            / membrane_param.initial_area;
+      double beta_global = - ka * ratio_global;
       double A_k = m_all_trielements[i].tri_area / pow(order_of_magnitude_of_radius, 2.); // scaling the area of the triangle to model length units with 1e-6 as model length
       double global = beta_global / ( 4. * A_k );
       
-      double beta_local = - kd * ( (m_all_trielements[i].tri_area - m_all_trielements[i].tri_initial_area) / m_all_trielements[i].tri_initial_area );
+      // Local area force contribution
+      double ratio_local = (m_all_trielements[i].tri_area - m_all_trielements[i].tri_initial_area) 
+                           / m_all_trielements[i].tri_initial_area;
+      double beta_local = - kd * ratio_local;
       double local = beta_local / ( 4. * A_k );
       
       // Converting quantities to non-dimensional units
@@ -2365,10 +2375,9 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     // Volume conservation force
     compute_volume_conservation_force( dim, model_type );
 
-    /*
     // Triangle surface area conservation force
     compute_area_conservation_force( dim, Matlab_numbering, model_type );
-    */
+
 
     membrane_param.total_kinetic_energy = 0.;
 
