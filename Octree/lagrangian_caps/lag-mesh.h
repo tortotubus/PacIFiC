@@ -5,6 +5,43 @@ In this file, we implement a Lagrangian mesh meant to track the position and
 compute the stresses of an elasitc membrane.
 
 
+## Adaptivity strategy
+
+Below, we specify what kind of adaptivity strategy the front-tracking should
+follow. One of the following choices is allowed:
+
+  * The membrane level is constant equal to the greatest level of the simulation (this is the default choice). It corresponds to setting ```FINEST_MB_LEVEL``` to ```1```, or ```MB_LEVEL``` to ```grid->maxdepth```.
+  * The membrane level is constant equal to a user-defined level. This equivalent to setting ```MB_LEVEL``` to the desired value. Note that this approach is dangerous because if an IBM stencil includes cells of a greater level than ```MB_LEVEL```, the simulation will either crash or produce garbage results.
+  * The membrane level is allowed to change throughout the simulation. The price to pay is a (likely mild) slow down of the membrane solver, especially in parallel. It corresponds to setting the flag ```CONSTANT_STENCIL_LEVEL``` to 0, or ```CHANGING_STENCIL_LEVEL``` to 1.
+*/
+#if CHANGING_STENCIL_LEVEL
+  #define CONSTANT_STENCIL_LEVEL 0
+#endif
+#ifdef MB_LEVEL
+  #define CONSTANT_STENCIL_LEVEL 1
+#endif
+#ifndef CONSTANT_STENCIL_LEVEL
+  #define CONSTANT_STENCIL_LEVEL 1
+#endif
+#if CONSTANT_STENCIL_LEVEL
+  #ifndef MB_LEVEL
+    #define MB_LEVEL (grid->maxdepth)
+    #define FINEST_MB_LEVEL 1
+  #endif
+#endif
+#ifndef CHANGING_STENCIL_LEVEL
+  #define CHANGING_STENCIL_LEVEL (!(CONSTANT_STENCIL_LEVEL))
+#endif
+#if CHANGING_STENCIL_LEVEL
+  #ifndef MAX_STENCIL_LEVEL
+    #define MAX_STENCIL_LEVEL (grid->maxdepth)
+  #endif
+  #ifndef MIN_STENCIL_LEVEL
+    #define MIN_STENCIL_LEVEL 0
+  #endif
+#endif
+
+/**
 ## Structure of the mesh
 
 In the Lagrangian mesh, each node is assigned coordinates, the IDs of its
@@ -15,6 +52,14 @@ spreading the Lagrangian force as a body force on the neighboring Eulerian
 nodes. In the case of MPI, we also store the rank of the processor which owns
 the Eulerian cell containing the Node.
 */
+#if CHANGING_STENCIL_LEVEL
+  typedef struct stencil_status {
+    int slvl; // slvl for "stencil level"
+    bool complete_stencil; // "false" if the Cache is not complete, due to a
+    // stencil size that was decreased.
+  } stencil_status;
+#endif
+
 typedef struct lagNode {
   coord pos;
   coord lagForce;
@@ -37,8 +82,8 @@ typedef struct lagNode {
     int triangle_ids[6];
     int nb_fit_iterations;
   #endif
-  #if (!CONSTANT_MB_LEVEL)
-    int slvl; // slvl for "stencil level"
+  #if CHANGING_STENCIL_LEVEL
+    stencil_status stenstat;
   #endif
 } lagNode;
 
@@ -131,6 +176,12 @@ void free_mesh(lagMesh* mesh) {
 
 void free_caps(Capsules* caps) {
   for(int i=0; i<caps->nbmb; i++) free_mesh(&(caps->mb[i]));
+}
+
+int total_nb_nodes(Capsules* caps) {
+  int n = 0;
+  for(int k=0; k<caps->nbmb; k++) k += caps->mb[k].nlp;
+  return n;
 }
 
 /** By default, the mesh is advected using a second-order two-step Runge Kutta
@@ -481,8 +532,8 @@ event init (i = 0) {
       MB(i).nodes[j].stencil.nm = STENCIL_SIZE;
       MB(i).nodes[j].stencil.p = (Index*) malloc(STENCIL_SIZE*sizeof(Index));
     }
-    generate_lag_stencils_one_caps(&MB(i));
   }
+  generate_lag_stencils();
 }
 
 /** Below, we advect each Lagrangian node using the interpolated Eulerian
