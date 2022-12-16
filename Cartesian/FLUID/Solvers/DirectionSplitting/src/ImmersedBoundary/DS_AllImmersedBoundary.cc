@@ -53,7 +53,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
   m_allDSimmersedboundary.reserve( m_nIB );
 
   DS_ImmersedBoundary* dsib = NULL;
-
+  
   for (size_t i = 0; i < m_nIB; ++i)
   {
      m_allDSimmersedboundary.push_back( dsib );
@@ -285,10 +285,12 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: generate_immersed_body_mesh" ) ;
   
-  ifstream fileIN( m_3DMesh_file.c_str(), ios::in );
-
   for (size_t i = 0; i < m_nIB; ++i) {
-
+  
+    // Open the mesh file containing coord and triangle numbers
+    ifstream fileIN( m_3DMesh_file.c_str(), ios::in );
+    
+    
     // Node properties
     m_allDSimmersedboundary[i]->initialize_node_properties(m_3DMesh_file, 
                                                            m_space_dimension);
@@ -322,9 +324,11 @@ void DS_AllImmersedBoundary:: generate_immersed_body_mesh()
     // Position and rotate the immersed body
     m_allDSimmersedboundary[i]->position_membrane();
     m_allDSimmersedboundary[i]->rotate_membrane();
+
+
+    // Close the mesh file 
+    fileIN.close();
   }
-  
-  fileIN.close();
 }
 
 
