@@ -1013,6 +1013,21 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
 
 
 //---------------------------------------------------------------------------
+void DS_2DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim, 
+                                                   double const& dt_fluid, 
+                                                   string const& case_type,
+                                                   bool const& Matlab_numbering,
+                                                   string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_2DRBC:: rbc_dynamics_solver_no_sub_time_stepping" ) ;
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
 void DS_2DRBC:: write_mesh_to_vtk_file( size_t IB_number, double const& time,
                                         size_t const& cyclenum )
 //---------------------------------------------------------------------------

@@ -699,7 +699,7 @@ void DS_3DRBC:: init_membrane_parameters_in_physical_units()
   membrane_param.mu0_P = 6.3e-6; // Shear modulus in N/m
   membrane_param.Y_P = 18.9e-6; // Young's modulus in N/m
   membrane_param.x0 = 1./2.2; // Maximum allowable spring extension --> x0=l/lmax
-  membrane_param.D0_P = 7.82e-6; // Diameter of RBC micro-metre
+  membrane_param.D0_P = 2. * shape_param.radius; // 7.82e-6; // Diameter of RBC micro-metre
   membrane_param.kc_P = 2.4e-19; // 4.8e-19; // 2.4e-19; // bending rigidity - Joules
   membrane_param.kbending_P = (2./sqrt(3.)) * membrane_param.kc_P; // bending spring constant
   membrane_param.eta_P = 0.022; // 0.022 * 10.; // 6.e-3; // Viscosity of membrane Newton-second/metre^2 = Pa.s = 6 centipoise as given in Pozrikidis book Pg. 124
@@ -850,12 +850,23 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
   
   if(model_type.compare("NumericalMembraneModel") == 0) // if it is detailed numerical membrane model (NMM)
   {
+    // Set the spring constant values
     // Initialize membrane material properties in physical units
     init_membrane_parameters_in_physical_units();
     
     // Initialize membrane material properties in model units
     init_membrane_parameters_in_model_units();
     
+    // If it's shear flow tank treading case - recompute the mu0_P
+    if(case_type.compare("Breyannis2000case") == 0) // if it's not Breyainnis case
+    {
+      membrane_param.mu0_P = mu * membrane_param.ShearRate * shape_param.radius 
+                                / membrane_param.CapillaryNumber;
+      membrane_param.D0_P = 2. * shape_param.radius;
+      membrane_param.eta_P = 0.;
+      membrane_param.eta_M = 0.;
+    }
+
     // Scaling membrane material properties from physical units to model units
     scaling_membrane_params_from_physical_to_model_units();
     
@@ -2430,6 +2441,71 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
     }
     // // // cin >> pot;
   }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim, 
+                                                   double const& dt_fluid, 
+                                                   string const& case_type,
+                                                   bool const& Matlab_numbering,
+                                                   string const& model_type)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping" ) ;
+
+  size_t num_nodes = shape_param.N_nodes;
+  double node_mass = membrane_param.node_mass_M; // TO BE VERIFIED OF ITS VALUE
+  double spring_constant = membrane_param.k_spring;
+  double bending_spring_constant = membrane_param.k_bending;
+  double bending_viscous_constant = membrane_param.k_bending_visc;
+  double viscous_drag_constant = membrane_param.k_viscous;
+  double area_force_constant = membrane_param.k_area;
+  double volume_force_constant = membrane_param.k_volume;
+  
+  double dt = dt_fluid;
+  
+  // Nullify forces on all nodes
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[inode].sumforce(j) = 0.0;
+      
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[inode].coordinates(j) += m_all_nodes[inode].velocity(j) * dt;
+      
+  // Compute normals, areas and center of mass of triangles
+  compute_triangle_area_normals_centre_of_mass(true, dim);
+  
+  // Compute initial area & volume of membrane
+  compute_total_surface_area_total_volume(true, dim);
+  
+//  // Compute total surface area and total volume and write to file
+//  compute_total_surface_area_total_volume(false, dim);
+  
+  // Compute forces on all nodes
+  // Spring force
+  compute_spring_force( dim, spring_constant, model_type );
+
+  // Bending resistance
+  compute_bending_resistance( dim, bending_spring_constant, 
+                              bending_viscous_constant, dt, model_type );
+
+  // Viscous drag force
+  compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
+
+  // Volume conservation force
+  compute_volume_conservation_force( dim, model_type );
+
+  // Triangle surface area conservation force
+  compute_area_conservation_force( dim, Matlab_numbering, model_type );
+
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[inode].sumforce(j) = convert_model_to_physical_units(m_all_nodes[inode].sumforce(j));
+
 }
 
 

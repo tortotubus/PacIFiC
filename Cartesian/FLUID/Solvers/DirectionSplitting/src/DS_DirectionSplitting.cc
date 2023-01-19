@@ -585,17 +585,11 @@ DS_DirectionSplitting:: do_additional_savings( FV_TimeIterator const* t_it,
 {
    MAC_LABEL( "DS_DirectionSplitting:: do_additional_savings" ) ;
 
-   MAC_Communicator const* MAC_comm;
-   MAC_comm = MAC_Exec::communicator();
-   size_t my_rank = MAC_comm->rank();
-   size_t nb_procs = MAC_comm->nb_ranks();
-   size_t is_master = 0;
-  
 
    // Flow solver
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_additional_savings" ) ;
-      if (is_ImmersedBoundaries and my_rank == is_master)
+      if (is_ImmersedBoundaries)
         allimmersedboundary->do_additional_savings ( t_it, cycleNumber );
       FlowSolver->do_additional_savings( t_it, cycleNumber ) ;
       stop_total_timer() ;

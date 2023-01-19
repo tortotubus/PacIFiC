@@ -152,6 +152,13 @@ class DS_3DRBC: public DS_ImmersedBoundary
                           bool const& Matlab_numbering,
                           string const& model_type = "NumericalMembraneModel" );
       
+      /** @brief Computes RBC deformation using spring-dashpot model */
+      void rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim, 
+                          double const& dt_fluid,
+                          string const& case_type,
+                          bool const& Matlab_numbering,
+                          string const& model_type = "NumericalMembraneModel" );
+      
       /** @brief Computes spring force */
       void compute_spring_force( size_t const& dim, 
                           double const& spring_constant,
