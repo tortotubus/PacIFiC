@@ -1781,7 +1781,7 @@ void DS_3DRBC:: compute_bending_resistance( size_t const& dim,
       }
     }
   }
-  else // Detailed numerical membrane model (NMM)
+  else if(model_type.compare("NumericalMembraneModel") == 0)
   {
     double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
     
@@ -1981,7 +1981,7 @@ void DS_3DRBC:: compute_viscous_drag_force( size_t const& dim,
       }
     }
   }
-  else
+  else if(model_type.compare("NumericalMembraneModel") == 0)
   {
     size_t num_nodes = shape_param.N_nodes;
     double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
@@ -2467,23 +2467,19 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
   
   double dt = dt_fluid;
   
-  // Nullify forces on all nodes
+  // Compute initial area & volume of membrane
+  compute_total_surface_area_total_volume(true, dim);
+  
+  // Initialize forces on all nodes
   for (size_t inode=0;inode<num_nodes;++inode)
     for (size_t j=0;j<dim;++j)
       m_all_nodes[inode].sumforce(j) = 0.0;
       
-  for (size_t inode=0;inode<num_nodes;++inode)
-    for (size_t j=0;j<dim;++j)
-      m_all_nodes[inode].coordinates(j) += m_all_nodes[inode].velocity(j) * dt;
-      
   // Compute normals, areas and center of mass of triangles
   compute_triangle_area_normals_centre_of_mass(true, dim);
   
-  // Compute initial area & volume of membrane
-  compute_total_surface_area_total_volume(true, dim);
-  
-//  // Compute total surface area and total volume and write to file
-//  compute_total_surface_area_total_volume(false, dim);
+  // Compute total surface area and total volume and write to file
+  compute_total_surface_area_total_volume(false, dim);
   
   // Compute forces on all nodes
   // Spring force
@@ -2506,6 +2502,10 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
     for (size_t j=0;j<dim;++j)
       m_all_nodes[inode].sumforce(j) = convert_model_to_physical_units(m_all_nodes[inode].sumforce(j));
 
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[inode].coordinates(j) += m_all_nodes[inode].velocity(j) * dt;
+      
 }
 
 
