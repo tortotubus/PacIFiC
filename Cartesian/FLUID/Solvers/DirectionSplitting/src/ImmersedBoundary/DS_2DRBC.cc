@@ -910,6 +910,7 @@ void DS_2DRBC:: compute_area_conservation_force(size_t const& dim,
 
 //---------------------------------------------------------------------------
 void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim, 
+                                    size_t const& fluid_iter_num,
                                     double const& dt_fluid, 
                                     string const& case_type,
                                     bool const& Matlab_numbering,
@@ -1014,6 +1015,7 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
 
 //---------------------------------------------------------------------------
 void DS_2DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim, 
+                                                   size_t const& fluid_iter_num,
                                                    double const& dt_fluid, 
                                                    string const& case_type,
                                                    bool const& Matlab_numbering,

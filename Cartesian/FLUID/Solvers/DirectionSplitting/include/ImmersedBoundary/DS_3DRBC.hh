@@ -147,6 +147,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
 
       /** @brief Computes RBC deformation using spring-dashpot model */
       void rbc_dynamics_solver(size_t const& dim, 
+                          size_t const& fluid_iter_num,
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,
@@ -154,6 +155,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Computes RBC deformation using spring-dashpot model */
       void rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim, 
+                          size_t const& fluid_iter_num, 
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,

@@ -259,8 +259,10 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     copy_vector_to_lagrangian_velocity(temp_lag_vel, dim);
     
     // Solve for RBC dynamics using spring-dashpot model
-    rbc_dynamics_solver(dim, t_it->time_step(), case_type, Matlab_numbering, model_type);
-    // // // rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->time_step(), case_type, Matlab_numbering, model_type);
+    // // // rbc_dynamics_solver(dim, t_it->time_step(), case_type, Matlab_numbering, model_type);
+    rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->iteration_number(),
+                                             t_it->time_step(), case_type, 
+                                             Matlab_numbering, model_type);
     
     // Copy new Lagrangian positon & force into a doubleVector
     copy_lag_position_and_force_to_vector(temp_lag_pos_and_force, dim);
