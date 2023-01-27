@@ -345,6 +345,9 @@ class DS_ImmersedBoundary
       void copy_vector_to_lagrangian_velocity (doubleVector& lag_vel, 
                                                size_t const& dim);
                             
+      /** @brief Updates coordinates of immersed boundary for no sub time stepping */
+      void update_membrane_coordinates(size_t const& dim, double const& dt);
+      
       /** @brief Computes RBC deformation using spring-dashpot model */
       virtual void rbc_dynamics_solver(size_t const& dim, 
                        size_t const& fluid_iter_num,

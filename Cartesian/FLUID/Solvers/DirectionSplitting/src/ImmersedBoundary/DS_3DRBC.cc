@@ -2356,7 +2356,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
   compute_init_values = (int(fluid_iter_num) == 1) ? true : false;
   
   // Compute initial area & volume of membrane
-  compute_total_surface_area_total_volume(compute_init_values, dim);
+  compute_total_surface_area_total_volume(true, dim);
   
   // Time loop
   for (size_t iter_num=0;iter_num<n_sub_timesteps;++iter_num)
@@ -2370,10 +2370,10 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
         m_all_nodes[inode].sumforce(j) = 0.0;
         
     // Compute normals, areas and center of mass of triangles
-    compute_triangle_area_normals_centre_of_mass(compute_init_values, dim);
+    compute_triangle_area_normals_centre_of_mass(false, dim);
     
     // Compute total surface area and total volume and write to file
-    compute_total_surface_area_total_volume(compute_init_values, dim);
+    compute_total_surface_area_total_volume(false, dim);
     
     // Compute forces on all nodes
     // Spring force
@@ -2508,11 +2508,6 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
   for (size_t inode=0;inode<num_nodes;++inode)
     for (size_t j=0;j<dim;++j)
       m_all_nodes[inode].sumforce(j) = convert_model_to_physical_units(m_all_nodes[inode].sumforce(j));
-
-  for (size_t inode=0;inode<num_nodes;++inode)
-    for (size_t j=0;j<dim;++j)
-      m_all_nodes[inode].coordinates(j) += m_all_nodes[inode].velocity(j) * dt;
-      
 }
 
 

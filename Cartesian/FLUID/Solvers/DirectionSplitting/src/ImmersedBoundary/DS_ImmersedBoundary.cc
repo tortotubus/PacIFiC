@@ -209,6 +209,20 @@ void DS_ImmersedBoundary:: rotate_membrane()
 
 
 //---------------------------------------------------------------------------
+void DS_ImmersedBoundary:: update_membrane_coordinates(size_t const& dim,
+                                                  double const& dt)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_AllImmersedBoundary:: update_membrane_coordinates" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+
+  for (size_t inode=0;inode<num_nodes;++inode)
+    for (size_t j=0;j<dim;++j)
+      m_all_nodes[inode].coordinates(j) += m_all_nodes[inode].velocity(j) * dt;
+}
+  
+//---------------------------------------------------------------------------
 void DS_ImmersedBoundary:: do_one_inner_iteration
                            (FV_DiscreteField const* UF
                           , FV_DiscreteField* Eul_F
@@ -259,10 +273,19 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     copy_vector_to_lagrangian_velocity(temp_lag_vel, dim);
     
     // Solve for RBC dynamics using spring-dashpot model
-    // // // rbc_dynamics_solver(dim, t_it->time_step(), case_type, Matlab_numbering, model_type);
-    rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->iteration_number(),
-                                             t_it->time_step(), case_type, 
-                                             Matlab_numbering, model_type);
+    if(int(membrane_param.n_subtimesteps_RBC) > 0) // With sub time stepping
+    {
+      rbc_dynamics_solver(dim, t_it->iteration_number(), t_it->time_step(), case_type, Matlab_numbering, model_type);
+    }
+    else // no sub time stepping
+    {
+      cout << "vfvf\n" << endl; exit(3);
+      update_membrane_coordinates(dim, t_it->time_step());
+      
+      rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->iteration_number(),
+                                               t_it->time_step(), case_type, 
+                                               Matlab_numbering, model_type);
+    }
     
     // Copy new Lagrangian positon & force into a doubleVector
     copy_lag_position_and_force_to_vector(temp_lag_pos_and_force, dim);
