@@ -279,7 +279,6 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     }
     else // no sub time stepping
     {
-      cout << "vfvf\n" << endl; exit(3);
       update_membrane_coordinates(dim, t_it->time_step());
       
       rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->iteration_number(),

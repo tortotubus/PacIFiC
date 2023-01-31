@@ -697,7 +697,7 @@ void DS_3DRBC:: init_membrane_parameters_in_physical_units()
   MAC_LABEL( "DS_3DRBC:: init_membrane_parameters_in_physical_units" );
   
   membrane_param.mu0_P = 6.3e-6; // Shear modulus in N/m
-  membrane_param.Y_P = 18.9e-6; // Young's modulus in N/m
+  membrane_param.Y_P = 13.3437e-6; // 18.9e-6; // Young's modulus in N/m
   membrane_param.x0 = 1./2.2; // Maximum allowable spring extension --> x0=l/lmax
   membrane_param.D0_P = 2. * shape_param.radius; // 7.82e-6; // Diameter of RBC micro-metre
   membrane_param.kc_P = 2.4e-19; // 4.8e-19; // 2.4e-19; // bending rigidity - Joules
@@ -863,8 +863,11 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
       membrane_param.mu0_P = mu * membrane_param.ShearRate * shape_param.radius 
                                 / membrane_param.CapillaryNumber;
       membrane_param.D0_P = 2. * shape_param.radius;
-      membrane_param.eta_P = 0.;
-      membrane_param.eta_M = 0.;
+      membrane_param.Y_P = membrane_param.FopplVonKarmanNumber 
+                            * membrane_param.kc_P/pow(shape_param.radius, 2.);
+      membrane_param.mu0_P = membrane_param.Y_P / 4.; // assuming Y0 --> 4*mu0 when K --> infty
+      // // membrane_param.eta_P = 0.;
+      // // membrane_param.eta_M = 0.;
     }
 
     // Scaling membrane material properties from physical units to model units
@@ -2497,13 +2500,13 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
                               bending_viscous_constant, dt, model_type );
 
   // Viscous drag force
-  compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
+  // // // compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
   // Volume conservation force
-  compute_volume_conservation_force( dim, model_type );
+  // // // compute_volume_conservation_force( dim, model_type );
 
   // Triangle surface area conservation force
-  compute_area_conservation_force( dim, Matlab_numbering, model_type );
+  // // // compute_area_conservation_force( dim, Matlab_numbering, model_type );
 
   for (size_t inode=0;inode<num_nodes;++inode)
     for (size_t j=0;j<dim;++j)

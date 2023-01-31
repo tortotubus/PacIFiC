@@ -53,6 +53,9 @@ struct MembraneParameters
   // Flow physics parameters
   double ReynoldsNumber, CapillaryNumber, ShearRate;
   
+  // Elastic to bending force contribution
+  double FopplVonKarmanNumber; // = Y_0 * R_0^2/k_c
+  
   // Detailed "numerical membrane model (NMM)" parameters in 'physical' units
   double mu0_P; // Shear modulus in N/m 
   double Y_P; // Young's modulus in N/m
