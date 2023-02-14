@@ -12,6 +12,7 @@
 #include <set>
 #include <fstream>
 #include <sstream>
+#include <FV_Mesh.hh> // for using nb_space_dimensions() to get dim value & FV_Mesh::between function
 using std::endl;
 using std::cout;
 using std::cin;
@@ -1085,6 +1086,7 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
   int Nx, Ny, Nz;
   double r1, p1, q1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend, kstart, kend;
+  size_t ipi, ipf, jpi, jpf, kpi, kpf;
 
   FV_Mesh const* fvm = FF->primary_grid();
   
@@ -1127,6 +1129,7 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
   jstart = min_unknown_index_with_halozone(1);
   jend = max_unknown_index_with_halozone(1);
   
+  // z-direction start & end proc indices
   kstart = min_unknown_index_with_halozone(2);
   kend = max_unknown_index_with_halozone(2);
   
@@ -1167,6 +1170,31 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
     {
       double sum_dirac_delta = 0.0;
       
+      size_t iLag, jLag, kLag;
+      bool found_i = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,0), xp, iLag);
+      bool found_j = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,1), yp, jLag);
+      bool found_k = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,2), zp, kLag);
+      size_t ipi = iLag - 2;
+      size_t ipf = iLag + 3;
+      size_t jpi = jLag - 2;
+      size_t jpf = jLag + 3;
+      size_t kpi = kLag - 2;
+      size_t kpf = kLag + 3;
+
+      // // // // Defining a (pseudo-)support of 6 cells around each Lagrangian marker
+      // // // int ipi = MAC::max(int(floor((xC - xp) * hxC)) + istart - 3, istart);
+      // // // int ipf = MAC::min(int(floor((xC - xp) * hxC)) + istart + 3, iend);
+      // // // int jpi = MAC::max(int(floor((yC - yp) * hyC)) + jstart - 3, jstart);
+      // // // int jpf = MAC::min(int(floor((yC - yp) * hyC)) + jstart + 3, jend);
+
+      for (size_t ii=ipi;ii<=ipf;++ii)
+      {
+        for (size_t jj=jpi;jj<=jpf;++jj)
+        {
+          for (size_t kk=kpi;kk<=kpf;++kk)
+          {
+          
+      /*
       for (size_t ii=min_unknown_index_with_halozone(0);
                   ii<=max_unknown_index_with_halozone(0);
                   ++ii) 
@@ -1179,9 +1207,22 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
                       kk<=max_unknown_index_with_halozone(2);
                       ++kk)
           {
+          */
             xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
             yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
             zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
+            
+            /*
+            if(abs(xp - 7.59492e-6) <= 1.e-10 and abs(yp - 5.e-6) <= 1.e-10 and abs(zp - 5.e-6) <= 1.e-10)
+            {
+              cout << "xp, yp = " << xp << "\t" << yp << endl;
+              cout << "ipi, ipf = " << ipi << "\t" << ipf << endl;
+              cout << "jpi, jpf = " << jpi << "\t" << jpf << endl;
+              cout << "xC, yC = " << xC << "\t" << yC << endl;
+              cout << "iLag, jLag = " << iLag << "\t" << jLag << endl;
+              exit(3);
+            }
+            */
             
             // Check if Eulerian cell is within Dirac delta 2x2 stencil
             double dist_x = 
@@ -1222,6 +1263,11 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
             }
           }
         }
+      }
+      if(abs(sum_dirac_delta - 1.) >= 1.e-10)
+      {
+        cout << sum_dirac_delta << endl;
+        exit(3);
       }
     }
   }
@@ -1309,6 +1355,7 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   jstart = min_unknown_index_with_halozone(1);
   jend = max_unknown_index_with_halozone(1);
   
+  // z-direction start & end proc indices
   kstart = min_unknown_index_with_halozone(2);
   kend = max_unknown_index_with_halozone(2);
   
@@ -1337,6 +1384,31 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
     double sum_dirac_delta = 0.;
     double sum_euler_force = 0., euler_force_tag = 0.;
     
+    size_t iLag, jLag, kLag;
+    bool found_i = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,0), xp, iLag);
+    bool found_j = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,1), yp, jLag);
+    bool found_k = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,2), zp, kLag);
+    size_t ipi = iLag - 2;
+    size_t ipf = iLag + 3;
+    size_t jpi = jLag - 2;
+    size_t jpf = jLag + 3;
+    size_t kpi = kLag - 2;
+    size_t kpf = kLag + 3;
+
+    // // // // Defining a (pseudo-)support of 6 cells around each Lagrangian marker
+    // // // int ipi = MAC::max(int(floor((xC - xp) * hxC)) + istart - 3, istart);
+    // // // int ipf = MAC::min(int(floor((xC - xp) * hxC)) + istart + 3, iend);
+    // // // int jpi = MAC::max(int(floor((yC - yp) * hyC)) + jstart - 3, jstart);
+    // // // int jpf = MAC::min(int(floor((yC - yp) * hyC)) + jstart + 3, jend);
+
+    for (size_t ii=ipi;ii<=ipf;++ii)
+    {
+      for (size_t jj=jpi;jj<=jpf;++jj)
+      {
+        for (size_t kk=kpi;kk<=kpf;++kk)
+        {
+        
+    /*
     for (size_t ii=min_unknown_index_with_halozone(0);
                 ii<=max_unknown_index_with_halozone(0);
                 ++ii) 
@@ -1349,6 +1421,7 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                     kk<=max_unknown_index_with_halozone(2);
                     ++kk) 
         {
+        */
           xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
           yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
           zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
@@ -1357,6 +1430,18 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
           bool eul_cell_within_proc_domain = 
                      fvm->is_in_domain_on_current_processor(xC, yC, zC);
 
+          bool temp = (xC >= Dmin(0)) and (xC <= Dmax(0))
+                      and
+                      (yC >= Dmin(1)) and (yC <= Dmax(1))
+                      and
+                      (zC >= Dmin(2)) and (zC <= Dmax(2));
+          
+          if((temp and eul_cell_within_proc_domain) == false)
+          {
+            cout << "contradiction\n";
+            exit(3);
+          }
+          
           // Check if Eulerian cell is within Dirac delta 2x2 stencil
           double dist_x = 
                   compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
@@ -1374,10 +1459,11 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                                                    and 
                                                    (fabs(dist_z) <= 2.);
           
-          // // if( eul_cell_within_proc_domain 
-          // //     and 
-          // //     eul_cell_within_Dirac_delta_stencil )
-          if( eul_cell_within_Dirac_delta_stencil )
+          if( eul_cell_within_proc_domain 
+              and 
+              eul_cell_within_Dirac_delta_stencil )
+          // // // // // if( eul_cell_within_Dirac_delta_stencil )
+          // // // if( eul_cell_within_proc_domain )
           {
             r1 = dist_x;
             r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
@@ -2500,13 +2586,13 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
                               bending_viscous_constant, dt, model_type );
 
   // Viscous drag force
-  // // // compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
+  compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
   // Volume conservation force
-  // // // compute_volume_conservation_force( dim, model_type );
+  compute_volume_conservation_force( dim, model_type );
 
   // Triangle surface area conservation force
-  // // // compute_area_conservation_force( dim, Matlab_numbering, model_type );
+  compute_area_conservation_force( dim, Matlab_numbering, model_type );
 
   for (size_t inode=0;inode<num_nodes;++inode)
     for (size_t j=0;j<dim;++j)
