@@ -95,9 +95,24 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
 {
    MAC_LABEL( "DS_DirectionSplitting:: DS_DirectionSplitting" ) ;
 
+   // Call of MAC_Communicator routine to set the rank of each proces and
+   // the number of processes during execution
+   macCOMM = MAC_Exec::communicator();
+   my_rank = macCOMM->rank();
+   nb_procs = macCOMM->nb_ranks();
+   is_master = 0;
+
+   // Timing routines
+   if ( my_rank == is_master )
+   {
+     CT_set_start();
+     SCT_insert_app("Objects_Creation");
+     SCT_set_start("Objects_Creation");
+   }
+
    // Is the run a follow up of a previous job
    b_restart = MAC_Application::is_follow();
-   macCOMM = MAC_Exec::communicator();
+   // // macCOMM = MAC_Exec::communicator();
 
    // Read Density
    if ( exp->has_entry( "Density" ) ) {
@@ -386,6 +401,13 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    }
 
 
+   // Timing routines
+   if ( my_rank == is_master ) {
+     SCT_insert_app("NavierStokes");
+     SCT_insert_app("IBM");
+     SCT_get_elapsed_time("Objects_Creation");
+   }
+
 }
 
 
@@ -420,9 +442,16 @@ DS_DirectionSplitting:: do_one_inner_iteration( FV_TimeIterator const* t_it )
    if (is_NS || is_NSwithHE) {
       start_total_timer( "DS_NavierStokes:: do_one_inner_iteration" ) ;
       start_solving_timer() ;
+      
+      if ( my_rank == is_master ) SCT_set_start("IBM"); 
       if (is_ImmersedBoundaries)
         allimmersedboundary->do_one_inner_iteration ( t_it );
+      if ( my_rank == is_master ) SCT_get_elapsed_time( "IBM" );
+      
+      if ( my_rank == is_master ) SCT_set_start("NavierStokes");         
       FlowSolver->do_one_inner_iteration( t_it ) ;
+      if ( my_rank == is_master ) SCT_get_elapsed_time( "NavierStokes" );
+      
       stop_solving_timer() ;
       stop_total_timer() ;
    }
@@ -511,6 +540,13 @@ DS_DirectionSplitting:: do_after_time_stepping( void )
 
    if (is_surfacestressOUT)
       allrigidbodies->write_surface_discretization_for_all_RB();
+      
+   if ( my_rank == is_master )
+   {
+     double cputime = CT_get_elapsed_time();
+     write_elapsed_time_smhd(cout,cputime,"Computation time");
+     SCT_get_summary(cout,cputime);
+   }      
 
 }
 

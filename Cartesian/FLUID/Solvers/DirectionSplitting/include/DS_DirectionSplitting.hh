@@ -174,6 +174,9 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       double critical_distance_translation;
 
       MAC_Communicator const* macCOMM;
+      size_t nb_procs;
+      size_t my_rank;
+      size_t is_master;
 
 } ;
 
