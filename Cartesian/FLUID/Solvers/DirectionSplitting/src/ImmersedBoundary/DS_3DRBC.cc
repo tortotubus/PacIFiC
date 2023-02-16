@@ -1086,8 +1086,17 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
   int Nx, Ny, Nz;
   double r1, p1, q1, delt1; // Dirac delta variables
   size_t istart, iend, jstart, jend, kstart, kend;
+  size_t iLag, jLag, kLag;
   size_t ipi, ipf, jpi, jpf, kpi, kpf;
+  double sum_dirac_delta;
+  double dist_x, dist_y, dist_z;
+  bool eul_cell_within_Dirac_delta_stencil;
 
+    MAC_Communicator const* PAC_comm;
+    PAC_comm = MAC_Exec::communicator();
+    size_t my_rank = PAC_comm->rank();
+    size_t nb_procs = PAC_comm->nb_ranks();
+    size_t is_master = 0;
   FV_Mesh const* fvm = FF->primary_grid();
   
   size_t_vector min_unknown_index_with_halozone(dim, 0);
@@ -1145,7 +1154,7 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
   hxC = 1.0 / dxC ;
   hyC = 1.0 / dyC ;
   hzC = 1.0 / dzC ;
-
+  
   // Number of nodes on each RBC
   size_t num_nodes = shape_param.N_nodes;
   
@@ -1168,17 +1177,16 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
     // Lagrangian velocity from neighbouring Eulerian nodes
     if(lag_cell_within_processor)
     {
-      double sum_dirac_delta = 0.0;
+      sum_dirac_delta = 0.0;
       
-      size_t iLag, jLag, kLag;
       bool found_i = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,0), xp, iLag);
       bool found_j = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,1), yp, jLag);
       bool found_k = FV_Mesh::between(FF->get_DOF_coordinates_vector(comp,2), zp, kLag);
-      size_t ipi = iLag - 2;
+      size_t ipi = iLag - 3;
       size_t ipf = iLag + 3;
-      size_t jpi = jLag - 2;
+      size_t jpi = jLag - 3;
       size_t jpf = jLag + 3;
-      size_t kpi = kLag - 2;
+      size_t kpi = kLag - 3;
       size_t kpf = kLag + 3;
 
       // // // // Defining a (pseudo-)support of 6 cells around each Lagrangian marker
@@ -1193,82 +1201,59 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
         {
           for (size_t kk=kpi;kk<=kpf;++kk)
           {
-          
-      /*
-      for (size_t ii=min_unknown_index_with_halozone(0);
-                  ii<=max_unknown_index_with_halozone(0);
-                  ++ii) 
-      {
-        for (size_t jj=min_unknown_index_with_halozone(1);
-                    jj<=max_unknown_index_with_halozone(1);
-                    ++jj) 
-        {
-          for (size_t kk=min_unknown_index_with_halozone(2);
-                      kk<=max_unknown_index_with_halozone(2);
-                      ++kk)
-          {
-          */
-            xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
-            yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
-            zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
+            bool euler_cell_in_stencil_inside_domain = FF->DOF_in_domain(ii, jj, kk, comp);
             
-            /*
-            if(abs(xp - 7.59492e-6) <= 1.e-10 and abs(yp - 5.e-6) <= 1.e-10 and abs(zp - 5.e-6) <= 1.e-10)
+            if(euler_cell_in_stencil_inside_domain)
             {
-              cout << "xp, yp = " << xp << "\t" << yp << endl;
-              cout << "ipi, ipf = " << ipi << "\t" << ipf << endl;
-              cout << "jpi, jpf = " << jpi << "\t" << jpf << endl;
-              cout << "xC, yC = " << xC << "\t" << yC << endl;
-              cout << "iLag, jLag = " << iLag << "\t" << jLag << endl;
-              exit(3);
-            }
-            */
-            
-            // Check if Eulerian cell is within Dirac delta 2x2 stencil
-            double dist_x = 
-                compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-            // // dist_x = (xC - xp) * hxC;
-            double dist_y = 
-                compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-            // // dist_y = (yC - yp) * hyC;
-            double dist_z = 
-                compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
-            // // dist_z = (zC - zp) * hzC;
-            bool eul_cell_within_Dirac_delta_stencil = 
-                                                 (fabs(dist_x) <= 2.) 
-                                                 and 
-                                                 (fabs(dist_y) <= 2.) 
-                                                 and 
-                                                 (fabs(dist_z) <= 2.);
-            
-            if( eul_cell_within_Dirac_delta_stencil )
-            {
-                r1 = dist_x;
-                r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
-                p1 = dist_y;
-                p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
-                q1 = dist_z;
-                q1 = discrete_Dirac_delta(q1, ibm_param.dirac_type, dzC, Nz);
+              xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
+              yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
+              zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
+              
+              // Check if Eulerian cell is within Dirac delta 2x2 stencil
+              dist_x = compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+              // // dist_x = (xC - xp) * hxC;
+              dist_y = compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+              // // dist_y = (yC - yp) * hyC;
+              dist_z = compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
+              // // dist_z = (zC - zp) * hzC;
+              eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
+                                                    and 
+                                                    (fabs(dist_y) <= 2.) 
+                                                    and 
+                                                    (fabs(dist_z) <= 2.);
+              
+              // if( eul_cell_within_Dirac_delta_stencil )
+              // {
+                  r1 = dist_x;
+                  r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
+                  p1 = dist_y;
+                  p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
+                  q1 = dist_z;
+                  q1 = discrete_Dirac_delta(q1, ibm_param.dirac_type, dzC, Nz);
 
-                // Dirac delta function value
-                delt1 = r1 * p1 * q1;
+                  // Dirac delta function value
+                  delt1 = r1 * p1 * q1;
+                  // // // cout << delt1 << "\t" << dxC << "\t" << dyC << "\t" << dzC << "\t" << dxC * dyC * dzC << endl;
 
-                // Numerical integration of Dirac delta function value
-                sum_dirac_delta += delt1 * dxC * dyC * dzC;
+                  // Numerical integration of Dirac delta function value
+                  // // // cout << sum_dirac_delta << endl;
+                  sum_dirac_delta += delt1 * dxC * dyC * dzC;
 
-                // Computing Lagrangian velocity
-                m_all_nodes[inode].velocity(comp) += 
-                                  FF->DOF_value( ii, jj, kk, comp, 0 ) 
-                                  * delt1 * dxC * dyC * dzC;
+                  // Computing Lagrangian velocity
+                  m_all_nodes[inode].velocity(comp) += 
+                                    FF->DOF_value( ii, jj, kk, comp, 0 ) 
+                                    * delt1 * dxC * dyC * dzC;
+              // }
             }
           }
         }
       }
-      if(abs(sum_dirac_delta - 1.) >= 1.e-10)
-      {
-        cout << sum_dirac_delta << endl;
-        exit(3);
-      }
+      
+      // Normalizing the Lagrangian velocity to the support size (specifically for boundary nodes)
+      // total_lag_velocity = \sum\limits_{ii, jj, kk} dirac_delta(ii, jj, kk) * eulerian_velocity(ii, jj, kk)
+      // total_dirac_delta = \sum\limits_{ii, jj, kk} dirac_delta(ii, jj, kk)
+      // lagrangian_velocity = total_lag_velocity / total_dirac_delta
+      // // // m_all_nodes[inode].velocity(comp) /= sum_dirac_delta;
     }
   }
 }
@@ -1394,6 +1379,25 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
     size_t jpf = jLag + 3;
     size_t kpi = kLag - 2;
     size_t kpf = kLag + 3;
+          xC = FF->get_DOF_coordinate( iLag, comp, 0 ) ;
+          yC = FF->get_DOF_coordinate( jLag, comp, 1 ) ;
+          zC = FF->get_DOF_coordinate( kLag, comp, 2 ) ;
+    cout << "Lag location = " << xp << "\t" << yp << "\t" << zp << endl;
+    cout << "Index location " << iLag << "\t" << jLag << "\t" << kLag << endl;
+    cout << "Cell coords  = " << xC << "\t" << yC << "\t" << zC << endl;
+    cout << "Stencil x grid " << ipi << "\t" << ipf << endl;
+    cout << "Stencil y grid " << jpi << "\t" << jpf << endl;
+    cout << "Stencil z grid " << kpi << "\t" << kpf << endl;
+    double xmin = FF->get_DOF_coordinate( ipi, comp, 0 ) ;
+    double xmax = FF->get_DOF_coordinate( ipf, comp, 0 ) ;
+    double ymin = FF->get_DOF_coordinate( jpi, comp, 1 ) ;
+    double ymax = FF->get_DOF_coordinate( jpf, comp, 1 ) ;
+    double zmin = FF->get_DOF_coordinate( kpi, comp, 2 ) ;
+    double zmax = FF->get_DOF_coordinate( kpf, comp, 2 ) ;
+    cout << "stench x: " << xmin << "\t" << xmax << endl;
+    cout << "stench y: " << ymin << "\t" << ymax << endl;
+    cout << "stench z: " << zmin << "\t" << zmax << endl;
+    exit(3);
 
     // // // // Defining a (pseudo-)support of 6 cells around each Lagrangian marker
     // // // int ipi = MAC::max(int(floor((xC - xp) * hxC)) + istart - 3, istart);
@@ -1407,7 +1411,6 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
       {
         for (size_t kk=kpi;kk<=kpf;++kk)
         {
-        
     /*
     for (size_t ii=min_unknown_index_with_halozone(0);
                 ii<=max_unknown_index_with_halozone(0);
@@ -1426,69 +1429,67 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
           yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
           zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
           
+          /*
           // Check if Eulerian cell is within processor domain
           bool eul_cell_within_proc_domain = 
                      fvm->is_in_domain_on_current_processor(xC, yC, zC);
+          */
 
-          bool temp = (xC >= Dmin(0)) and (xC <= Dmax(0))
-                      and
-                      (yC >= Dmin(1)) and (yC <= Dmax(1))
-                      and
-                      (zC >= Dmin(2)) and (zC <= Dmax(2));
+          bool eul_cell_within_proc_domain = (xC >= Dmin(0)) and (xC <= Dmax(0))
+                                              and
+                                              (yC >= Dmin(1)) and (yC <= Dmax(1))
+                                              and
+                                              (zC >= Dmin(2)) and (zC <= Dmax(2));
           
-          if((temp and eul_cell_within_proc_domain) == false)
+          if(eul_cell_within_proc_domain)
           {
-            cout << "contradiction\n";
-            exit(3);
-          }
-          
-          // Check if Eulerian cell is within Dirac delta 2x2 stencil
-          double dist_x = 
-                  compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-          // // dist_x = (xC - xp) * hxC;
-          double dist_y = 
-                  compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-          // // dist_y = (yC - yp) * hyC;
-          double dist_z = 
-                  compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
-          // // dist_z = (zC - zp) * hzC;
-          bool eul_cell_within_Dirac_delta_stencil = 
-                                                   (fabs(dist_x) <= 2.) 
-                                                   and 
-                                                   (fabs(dist_y) <= 2.) 
-                                                   and 
-                                                   (fabs(dist_z) <= 2.);
-          
-          if( eul_cell_within_proc_domain 
-              and 
-              eul_cell_within_Dirac_delta_stencil )
-          // // // // // if( eul_cell_within_Dirac_delta_stencil )
-          // // // if( eul_cell_within_proc_domain )
-          {
-            r1 = dist_x;
-            r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
-            p1 = dist_y;
-            p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
-            q1 = dist_z;
-            q1 = discrete_Dirac_delta(q1, ibm_param.dirac_type, dzC, Nz);
 
-            // Dirac delta function value
-            delt1 = r1 * p1 * q1;
+            // Check if Eulerian cell is within Dirac delta 2x2 stencil
+            double dist_x = 
+                    compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+            // // dist_x = (xC - xp) * hxC;
+            double dist_y = 
+                    compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+            // // dist_y = (yC - yp) * hyC;
+            double dist_z = 
+                    compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
+            // // dist_z = (zC - zp) * hzC;
+            bool eul_cell_within_Dirac_delta_stencil = 
+                                                     (fabs(dist_x) <= 2.) 
+                                                     and 
+                                                     (fabs(dist_y) <= 2.) 
+                                                     and 
+                                                     (fabs(dist_z) <= 2.);
+            
+            // // // if( eul_cell_within_proc_domain and eul_cell_within_Dirac_delta_stencil )
+            // // // // // if( eul_cell_within_Dirac_delta_stencil )
+            if( eul_cell_within_Dirac_delta_stencil )
+            {
+              r1 = dist_x;
+              r1 = discrete_Dirac_delta(r1, ibm_param.dirac_type, dxC, Nx);
+              p1 = dist_y;
+              p1 = discrete_Dirac_delta(p1, ibm_param.dirac_type, dyC, Ny);
+              q1 = dist_z;
+              q1 = discrete_Dirac_delta(q1, ibm_param.dirac_type, dzC, Nz);
 
-            // Numerical integration of Dirac delta function value
-            sum_dirac_delta += delt1 * dxC * dyC * dzC;
-            
-            // Computing Eulerian force
-            double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                                 + 
-                                 m_all_nodes[inode].sumforce(comp) 
-                                 * delt1 * dxC * dyC * dzC;
-            FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
-            sum_euler_force += euler_force;
-            
-            // Assigning Eulerian force tag for each cell for debugging
-            double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
-            FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+              // Dirac delta function value
+              delt1 = r1 * p1 * q1;
+
+              // Numerical integration of Dirac delta function value
+              sum_dirac_delta += delt1 * dxC * dyC * dzC;
+              
+              // Computing Eulerian force
+              double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                                   + 
+                                   m_all_nodes[inode].sumforce(comp) 
+                                   * delt1 * dxC * dyC * dzC;
+              FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
+              sum_euler_force += euler_force;
+              
+              // Assigning Eulerian force tag for each cell for debugging
+              double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+              FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+            }
           }
         }
       }

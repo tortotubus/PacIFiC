@@ -16,6 +16,8 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <computingtime.hh>
+#include <solvercomputingtime.hh>
 using std::vector;
 using std::istream ;
 using std::ostream ;
@@ -34,6 +36,8 @@ The array of all rigid bodies in the Direction Splitting solver.
 
 @author A. Goyal - Pacific project 2022 */
 
+// // // class DS_AllImmersedBoundary : public ComputingTime,
+// // //                                public SolverComputingTime
 class DS_AllImmersedBoundary
 {
    public: //-----------------------------------------------------------------
@@ -133,10 +137,10 @@ class DS_AllImmersedBoundary
       
 
       // Pointers to the constant fields and primary grid
-      FV_DiscreteField const* UF ;
-      FV_DiscreteField* Eul_F ;
+      FV_DiscreteField const* UF;
+      FV_DiscreteField* Eul_F;
       FV_DiscreteField* F_Eul_tag;
-      FV_Mesh const* MESH ;
+      FV_Mesh const* MESH;
       boolVector const* U_periodic_comp;
 
       //@}
