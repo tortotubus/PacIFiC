@@ -306,7 +306,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
   }
   for (size_t comp=0;comp<nb_comps;comp++) 
   {
-    // lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
+    lag_to_eul(Eul_F, F_Eul_tag, dim, comp);
   }
 }
 
