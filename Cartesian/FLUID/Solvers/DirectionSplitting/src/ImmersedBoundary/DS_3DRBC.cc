@@ -1092,6 +1092,7 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
   double dist_x, dist_y, dist_z;
   bool eul_cell_within_Dirac_delta_stencil;
 
+  // Mesh pertaining to the Eulerian velocity component
   FV_Mesh const* fvm = FF->primary_grid();
   
   size_t_vector min_unknown_index_with_halozone(dim, 0);
@@ -1290,6 +1291,7 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
   double sum_euler_force = 0., euler_force_tag = 0.;
   bool eul_cell_within_Dirac_delta_stencil;
 
+  // Mesh pertaining to the Eulerian force component
   FV_Mesh const* fvm = FF->primary_grid() ;
 
   size_t_vector min_unknown_index_with_halozone(dim,0);
