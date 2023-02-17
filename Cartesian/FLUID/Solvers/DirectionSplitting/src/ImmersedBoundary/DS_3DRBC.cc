@@ -1435,8 +1435,6 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
         }
       }
     }
-    cout << "lag force = " << m_all_nodes[inode].sumforce(comp) << "\teuler force = " << euler_force << endl;
-    exit(3);
   }
 }
 
