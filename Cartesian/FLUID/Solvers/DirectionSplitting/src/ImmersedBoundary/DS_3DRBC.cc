@@ -1241,6 +1241,7 @@ void DS_3DRBC:: eul_to_lag(FV_DiscreteField const* FF
       // total_dirac_delta = \sum\limits_{ii, jj, kk} dirac_delta(ii, jj, kk)
       // lagrangian_velocity = total_lag_velocity / total_dirac_delta
       // // // m_all_nodes[inode].velocity(comp) /= sum_dirac_delta;
+      
     }
   }
 }
