@@ -2781,7 +2781,8 @@ void DS_3DRBC:: compute_gyration_tensor(size_t const& cyclenum,
 //---------------------------------------------------------------------------
 void DS_3DRBC:: compute_stats(string const& directory, string const& filename, 
                               size_t const& dim, double const& time, 
-                              double const& final_time, size_t const& cyclenum)
+                              double const& final_time, size_t const& cyclenum,
+                              string const& case_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_stats" ) ;
@@ -2796,7 +2797,7 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   m_rbc_one_point_rootname = "rbc_one_point";
   m_triangle_unit_normals_rootname = "triangle_unit_normals";
   m_node_unit_normals_rootname = "node_unit_normals";
-  m_gyration_tensor_rootname = "gyration_tensor_init_final.txt";
+  m_gyration_tensor_rootname = "gyration_tensor_init_and_final.txt";
 
 
   ofstream rbc_stats_file;
@@ -2844,7 +2845,9 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   compute_tdp_orientation_angle();
   
   // Compute smallest eigenvalue of Gyration tensor
-  if( (cyclenum == 1) or (abs(time - final_time) <= 1.e-8) )
+  if( (case_type.compare("Parabolic_flow") == 0)
+      and
+      ((cyclenum == 1) or (abs(time - final_time) <= 1.e-8)) )
     compute_gyration_tensor(cyclenum, time, directory, m_gyration_tensor_rootname);
   
   /*

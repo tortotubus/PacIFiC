@@ -494,7 +494,8 @@ void DS_AllImmersedBoundary:: do_additional_savings
                                           m_space_dimension, 
                                           t_it->time(), 
                                           t_it->final_time(),
-                                          cycleNumber);
+                                          cycleNumber,
+                                          m_IB_case_type);
 
     /*
     // Writing triangle unit normals to .vtu file

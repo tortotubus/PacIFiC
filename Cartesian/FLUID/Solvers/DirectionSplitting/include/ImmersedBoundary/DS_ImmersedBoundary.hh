@@ -407,7 +407,8 @@ class DS_ImmersedBoundary
                                  size_t const& dim,
                                  double const& time, 
                                  double const& final_time,
-                                 size_t const& cyclenum) = 0;
+                                 size_t const& cyclenum,
+                                 string const& case_type) = 0;
       
       /** @brief Computes the centroid of each immersed boundary */
       virtual void compute_centroid(size_t const& dim) = 0;
