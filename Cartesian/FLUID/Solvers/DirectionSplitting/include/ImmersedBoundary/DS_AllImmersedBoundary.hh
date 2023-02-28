@@ -61,7 +61,8 @@ class DS_AllImmersedBoundary
                            , double const& arb_mu
                            , size_t const& n_RBC_timesteps
                            , string const& dirac_type
-                           , bool const& debug_mode);
+                           , bool const& debug_mode
+                           , bool const& combined_force_computation);
 
       /** @brief Destructor */
       ~DS_AllImmersedBoundary();
@@ -130,6 +131,7 @@ class DS_AllImmersedBoundary
       size_t m_subtimesteps_RBC; /* number of subtimesteps for RBC iterations */
       string m_dirac_type; /* type of Dirac delta - Balogh, Archer, Roma */
       string m_model_type; /* Membrane force model type - Simplified, NumericalMembraneModel */
+      bool m_combined_force_computation; /* True => spring+bending+viscous & volume+area force computed in combined manner */
       vector<DS_ImmersedBoundary*> m_allDSimmersedboundary; /** pointer of objects
       of DS_ImmersedBoundary class */
       double m_rho;

@@ -233,6 +233,7 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
                           , boolVector const* is_periodic
                           , string const& case_type
                           , bool const& Matlab_numbering
+                          , bool const& combined_force_computation
                           , string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -275,7 +276,10 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
     // Solve for RBC dynamics using spring-dashpot model
     if(int(membrane_param.n_subtimesteps_RBC) > 0) // With sub time stepping
     {
-      rbc_dynamics_solver(dim, t_it->iteration_number(), t_it->time_step(), case_type, Matlab_numbering, model_type);
+      rbc_dynamics_solver(dim, t_it->iteration_number(), 
+                          t_it->time_step(), case_type, 
+                          Matlab_numbering, combined_force_computation, 
+                          model_type);
     }
     else // no sub time stepping
     {
@@ -283,7 +287,9 @@ void DS_ImmersedBoundary:: do_one_inner_iteration
       
       rbc_dynamics_solver_no_sub_time_stepping(dim, t_it->iteration_number(),
                                                t_it->time_step(), case_type, 
-                                               Matlab_numbering, model_type);
+                                               Matlab_numbering, 
+                                               combined_force_computation, 
+                                               model_type);
     }
     
     // Copy new Lagrangian positon & force into a doubleVector

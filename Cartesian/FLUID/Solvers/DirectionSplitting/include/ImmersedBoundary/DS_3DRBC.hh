@@ -151,6 +151,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,
+                          bool const& combined_force_computation,
                           string const& model_type = "NumericalMembraneModel" );
       
       /** @brief Computes RBC deformation using spring-dashpot model */
@@ -159,6 +160,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,
+                          bool const& combined_force_computation,
                           string const& model_type = "NumericalMembraneModel" );
       
       /** @brief Computes spring force */
@@ -192,6 +194,20 @@ class DS_3DRBC: public DS_ImmersedBoundary
                           bool const& Matlab_numbering,
                           string const& model_type = "NumericalMembraneModel" );
 
+      /** @brief Computes Spring + Bending + Viscous forces */
+      void compute_spring_bending_viscous_forces( size_t const& dim, 
+                          double const& spring_constant, 
+                          double const& bending_spring_constant,
+                          double const& bending_viscous_constant,
+                          double const& viscous_drag_constant, 
+                          double const& dt, 
+                          string const& model_type = "NumericalMembraneModel" );
+                                             
+      /** @brief Computes Volume + Area forces */
+      void compute_volume_area_conservation_forces( size_t const& dim, 
+                          bool const& Matlab_numbering, 
+                          string const& model_type = "NumericalMembraneModel" );
+      
       /** @brief Converts the value of force from model to physical units **/
       double convert_model_to_physical_units(double f_M);
       

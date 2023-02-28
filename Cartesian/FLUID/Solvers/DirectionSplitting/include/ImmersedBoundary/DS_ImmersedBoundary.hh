@@ -323,6 +323,7 @@ class DS_ImmersedBoundary
                                    boolVector const* is_periodic,
                                    string const& case_type,
                                    bool const& Matlab_numbering,
+                                   bool const& combined_force_computation,
                                    string const& model_type = "NumericalMembraneModel" );
         
       /** @brief Discretised Dirac delta function
@@ -357,6 +358,7 @@ class DS_ImmersedBoundary
                        double const& dt_fluid,
                        string const& case_type,
                        bool const& Matlab_numbering,
+                       bool const& combined_force_computation,
                        string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes RBC deformation using spring-dashpot model */
@@ -365,6 +367,7 @@ class DS_ImmersedBoundary
                       double const& dt_fluid,
                       string const& case_type,
                       bool const& Matlab_numbering,
+                      bool const& combined_force_computation,
                       string const& model_type = "NumericalMembraneModel" ) = 0;
       
       /** @brief Computes spring force */

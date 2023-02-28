@@ -334,6 +334,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
      n_RBC_timesteps = exp->int_data( "NumberOfRBCTimesteps" );
      Dirac_type = exp->string_data( "DiracType" );
      bool debug_mode = exp->bool_data( "DebugMode" );
+     bool combined_force_computation = exp->bool_data( "CombinedForceComputation" );
 
 
      allimmersedboundary = new DS_AllImmersedBoundary(space_dimensions
@@ -350,7 +351,8 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                            , mu
                            , n_RBC_timesteps
                            , Dirac_type
-                           , debug_mode);
+                           , debug_mode
+                           , combined_force_computation);
    }
 
    // Create structure to input in the NS solver

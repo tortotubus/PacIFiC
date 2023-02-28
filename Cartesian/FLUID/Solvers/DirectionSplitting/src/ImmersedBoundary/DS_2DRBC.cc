@@ -914,6 +914,7 @@ void DS_2DRBC:: rbc_dynamics_solver(size_t const& dim,
                                     double const& dt_fluid, 
                                     string const& case_type,
                                     bool const& Matlab_numbering,
+                                    bool const& combined_force_computation,
                                     string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -1019,6 +1020,7 @@ void DS_2DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
                                                    double const& dt_fluid, 
                                                    string const& case_type,
                                                    bool const& Matlab_numbering,
+                                                   bool const& combined_force_computation,
                                                    string const& model_type)
 //---------------------------------------------------------------------------
 {

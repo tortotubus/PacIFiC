@@ -1541,7 +1541,515 @@ void DS_3DRBC::compute_membrane_area_centroid_volume( size_t const& dim )
 
 
 
+    
+//---------------------------------------------------------------------------
+void DS_3DRBC::compute_spring_bending_viscous_forces( size_t const& dim, 
+                                            double const& spring_constant, 
+                                            double const& bending_spring_constant,
+                                            double const& bending_viscous_constant,
+                                            double const& viscous_drag_constant, 
+                                            double const& dt, 
+                                            string const& model_type )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_spring_bending_viscous_forces" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
 
+  if(model_type.compare("NumericalMembraneModel") == 0)
+  {
+    double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+    
+    geomVector Iij(dim);
+    double length = 0.;
+    geomVector f_WLC(dim);
+    geomVector f_POW(dim);
+
+    geomVector a21(dim), a31(dim), a24(dim), a34(dim);
+    geomVector Chi(dim), Gamma(dim), crossp(dim), n2n3(dim);
+    geomVector Chi_minus_Gamma(dim), tc1_minus_tc2(dim), tc1(dim), tc2(dim);
+    
+    membrane_param.mean_WLC_spring_force_magnitude = 0.;
+    membrane_param.mean_POW_spring_force_magnitude = 0.;
+    membrane_param.mean_bending_force_magnitude = 0.;
+    membrane_param.mean_viscous_force_magnitude = 0.;
+    
+    for (size_t i=0;i<num_nodes;++i)
+    {
+        for (size_t j=0;j<dim;++j)
+        {
+            m_all_nodes[i].WLC_force(j) = 0.;
+            m_all_nodes[i].POW_force(j) = 0.;
+            m_all_nodes[i].bending_force(j) = 0.;
+            m_all_nodes[i].viscous_force(j) = 0.;
+        }
+    }
+        
+    for (vector<Edge>::iterator il=m_all_edges.begin();il!=m_all_edges.end();il++)
+    {
+        //----------------------//
+        /**** Spring force   ****/
+        //----------------------//
+        // Computing the spring vector from node 3 to node 2, i.e., node j to i
+        for (size_t j=0;j<dim;++j)
+          Iij(j) = il->n2->coordinates(j) - il->n3->coordinates(j); 
+
+        // Spring length
+        length = norm ( Iij );
+
+        // Normalizing the spring vector to unit vector
+        for (size_t j=0;j<dim;++j)
+          Iij(j) /= length;
+        
+        // WLC spring prefactor
+        double x = length / il->lmax;
+        double alpha_1 = 1. / (4. * pow(1.-x, 2.));
+        double alpha_2 = 1./4.;
+        double alpha_3 = x;
+        double alpha = alpha_1 - alpha_2 + alpha_3;
+
+        // POW spring prefactor
+        double l_M = length / order_of_magnitude_of_radius;
+        double beta = 1. / pow(l_M, 2.);
+
+        for (size_t j=0;j<dim;++j)
+        {
+            // WLC force
+            f_WLC(j) = - il->k * alpha * Iij(j);
+            il->n2->sumforce(j)  +=  f_WLC(j);
+            il->n3->sumforce(j)  += -f_WLC(j);
+            il->n2->WLC_force(j) +=  f_WLC(j);
+            il->n3->WLC_force(j) += -f_WLC(j);
+
+            // POW force
+            f_POW(j) = il->kp * beta * Iij(j);
+            il->n2->sumforce(j)  +=  f_POW(j);
+            il->n3->sumforce(j)  += -f_POW(j);
+            il->n2->WLC_force(j) +=  f_POW(j);
+            il->n3->WLC_force(j) += -f_POW(j);
+        }
+        
+        
+        
+        //----------------------//
+        /**** Bending force  ****/
+        //----------------------//
+        // Steps for computing bending force
+        
+        //  1. Compute a21, a31
+        // a21 = a1 - a2 = vector from node 2 to node 1
+        for (size_t j=0;j<dim;++j) 
+          a21(j) = (-il->t1v1.second->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a31 = a1 - a3 = vector from node 3 to node 1
+        for (size_t j=0;j<dim;++j) 
+          a31(j) = (-il->t1v1.second->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        
+        //  2. Compute chi
+        cross_3D(a21, a31, Chi);
+        
+        
+        //  3. Compute a34, a24
+        // a34 = a4 - a3 = vector from node 3 to node 4
+        for (size_t j=0;j<dim;++j) 
+          a34(j) = (-il->t2v4.second->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a24 = a4 - a2 = vector from node 2 to node 4
+        for (size_t j=0;j<dim;++j) 
+          a24(j) = (-il->t2v4.second->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+        
+        
+        //  4. Compute gamma
+        cross_3D(a34, a24, Gamma);
+            
+            
+        double A1 = 0.5 * norm(Chi);
+        double A2 = 0.5 * norm(Gamma);
+            
+        //  6. Compute chi - gamma
+        for (size_t j=0;j<dim;++j) Chi_minus_Gamma(j) = Chi(j) - Gamma(j);
+            
+        
+        //  7. Compute tc1 - tc2
+        for (size_t j=0;j<dim;++j) tc1(j) = (il->t1v1.second->coordinates(j) + il->n2->coordinates(j) + il->n3->coordinates(j))/3.;
+        for (size_t j=0;j<dim;++j) tc2(j) = (il->n2->coordinates(j) + il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/3.;
+        for (size_t j=0;j<dim;++j) tc1_minus_tc2(j) = (tc1(j) - tc2(j))/order_of_magnitude_of_radius;
+        double dot_product = scalar(Chi_minus_Gamma, tc1_minus_tc2);
+
+
+        //  5. Compute costheta
+        double costheta = scalar(Chi, Gamma)/A1/A2/4.0;
+            
+        
+        //  6. Compute sintheta (with a clipping for values above 0.5 or so)
+        if(costheta >  1.) costheta =  1.;
+        if(costheta < -1.) costheta = -1.;
+        double theta = acos(costheta);
+        if(dot_product < 0.) theta *= -1.;
+        double sintheta = sin(theta);
+        if(fabs(sintheta) < SMALLER) sintheta = SMALLER;
+        double siinv = 1. / sintheta;
+            
+
+
+
+            
+        //  7. Compute a12, a13, a43, a42, a32, a23
+        // a12 = a2 - a1 = vector from node 1 to node 2
+        geomVector a12(dim);
+        for (size_t j=0;j<dim;++j) a12(j) = (-il->n2->coordinates(j) + il->t1v1.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a13 = a3 - a1 = vector from node node 1 to node 3
+        geomVector a13(dim);
+        for (size_t j=0;j<dim;++j) a13(j) = (-il->n3->coordinates(j) + il->t1v1.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a43 = a3 - a4 = vector from node 4 to node 3
+        geomVector a43(dim);
+        for (size_t j=0;j<dim;++j) a43(j) = (-il->n3->coordinates(j) + il->t2v4.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a42 = a2 - a4 = vector from node 4 to node 2
+        geomVector a42(dim);
+        for (size_t j=0;j<dim;++j) a42(j) = (-il->n2->coordinates(j) + il->t2v4.second->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a32 = a2 - a3 = vector from node 3 to node 2
+        geomVector a32(dim);
+        for (size_t j=0;j<dim;++j) a32(j) = (-il->n2->coordinates(j) + il->n3->coordinates(j))/order_of_magnitude_of_radius;
+        
+        // a23 = a3 - a2 = vector from node to node 3
+        geomVector a23(dim);
+        for (size_t j=0;j<dim;++j) a23(j) = (-il->n3->coordinates(j) + il->n2->coordinates(j))/order_of_magnitude_of_radius;
+            
+            
+        //  8. Compute beta_b
+        double beta_b = membrane_param.kbending_M * (sintheta * il->costheta0 - costheta * il->sintheta0) * siinv;
+        
+        //  9. Compute b11, b12, b22
+        double b11 = - beta_b*costheta/A1/A1/4.0;
+        double b12 =   beta_b/A1/A2/4.0;
+        double b22 = - beta_b*costheta/A2/A2/4.0;
+            
+
+        //  10. Compute nodal forces
+        // Node 1
+        geomVector Chi_cross_a32(dim);
+        cross_3D(Chi, a32, Chi_cross_a32);
+        geomVector Gamma_cross_a32(dim);
+        cross_3D(Gamma, a32, Gamma_cross_a32);
+        for (size_t j=0;j<dim;++j) il->t1v1.second->sumforce(j) += b11 * Chi_cross_a32(j) + b12 * Gamma_cross_a32(j);
+        for (size_t j=0;j<dim;++j) il->t1v1.second->bending_force(j) += b11 * Chi_cross_a32(j) + b12 * Gamma_cross_a32(j);
+        
+        // Node 2
+        geomVector Chi_cross_a13(dim);
+        cross_3D(Chi, a13, Chi_cross_a13);
+        geomVector Chi_cross_a34(dim);
+        cross_3D(Chi, a34, Chi_cross_a34);
+        geomVector Gamma_cross_a13(dim);
+        cross_3D(Gamma, a13, Gamma_cross_a13);
+        geomVector Gamma_cross_a34(dim);
+        cross_3D(Gamma, a34, Gamma_cross_a34);
+        for (size_t j=0;j<dim;++j) il->n2->sumforce(j) += b11 * Chi_cross_a13(j) + b12 * (Chi_cross_a34(j) + Gamma_cross_a13(j)) + b22 * Gamma_cross_a34(j);
+        for (size_t j=0;j<dim;++j) il->n2->bending_force(j) += b11 * Chi_cross_a13(j) + b12 * (Chi_cross_a34(j) + Gamma_cross_a13(j)) + b22 * Gamma_cross_a34(j);
+        
+        // Node 3
+        geomVector Chi_cross_a21(dim);
+        cross_3D(Chi, a21, Chi_cross_a21);
+        geomVector Chi_cross_a42(dim);
+        cross_3D(Chi, a42, Chi_cross_a42);
+        geomVector Gamma_cross_a21(dim);
+        cross_3D(Gamma, a21, Gamma_cross_a21);
+        geomVector Gamma_cross_a42(dim);
+        cross_3D(Gamma, a42, Gamma_cross_a42);
+        for (size_t j=0;j<dim;++j) il->n3->sumforce(j) += b11 * Chi_cross_a21(j) + b12 * (Chi_cross_a42(j) + Gamma_cross_a21(j)) + b22 * Gamma_cross_a42(j);
+        for (size_t j=0;j<dim;++j) il->n3->bending_force(j) += b11 * Chi_cross_a21(j) + b12 * (Chi_cross_a42(j) + Gamma_cross_a21(j)) + b22 * Gamma_cross_a42(j);
+        
+        // Node 4
+        geomVector Chi_cross_a23(dim);
+        cross_3D(Chi, a23, Chi_cross_a23);
+        geomVector Gamma_cross_a23(dim);
+        cross_3D(Gamma, a23, Gamma_cross_a23);
+        for (size_t j=0;j<dim;++j) il->t2v4.second->sumforce(j) += b12 * Chi_cross_a23(j) + b22 * Gamma_cross_a23(j);
+        for (size_t j=0;j<dim;++j) il->t2v4.second->bending_force(j) += b12 * Chi_cross_a23(j) + b22 * Gamma_cross_a23(j);
+        
+        
+        
+        //----------------------//
+        /**** Viscous force ****/
+        //----------------------//
+        double eta_M = membrane_param.eta_M;
+
+        geomVector eij(dim);
+        geomVector vij(dim);
+        geomVector vij_M(dim);
+
+        // (x) ------------------- (x)
+        //  i                       j
+        // Nodes i and j of a spring
+        // Computing viscous force as two lines of code for nodes i and j
+        geomVector vjmvi(dim);
+        geomVector vimvj(dim);
+
+        // Vector of each spring
+        for (size_t j=0;j<dim;++j)
+            eij(j) = il->n3->coordinates(j) - il->n2->coordinates(j);
+        
+        // Length of each spring
+        double length = norm ( eij );
+        
+        // Unit vector of each spring
+        for (size_t j=0;j<dim;++j) 
+            eij(j) /= length;
+
+        // Relative velocity between nodes i and j
+        for (size_t j=0;j<dim;++j)
+        {
+            vimvj(j) = (il->n2->velocity(j) - il->n3->velocity(j)) * (dt/order_of_magnitude_of_radius);
+            vjmvi(j) = (il->n3->velocity(j) - il->n2->velocity(j)) * (dt/order_of_magnitude_of_radius);
+        }
+    
+        // Projection of relative velocity on the spring unit vector
+        double vimvj_dot_eij = scalar(vimvj, eij);
+        double vjmvi_dot_eij = scalar(vjmvi, eij);
+        
+        // Viscous force computation
+        double constant_1 = 12.0 / (13.0 * sqrt(3.0));
+        double constant_2 =  4.0 / (13.0 * sqrt(3.0)); // gamma_C = gamma_T/3
+        double gamma_T = constant_1 * eta_M; // T = translational component
+        double gamma_C = constant_2 * eta_M; // C = central component
+        for (size_t j=0;j<dim;++j)
+        {
+            // Viscous force on node i
+            double f_i = - (gamma_T * vimvj(j) + gamma_C * vimvj_dot_eij * eij(j));
+            il->n2->sumforce(j) += f_i;
+            il->n2->viscous_force(j) += f_i;
+
+            // Viscous force on node j
+            double f_j = - (gamma_T * vjmvi(j) + gamma_C * vjmvi_dot_eij * eij(j));
+            il->n3->sumforce(j) += f_j;
+            il->n3->viscous_force(j) += f_j;
+        }
+    }
+    
+    // Mean spring, bending & viscous forces
+    for (size_t i=0;i<num_nodes;++i)
+    {
+        membrane_param.mean_WLC_spring_force_magnitude += norm(m_all_nodes[i].WLC_force);
+        membrane_param.mean_POW_spring_force_magnitude += norm(m_all_nodes[i].POW_force);
+        membrane_param.mean_bending_force_magnitude += norm(m_all_nodes[i].bending_force);
+        membrane_param.mean_viscous_force_magnitude += norm(m_all_nodes[i].viscous_force);
+    }
+    membrane_param.mean_WLC_spring_force_magnitude /= num_nodes;
+    membrane_param.mean_POW_spring_force_magnitude /= num_nodes;
+    membrane_param.mean_bending_force_magnitude /= num_nodes;
+    membrane_param.mean_viscous_force_magnitude /= num_nodes;
+  }
+}
+
+
+
+    
+//---------------------------------------------------------------------------
+void DS_3DRBC::compute_volume_area_conservation_forces( size_t const& dim, 
+                                              bool const& Matlab_numbering, 
+                                              string const& model_type )
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "DS_3DRBC:: compute_volume_area_conservation_forces" ) ;
+  
+  size_t num_nodes = shape_param.N_nodes;
+  double order_of_magnitude_of_radius = shape_param.order_of_magnitude_of_radius;
+  double kv = membrane_param.k_volume;
+  double ka = membrane_param.k_area;
+  double kd = membrane_param.k_area_local;
+
+  // Force reversal coefficient
+  double force_reversal_coefficient = (Matlab_numbering) ? -1. : 1.;
+
+  geomVector a21(dim), a31(dim), a13(dim), a32(dim), xi(dim);
+  geomVector node_1_comp_volume(dim), node_2_comp_volume(dim), node_3_comp_volume(dim);
+  geomVector node_1_comp_area(dim), node_2_comp_area(dim), node_3_comp_area(dim);
+  double f1, f2, f3, f4, f5, f6;
+  geomVector triangle_centroid(dim);
+  double beta_v;
+  geomVector a21_M(dim), a13_M(dim), a32_M(dim);
+  geomVector xi_M(dim);
+  geomVector center_of_mass_M(dim);
+  
+  // Initialising volume & area forces to 0.0
+  for (size_t i=0;i<num_nodes;++i)
+  {
+    for (size_t j=0;j<dim;++j)
+    {
+      m_all_nodes[i].volume_force(j) = 0.;
+      m_all_nodes[i].area_force(j) = 0.;
+    }
+  }
+  
+  // Nullifying mean volume & area force magnitudes
+  membrane_param.mean_volume_force_magnitude = 0.;
+  membrane_param.mean_area_force_magnitude = 0.;
+          
+  // Computing area forces based on looping over triangles
+  for (size_t i=0;i<m_nTriangles;++i) 
+  {
+      size_t n1_num = m_all_trielements[i].pnodes[0]->number; // Node 1's number
+      size_t n2_num = m_all_trielements[i].pnodes[1]->number; // Node 2's number
+      size_t n3_num = m_all_trielements[i].pnodes[2]->number; // Node 3's number
+      
+      // Get each triangle's center of mass vector pointing from membrane centroid to triangle center of mass
+      for (size_t j=0;j<dim;++j) 
+        triangle_centroid(j) = (m_all_trielements[i].center_of_mass(j) 
+                                - 
+                                membrane_param.centroid_coordinates(j)) 
+                                / order_of_magnitude_of_radius;
+      
+      // a21
+      for (size_t j=0;j<dim;++j)
+          a21(j) = (m_all_trielements[i].pnodes[0]->coordinates(j) 
+                    - 
+                    m_all_trielements[i].pnodes[1]->coordinates(j))
+                    / order_of_magnitude_of_radius;
+          
+      // a31
+      for (size_t j=0;j<dim;++j)
+          a13(j) = (m_all_trielements[i].pnodes[2]->coordinates(j) 
+                    - 
+                    m_all_trielements[i].pnodes[0]->coordinates(j))
+                    / order_of_magnitude_of_radius;
+      
+      // a32
+      for (size_t j=0;j<dim;++j)
+          a32(j) = (m_all_trielements[i].pnodes[1]->coordinates(j) 
+                    - 
+                    m_all_trielements[i].pnodes[2]->coordinates(j))
+                    / order_of_magnitude_of_radius;
+          
+
+      // outward pointing normal to the triangle
+      for (size_t j=0;j<dim;++j) 
+        xi(j) = (m_all_trielements[i].twice_area_outwards_normal_vector(j)) 
+                / pow(order_of_magnitude_of_radius, 2.);
+
+      
+      // Converting quantities to non-dimensional units
+      for (size_t j=0;j<dim;++j)
+      {
+          xi_M(j) = xi(j); // / pow(order_of_magnitude_of_radius, 2);
+          a21_M(j) = a21(j); // / order_of_magnitude_of_radius;
+          a13_M(j) = a13(j); // / order_of_magnitude_of_radius;
+          a32_M(j) = a32(j); // / order_of_magnitude_of_radius;
+          center_of_mass_M(j) = triangle_centroid(j); // - membrane_param.centroid_coordinates(j)) / order_of_magnitude_of_radius;
+      }
+      
+      // t_c x a32, tc x a13, tc x a21
+      cross_3D(center_of_mass_M, a32_M, node_1_comp_volume);
+      cross_3D(center_of_mass_M, a13_M, node_2_comp_volume);
+      cross_3D(center_of_mass_M, a21_M, node_3_comp_volume);
+      
+      //----------------------------------//
+      /**** Volume conservation force  ****/
+      //----------------------------------//
+      force_reversal_coefficient = 1.;
+      
+      // Nodal volume conservation force
+      beta_v = - kv * ((membrane_param.total_volume 
+                        - 
+                        membrane_param.initial_volume)
+                        /membrane_param.initial_volume);
+      // Node 1
+      for (size_t j=0;j<dim;++j)
+      {
+          f1 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_1_comp_volume(j) * force_reversal_coefficient);
+          m_all_trielements[i].pnodes[0]->sumforce(j) += f1;
+          m_all_trielements[i].pnodes[0]->volume_force(j) += f1;
+      }
+      // Node 2
+      for (size_t j=0;j<dim;++j)
+      {
+          f2 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_2_comp_volume(j) * force_reversal_coefficient);
+          m_all_trielements[i].pnodes[1]->sumforce(j) += f2;
+          m_all_trielements[i].pnodes[1]->volume_force(j) += f2;
+      }
+      // Node 3
+      for (size_t j=0;j<dim;++j)
+      {
+          f3 = (beta_v/6.) * ((1./3.)*xi_M(j) + node_3_comp_volume(j) * force_reversal_coefficient);
+          m_all_trielements[i].pnodes[2]->sumforce(j) += f3;
+          m_all_trielements[i].pnodes[2]->volume_force(j) += f3;
+      }
+        
+        
+        
+      //--------------------------------//
+      /**** Area conservation force ****/
+      //--------------------------------//
+      // Global area force contribution
+      double ratio_global = (membrane_param.total_area - membrane_param.initial_area) 
+                            / membrane_param.initial_area;
+      double beta_global = - ka * ratio_global;
+      double A_k = m_all_trielements[i].tri_area / pow(order_of_magnitude_of_radius, 2.);
+      double global = beta_global / ( 4. * A_k );
+      
+      // Local area force contribution
+      double ratio_local = (m_all_trielements[i].tri_area - m_all_trielements[i].tri_initial_area) 
+                           / m_all_trielements[i].tri_initial_area;
+      double beta_local = - kd * ratio_local;
+      double local = beta_local / ( 4. * A_k );
+      
+      for (size_t j=0;j<dim;++j)
+      {
+          xi_M(j) = xi(j); // / pow(order_of_magnitude_of_radius, 2.);
+          a21_M(j) = a21(j); // / order_of_magnitude_of_radius;
+          a13_M(j) = a13(j); // / order_of_magnitude_of_radius;
+          a32_M(j) = a32(j); // / order_of_magnitude_of_radius;
+      }
+
+      // xi x a32, xi x a13, xi x a21
+      cross_3D( xi_M, a32_M, node_1_comp_area );
+      cross_3D( xi_M, a13_M, node_2_comp_area );
+      cross_3D( xi_M, a21_M, node_3_comp_area );
+      
+      force_reversal_coefficient = 1.;
+      
+      // Nodal area conservation force
+      // Node 1
+      for (size_t j=0;j<dim;++j)
+      {
+          f4 = (global + local) * node_1_comp_area(j) * force_reversal_coefficient;
+          m_all_trielements[i].pnodes[0]->sumforce(j) += f4; // node 1
+          m_all_trielements[i].pnodes[0]->area_force(j) += f4; // node 1
+      }
+      // Node 2
+      for (size_t j=0;j<dim;++j)
+      {
+          f5 = (global + local) * node_2_comp_area(j) * force_reversal_coefficient;
+          m_all_trielements[i].pnodes[1]->sumforce(j) += f5; // node 2
+          m_all_trielements[i].pnodes[1]->area_force(j) += f5; // node 2
+      }
+      // Node 3
+      for (size_t j=0;j<dim;++j)
+      {
+          f6 = (global + local) * node_3_comp_area(j) * force_reversal_coefficient;
+          m_all_trielements[i].pnodes[2]->sumforce(j) += f6; // node 3
+          m_all_trielements[i].pnodes[2]->area_force(j) += f6; // node 3
+      }
+  }
+  
+  
+  // Mean force magnitude
+  for (size_t i=0;i<num_nodes;++i)
+  {
+      membrane_param.mean_volume_force_magnitude += norm(m_all_nodes[i].volume_force);
+      membrane_param.mean_area_force_magnitude += norm(m_all_nodes[i].area_force);
+  }
+  membrane_param.mean_volume_force_magnitude /= num_nodes;
+  membrane_param.mean_area_force_magnitude /= num_nodes;
+  
+}
+
+
+
+    
 //---------------------------------------------------------------------------
 void DS_3DRBC::compute_spring_force( size_t const& dim,
                                      double const& spring_constant,
@@ -1649,7 +2157,7 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
     membrane_param.mean_WLC_spring_force_magnitude /= num_nodes;
     membrane_param.mean_POW_spring_force_magnitude /= num_nodes;
   }
-} 
+}
 
 
 
@@ -2286,6 +2794,7 @@ void DS_3DRBC:: compute_area_conservation_force(size_t const& dim,
           a32_M(j) = a32(j); // / order_of_magnitude_of_radius;
       }
       
+      // xi x a32, xi x a13, xi x a21
       cross_3D( xi_M, a32_M, node_1_comp );
       cross_3D( xi_M, a13_M, node_2_comp );
       cross_3D( xi_M, a21_M, node_3_comp );
@@ -2361,6 +2870,7 @@ void DS_3DRBC:: rbc_dynamics_solver(size_t const& dim,
                                     double const& dt_fluid, 
                                     string const& case_type,
                                     bool const& Matlab_numbering,
+                                    bool const& combined_force_computation,
                                     string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -2489,6 +2999,7 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
                                                    double const& dt_fluid, 
                                                    string const& case_type,
                                                    bool const& Matlab_numbering,
+                                                   bool const& combined_force_computation, 
                                                    string const& model_type)
 //---------------------------------------------------------------------------
 {
@@ -2509,7 +3020,8 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
   compute_init_values = (int(fluid_iter_num) == 1) ? true : false;
   
   // Compute initial area & volume of membrane
-  if(int(fluid_iter_num) == 1) compute_total_surface_area_total_volume(compute_init_values, dim);
+  if(int(fluid_iter_num) == 1) 
+    compute_total_surface_area_total_volume(compute_init_values, dim);
   
   // Initialize forces on all nodes
   for (size_t inode=0;inode<num_nodes;++inode)
@@ -2523,21 +3035,36 @@ void DS_3DRBC:: rbc_dynamics_solver_no_sub_time_stepping(size_t const& dim,
   compute_total_surface_area_total_volume(compute_init_values, dim);
   
   // Compute forces on all nodes
-  // Spring force
-  compute_spring_force( dim, spring_constant, model_type );
+  if(combined_force_computation)
+  {
+    // Spring + Bending + Viscous forces
+    compute_spring_bending_viscous_forces( dim, spring_constant, 
+                                           bending_spring_constant,
+                                           bending_viscous_constant,
+                                           viscous_drag_constant, dt, 
+                                           model_type );
+                                           
+    // Volume + Area force computation
+    compute_volume_area_conservation_forces( dim, Matlab_numbering, model_type );
+  }
+  else
+  {
+    // Spring force
+    compute_spring_force( dim, spring_constant, model_type );
 
-  // Bending resistance
-  compute_bending_resistance( dim, bending_spring_constant, 
-                              bending_viscous_constant, dt, model_type );
+    // Bending resistance
+    compute_bending_resistance( dim, bending_spring_constant, 
+                                bending_viscous_constant, dt, model_type );
 
-  // Viscous drag force
-  compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
+    // Viscous drag force
+    compute_viscous_drag_force( dim, viscous_drag_constant, dt, model_type );
 
-  // Volume conservation force
-  compute_volume_conservation_force( dim, model_type );
+    // Volume conservation force
+    compute_volume_conservation_force( dim, model_type );
 
-  // Triangle surface area conservation force
-  compute_area_conservation_force( dim, Matlab_numbering, model_type );
+    // Triangle surface area conservation force
+    compute_area_conservation_force( dim, Matlab_numbering, model_type );
+  }
 
   for (size_t inode=0;inode<num_nodes;++inode)
     for (size_t j=0;j<dim;++j)

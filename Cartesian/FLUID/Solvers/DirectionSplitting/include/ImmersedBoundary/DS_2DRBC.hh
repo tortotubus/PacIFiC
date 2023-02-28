@@ -123,6 +123,7 @@ class DS_2DRBC: public DS_ImmersedBoundary
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,
+                          bool const& combined_force_computation,
                           string const& model_type = "NumericalMembraneModel" );
     
       /** @brief Computes RBC deformation using spring-dashpot model */
@@ -131,6 +132,7 @@ class DS_2DRBC: public DS_ImmersedBoundary
                           double const& dt_fluid,
                           string const& case_type,
                           bool const& Matlab_numbering,
+                          bool const& combined_force_computation,
                           string const& model_type = "NumericalMembraneModel" );
       
       /** @brief Computes spring force */

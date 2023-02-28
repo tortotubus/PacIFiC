@@ -28,7 +28,8 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
                                                , double const& arb_mu
                                                , size_t const& nRBC_subtimesteps
                                                , string const& dirac_type
-                                               , bool const& debug_mode)
+                                               , bool const& debug_mode
+                                               , bool const& combined_force_computation)
 //-----------------------------------------------------------------------------
 : m_space_dimension ( space_dimension )
 , m_IB_file ( IB_file )
@@ -44,6 +45,7 @@ DS_AllImmersedBoundary:: DS_AllImmersedBoundary(size_t const& space_dimension
 , m_mu ( arb_mu )
 , m_subtimesteps_RBC ( nRBC_subtimesteps )
 , m_dirac_type ( dirac_type )
+, m_combined_force_computation ( combined_force_computation )
 , MESH ( UF->primary_grid() )
 {
   MAC_LABEL( "DS_AllImmersedBoundary:: DS_AllImmersedBoundary" ) ;
@@ -453,6 +455,7 @@ void DS_AllImmersedBoundary:: do_one_inner_iteration
                                                        U_periodic_comp,
                                                        m_IB_case_type,
                                                        m_Matlab_numbering,
+                                                       m_combined_force_computation,
                                                        m_model_type);
   }
 }
