@@ -3372,9 +3372,9 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   compute_tdp_orientation_angle();
   
   // Compute smallest eigenvalue of Gyration tensor
-  if( (case_type.compare("Parabolic_flow") == 0)
-      and
-      ((cyclenum == 1) or (abs(time - final_time) <= 1.e-8)) )
+  if( (case_type.compare("Parabolic_flow") == 0) )
+      // // and
+      // // ((cyclenum == 1) or (abs(time - final_time) <= 1.e-8)) )
     compute_gyration_tensor(cyclenum, time, directory, m_gyration_tensor_rootname);
   
   /*
