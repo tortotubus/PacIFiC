@@ -866,7 +866,8 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
       membrane_param.D0_P = 2. * shape_param.radius;
       membrane_param.Y_P = membrane_param.FopplVonKarmanNumber 
                             * membrane_param.kc_P/pow(shape_param.radius, 2.);
-      membrane_param.mu0_P = membrane_param.Y_P / 4.; // assuming Y0 --> 4*mu0 when K --> infty
+      // for incompressible sheet, K >> mu0 ==> in Y = 4Kmu0/(K+mu0), we've Y = 4mu0
+      membrane_param.mu0_P = membrane_param.Y_P / 4.;
       // // membrane_param.eta_P = 0.;
       // // membrane_param.eta_M = 0.;
     }
@@ -3376,7 +3377,6 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
       // // and
       // // ((cyclenum == 1) or (abs(time - final_time) <= 1.e-8)) )
     compute_gyration_tensor(cyclenum, time, directory, m_gyration_tensor_rootname);
-    
   
   /*
   // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
