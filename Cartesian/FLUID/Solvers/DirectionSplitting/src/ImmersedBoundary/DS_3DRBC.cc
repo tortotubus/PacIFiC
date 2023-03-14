@@ -3376,6 +3376,7 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
       // // and
       // // ((cyclenum == 1) or (abs(time - final_time) <= 1.e-8)) )
     compute_gyration_tensor(cyclenum, time, directory, m_gyration_tensor_rootname);
+    
   
   /*
   // Average tangential velocity for tank treading = avg magnitude of velocity over all nodes
