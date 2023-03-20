@@ -59,6 +59,12 @@ void DS_3DRBC:: initialize_node_properties(string const& mesh_filename,
   
   // Read number of nodes for each RBC3D into the variable
   ifstream fileIN( mesh_filename.c_str(), ios::in );
+  if(fileIN.fail())
+  {
+    //File does not exist
+    cout << "Mesh file does not exist -- Exiting the program!!" << endl;
+    exit(3);
+  }
   fileIN >> shape_param.N_nodes;
   fileIN.close();
 
