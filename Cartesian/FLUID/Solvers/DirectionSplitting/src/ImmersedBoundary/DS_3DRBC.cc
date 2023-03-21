@@ -330,7 +330,7 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: compute_triangle_area_normals_centre_of_mass" ) ;
-  
+
   for (size_t i=0;i<m_nTriangles;++i)
   {
     // Compute normals of triangle
@@ -339,10 +339,10 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
 
     m_all_trielements[i].tri_area = 0.5 
                  * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
-
-    if(init)
+    
+    if(init) 
       m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_area;
-      
+
     // Compute center of mass
     for (size_t j=0;j<dim;++j)
     {
@@ -1500,13 +1500,8 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
   double oneoversix = 1./6.;
   for (size_t i=0;i<m_nTriangles;++i)
   {
-    for (size_t j=0;j<dim;++j)
-    {
-      relpos(j) = m_all_trielements[i].center_of_mass(j) 
-                  - membrane_param.centroid_coordinates(j);
-    }
-    membrane_param.total_volume += 
-        oneoversix * scalar( m_all_trielements[i].twice_area_outwards_normal_vector, relpos );
+    for (size_t j=0;j<dim;++j) relpos(j) = m_all_trielements[i].center_of_mass(j) - membrane_param.centroid_coordinates(j);
+    membrane_param.total_volume += oneoversix * scalar( m_all_trielements[i].twice_area_outwards_normal_vector, relpos );
   }
   if ( init ) membrane_param.initial_volume = membrane_param.total_volume; 
 }
