@@ -331,9 +331,6 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
 {
   MAC_LABEL( "DS_3DRBC:: compute_triangle_area_normals_centre_of_mass" ) ;
   
-  membrane_param.total_area = 0.;
-  membrane_param.initial_area = 0.;
-
   for (size_t i=0;i<m_nTriangles;++i)
   {
     // Compute normals of triangle
@@ -343,17 +340,9 @@ void DS_3DRBC::compute_triangle_area_normals_centre_of_mass(bool init,
     m_all_trielements[i].tri_area = 0.5 
                  * norm(m_all_trielements[i].twice_area_outwards_normal_vector);
 
-    // Membrane total area
-    membrane_param.total_area += m_all_trielements[i].tri_area;
-    
     if(init)
-    {
       m_all_trielements[i].tri_initial_area = m_all_trielements[i].tri_area;
       
-      // Membrane initial area
-      membrane_param.initial_area += m_all_trielements[i].tri_initial_area;
-    }
-
     // Compute center of mass
     for (size_t j=0;j<dim;++j)
     {
@@ -1469,14 +1458,11 @@ void DS_3DRBC::compute_total_surface_area_total_volume( bool init,
 {
   MAC_LABEL( "DS_3DRBC:: compute_total_surface_area_total_volume" ) ;
   
-  cout << init << endl;
-  
   // Total surface area
   membrane_param.total_area = 0.;
   for (size_t i=0;i<m_nTriangles;++i)
     membrane_param.total_area += m_all_trielements[i].tri_area;
   if ( init ) membrane_param.initial_area = membrane_param.total_area;
-  cout << membrane_param.initial_area << endl; exit(3);
     
   /*
   // Compute center of mass of each triangle
@@ -3409,7 +3395,6 @@ void DS_3DRBC:: compute_stats(string const& directory, string const& filename,
   */
   
   // Writing to file
-  cout << "vfvf = " << membrane_param.initial_area << "\t" << membrane_param.total_area << endl;
   rbc_stats_file << std::scientific // << setprecision(12)
                  << cyclenum << "\t"
                  << time << "\t"
