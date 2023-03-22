@@ -1392,54 +1392,58 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
         for (size_t kk=kpi;kk<=kpf;++kk)
         {
           bool euler_cell_in_stencil_inside_domain = FF->DOF_in_domain(ii, jj, kk, comp);
-          bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
           
-          if(euler_cell_in_stencil_inside_domain and euler_cell_within_proc)
+          if(euler_cell_in_stencil_inside_domain)
           {
-            bool euler_cell_is_unknown = FF->DOF_is_unknown(ii, jj, kk, comp);
+            bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
             
-            if(euler_cell_is_unknown)
+            if(euler_cell_within_proc)
             {
-              xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
-              yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
-              zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
+              bool euler_cell_is_unknown = FF->DOF_is_unknown(ii, jj, kk, comp);
               
-            
-              // Check if Eulerian cell is within Dirac delta 2x2 stencil
-              dist_x = compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
-              // // dist_x = (xC - xp) * hxC;
-              dist_y = compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
-              // // dist_y = (yC - yp) * hyC;
-              dist_z = compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
-              // // dist_z = (zC - zp) * hzC;
-              eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
-                                                    and 
-                                                    (fabs(dist_y) <= 2.) 
-                                                    and 
-                                                    (fabs(dist_z) <= 2.);
+              if(euler_cell_is_unknown)
+              {
+                xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
+                yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
+                zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
+                
               
-              // Compute the Dirac delta value for each direction
-              dirac_x = discrete_Dirac_delta(dist_x, ibm_param.dirac_type, dxC, Nx);
-              dirac_y = discrete_Dirac_delta(dist_y, ibm_param.dirac_type, dyC, Ny);
-              dirac_z = discrete_Dirac_delta(dist_z, ibm_param.dirac_type, dzC, Nz);
+                // Check if Eulerian cell is within Dirac delta 2x2 stencil
+                dist_x = compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
+                // // dist_x = (xC - xp) * hxC;
+                dist_y = compute_dist_incl_pbc(yC, yp, domain_length(1)) * hyC;
+                // // dist_y = (yC - yp) * hyC;
+                dist_z = compute_dist_incl_pbc(zC, zp, domain_length(2)) * hzC;
+                // // dist_z = (zC - zp) * hzC;
+                eul_cell_within_Dirac_delta_stencil = (fabs(dist_x) <= 2.) 
+                                                      and 
+                                                      (fabs(dist_y) <= 2.) 
+                                                      and 
+                                                      (fabs(dist_z) <= 2.);
+                
+                // Compute the Dirac delta value for each direction
+                dirac_x = discrete_Dirac_delta(dist_x, ibm_param.dirac_type, dxC, Nx);
+                dirac_y = discrete_Dirac_delta(dist_y, ibm_param.dirac_type, dyC, Ny);
+                dirac_z = discrete_Dirac_delta(dist_z, ibm_param.dirac_type, dzC, Nz);
 
-              // Dirac delta function value
-              dirac_delta = dirac_x * dirac_y * dirac_z;
+                // Dirac delta function value
+                dirac_delta = dirac_x * dirac_y * dirac_z;
 
-              // Numerical integration of Dirac delta function value
-              sum_dirac_delta += dirac_delta * dxC * dyC * dzC;
-              
-              // Computing Eulerian force
-              double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                                   + 
-                                   m_all_nodes[inode].sumforce(comp) 
-                                   * dirac_delta * dxC * dyC * dzC;
-              FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
-              sum_euler_force += euler_force;
-              
-              // Assigning Eulerian force tag for each cell for debugging
-              double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
-              FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+                // Numerical integration of Dirac delta function value
+                sum_dirac_delta += dirac_delta * dxC * dyC * dzC;
+                
+                // Computing Eulerian force
+                double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                                     + 
+                                     m_all_nodes[inode].sumforce(comp) 
+                                     * dirac_delta * dxC * dyC * dzC;
+                FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
+                sum_euler_force += euler_force;
+                
+                // Assigning Eulerian force tag for each cell for debugging
+                double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+                FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+              }
             }
           }
         }
