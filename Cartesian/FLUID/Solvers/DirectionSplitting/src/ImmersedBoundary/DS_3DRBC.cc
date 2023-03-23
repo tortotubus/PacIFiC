@@ -1391,11 +1391,32 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
       {
         for (size_t kk=kpi;kk<=kpf;++kk)
         {
-          bool euler_cell_in_stencil_inside_domain = FF->DOF_in_domain(ii, jj, kk, comp);
-          bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
-          
-          if(euler_cell_in_stencil_inside_domain and euler_cell_within_proc)
+          // Is the Eulerian cell (ii, jj, kk) within the simulation domain 
+          // AND 
+          // within the current processor's domain?
+          bool euler_cell_within_x_proc_and_domain_bounds 
+                                 = (ii >= min_unknown_index_without_halozone(0) 
+                                   and 
+                                   ii <= max_unknown_index_without_halozone(0));
+
+          bool euler_cell_within_y_proc_and_domain_bounds 
+                                 = (jj >= min_unknown_index_without_halozone(1) 
+                                   and 
+                                   jj <= max_unknown_index_without_halozone(1));
+
+          bool euler_cell_within_z_proc_and_domain_bounds 
+                                 = (kk >= min_unknown_index_without_halozone(2) 
+                                   and 
+                                   kk <= max_unknown_index_without_halozone(2));
+
+          if( euler_cell_within_x_proc_and_domain_bounds
+              and
+              euler_cell_within_y_proc_and_domain_bounds
+              and
+              euler_cell_within_z_proc_and_domain_bounds )
           {
+
+
             bool euler_cell_is_unknown = FF->DOF_is_unknown(ii, jj, kk, comp);
             
             if(euler_cell_is_unknown)
