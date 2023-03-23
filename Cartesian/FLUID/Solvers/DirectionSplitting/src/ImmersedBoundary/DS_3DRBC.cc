@@ -1422,7 +1422,6 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
               xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
               yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
               zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
-              
             
               // Check if Eulerian cell is within Dirac delta 2x2 stencil
               dist_x = compute_dist_incl_pbc(xC, xp, domain_length(0)) * hxC;
