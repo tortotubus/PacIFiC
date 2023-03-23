@@ -1392,10 +1392,9 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
         for (size_t kk=kpi;kk<=kpf;++kk)
         {
           bool euler_cell_in_stencil_inside_domain = FF->DOF_in_domain(ii, jj, kk, comp);
-          // // // bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
+          bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
           
-          // // // if(euler_cell_in_stencil_inside_domain and euler_cell_within_proc)
-          if(euler_cell_in_stencil_inside_domain)
+          if(euler_cell_in_stencil_inside_domain and euler_cell_within_proc)
           {
             bool euler_cell_is_unknown = FF->DOF_is_unknown(ii, jj, kk, comp);
             
