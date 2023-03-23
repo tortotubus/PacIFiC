@@ -1415,8 +1415,6 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
               and
               euler_cell_within_z_proc_and_domain_bounds )
           {
-
-
             bool euler_cell_is_unknown = FF->DOF_is_unknown(ii, jj, kk, comp);
             
             if(euler_cell_is_unknown)
