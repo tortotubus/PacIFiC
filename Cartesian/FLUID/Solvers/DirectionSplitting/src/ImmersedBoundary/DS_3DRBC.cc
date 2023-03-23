@@ -1392,12 +1392,16 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
         for (size_t kk=kpi;kk<=kpf;++kk)
         {
           bool euler_cell_in_stencil_inside_domain = FF->DOF_in_domain(ii, jj, kk, comp);
+
 	  if(euler_cell_in_stencil_inside_domain)
 	  {
-            bool euler_cell_is_unknown_and_within_proc = FF->DOF_is_unknown_handled_by_proc(ii, jj, kk, comp);
-
-	    if(euler_cell_is_unknown_and_within_proc)
+            bool euler_cell_within_proc = FF->DOF_on_proc(ii, jj, kk, comp);
+	    if(euler_cell_within_proc)
 	    {
+              bool euler_cell_is_unknown_and_within_proc = FF->DOF_is_unknown_handled_by_proc(ii, jj, kk, comp);
+
+	      if(euler_cell_is_unknown_and_within_proc)
+	      {
               xC = FF->get_DOF_coordinate( ii, comp, 0 ) ;
               yC = FF->get_DOF_coordinate( jj, comp, 1 ) ;
               zC = FF->get_DOF_coordinate( kk, comp, 2 ) ;
@@ -1438,6 +1442,7 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
               // Assigning Eulerian force tag for each cell for debugging
               double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
               FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+	      }
             }
           }
         }
