@@ -183,6 +183,8 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
   double scaling_factor;
   double ReynoldsNumber, CapillaryNumber, ShearRate;
   double FopplVonKarmanNumber;
+  double one_over_x0;
+  double mu0;
 
   std::ifstream inFile;
   std::ostringstream os2;
@@ -199,7 +201,8 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
       inFile >> xp >> yp >> zp >> x_roll_angle >> y_pitch_angle
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
             >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
-            >> k_viscous >> k_area >> k_volume >> membrane_mass >> scaling_factor;
+            >> k_viscous >> k_area >> k_volume >> membrane_mass >> scaling_factor
+      	    >> one_over_x0 >> mu0;
     }
     else
     {
@@ -254,6 +257,11 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
       p_membrane_param->ShearRate = ShearRate;
       p_membrane_param->FopplVonKarmanNumber = FopplVonKarmanNumber;
     }
+    p_membrane_param->x0 = 1./one_over_x0;
+    if(one_over_x0 - 2.2 < 0.)
+      p_membrane_param->mu0_P = mu0;
+    else
+      p_membrane_param->mu0_P = 6.3e-6;
 
     // m_allDSimmersedboundary[i]->display_parameters();
   }
