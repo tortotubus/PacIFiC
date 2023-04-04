@@ -257,11 +257,19 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
       p_membrane_param->ShearRate = ShearRate;
       p_membrane_param->FopplVonKarmanNumber = FopplVonKarmanNumber;
     }
-    p_membrane_param->x0 = 1./one_over_x0;
-    if(one_over_x0 - 2.2 < 0.)
-      p_membrane_param->mu0_P = mu0;
-    else
-      p_membrane_param->mu0_P = 6.3e-6;
+    
+    // Read x0 and mu0 only if it's infected cell in Poiseuille flow
+    if(case_type.compare("Parabolic_flow") == 0)
+    {
+      p_membrane_param->x0 = 1./one_over_x0;
+      if(one_over_x0 - 2.2 < 0.)        // infected cell
+        p_membrane_param->mu0_P = mu0;
+      else                              // heatlhy cell
+      {
+        p_membrane_param->x0 = 1./2.2;
+        p_membrane_param->mu0_P = 6.3e-6;
+      }
+    }
 
     // m_allDSimmersedboundary[i]->display_parameters();
   }

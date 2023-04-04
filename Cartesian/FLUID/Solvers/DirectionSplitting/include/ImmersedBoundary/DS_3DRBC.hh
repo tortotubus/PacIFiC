@@ -124,7 +124,7 @@ class DS_3DRBC: public DS_ImmersedBoundary
       
       /** @brief Initializes immersed body material properties in physical units
       for the "detailed numerial membrane model (NMM)" **/
-      void init_membrane_parameters_in_physical_units();
+      void init_membrane_parameters_in_physical_units(string const& case_type);
       
       /** @brief Initializes RBC material properties in model units
       for the "detailed numerial membrane model (NMM)" **/

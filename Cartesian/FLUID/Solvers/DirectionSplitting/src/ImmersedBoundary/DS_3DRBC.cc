@@ -698,13 +698,16 @@ void DS_3DRBC:: compute_edge_angle(bool init)
 
 
 //---------------------------------------------------------------------------
-void DS_3DRBC:: init_membrane_parameters_in_physical_units()
+void DS_3DRBC:: init_membrane_parameters_in_physical_units(string const& case_type)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "DS_3DRBC:: init_membrane_parameters_in_physical_units" );
   
-  // membrane_param.mu0_P = 6.3e-6; // 29.e-6; // 6.3e-6; // Shear modulus in N/m
-  // membrane_param.x0 = 1./2.2; // 1./1.8; // malaria cell = 1./1.8 // healthy cell = 1./2.2; // Maximum allowable spring extension --> x0=l/lmax
+  if(case_type.compare("Parabolic_flow") != 0)
+  {
+    membrane_param.mu0_P = 6.3e-6; // 29.e-6; // 6.3e-6; // Shear modulus in N/m
+    membrane_param.x0 = 1./2.2; // 1./1.8; // malaria cell = 1./1.8 // healthy cell = 1./2.2; // Maximum allowable spring extension --> x0=l/lmax
+  }
   membrane_param.Y_P = 18.9e-6; // 13.3437e-6; // 18.9e-6; // Young's modulus in N/m
   membrane_param.D0_P = 2. * shape_param.radius; // 7.82e-6; // Diameter of RBC micro-metre
   membrane_param.kc_P = 2.4e-19; // 4.8e-19; // 2.4e-19; // bending rigidity - Joules
@@ -859,7 +862,7 @@ void DS_3DRBC:: preprocess_membrane_parameters(string const& model_type,
   {
     // Set the spring constant values
     // Initialize membrane material properties in physical units
-    init_membrane_parameters_in_physical_units();
+    init_membrane_parameters_in_physical_units(case_type);
     
     // Initialize membrane material properties in model units
     init_membrane_parameters_in_model_units();
