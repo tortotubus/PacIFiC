@@ -1439,28 +1439,31 @@ void DS_3DRBC:: lag_to_eul(FV_DiscreteField* FF, FV_DiscreteField* FF_tag,
                                                     and 
                                                     (fabs(dist_z) <= 2.);
               
-              // Compute the Dirac delta value for each direction
-              dirac_x = discrete_Dirac_delta(dist_x, ibm_param.dirac_type, dxC, Nx);
-              dirac_y = discrete_Dirac_delta(dist_y, ibm_param.dirac_type, dyC, Ny);
-              dirac_z = discrete_Dirac_delta(dist_z, ibm_param.dirac_type, dzC, Nz);
+              if(eul_cell_within_Dirac_delta_stencil)
+              {
+                // Compute the Dirac delta value for each direction
+                dirac_x = discrete_Dirac_delta(dist_x, ibm_param.dirac_type, dxC, Nx);
+                dirac_y = discrete_Dirac_delta(dist_y, ibm_param.dirac_type, dyC, Ny);
+                dirac_z = discrete_Dirac_delta(dist_z, ibm_param.dirac_type, dzC, Nz);
 
-              // Dirac delta function value
-              dirac_delta = dirac_x * dirac_y * dirac_z;
+                // Dirac delta function value
+                dirac_delta = dirac_x * dirac_y * dirac_z;
 
-              // Numerical integration of Dirac delta function value
-              sum_dirac_delta += dirac_delta * dxC * dyC * dzC;
-              
-              // Computing Eulerian force
-              double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
-                                   + 
-                                   m_all_nodes[inode].sumforce(comp) 
-                                   * dirac_delta * dxC * dyC * dzC;
-              FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
-              sum_euler_force += euler_force;
-              
-              // Assigning Eulerian force tag for each cell for debugging
-              double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
-              FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+                // Numerical integration of Dirac delta function value
+                sum_dirac_delta += dirac_delta * dxC * dyC * dzC;
+                
+                // Computing Eulerian force
+                double euler_force = FF->DOF_value(ii, jj, kk, comp, 0) 
+                                     + 
+                                     m_all_nodes[inode].sumforce(comp) 
+                                     * dirac_delta * dxC * dyC * dzC;
+                FF->set_DOF_value( ii, jj, kk, comp, 0, euler_force );
+                sum_euler_force += euler_force;
+                
+                // Assigning Eulerian force tag for each cell for debugging
+                double euler_force_tag = FF_tag->DOF_value(ii, jj, kk, comp, 0) + 1.0;
+                FF_tag->set_DOF_value(ii, jj, kk, comp, 0, euler_force_tag);
+              }
             }
           }
         }
