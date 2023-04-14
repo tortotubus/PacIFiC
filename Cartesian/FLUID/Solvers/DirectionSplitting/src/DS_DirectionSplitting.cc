@@ -702,7 +702,7 @@ DS_DirectionSplitting:: do_additional_savings( FV_TimeIterator const* t_it,
       stop_total_timer() ;
    }
    // Solid solver
-   if ( solidSolver )
+   if ( is_GRAINS )
      solidSolver->saveResults( "", t_it->time(), cycleNumber );
 
 }
