@@ -321,6 +321,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , macCOMM
                           , mu
                           , is_GRAINS
+                          , is_stressCal
                           , is_STL
                           , STL_input);
       } else if (is_HE) {
