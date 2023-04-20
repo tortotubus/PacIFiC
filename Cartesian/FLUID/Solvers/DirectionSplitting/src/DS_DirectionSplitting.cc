@@ -634,10 +634,10 @@ DS_DirectionSplitting:: do_before_inner_iterations_stage(
        // Compute the trajectory of particles with collisions in Grains3D
        solidSolver->Simulation( t_it->time_step(), true, false, 1., false );
 
-     // Update the rigid components positions in the fluid
-     solidSolver->getSolidBodyFeatures( solidFluid_transferStream );
-     cout << solidFluid_transferStream->str() << endl;
-     allrigidbodies->update( *solidFluid_transferStream );
+       // Update the rigid components positions in the fluid
+       solidSolver->getSolidBodyFeatures( solidFluid_transferStream );
+       // cout << solidFluid_transferStream->str() << endl;
+       allrigidbodies->update( *solidFluid_transferStream );
    }
 
    // Flow solver
