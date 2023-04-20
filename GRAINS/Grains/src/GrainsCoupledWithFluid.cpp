@@ -198,7 +198,7 @@ void GrainsCoupledWithFluid::Construction( DOMElement* rootElement )
     DOMNode* cellsize = ReaderXML::getNode( root, "CellSize" );
     if ( cellsize )
       LC_coef = ReaderXML::getNodeAttr_Double( cellsize, "Factor" );
-    if ( LC_coef < 1. ) LC_coef = 1.;
+    if ( LC_coef < 1. ) LC_coef = 1.;    
     defineLinkedCell( LC_coef * m_rayon );
 
     m_sec->Link( m_composants.getObstacles() );
@@ -418,11 +418,11 @@ void GrainsCoupledWithFluid::Chargement( DOMElement* rootElement )
 
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Set the value Delta_t for one time (for coupling with Basilisk which
+// Set the value Delta_t for one time (for coupling with Basilisk which 
 // handles adaptive time step)
 void GrainsCoupledWithFluid::set_timeStep( double const dtfluid )
 {
-  if ( m_processorIsActiv )
+  if ( m_processorIsActiv ) 
   {
     double dteff;
     dteff = max(min (m_dtgmax, dtfluid/m_N), m_dtgmin);
@@ -430,7 +430,7 @@ void GrainsCoupledWithFluid::set_timeStep( double const dtfluid )
 
     m_dt = dtfluid/m_N;
     m_simulTime = dtfluid;
-
+    
     // cout << "Can: granular time-step: dtg " << m_dt << endl;
     // cout << "Can: number of granular time-steps " << m_N << endl;
     // cout << "Can: fluid time-step: dtf within grains " << dtfluid << endl;
@@ -441,8 +441,8 @@ void GrainsCoupledWithFluid::set_timeStep( double const dtfluid )
 void GrainsCoupledWithFluid::set_ExplicitAddedMasstimeStep( double dtfluid )
 {
 
-  if ( m_processorIsActiv )
-    if ( m_explicitAddedMass )
+  if ( m_processorIsActiv )     
+    if ( m_explicitAddedMass ) 
       dynamic_cast<AddedMass*>(m_explicitAddedMass)->setsimulTime( dtfluid );
 }
 
@@ -768,6 +768,7 @@ void GrainsCoupledWithFluid::WriteParticulesInFluid( istringstream &is ) const
 
 
 
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void GrainsCoupledWithFluid::WritePVGCInFluid(const string &filename) const
 {
@@ -812,25 +813,25 @@ void GrainsCoupledWithFluid::AddExplicitAddedMass(
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void GrainsCoupledWithFluid::InitializeExplicitAddedMassRestart(
-	bool const& restart, string const& dirRes_Or_rootfilename,
+	bool const& restart, string const& dirRes_Or_rootfilename, 
 	string const& fluidsolver )
 {
   if ( m_processorIsActiv )
   {
     if ( restart )
     {
-      if ( fluidsolver == "PeliGRIFF" )
+      if ( fluidsolver == "PeliGRIFF" ) 
         m_composants.setVelocityAndVelocityDifferencePreviousTimeRestart(
       		dirRes_Or_rootfilename );
-
+		
       else
-      {
+      { 
         double previousdtfluid = m_composants.
 		setVelocityAndVelocityDifferencePreviousTimeRestart_Basilisk(
       		dirRes_Or_rootfilename );
-	dynamic_cast<AddedMass*>(m_explicitAddedMass)->setsimulTime(
+	dynamic_cast<AddedMass*>(m_explicitAddedMass)->setsimulTime( 
 		previousdtfluid );
-      }
+      }	
     }
   }
 }
@@ -1062,11 +1063,11 @@ void GrainsCoupledWithFluid::checkParaviewPostProcessing( const string &name_,
 
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Verifie que le post processing Paraview est actif pour Basilisk, sinon le
+// Verifie que le post processing Paraview est actif pour Basilisk, sinon le 
 // cree
 void GrainsCoupledWithFluid::checkParaviewPostProcessing( const char* name_,
 	const char* root_,
-  	const bool &isBinary )
+  	const bool &isBinary ) 
 {
   string str(name_);
   string str_root(root_);

@@ -468,8 +468,18 @@ DS_DirectionSplitting:: do_before_time_stepping( FV_TimeIterator const* t_it,
 {
    MAC_LABEL( "DS_DirectionSplitting:: do_before_time_stepping" ) ;
 
-
    FV_OneStepIteration::do_before_time_stepping( t_it, basename ) ;
+
+   // Solid solver
+   if ( is_GRAINS )
+   {
+     // Set the initial time
+     solidSolver->setInitialTime( t_it->time() );
+
+     // Update the rigid components positions in the fluid
+     solidSolver->getSolidBodyFeatures( solidFluid_transferStream );
+     allrigidbodies->update( *solidFluid_transferStream );
+   }
 
    // Projection-Translation
    if ( b_projection_translation )
@@ -520,7 +530,6 @@ DS_DirectionSplitting:: do_before_time_stepping( FV_TimeIterator const* t_it,
       MyFile.close();
    }
 
-
 }
 
 
@@ -534,20 +543,20 @@ DS_DirectionSplitting:: do_after_time_stepping( void )
    MAC_LABEL( "DS_DirectionSplitting:: do_after_time_stepping" ) ;
 
    // Flow solver
-   if (is_NS || is_NSwithHE) {
+   if ( is_NS || is_NSwithHE ) {
       start_total_timer( "DS_NavierStokes:: do_after_time_stepping" ) ;
       FlowSolver->do_after_time_stepping() ;
       stop_total_timer() ;
    }
 
    // Temperature solver
-   if (is_HE || is_NSwithHE) {
+   if ( is_HE || is_NSwithHE ) {
       start_total_timer( "DS_HeatTransfer:: do_after_time_stepping" ) ;
       HeatSolver->do_after_time_stepping() ;
       stop_total_timer() ;
    }
 
-   if (is_surfacestressOUT)
+   if ( is_surfacestressOUT )
       allrigidbodies->write_surface_discretization_for_all_RB();
 
 }
@@ -625,9 +634,10 @@ DS_DirectionSplitting:: do_before_inner_iterations_stage(
        // Compute the trajectory of particles with collisions in Grains3D
        solidSolver->Simulation( t_it->time_step(), true, false, 1., false );
 
-       // Update the rigid components positions in the fluid
-       solidSolver->getSolidBodyFeatures( solidFluid_transferStream );
-       allrigidbodies->update( *solidFluid_transferStream );
+     // Update the rigid components positions in the fluid
+     solidSolver->getSolidBodyFeatures( solidFluid_transferStream );
+     cout << solidFluid_transferStream->str() << endl;
+     allrigidbodies->update( *solidFluid_transferStream );
    }
 
    // Flow solver

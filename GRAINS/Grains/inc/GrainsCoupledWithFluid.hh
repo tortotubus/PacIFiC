@@ -114,7 +114,7 @@ public:
   @param dirRes repertoire de resultats
   @param fluidsolver nom du solveur fluide (PeliGRIFF ou Basilisk) */
   void InitializeExplicitAddedMassRestart( bool const& restart,
-  	string const& dirRes_Or_rootfilename,
+  	string const& dirRes_Or_rootfilename, 
 	string const& fluidsolver = "PeliGRIFF" );
 
   /** @brief Sauvegarde par defaut de l'etat initial pour post-processing */
@@ -172,7 +172,7 @@ public:
   void checkParaviewPostProcessing( const string &name_, const string &root_,
   	const bool &isBinary );
 
-  /** @brief Verifie que le post processing Paraview est actif pour Basilisk,
+  /** @brief Verifie que le post processing Paraview est actif pour Basilisk, 
   sinon le cree
   @param name_ nom des fichiers
   @param root_ racine du nom des fichiers

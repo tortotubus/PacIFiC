@@ -286,7 +286,7 @@ void InterfaceFluide2D::WriteParticulesInFluid(
 // 		   << masseVol    << '\t' << masse << '\t'
 // 		   << inertie[5]  << '\t'
 // 		   << (*centre)[X]   << '\t' << (*centre)[Y] << '\n';
-
+		   
       particles_features
 	<< particuleType <<'\t'
 	<< Grains_Exec::doubleToString( ios::scientific, POSITIONFORMAT,
@@ -306,7 +306,7 @@ void InterfaceFluide2D::WriteParticulesInFluid(
 	<< Grains_Exec::doubleToString( ios::scientific, POSITIONFORMAT,
 		(*centre)[Y] )   <<'\t'
 	<< endl;
-
+		   
       if ( particuleType == "PP" )
       {
         particles_features << nclonesper << endl;
