@@ -4843,8 +4843,8 @@ DS_NavierStokes:: assemble_advection_Centered_FD(double const& coef,
 
 	double beta = 1.;
 
-	beta = MAC::min(dC(0)/dxC,dC(1)/dyC);
-	if (dim == 3) beta = MAC::min(beta, dC(2)/dzC);
+	// beta = MAC::min(dC(0)/dxC,dC(1)/dyC);
+	// if (dim == 3) beta = MAC::min(beta, dC(2)/dzC);
 	beta *= dxC * dyC * dzC;
 
 	return ( coef*(ui(0)*dui(0)+ui(1)*dui(1)+ui(2)*dui(2))*beta);
