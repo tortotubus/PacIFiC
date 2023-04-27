@@ -471,7 +471,7 @@ DS_DirectionSplitting:: do_before_time_stepping( FV_TimeIterator const* t_it,
    FV_OneStepIteration::do_before_time_stepping( t_it, basename ) ;
 
    // Solid solver
-   if ( is_GRAINS )
+   if ( is_GRAINS && !b_particles_as_fixed_obstacles)
    {
      // Set the initial time
      solidSolver->setInitialTime( t_it->time() );
