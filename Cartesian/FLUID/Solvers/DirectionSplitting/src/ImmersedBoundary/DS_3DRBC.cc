@@ -1656,8 +1656,8 @@ void DS_3DRBC::compute_spring_bending_viscous_forces( size_t const& dim,
             f_POW(j) = il->kp * beta * Iij(j);
             il->n2->sumforce(j)  +=  f_POW(j);
             il->n3->sumforce(j)  += -f_POW(j);
-            il->n2->WLC_force(j) +=  f_POW(j);
-            il->n3->WLC_force(j) += -f_POW(j);
+            il->n2->POW_force(j) +=  f_POW(j);
+            il->n3->POW_force(j) += -f_POW(j);
         }
         
         
@@ -2173,8 +2173,8 @@ void DS_3DRBC::compute_spring_force( size_t const& dim,
             f_POW(j) = il->kp * beta * Iij(j);
             il->n2->sumforce(j)  +=  f_POW(j);
             il->n3->sumforce(j)  += -f_POW(j);
-            il->n2->WLC_force(j) +=  f_POW(j);
-            il->n3->WLC_force(j) += -f_POW(j);
+            il->n2->POW_force(j) +=  f_POW(j);
+            il->n3->POW_force(j) += -f_POW(j);
         }
     }
     
