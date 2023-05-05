@@ -710,7 +710,7 @@ void DS_3DRBC:: init_membrane_parameters_in_physical_units(string const& case_ty
   }
   membrane_param.Y_P = 18.9e-6; // 13.3437e-6; // 18.9e-6; // Young's modulus in N/m
   membrane_param.D0_P = 2. * shape_param.radius; // 7.82e-6; // Diameter of RBC micro-metre
-  membrane_param.kc_P = 2.4e-19; // 4.8e-19; // 2.4e-19; // bending rigidity - Joules
+  // membrane_param.kc_P = 2.4e-19; // 4.8e-19; // 2.4e-19; // bending rigidity - Joules
   membrane_param.kbending_P = (2./sqrt(3.)) * membrane_param.kc_P; // bending spring constant
   membrane_param.eta_P = 0.022; // 0.022 * 10.; // 6.e-3; // Viscosity of membrane Newton-second/metre^2 = Pa.s = 6 centipoise as given in Pozrikidis book Pg. 124
   membrane_param.eta_plasma_P = 1.2e-3; // Viscosity of plasma fluid surrounding RBC Newton-second/metre^2 = Pa.s = 1.2 centipoise as given in Pozrikidis book Pg. 124
