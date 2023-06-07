@@ -591,8 +591,15 @@ class DS_AllRigidBodies
       void write_force_and_flux_summary( FV_TimeIterator const* t_it
                                        , bool const& b_restart);
 
-      /** @brief Return the local index of a bounding box on a given field FF */
-      intVector get_local_index_of_extents( class doubleVector& bounds
+      /** @brief Return the local index on proc of a bounding box on a given field FF */
+      intVector get_local_index_extents_on_proc( class doubleVector& bounds
+                                          , FV_DiscreteField const* FF
+                                          , size_t const& dir
+                                          , size_t const& comp);
+
+      /** @brief Return the local index handled by proc of a bounding 
+       * box on a given field FF */
+      intVector get_local_index_extents_handled_by_proc( class doubleVector& bounds
                                           , FV_DiscreteField const* FF
                                           , size_t const& dir
                                           , size_t const& comp);
