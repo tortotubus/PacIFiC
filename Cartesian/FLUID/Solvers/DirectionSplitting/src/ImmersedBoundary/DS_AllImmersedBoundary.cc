@@ -203,7 +203,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
             >> z_yaw_angle >> Rp >> c0 >> c1 >> c2 >> N_nodes >> N_levels
             >> node_spacing_with_dx >> k_spring >> k_bending >> k_bending_visc
             >> k_viscous >> k_area >> k_volume >> membrane_mass >> scaling_factor
-      	    >> one_over_x0 >> mu0 >> kbending;
+      	    >> one_over_x0 >> mu0; // >> kbending;
     }
     else
     {
@@ -273,7 +273,7 @@ void DS_AllImmersedBoundary:: read_shape_and_membrane_parameters
     }
 
     // Read bending rigidity in physical units (i.e., SI units)
-    p_membrane_param->kc_P = kbending;
+    // // // p_membrane_param->kc_P = kbending;
 
     // m_allDSimmersedboundary[i]->display_parameters();
   }
