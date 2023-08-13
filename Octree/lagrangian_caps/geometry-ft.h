@@ -660,13 +660,12 @@ by the nodes [*n1, *n2] and [*n1, *n3].
 */
 double comp_angle(lagNode* n1, lagNode* n2, lagNode* n3) {
   double theta = 0.;
-  foreach_dimension() theta += (n1->pos.x - n2->pos.x)*(n1->pos.x - n3->pos.x);
-  double norm1, norm2;
-  norm1 = 0.; norm2 = 0.;
   foreach_dimension() {
-    norm1 += sq(n1->pos.x - n2->pos.x);
-    norm2 += sq(n1->pos.x - n3->pos.x);
+    theta += GENERAL_1DIST(n1->pos.x, n2->pos.x)*
+             GENERAL_1DIST(n1->pos.x, n3->pos.x);
   }
+  double norm1 = GENERAL_SQNORM(n1->pos, n2->pos);
+  double norm2 = GENERAL_SQNORM(n1->pos, n3->pos);
   theta /= sqrt(norm1)*sqrt(norm2);
   theta = acos(theta);
   return theta;
