@@ -1,8 +1,8 @@
 /**
 # Toolbox to perform operations on a triangulated meshes
 
-From defining geometric computations such as normal vectors, volume and 
-centroid, useful macros, subdividing triangles, below is a collection of helpful 
+From defining geometric computations such as normal vectors, volume and
+centroid, useful macros, subdividing triangles, below is a collection of helpful
 functions to deal with triangular meshes.
 */
 
@@ -189,11 +189,11 @@ void comp_centroid(lagMesh* mesh) {
     foreach_dimension() {
       double tentative_pos = mesh->nodes[i].pos.x - mesh->nodes[0].pos.x;
       mesh->centroid.x += (tentative_pos < origin.x - L0/2) ?
-        tentative_pos + L0 : 
+        tentative_pos + L0 :
           ((tentative_pos > origin.x + L0/2) ? tentative_pos - L0 :
           tentative_pos);
     }
-  foreach_dimension() 
+  foreach_dimension()
     mesh->centroid.x = mesh->centroid.x/mesh->nln + mesh->nodes[0].pos.x;
   correct_node_pos(&mesh->centroid);
 }
@@ -210,14 +210,14 @@ void comp_volume(lagMesh* mesh) {
         double tentative_pos = mesh->nodes[mesh->triangles[i].node_ids[j]].pos.x
           - mesh->centroid.x;
         nodes[j].x = (tentative_pos < origin.x - L0/2) ?
-          tentative_pos + L0 : 
+          tentative_pos + L0 :
           ((tentative_pos > origin.x + L0/2) ? tentative_pos - L0 :
           tentative_pos);
       }
     for(int j=0; j<3; j++) {
       coord cross_product;
-      foreach_dimension() 
-        cross_product.x = nodes[(j+1)%3].y*nodes[(j+2)%3].z - 
+      foreach_dimension()
+        cross_product.x = nodes[(j+1)%3].y*nodes[(j+2)%3].z -
           nodes[(j+1)%3].z*nodes[(j+2)%3].y;
       volume += cdot(nodes[j],cross_product);
     }
@@ -661,8 +661,8 @@ by the nodes [*n1, *n2] and [*n1, *n3].
 double comp_angle(lagNode* n1, lagNode* n2, lagNode* n3) {
   double theta = 0.;
   foreach_dimension() {
-    theta += GENERAL_1DIST(n1->pos.x, n2->pos.x)*
-             GENERAL_1DIST(n1->pos.x, n3->pos.x);
+    theta += GENERAL_1DIST(n2->pos.x, n1->pos.x)*
+             GENERAL_1DIST(n3->pos.x, n1->pos.x);
   }
   double norm1 = GENERAL_SQNORM(n1->pos, n2->pos);
   double norm2 = GENERAL_SQNORM(n1->pos, n3->pos);
@@ -677,9 +677,22 @@ triangle $tid$ is greater than $\pi$ radians.
 */
 bool is_obtuse_node(lagMesh* mesh, int tid, int i) {
   lagNode* n[3];
+  // n[0] is the node to check if obtuse in the triangle tid
+  n[0] = &(mesh->nodes[i]);
+  int count_pts = 1;
   for(int j=0; j<3; j++)
-    n[j] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
-  if (comp_angle(n[i], n[(i+1)%3], n[(i+2)%3]) > pi/2.) return true;
+  {
+      if(mesh->triangles[tid].node_ids[j] != i)
+      {
+        n[count_pts] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+        count_pts ++;
+      }
+  }
+
+  // Check if three points of the triangle are all found and well assigned
+  assert(count_pts==3);
+
+  if (comp_angle(n[0], n[1], n[2]) > pi/2.) return true;
   else return false;
 }
 
@@ -688,9 +701,23 @@ The function below returns true if the triangle $tid$ is obtuse at any of its
 three angles.
 */
 bool is_obtuse_triangle(lagMesh* mesh, int tid) {
-  for(int i=0; i<3; i++) if (is_obtuse_node(mesh, tid, i)) return true;
-  return false;
+  lagNode* n[3];
+  for(int j=0; j<3; j++)
+    n[j] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+  if (comp_angle(n[0], n[1], n[2]) > pi/2.) return true;
+  else if (comp_angle(n[1], n[2], n[0]) > pi/2.) return true;
+  else if (comp_angle(n[2], n[0], n[1]) > pi/2.) return true;
+  else return false;
 }
+
+// /**
+// The function below returns true if the triangle $tid$ is obtuse at any of its
+// three angles.
+// */
+// bool is_obtuse_triangle(lagMesh* mesh, int tid) {
+//   for(int i=0; i<3; i++) if (is_obtuse_node(mesh, tid, i)) return true;
+//   return false;
+// }
 
 /**
 ## Uniform refinement of a mesh by subdividing its triangles
@@ -745,9 +772,9 @@ void refine_mesh(lagMesh* mesh) {
 /**
 ## Periodicity helper functions
 
-In some situations, for instance to compute the volume of a capsule, we need to 
+In some situations, for instance to compute the volume of a capsule, we need to
 take the dot and cross products of
-neighboring nodes that can be across periodic boundaries. The next three 
+neighboring nodes that can be across periodic boundaries. The next three
 functions implement ``periodic-friendly" versions of the dot and cross products
 that do not take into account the coordinates jump across the periodic
 boundaries. The implementation relies on the assumption that a capsule is
@@ -757,13 +784,13 @@ boundaries. The implementation relies on the assumption that a capsule is
 /**
 The function below corrects the coordinates of one node $a$ in order to
 ensure it is placed on the same side of a reference coordinate (in practice,
-the centroid of the capsule). The function returns the corrected node 
+the centroid of the capsule). The function returns the corrected node
 coordinate.
 */
 coord correct_periodic_node_pos(coord a, coord ref) {
     coord result;
     foreach_dimension() {
-        result.x = (fabs(a.x - ref.x) < L0/2) ? a.x : 
+        result.x = (fabs(a.x - ref.x) < L0/2) ? a.x :
             (a.x > ref.x) ? a.x - L0 : a.x + L0;
     }
     return result;
@@ -777,17 +804,17 @@ length 2.
 */
 void correct_periodic_nodes_pos(coord* result, coord a, coord b, coord ref) {
   foreach_dimension() {
-    result[0].x = (fabs(a.x - ref.x) < L0/2) ? a.x : 
+    result[0].x = (fabs(a.x - ref.x) < L0/2) ? a.x :
       (a.x > ref.x) ? a.x - L0 : a.x + L0;
-    result[1].x = (fabs(b.x - ref.x) < L0/2) ? b.x : 
+    result[1].x = (fabs(b.x - ref.x) < L0/2) ? b.x :
       (b.x > ref.x) ? b.x - L0 : b.x + L0;
   }
 }
 
 /**
 The function below computes the cross product of two coordinates $a$ and $b$
-that potentially lie across periodic boundaries. The coordinates are 
-temporarilly moved on the same side of the periodic boundary as a reference 
+that potentially lie across periodic boundaries. The coordinates are
+temporarilly moved on the same side of the periodic boundary as a reference
 coordinate `ref`, in practice the centroid of the capsule.
 */
 foreach_dimension()
@@ -799,8 +826,8 @@ double periodic_friendly_cross_product_x(coord a, coord b, coord ref) {
 
 /**
 The function below computes the dot product of two coordinates $a$ and $b$
-that potentially lie across periodic boundaries. The coordinates are 
-temporarilly moved on the same side of the periodic boundary as a reference 
+that potentially lie across periodic boundaries. The coordinates are
+temporarilly moved on the same side of the periodic boundary as a reference
 coordinate `ref`, in practice the centroid of the capsule.
 */
 double periodic_friendly_dot_product(coord a, coord b, coord ref) {
