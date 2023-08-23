@@ -225,6 +225,17 @@ void comp_volume(lagMesh* mesh) {
   mesh->volume = volume/18;
 }
 
+trace
+void comp_circum_radius(lagMesh* mesh) {
+  comp_centroid(mesh);
+  double max_radius = 0;
+  for(int i=0; i<mesh->nln; i++) {
+    double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
+    max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
+    }
+  mesh->circum_radius = max_radius;
+}
+
 
 /** The function below updates the normal vectors on all the nodes as well as
 the lengths and midpoints of all the edges (in 2D) or the area and centroids of

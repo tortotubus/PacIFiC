@@ -193,6 +193,7 @@ the return value is not relevant and set to 0.
 If diff_curv is set to true, this function instead returns the surface Laplacian
 of the (previously computed) curvature.
 */
+trace
 double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
   /** If we wish to compute $\Delta_{LB} \kappa$, the result is stored in the
   variable $lbcurv$ and returned by the function. Otherwise the $lbcurv$ is

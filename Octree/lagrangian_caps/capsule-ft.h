@@ -137,10 +137,12 @@ typedef struct lagMesh {
   coord centroid;
   double initial_volume;
   double volume;
+  double circum_radius;
   bool updated_stretches;
   bool updated_normals;
   bool updated_curvatures;
   bool isactive;
+
 } lagMesh;
 
 /** We denote by ```NCAPS``` the number of Lagrangian meshes, or capsules, in
@@ -335,7 +337,12 @@ void advect_lagMesh(lagMesh* mesh) {
   #endif
   comp_centroid(mesh);
   comp_volume(mesh);
-  generate_lag_stencils_one_caps(mesh);
+  comp_circum_radius(mesh);
+  bool cap_in_proc = is_capsule_in_proc(mesh);
+  if(cap_in_proc)
+  {
+    generate_lag_stencils_one_caps(mesh);
+  }
 }
 
 

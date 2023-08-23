@@ -21,6 +21,39 @@ not with Cartesian nor multigrids}.
 #define POS_PBC_Z(Z) ((u.x.boundary[front] != periodic_bc) ? (Z) : (((Z - (Z0 +\
   L0/2)) > L0/2.) ? (Z) - L0 : (Z)))
 
+
+Point locate_stencil (struct _locate p)
+{
+  // We assume all stencils are at the maximal level 
+  int l = grid->maxdepth;
+  
+    Point point = {0};
+    point.level = l;
+    int n = 1 << point.level;
+    point.i = (p.x - X0)/L0*n + GHOSTS;
+#if dimension >= 2
+    point.j = (p.y - Y0)/L0*n + GHOSTS;
+#endif
+#if dimension >= 3
+    point.k = (p.z - Z0)/L0*n + GHOSTS;
+#endif
+    if (point.i >= 0 && point.i < n + 2*GHOSTS
+#if dimension >= 2
+	&& point.j >= 0 && point.j < n + 2*GHOSTS
+#endif
+#if dimension >= 3
+	&& point.k >= 0 && point.k < n + 2*GHOSTS
+#endif
+	) {
+      if (allocated(0) && is_local(cell) && is_leaf(cell))
+	      return point;
+  }
+  Point lpoint = {0};
+  lpoint.level = -1;
+  return lpoint;
+}
+
+
 struct _generate_lag_stencils_one_caps {
   lagMesh* mesh;
   bool no_warning;
@@ -45,11 +78,11 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
     for(int ni=-2; ni<=2; ni++) {
       for(int nj=-2; nj<=2; nj++) {
         #if dimension < 3
-        Point point = locate(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
+        Point point = locate_stencil(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
           POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta));
         #else
         for(int nk=-2; nk<=2; nk++) {
-          Point point = locate(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
+          Point point = locate_stencil(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
             POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta),
             POS_PBC_Z(mesh->nodes[i].pos.z + nk*delta));
         #endif
@@ -79,11 +112,28 @@ struct _generate_lag_stencils {
   bool no_warning;
 };
 
+
 trace
 void generate_lag_stencils(struct _generate_lag_stencils p) {
   for(int k=0; k<NCAPS; k++)
+  {
     if (CAPS(k).isactive)
       generate_lag_stencils_one_caps(mesh = &CAPS(k), no_warning = p.no_warning);
+  }
+}
+
+trace
+void rearrange_lag_stencils(struct _generate_lag_stencils p) {
+  for(int k=0; k<NCAPS; k++){  
+    if (CAPS(k).isactive)
+    {
+      // bool cap_in_proc = is_capsule_in_proc(mesh);
+      // if(cap_in_proc)
+      // {
+      generate_lag_stencils_one_caps(&CAPS(k), no_warning = p.no_warning);
+      // }
+    }
+  }
 }
 
 

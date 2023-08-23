@@ -34,6 +34,7 @@
 /**
 The function below computes the nodal area of node $i$.
 */
+trace
 double compute_node_area(lagMesh* mesh, int i) {
   double area = 0.;
   for(int j=0; j<mesh->nodes[i].nb_triangles; j++) {
@@ -89,26 +90,30 @@ event acceleration (i++) {
   for(int i=0; i<NCAPS; i++) {
     if (CAPS(i).isactive) {
       lagMesh* mesh = &(CAPS(i));
-      comp_curvature(mesh);
-      for(int j=0; j<mesh->nln; j++) {
-        #if (!LINEAR_BENDING)
-          double curv = mesh->nodes[j].curv;
-          double rcurv = mesh->nodes[i].ref_curv;
-          double gcurv = mesh->nodes[j].gcurv;
-        #endif
-        double lbcurv = laplace_beltrami(mesh, j, true);
-        double bending_surface_force = 2*E_B*(lbcurv
+      bool cap_in_proc = is_capsule_in_proc(mesh);
+      if(cap_in_proc)
+      {
+        comp_curvature(mesh);
+        for(int j=0; j<mesh->nln; j++) {
           #if (!LINEAR_BENDING)
-            + 2*(curv - rcurv)*(sq(curv) - gcurv + rcurv*curv)
+            double curv = mesh->nodes[j].curv;
+            double rcurv = mesh->nodes[i].ref_curv;
+            double gcurv = mesh->nodes[j].gcurv;
           #endif
-          );
-        /** We now have to compute the area associated with each node */
-        double area = compute_node_area(mesh, j);
-        /** The bending force is ready to be added to the Lagrangian force of
-        the considered node. */
-        foreach_dimension()
-          mesh->nodes[j].lagForce.x +=
-            mesh->nodes[j].normal.x*bending_surface_force*area;
+          double lbcurv = laplace_beltrami(mesh, j, true);
+          double bending_surface_force = 2*E_B*(lbcurv
+            #if (!LINEAR_BENDING)
+              + 2*(curv - rcurv)*(sq(curv) - gcurv + rcurv*curv)
+            #endif
+            );
+          /** We now have to compute the area associated with each node */
+          double area = compute_node_area(mesh, j);
+          /** The bending force is ready to be added to the Lagrangian force of
+          the considered node. */
+          foreach_dimension()
+            mesh->nodes[j].lagForce.x +=
+              mesh->nodes[j].normal.x*bending_surface_force*area;
+        }
       }
     }
   }
