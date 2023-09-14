@@ -14,45 +14,39 @@ not with Cartesian nor multigrids}.
 
 #define BGHOSTS 2 // Having two layers of ghost cells should not be mandatory since the implementation relies on Caches
 
-#define POS_PBC_X(X) ((u.x.boundary[left] != periodic_bc) ? (X) : (((X - (X0 +\
-  L0/2)) > L0/2.) ? (X) - L0 : (X)))
-#define POS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : (((Y - (Y0 +\
-  L0/2)) > L0/2.) ? (Y) - L0 : (Y)))
-#define POS_PBC_Z(Z) ((u.x.boundary[front] != periodic_bc) ? (Z) : (((Z - (Z0 +\
-  L0/2)) > L0/2.) ? (Z) - L0 : (Z)))
-
-
-Point locate_stencil (struct _locate p)
-{
-  // We assume all stencils are at the maximal level 
-  int l = grid->maxdepth;
-  
-    Point point = {0};
-    point.level = l;
-    int n = 1 << point.level;
-    point.i = (p.x - X0)/L0*n + GHOSTS;
-#if dimension >= 2
-    point.j = (p.y - Y0)/L0*n + GHOSTS;
-#endif
-#if dimension >= 3
-    point.k = (p.z - Z0)/L0*n + GHOSTS;
-#endif
-    if (point.i >= 0 && point.i < n + 2*GHOSTS
-#if dimension >= 2
-	&& point.j >= 0 && point.j < n + 2*GHOSTS
-#endif
-#if dimension >= 3
-	&& point.k >= 0 && point.k < n + 2*GHOSTS
-#endif
-	) {
-      if (allocated(0) && is_local(cell) && is_leaf(cell))
-	      return point;
+/* We re-design the locate_stencil function in the tree structure */
+#if !(MULT_GRID == 1)
+  Point locate_stencil (struct _locate p)
+  {
+    // We assume all stencils are at the maximal level 
+    int l = grid->maxdepth;
+    
+      Point point = {0};
+      point.level = l;
+      int n = 1 << point.level;
+      point.i = (p.x - X0)/L0*n + GHOSTS;
+  #if dimension >= 2
+      point.j = (p.y - Y0)/L0*n + GHOSTS;
+  #endif
+  #if dimension >= 3
+      point.k = (p.z - Z0)/L0*n + GHOSTS;
+  #endif
+      if (point.i >= 0 && point.i < n + 2*GHOSTS
+  #if dimension >= 2
+    && point.j >= 0 && point.j < n + 2*GHOSTS
+  #endif
+  #if dimension >= 3
+    && point.k >= 0 && point.k < n + 2*GHOSTS
+  #endif
+    ) {
+        if (allocated(0) && is_local(cell) && is_leaf(cell))
+          return point;
+    }
+    Point lpoint = {0};
+    lpoint.level = -1;
+    return lpoint;
   }
-  Point lpoint = {0};
-  lpoint.level = -1;
-  return lpoint;
-}
-
+#endif
 
 struct _generate_lag_stencils_one_caps {
   lagMesh* mesh;
@@ -74,14 +68,30 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
     The current implementation assumes that the Eulerian cells around Lagrangian
     node are all at the maximum level.
     */
-    double delta = (L0/(1 << grid->maxdepth));
-    for(int ni=-2; ni<=2; ni++) {
-      for(int nj=-2; nj<=2; nj++) {
+
+
+    /*The definition of maxdepth is one level higher in multigrid*/
+    #if MULT_GRID == 1   
+    #define locate_stencil(X, Y, Z) locate(X, Y, Z)
+      double delta = (L0/(1 << grid->maxdepth)/mpi_dims[0]);
+    #else
+      double delta = (L0/(1 << grid->maxdepth));
+    #endif
+
+    int n_half;
+    #if STENCIL_TYPE == 3
+    n_half = 1;
+    #else 
+    n_half = 2;
+    #endif
+
+    for(int ni = -n_half; ni <= n_half; ni++) {
+      for(int nj = -n_half; nj <= n_half; nj++) {
         #if dimension < 3
         Point point = locate_stencil(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
           POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta));
         #else
-        for(int nk=-2; nk<=2; nk++) {
+        for(int nk = -n_half; nk <= n_half; nk++) {
           Point point = locate_stencil(POS_PBC_X(mesh->nodes[i].pos.x + ni*delta),
             POS_PBC_Y(mesh->nodes[i].pos.y + nj*delta),
             POS_PBC_Z(mesh->nodes[i].pos.z + nk*delta));
@@ -95,7 +105,7 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
         #else
         if (ni == 0 && nj == 0 && nk == 0) {
         #endif
-          if (point.level >= 0) mesh->nodes[i].pid = cell.pid;
+          if (point.level >= 0) mesh->nodes[i].pid = pid();
           else mesh->nodes[i].pid = -1;
         }
         #endif
@@ -136,6 +146,91 @@ void rearrange_lag_stencils(struct _generate_lag_stencils p) {
   }
 }
 
+/**
+## Introduction
+In this file, you can find the discrete delta functions used for the force spreading and velocity interpolation in the feedback Immersed Boundary Method (IBM). Here I provide four different types of delta function:
+
+* Regular 2-point (IBM_stencil=1) and 4-point (IBM_stencil=4) delta functions
+* Smoothed 2-point (IBM_stencil=11) and 4-point delta functions  (IBM_stencil=14) proposed by Yang et, al [\[1\]](#Yang2009).
+
+## Variable list
+* stencil: delta function value
+* IBM_stencil: delta function type
+* dist:    distance between the cell center and the Lagrangian node on boundary.
+*/
+#ifndef IBM_stencil
+  #if STENCIL_TYPE == 3
+    #define IBM_stencil (11)
+  #else 
+    #define IBM_stencil (14)
+  #endif
+#endif
+
+
+double weight_stencil(double dist)
+{
+
+    double stencil = 0.;
+
+    if (IBM_stencil == 1)
+    {
+        if (fabs(dist) <= 1.)
+        {
+            stencil = 1. - fabs(dist);
+        }
+        else
+        {
+            stencil = 0.;
+        }   
+    }
+    else if (IBM_stencil == 4)
+    {
+        if (fabs(dist) < 1.)
+        {
+            stencil = 0.125 * (3. - 2 * fabs(dist) + sqrt(1. + 4 * fabs(dist) - 4 * sq(dist)));
+        }
+        else if (fabs(dist) <= 2. && fabs(dist) > 1.)
+        {
+            stencil = 0.125 * (5. - 2 * fabs(dist) - sqrt(-7. + 12 * fabs(dist) - 4 * sq(dist)));
+        }
+    }
+    else if (IBM_stencil == 11)
+    {
+        if (fabs(dist) <= 0.5)
+        {
+            stencil = 3./4. - sq(dist);
+        }
+        else if (fabs(dist) > 0.5 && fabs(dist) <= 1.5)
+        {
+            stencil = 9./8. - 3.*fabs(dist)/2.+ sq(dist)/2.;
+        }
+        else
+        {
+            stencil = 0.;
+        }
+    }
+    else if (IBM_stencil == 14)
+    {
+        if (fabs(dist) <= 0.5)
+        {
+            stencil = 3./8. + M_PI/32. - sq(dist)/4.;
+        }
+        else if (fabs(dist) > 0.5 && fabs(dist) <= 1.5)
+        {
+            stencil = 1./4. + (1-fabs(dist))*sqrt(-2.+8.*fabs(dist)-4*sq(dist))/8. - asin(sqrt(2.)*(fabs(dist)-1.))/8.;
+        }
+        else if (fabs(dist) > 1.5 && fabs(dist) <= 2.5)
+        {
+            stencil = 17./16.-M_PI/64.-3.*fabs(dist)/4.+sq(dist)/8.+(fabs(dist)-2.)*sqrt(-14.+16.*fabs(dist)-4.*sq(dist))/16.+asin(sqrt(2.)*(fabs(dist)-2.))/16.;
+        }
+        else
+        {
+            stencil = 0.;
+        }
+    }
+
+    return stencil;
+}
 
 /**
 The function below fills the scalar $forcing$ with the regularized source term
@@ -159,15 +254,17 @@ void lag2eul(vector forcing, lagMesh* mesh) {
         #endif
         #if dimension < 3
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
-          double weight =
-            (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
-            /(sq(4*Delta));
+          // double weight =
+          //   (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
+          //   /(sq(4*Delta));
+        double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta) / sq(Delta);
         #else
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta &&
           fabs(dist.z) <= 2*Delta) {
-          double weight =
-            (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
-            *(1 + cos(.5*pi*dist.z/Delta))/(cube(4*Delta));
+          // double weight =
+          //   (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))
+          //   *(1 + cos(.5*pi*dist.z/Delta))/(cube(4*Delta));
+        double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta) * weight_stencil(dist.z/Delta) /cube(Delta);
         #endif
           foreach_dimension() forcing.x[] += weight*mesh->nodes[i].lagForce.x;
         }
@@ -197,27 +294,21 @@ void eul2lag(lagMesh* mesh) {
         #endif
         #if dimension < 3
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
-          double weight = (1 + cos(.5*pi*dist.x/Delta))*
-            (1 + cos(.5*pi*dist.y/Delta))/16.;
+          // double weight = (1 + cos(.5*pi*dist.x/Delta))*
+          //   (1 + cos(.5*pi*dist.y/Delta))/16.;
+        double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta);            
         #else
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta
           && fabs(dist.z) <= 2*Delta) {
-          double weight = (1 + cos(.5*pi*dist.x/Delta))*
-            (1 + cos(.5*pi*dist.y/Delta))*(1 + cos(.5*pi*dist.z/Delta))/64.;
+          // double weight = (1 + cos(.5*pi*dist.x/Delta))*
+          //   (1 + cos(.5*pi*dist.y/Delta))*(1 + cos(.5*pi*dist.z/Delta))/64.;
+        double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta) * weight_stencil(dist.z/Delta);            
         #endif
         foreach_dimension() mesh->nodes[ii].lagVel.x += weight*u.x[];
         }
       }
     }
   }
-
-  /**
-  In case of parallel simulations, we communicate the Lagrangian velocity
-  so that all processes have the same Lagrangian velocities.
-  */
-  #if _MPI
-    if (mpi_npe > 1) reduce_lagVel(mesh);
-  #endif
 }
 
 /**

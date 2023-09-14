@@ -227,13 +227,21 @@ void comp_volume(lagMesh* mesh) {
 
 trace
 void comp_circum_radius(lagMesh* mesh) {
+  
+  /*Compute the cell size in the grid*/
+  #if MULT_GRID == 1   
+    double delta = (L0/(1 << grid->maxdepth)/mpi_dims[0]);
+  #else
+    double delta = (L0/(1 << grid->maxdepth));
+  #endif
+
   comp_centroid(mesh);
   double max_radius = 0;
   for(int i=0; i<mesh->nln; i++) {
     double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
     max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
     }
-  mesh->circum_radius = max_radius;
+  mesh->circum_radius = max_radius + 3*delta;
 }
 
 

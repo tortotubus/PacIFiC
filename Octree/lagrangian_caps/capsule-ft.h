@@ -9,6 +9,17 @@ meant to track the position and compute the stresses of an elasitc membrane.
   #define dimension 3
 #endif
 
+
+#ifndef MULT_GRID
+  #define MULT_GRID 0
+#endif
+
+/*The stencil type is chosen as 3 if not 5 */
+#ifndef STENCIL_TYPE
+  #define STENCIL_TYPE 3
+#endif
+
+
 /**
 ## Structure of the mesh
 
@@ -58,11 +69,19 @@ typedef struct lagNode {
   #endif
 } lagNode;
 
-/** We specify the size of the 5x5(x5) stencil in 2D or 3D. */
+/** We specify the size of the 3x3(x3) or 5x5(x5) stencil in 2D(3D). */
 #if dimension < 3
-  #define STENCIL_SIZE 25
+  #if STENCIL_TYPE == 3
+    #define STENCIL_SIZE 9
+  #else 
+    #define STENCIL_SIZE 25
+  #endif
 #else
-  #define STENCIL_SIZE 125
+  #if STENCIL_TYPE == 3
+    #define STENCIL_SIZE 27
+  #else 
+    #define STENCIL_SIZE 125
+  #endif
 #endif
 
 /** Similarly, the edges of the mesh are assigned:
@@ -297,7 +316,7 @@ second-order Runge Kutta scheme is used. By setting the macro
 */
 trace
 void advect_lagMesh(lagMesh* mesh) {
-  eul2lag(mesh);
+
   #if !(ADVECT_LAG_RK2)
     for(int i=0; i < mesh->nln; i++) {
       foreach_dimension() {
@@ -331,6 +350,7 @@ void advect_lagMesh(lagMesh* mesh) {
     for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].stencil.p);
     free(buffer_mesh.nodes);
   #endif
+
   correct_lag_pos(mesh);
   #if CONSERVE_VOLUME
     enforce_optimal_volume_conservation(mesh);
@@ -338,11 +358,6 @@ void advect_lagMesh(lagMesh* mesh) {
   comp_centroid(mesh);
   comp_volume(mesh);
   comp_circum_radius(mesh);
-  bool cap_in_proc = is_capsule_in_proc(mesh);
-  if(cap_in_proc)
-  {
-    generate_lag_stencils_one_caps(mesh);
-  }
 }
 
 
@@ -371,7 +386,26 @@ event defaults (i = 0) {
 /** Below, we advect each Lagrangian node using the interpolated Eulerian
 velocities. We also use this loop as an opportunity to
 re-initialize the Lagrangian forces to zero. */
-event tracer_advection(i++) {
+
+coord proc_max = {-HUGE, -HUGE, -HUGE};
+coord proc_min = {HUGE, HUGE, HUGE};
+
+event tracer_advection(i++) {  
+
+  /* Distribute velocity to the lagNodes */
+  for(int i=0; i<NCAPS; i++) 
+  {
+      if (CAPS(i).isactive) 
+        eul2lag(&CAPS(i));
+  }   
+
+  /**
+  In case of parallel simulations, we communicate the Lagrangian velocity
+  so that all processes have the same Lagrangian velocities.
+  */
+  reduce_alllagVel();
+
+  /* Advection of the lagNode */
   for(int i=0; i<NCAPS; i++) {
     if (CAPS(i).isactive) {
       advect_lagMesh(&CAPS(i));
@@ -379,6 +413,17 @@ event tracer_advection(i++) {
         foreach_dimension() CAPS(i).nodes[j].lagForce.x = 0.;
     }
   }
+
+  /* Compute borders of the curren proc */
+  compute_proc_borders(&proc_max, &proc_min);
+
+  /* Generate new stencils in corresponding procs */
+  for(int i=0; i<NCAPS; i++) {
+    if (CAPS(i).isactive)
+      if(is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) 
+        generate_lag_stencils_one_caps(&CAPS(i));
+  }
+
 }
 
 /** In the acceleration event, we transfer the Lagrangian forces to the fluid

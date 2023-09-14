@@ -87,11 +87,14 @@ double compute_node_area(lagMesh* mesh, int i) {
 }
 
 event acceleration (i++) {
+/*Compute borders of the current proc*/
+compute_proc_borders(&proc_max, &proc_min);
+
   for(int i=0; i<NCAPS; i++) {
-    if (CAPS(i).isactive) {
+    if (CAPS(i).isactive) 
+    {
       lagMesh* mesh = &(CAPS(i));
-      bool cap_in_proc = is_capsule_in_proc(mesh);
-      if(cap_in_proc)
+      if(is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) 
       {
         comp_curvature(mesh);
         for(int j=0; j<mesh->nln; j++) {
