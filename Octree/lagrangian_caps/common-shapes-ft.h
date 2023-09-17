@@ -21,6 +21,7 @@ struct _initialize_circular_capsule {
   coord shift;
   bool disregard_shift;
   bool verbose;
+  int cap_id;
 };
 
 #if dimension < 3
@@ -435,6 +436,7 @@ void initialize_rbc_capsule(struct _initialize_circular_capsule p) {
 
 void activate_spherical_capsule(struct _initialize_circular_capsule p) {
   initialize_empty_capsule(p.mesh);
+  p.mesh->cap_id = p.cap_id;
   p.mesh->isactive = true;
   initialize_spherical_capsule(p);
   initialize_capsule_stencils(p.mesh);
@@ -449,6 +451,7 @@ void activate_spherical_capsule(struct _initialize_circular_capsule p) {
 
 void activate_biconcave_capsule(struct _initialize_circular_capsule p) {
   initialize_empty_capsule(p.mesh);
+  p.mesh->cap_id = p.cap_id;
   p.mesh->isactive = true;
   initialize_rbc_capsule(p);
   initialize_capsule_stencils(p.mesh);

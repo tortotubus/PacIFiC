@@ -58,9 +58,15 @@ The function below loops through the Lagrangian nodes and "caches" the Eulerian
 cells in a 5x5(x5) stencil around each node. In case of parallel simulations,
 the cached cells are tagged with the process id.
 */
+
+
 trace
 void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
   lagMesh* mesh = p.mesh;
+  
+  mesh->lagnodes.n = 0; 
+  // if(pid()==0) printf("my cap_id is %d\n", mesh->cap_id);
+  
   bool no_warning = p.no_warning;
   for(int i=0; i<mesh->nln; i++) {
     mesh->nodes[i].stencil.n = 0;
@@ -85,6 +91,8 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
     n_half = 2;
     #endif
 
+    Cache c = {0};
+
     for(int ni = -n_half; ni <= n_half; ni++) {
       for(int nj = -n_half; nj <= n_half; nj++) {
         #if dimension < 3
@@ -99,12 +107,15 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
         if (!(no_warning) && point.level >= 0 && point.level != grid->maxdepth)
           fprintf(stderr, "Warning: Lagrangian stencil not fully resolved.\n");
         cache_append(&(mesh->nodes[i].stencil), point, 0);
+
         #if _MPI
         #if dimension < 3
         if (ni == 0 && nj == 0) {
         #else
         if (ni == 0 && nj == 0 && nk == 0) {
         #endif
+          if (point.level >= 0) cache_append(&(mesh->lagnodes), point, 0);
+          if (point.level >= 0) cache_append( &c, point, 0);
           if (point.level >= 0) mesh->nodes[i].pid = pid();
           else mesh->nodes[i].pid = -1;
         }
@@ -114,7 +125,18 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
         #endif
       }
     }
+
+    foreach_cache(c)
+    {
+        Index_lag.x[] = mesh->cap_id;
+        Index_lag.y[] = i;
+        // printf("x is cap %d, and index %d \n", mesh->cap_id, (int)Index_lag.x[]);
+    }
+     free(c.p); //free cache
+
   }
+
+  // assert(mesh->cap_id < 1);
 }
 
 
@@ -125,24 +147,14 @@ struct _generate_lag_stencils {
 
 trace
 void generate_lag_stencils(struct _generate_lag_stencils p) {
+  /*Clear the index field before generating*/  
+  foreach()
+    if (cm[] > 1.e-20) foreach_dimension() Index_lag.x[] = -1;
+    
   for(int k=0; k<NCAPS; k++)
   {
     if (CAPS(k).isactive)
       generate_lag_stencils_one_caps(mesh = &CAPS(k), no_warning = p.no_warning);
-  }
-}
-
-trace
-void rearrange_lag_stencils(struct _generate_lag_stencils p) {
-  for(int k=0; k<NCAPS; k++){  
-    if (CAPS(k).isactive)
-    {
-      // bool cap_in_proc = is_capsule_in_proc(mesh);
-      // if(cap_in_proc)
-      // {
-      generate_lag_stencils_one_caps(&CAPS(k), no_warning = p.no_warning);
-      // }
-    }
   }
 }
 

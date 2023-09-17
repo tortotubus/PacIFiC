@@ -19,6 +19,14 @@ meant to track the position and compute the stresses of an elasitc membrane.
   #define STENCIL_TYPE 3
 #endif
 
+/* Repulsive lubrication force to avoid overlapping */
+#ifndef LUBR_FORCE
+  #define LUBR_FORCE 1
+#endif
+
+/*Create the Index_lag*/
+vector Index_lag[] = {-1, -1, -1};
+// vector Index_lag[];
 
 /**
 ## Structure of the mesh
@@ -145,7 +153,9 @@ when capsules are introduced during a simulation)
 */
 
 typedef struct lagMesh {
+  int cap_id;
   int nln;
+  Cache lagnodes;
   lagNode* nodes;
   int nle;
   Edge* edges;
@@ -189,6 +199,7 @@ Capsules allCaps;
 ## Initialization, memory management and useful macros.
 */
 void initialize_empty_capsule(lagMesh* mesh) {
+  mesh->cap_id = -1;
   mesh->nln = 0;
   mesh->nle = 0;
   mesh->nodes = NULL;
@@ -248,8 +259,9 @@ void initialize_all_capsules_stencils() {
       initialize_capsule_stencils(&CAPS(i));
 }
 
-void initialize_active_capsule(lagMesh* mesh) {
+void initialize_active_capsule(lagMesh* mesh, int cap_id) {
   initialize_empty_capsule(mesh);
+  mesh->cap_id = cap_id;
   mesh->isactive = true;
   initialize_capsule_stencils(mesh);
 }
@@ -308,6 +320,7 @@ file.
   #include "volume-conservation-ft.h"
 #endif
 
+
 /**
 The function below advects each Lagrangian node by
 interpolating the velocities around the node of interest. By default, a
@@ -359,6 +372,11 @@ void advect_lagMesh(lagMesh* mesh) {
   comp_volume(mesh);
   comp_circum_radius(mesh);
 }
+
+
+
+
+
 
 
 /**
@@ -417,7 +435,10 @@ event tracer_advection(i++) {
   /* Compute borders of the curren proc */
   compute_proc_borders(&proc_max, &proc_min);
 
+  foreach()
+    if (cm[] > 1.e-20) foreach_dimension() Index_lag.x[] = -1;
   /* Generate new stencils in corresponding procs */
+  
   for(int i=0; i<NCAPS; i++) {
     if (CAPS(i).isactive)
       if(is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) 
@@ -426,11 +447,79 @@ event tracer_advection(i++) {
 
 }
 
+
+// /*Repulsive lubrication nodal force*/
+void lubrication_force() 
+{
+  /*Compute the cell size in the grid*/
+  #if MULT_GRID == 1   
+    double delta = (L0/(1 << grid->maxdepth)/mpi_dims[0]);
+  #else
+    double delta = (L0/(1 << grid->maxdepth));
+  #endif
+
+double K_lub = 3./(E_S);
+
+  for(int i = 0; i < NCAPS; i++) {
+    if (CAPS(i).isactive) 
+    {
+      lagMesh* mesh = &(CAPS(i));
+      foreach_cache(mesh->lagnodes)
+      {
+        int lagnode_id = (int)Index_lag.y[];
+        coord lub_force = {0};  
+        if(point.level>-1)
+       {  
+          coord lagpt = {0};
+          // lagpt.x = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.x;
+          // lagpt.y = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.y;
+          // lagpt.z = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.z;
+          lagpt.x = mesh->nodes[lagnode_id].pos.x;
+          lagpt.y = mesh->nodes[lagnode_id].pos.y;
+          lagpt.z = mesh->nodes[lagnode_id].pos.z;
+
+          foreach_neighbor(1)
+          {
+            if((int)Index_lag.x[] > -1 && (mesh->cap_id != (int)Index_lag.x[])) 
+            {        
+            coord checkpt = {0};
+            checkpt.x = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.x;
+            checkpt.y = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.y;
+            checkpt.z = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.z;
+
+              coord lub_dir = {0};
+      
+              double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
+              foreach_dimension() lub_dir.x = (lagpt.x - checkpt.x)/lub_norm;
+              if(lub_norm < delta)
+              {
+                  foreach_dimension() lub_force.x += lub_dir.x * K_lub * (sq(delta/lub_norm) - 1.);
+              }
+            }
+          }
+
+      /** The lubrication force is ready to be added to the Lagrangian force of the considered node. */
+         foreach_dimension() mesh->nodes[lagnode_id].lagForce.x += lub_force.x;
+        }
+      }
+    }
+  }
+// assert(1==2);
+}
+
 /** In the acceleration event, we transfer the Lagrangian forces to the fluid
 using a regularized Dirac function. The acceleration is stored on the cell
 faces, and will be fed as a source term to the Navier-Stokes solver. */
 vector forcing[];
 event acceleration (i++) {
+
+  /*We add the repulsive lubrication force for a better numerical instability*/
+  # if LUBR_FORCE == 1  
+  // lubrication_force(); 
+  // printf("LUB is on!!\n");
+  // assert(1==2);
+  # endif
+
   face vector ae = a;
   foreach()
     if (cm[] > 1.e-20) foreach_dimension() forcing.x[] = 0.;
@@ -446,6 +535,7 @@ event cleanup (t = end) {
   free_all_caps(&allCaps);
 }
 
+
 /**
 ## Additional functionalities
 */
@@ -453,6 +543,7 @@ event cleanup (t = end) {
   #include "dump-ft.h"
   #include "post-processing-ft.h"
 #endif
+
 
 /**
 ## Tests
@@ -464,3 +555,4 @@ convergence of the advection scheme.
 the curvature at the Lagrangian nodes. Since the curvature depends on the
 normals, this case also validates the computation of the normal vectors.
 */
+
