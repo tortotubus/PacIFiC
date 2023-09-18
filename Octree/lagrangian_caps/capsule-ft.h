@@ -216,6 +216,7 @@ void initialize_empty_capsule(lagMesh* mesh) {
 
 void free_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].stencil.p);
+  free(mesh->lagnodes.p);
   free(mesh->nodes);
   free(mesh->edges);
   #if dimension > 2
@@ -515,9 +516,7 @@ event acceleration (i++) {
 
   /*We add the repulsive lubrication force for a better numerical instability*/
   # if LUBR_FORCE == 1  
-  // lubrication_force(); 
-  // printf("LUB is on!!\n");
-  // assert(1==2);
+  lubrication_force(); 
   # endif
 
   face vector ae = a;
