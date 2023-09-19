@@ -210,12 +210,12 @@ void output_pvd( FILE * fp, char const* times_series )
 
 
 //----------------------------------------------------------------------------
-void save_data( scalar * list, vector * vlist, double const time )
+void save_data( scalar * list, vector * vlist, double const time , int cycle_number)
 //----------------------------------------------------------------------------
 {
 
   char vtk_times_series[100000] = "";
-  static int cycle_number = 0;
+  // static int cycle_number = 0;
   //if ( !cycle_number ) cycle_number = init_cycle_number;//ggd
 
   FILE * fpvtk;
@@ -299,6 +299,28 @@ void save_data( scalar * list, vector * vlist, double const time )
 
   ++cycle_number;
 }
+
+
+
+// //----------------------------------------------------------------------------
+// void reinitialize_vtk_restart( void )
+// //----------------------------------------------------------------------------
+// {
+//   // Get the last cycle cumber from previous simulation
+//   char filename_lcn[80] = "";
+//   sprintf( filename_lcn, "%s", result_dir );
+//   strcat( filename_lcn, "/" );
+//   strcat( filename_lcn, result_fluid_rootfilename );
+//   strcat( filename_lcn, "_lcn_vtk.txt" );
+
+//   FILE * fpvtk = fopen( filename_lcn, "r" );
+
+//   fscanf ( fpvtk, "%d", &init_cycle_number );
+//   ++init_cycle_number;
+
+//   fclose( fpvtk );
+// }
+
 
 /*
 //----------------------------------------------------------------------------

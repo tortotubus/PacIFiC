@@ -459,7 +459,7 @@ void lubrication_force()
     double delta = (L0/(1 << grid->maxdepth));
   #endif
 
-double K_lub = 3./(E_S);
+  double K_lub = 3./(E_S);
 
   for(int i = 0; i < NCAPS; i++) {
     if (CAPS(i).isactive) 
