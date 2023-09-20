@@ -61,20 +61,20 @@ the cached cells are tagged with the process id.
 
 
 trace
-void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
+void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) 
+{
   lagMesh* mesh = p.mesh;
   
-  mesh->lagnodes.n = 0; 
-  // if(pid()==0) printf("my cap_id is %d\n", mesh->cap_id);
-  
   bool no_warning = p.no_warning;
-  for(int i=0; i<mesh->nln; i++) {
+  for(int i=0; i<mesh->nln; i++) 
+  {
     mesh->nodes[i].stencil.n = 0;
+    mesh->nodes[i].eulcell.n = 0;
+    
     /**
     The current implementation assumes that the Eulerian cells around Lagrangian
     node are all at the maximum level.
     */
-
 
     /*The definition of maxdepth is one level higher in multigrid*/
     #if MULT_GRID == 1   
@@ -114,7 +114,7 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
         #else
         if (ni == 0 && nj == 0 && nk == 0) {
         #endif
-          if (point.level >= 0) cache_append(&(mesh->lagnodes), point, 0);
+          if (point.level >= 0) cache_append(&(mesh->nodes[i].eulcell), point, 0);
           if (point.level >= 0) cache_append( &c, point, 0);
           if (point.level >= 0) mesh->nodes[i].pid = pid();
           else mesh->nodes[i].pid = -1;
@@ -126,17 +126,24 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p) {
       }
     }
 
+    /* We color the Index_lagnode field with their cap_id + 1 , 
+    the vector Index_lag_id can contain up to 3 indices of the lag nodes, 
+    currently we only save one lagnode */
     foreach_cache(c)
     {
-        Index_lag.x[] = mesh->cap_id;
-        Index_lag.y[] = i;
-        // printf("x is cap %d, and index %d \n", mesh->cap_id, (int)Index_lag.x[]);
+      if ((int)Index_lagnode[] == -1)
+      {
+        Index_lagnode[] = mesh->cap_id + 1;
+        // if((int)Index_lag_id.x[] < 0)
+        Index_lag_id.x[] = i + 1;
+        // else if ((int)Index_lag_id.y[] < 0) 
+        // {Index_lag_id.y[] = i;}
+        // else if ((int)Index_lag_id.z[] < 0) 
+        // {Index_lag_id.z[] = i;}
+      }
     }
-     free(c.p); //free cache
-
+     free(c.p); 
   }
-
-  // assert(mesh->cap_id < 1);
 }
 
 
@@ -147,10 +154,16 @@ struct _generate_lag_stencils {
 
 trace
 void generate_lag_stencils(struct _generate_lag_stencils p) {
-  /*Clear the index field before generating*/  
+  
+  /*Clear the index field before generating stencils */  
   foreach()
-    if (cm[] > 1.e-20) foreach_dimension() Index_lag.x[] = -1;
-    
+  {
+    if (cm[] > 1.e-20) 
+    { Index_lagnode[] = -1;
+      foreach_dimension() Index_lag_id.x[] = -1;
+    }
+  }
+
   for(int k=0; k<NCAPS; k++)
   {
     if (CAPS(k).isactive)

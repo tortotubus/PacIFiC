@@ -107,7 +107,6 @@ void reduce_alllagVel()
     }   
 
   MPI_Allreduce(send_data_pack, recv_data_pack, total_nln*li, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-//  MPI_Bcast(recv_data_pack, total_nln*li, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   for(int i=0; i<NCAPS; i++) 
     {

@@ -21,12 +21,13 @@ meant to track the position and compute the stresses of an elasitc membrane.
 
 /* Repulsive lubrication force to avoid overlapping */
 #ifndef LUBR_FORCE
-  #define LUBR_FORCE 1
+  #define LUBR_FORCE 0
 #endif
 
 /*Create the Index_lag*/
-vector Index_lag[] = {-1, -1, -1};
-// vector Index_lag[];
+scalar Index_lagnode[];
+vector Index_lag_id[];
+
 
 /**
 ## Structure of the mesh
@@ -61,6 +62,7 @@ typedef struct lagNode {
   double ref_curv;
   coord lagForce;
   Cache stencil;
+  Cache eulcell;
   #if _MPI
     int pid;
   #endif
@@ -155,7 +157,6 @@ when capsules are introduced during a simulation)
 typedef struct lagMesh {
   int cap_id;
   int nln;
-  Cache lagnodes;
   lagNode* nodes;
   int nle;
   Edge* edges;
@@ -216,7 +217,7 @@ void initialize_empty_capsule(lagMesh* mesh) {
 
 void free_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].stencil.p);
-  free(mesh->lagnodes.p);
+  for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].eulcell.p);
   free(mesh->nodes);
   free(mesh->edges);
   #if dimension > 2
@@ -251,7 +252,9 @@ void initialize_capsule_stencils(lagMesh* mesh) {
     mesh->nodes[j].stencil.n = STENCIL_SIZE;
     mesh->nodes[j].stencil.nm = STENCIL_SIZE;
     mesh->nodes[j].stencil.p = (Index*) malloc(STENCIL_SIZE*sizeof(Index));
+    mesh->nodes[j].eulcell.p = (Index*) malloc(sizeof(Index));
   }
+  
 }
 
 void initialize_all_capsules_stencils() {
@@ -353,7 +356,9 @@ void advect_lagMesh(lagMesh* mesh) {
       buffer_mesh.nodes[j].stencil.n = STENCIL_SIZE;
       buffer_mesh.nodes[j].stencil.nm = STENCIL_SIZE;
       buffer_mesh.nodes[j].stencil.p = malloc(STENCIL_SIZE*sizeof(Index));
+      buffer_mesh.nodes[j].eulcell.p = malloc(sizeof(Index));
     }
+    
     generate_lag_stencils_one_caps(&buffer_mesh);
     eul2lag(&buffer_mesh);
     for(int i=0; i<mesh->nln; i++) {
@@ -362,6 +367,7 @@ void advect_lagMesh(lagMesh* mesh) {
         mesh->nodes[i].pos.x += dt*buffer_mesh.nodes[i].lagVel.x;
     }
     for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].stencil.p);
+    for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].eulcell.p);
     free(buffer_mesh.nodes);
   #endif
 
@@ -373,10 +379,6 @@ void advect_lagMesh(lagMesh* mesh) {
   comp_volume(mesh);
   comp_circum_radius(mesh);
 }
-
-
-
-
 
 
 
@@ -436,10 +438,16 @@ event tracer_advection(i++) {
   /* Compute borders of the curren proc */
   compute_proc_borders(&proc_max, &proc_min);
 
+  /*Clean the index field before generating the stencils*/
   foreach()
-    if (cm[] > 1.e-20) foreach_dimension() Index_lag.x[] = -1;
+  {
+    if (cm[] > 1.e-20) 
+    { Index_lagnode[] = -1;
+      foreach_dimension() Index_lag_id.x[] = -1;
+    }
+  }
+
   /* Generate new stencils in corresponding procs */
-  
   for(int i=0; i<NCAPS; i++) {
     if (CAPS(i).isactive)
       if(is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) 
@@ -449,7 +457,7 @@ event tracer_advection(i++) {
 }
 
 
-// /*Repulsive lubrication nodal force*/
+/*Repulsive lubrication nodal force*/
 void lubrication_force() 
 {
   /*Compute the cell size in the grid*/
@@ -459,53 +467,62 @@ void lubrication_force()
     double delta = (L0/(1 << grid->maxdepth));
   #endif
 
-  double K_lub = 3./(E_S);
+  /*The value of K_lub is up to the */
+  double K_lub = 1./(E_S);
 
   for(int i = 0; i < NCAPS; i++) {
     if (CAPS(i).isactive) 
     {
       lagMesh* mesh = &(CAPS(i));
-      foreach_cache(mesh->lagnodes)
-      {
-        int lagnode_id = (int)Index_lag.y[];
-        coord lub_force = {0};  
-        if(point.level>-1)
-       {  
-          coord lagpt = {0};
-          // lagpt.x = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.x;
-          // lagpt.y = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.y;
-          // lagpt.z = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.z;
-          lagpt.x = mesh->nodes[lagnode_id].pos.x;
-          lagpt.y = mesh->nodes[lagnode_id].pos.y;
-          lagpt.z = mesh->nodes[lagnode_id].pos.z;
 
-          foreach_neighbor(1)
-          {
-            if((int)Index_lag.x[] > -1 && (mesh->cap_id != (int)Index_lag.x[])) 
-            {        
-            coord checkpt = {0};
-            checkpt.x = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.x;
-            checkpt.y = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.y;
-            checkpt.z = CAPS((int)Index_lag.x[]).nodes[(int)Index_lag.y[]].pos.z;
-
-              coord lub_dir = {0};
+      for(int j=0; j<mesh->nln; j++) 
+      { 
+        foreach_cache(mesh->nodes[j].eulcell)
+        {
+          // int lagnode_id = (int)Index_lag_id.x[];
+          int lagnode_id = j;
+          coord lub_force = {0};  
       
-              double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
-              foreach_dimension() lub_dir.x = (lagpt.x - checkpt.x)/lub_norm;
-              if(lub_norm < delta)
+          if(point.level>-1)
+          {        
+              coord lagpt = {0};
+              lagpt.x = mesh->nodes[lagnode_id].pos.x;
+              lagpt.y = mesh->nodes[lagnode_id].pos.y;
+              lagpt.z = mesh->nodes[lagnode_id].pos.z;
+            
+              /*A small issue exists for foreach_neighbor in multigrid (probably octree as well)
+              and returns 0 for Index_lagnode at ghost cells, which is wrong, but
+              it doens not affect the efficiency of the algorithm. We keep this for current usage */            
+              foreach_neighbor(1)
               {
-                  foreach_dimension() lub_force.x += lub_dir.x * K_lub * (sq(delta/lub_norm) - 1.);
-              }
-            }
-          }
+                if(point.level >-1)
+                {
+                  /* We skip the ghost cells which returns 0 for Index_lagnode */
+                  if(((int)Index_lagnode[] > 0) && ((mesh->cap_id + 1) != (int)Index_lagnode[])) 
+                  {        
+                    coord checkpt = {0};
+                    checkpt.x = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.x;
+                    checkpt.y = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.y;
+                    checkpt.z = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.z;
 
-      /** The lubrication force is ready to be added to the Lagrangian force of the considered node. */
-         foreach_dimension() mesh->nodes[lagnode_id].lagForce.x += lub_force.x;
+                    coord lub_dir = {0};
+                    double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
+                    foreach_dimension() lub_dir.x = (lagpt.x - checkpt.x)/lub_norm;
+                    if(lub_norm < delta)
+                    {
+                      foreach_dimension() lub_force.x += lub_dir.x * K_lub * (sq(delta/lub_norm) - 1.);
+                    }
+                  }                
+                }
+              }
+
+            /** The lubrication force is ready to be added to the Lagrangian force of the considered node. */
+            foreach_dimension() mesh->nodes[lagnode_id].lagForce.x += lub_force.x;
+          }
         }
       }
     }
   }
-// assert(1==2);
 }
 
 /** In the acceleration event, we transfer the Lagrangian forces to the fluid
@@ -514,7 +531,7 @@ faces, and will be fed as a source term to the Navier-Stokes solver. */
 vector forcing[];
 event acceleration (i++) {
 
-  /*We add the repulsive lubrication force for a better numerical instability*/
+  /*We add the repulsive lubrication force for a better numerical stability*/
   # if LUBR_FORCE == 1  
   lubrication_force(); 
   # endif
