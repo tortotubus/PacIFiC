@@ -66,13 +66,27 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   int no_cells = 0;
   int no_points = 0;
  
-  foreach_cache(tree->vertices){
+  /*Compute the cell size in the grid*/
+  #if MULT_GRID == 1   
+    Cache c = {0};
+    foreach_vertex() cache_append( &c, point, 0 );
+    foreach_cache(c)
+    {  
+      marker[] = _k;
+      no_points += 1;
+    }
+    free(c.p);
+    foreach(serial) {no_cells += 1;}
+    
+  #else
+    foreach_cache(tree->vertices){
     marker[] = _k;
     no_points += 1;
-  }
-  foreach_cache(tree->leaves){
-   no_cells += 1;
-  }
+    }
+    foreach_cache(tree->leaves){
+    no_cells += 1;
+    }
+  #endif
 
   fputs ("<?xml version=\"1.0\"?>\n"
   "<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" byte_order=\"LittleEndian\" header_type=\"UInt64\">\n", fp);
