@@ -62,31 +62,41 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   omp_set_num_threads(1);
 #endif
 
+
+  /*Compute the cell size in the grid*/
   vertex scalar marker[];
   int no_cells = 0;
   int no_points = 0;
  
-  /*Compute the cell size in the grid*/
-  #if MULT_GRID == 1   
-    Cache c = {0};
-    foreach_vertex() cache_append( &c, point, 0 );
-    foreach_cache(c)
-    {  
-      marker[] = _k;
-      no_points += 1;
-    }
-    free(c.p);
-    foreach(serial) {no_cells += 1;}
-    
-  #else
-    foreach_cache(tree->vertices){
+  foreach_vertex(serial, noauto){
     marker[] = _k;
     no_points += 1;
-    }
-    foreach_cache(tree->leaves){
+  }
+  foreach(serial, noauto){
     no_cells += 1;
-    }
-  #endif
+  }  
+
+  /*The following method is kept for further condideration*/
+  // #if MULT_GRID == 1   
+  //   Cache c = {0};
+  //   foreach_vertex() cache_append( &c, point, 0 );
+  //   foreach_cache(c)
+  //   {  
+  //     marker[] = _k;
+  //     no_points += 1;
+  //   }
+  //   free(c.p);
+  //   foreach(serial) {no_cells += 1;}
+  // #else
+  // foreach_cache(tree->vertices){
+  // marker[] = _k;
+  // no_points += 1;
+  // }
+  // foreach_cache(tree->leaves){
+  // no_cells += 1;
+  // }
+  // #endif
+
 
   fputs ("<?xml version=\"1.0\"?>\n"
   "<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" byte_order=\"LittleEndian\" header_type=\"UInt64\">\n", fp);
@@ -101,7 +111,7 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
     fputs ("\t\t\t\t </DataArray>\n", fp);
   }
   for (vector v in vlist) {
-    fprintf (fp,"\t\t\t\t <DataArray type=\"Float64\" Name=\"Vect-%s\" NumberOfComponents=\"3\"  format=\"appended\" offset=\"%d\">\n", v.x.name,count);
+    fprintf (fp,"\t\t\t\t <DataArray type=\"Float64\" Name=\"%s\" NumberOfComponents=\"3\"  format=\"appended\" offset=\"%d\">\n", v.x.name,count);
     count += ((no_cells*3)+1)*8;
     fputs ("\t\t\t\t </DataArray>\n", fp);
   }
@@ -113,7 +123,7 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   fputs ("\t\t\t </Points>\n", fp);
   fputs ("\t\t\t <Cells>\n", fp);
   fputs ("\t\t\t\t <DataArray type=\"Int64\" Name=\"connectivity\" format=\"ascii\">\n", fp);
-  foreach(){
+  foreach(serial, noauto){
 #if dimension == 2
 // Edit OLAND:
     // %g will turn into scientific notation for high integer values. this does not work with paraview
@@ -151,7 +161,7 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   }
   fputs ("\t\t\t\t </DataArray>\n", fp);
   fputs ("\t\t\t\t <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n", fp);
-  foreach(){
+  foreach(serial, noauto){
 #if dimension == 2
     fputs ("9 \n", fp);
 #endif
@@ -171,13 +181,13 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
 #endif
   for (scalar s in list) {
     fwrite (&block_len, sizeof (unsigned long long), 1, fp);
-    foreach()
+    foreach(serial, noauto)
       fwrite (&val(s), sizeof (double), 1, fp);
   }
   block_len=no_cells*8*3;
   for (vector v in vlist) {
     fwrite (&block_len, sizeof (unsigned long long), 1, fp);
-    foreach(){
+    foreach(serial, noauto){
       fwrite (&val(v.x), sizeof (double), 1, fp);
       fwrite (&val(v.y), sizeof (double), 1, fp);
 #if dimension == 2
@@ -190,7 +200,7 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   }
   block_len=no_points*8*3;
   fwrite (&block_len, sizeof (unsigned long long), 1, fp);
-  foreach_vertex(){
+  foreach_vertex(serial, noauto){
     fwrite (&x, sizeof (double), 1, fp);
     fwrite (&y, sizeof (double), 1, fp);
     fwrite (&z, sizeof (double), 1, fp);
@@ -203,7 +213,6 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
   omp_set_num_threads(num_omp);
 #endif
 }
-
 
 
 
