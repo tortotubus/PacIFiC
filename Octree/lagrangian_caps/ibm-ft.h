@@ -133,9 +133,9 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p)
     {
       if ((int)Index_lagnode[] == -1)
       {
-        Index_lagnode[] = mesh->cap_id + 1;
+        Index_lagnode[] = mesh->cap_id;
         // if((int)Index_lag_id.x[] < 0)
-        Index_lag_id.x[] = i + 1;
+        Index_lag_id.x[] = i;
         // else if ((int)Index_lag_id.y[] < 0) 
         // {Index_lag_id.y[] = i;}
         // else if ((int)Index_lag_id.z[] < 0) 

@@ -489,33 +489,28 @@ void lubrication_force()
               lagpt.x = mesh->nodes[lagnode_id].pos.x;
               lagpt.y = mesh->nodes[lagnode_id].pos.y;
               lagpt.z = mesh->nodes[lagnode_id].pos.z;
-            
-              /*A small issue exists for foreach_neighbor in multigrid (probably octree as well)
-              and returns 0 for Index_lagnode at ghost cells, which is wrong, but
-              it doens not affect the efficiency of the algorithm. We keep this for current usage */            
+                 
               foreach_neighbor(1)
               {
                 if(point.level >-1)
                 {
-                  /* We skip the ghost cells which returns 0 for Index_lagnode */
-                  if(((int)Index_lagnode[] > 0) && ((mesh->cap_id + 1) != (int)Index_lagnode[])) 
+                  if(((int)Index_lagnode[] > -1) && ((mesh->cap_id) != (int)Index_lagnode[])) 
                   {        
                     coord checkpt = {0};
-                    checkpt.x = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.x;
-                    checkpt.y = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.y;
-                    checkpt.z = CAPS((int)Index_lagnode[]- 1).nodes[(int)Index_lag_id.x[]- 1].pos.z;
+                    checkpt.x = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.x;
+                    checkpt.y = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.y;
+                    checkpt.z = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.z;
 
                     coord lub_dir = {0};
                     double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
-                    foreach_dimension() lub_dir.x = (lagpt.x - checkpt.x)/lub_norm;
+                    foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
                     if(lub_norm < delta)
                     {
                       foreach_dimension() lub_force.x += lub_dir.x * K_lub * (sq(delta/lub_norm) - 1.);
                     }
-                  }                
+                  }  
                 }
               }
-
             /** The lubrication force is ready to be added to the Lagrangian force of the considered node. */
             foreach_dimension() mesh->nodes[lagnode_id].lagForce.x += lub_force.x;
           }
@@ -525,11 +520,23 @@ void lubrication_force()
   }
 }
 
+//----------------------------------------------------------------------------
+trace void synchronize (scalar * list)
+//----------------------------------------------------------------------------
+{
+  for (scalar s in list)
+    s.dirty = true;
+  boundary(list);
+}
+
 /** In the acceleration event, we transfer the Lagrangian forces to the fluid
 using a regularized Dirac function. The acceleration is stored on the cell
 faces, and will be fed as a source term to the Navier-Stokes solver. */
 vector forcing[];
 event acceleration (i++) {
+
+  /*We synchronize the eul field and make sure that it is updated before applying repulsive force */
+  synchronize({Index_lagnode, Index_lag_id});
 
   /*We add the repulsive lubrication force for a better numerical stability*/
   # if LUBR_FORCE == 1  
