@@ -252,6 +252,8 @@ void initialize_capsule_stencils(lagMesh* mesh) {
     mesh->nodes[j].stencil.n = STENCIL_SIZE;
     mesh->nodes[j].stencil.nm = STENCIL_SIZE;
     mesh->nodes[j].stencil.p = (Index*) malloc(STENCIL_SIZE*sizeof(Index));
+    mesh->nodes[j].eulcell.n = 1;
+    mesh->nodes[j].eulcell.nm = 1;
     mesh->nodes[j].eulcell.p = (Index*) malloc(sizeof(Index));
   }
   
@@ -356,6 +358,8 @@ void advect_lagMesh(lagMesh* mesh) {
       buffer_mesh.nodes[j].stencil.n = STENCIL_SIZE;
       buffer_mesh.nodes[j].stencil.nm = STENCIL_SIZE;
       buffer_mesh.nodes[j].stencil.p = malloc(STENCIL_SIZE*sizeof(Index));
+      buffer_mesh.nodes[j].eulcell.n = 1;
+      buffer_mesh.nodes[j].eulcull.nm = 1;
       buffer_mesh.nodes[j].eulcell.p = malloc(sizeof(Index));
     }
     
