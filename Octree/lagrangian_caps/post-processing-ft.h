@@ -240,3 +240,17 @@ void dump_cycle_number( int nb_dump )
   }
 
 }
+
+//----------------------------------------------------------------------------
+void output_caps_node_tri()
+//----------------------------------------------------------------------------
+{
+    for(int k=0; k<NCAPS; k++) {
+      char fposname[64];
+      char ftriname[64];
+      sprintf(fposname, "%s/mb_%d_pos.csv", result_dir, k);
+      sprintf(ftriname, "%s/mb_%d_tri.csv", result_dir, k);
+      dump_plain_nodes_pos(&CAPS(k), fposname);
+      dump_plain_triangles(&CAPS(k), ftriname);
+    }
+}

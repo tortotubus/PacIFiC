@@ -326,6 +326,9 @@ file.
   #include "volume-conservation-ft.h"
 #endif
 
+/* Utilities for different numerical simulations */
+#include "plugins-ft.h"
+
 
 /**
 The function below advects each Lagrangian node by
