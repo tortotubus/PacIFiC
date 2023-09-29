@@ -1,4 +1,4 @@
-/*This file contains the miscellaneous plugins used for the simulations */
+/*This file contains the miscellaneous plugin functions used for the simulations */
 
 
 #define rand_pos_periodic() (((double)rand() / (double)((unsigned)RAND_MAX + 1)\
@@ -159,3 +159,60 @@ void generate_capsules_from_input()
   for(int k=0; k<NCAPS; k++) correct_lag_pos(&CAPS(k));
     generate_lag_stencils(no_warning = true);
 }
+
+
+void generate_capsules_ordered()
+{
+    int ncaps1d = cbrt(NCAPS);
+    double separation = L0/ncaps1d; // Calculate separation between spheres
+    double centroids[3*NCAPS];
+
+    int sphereIndex = 0;
+    for (int i = 0; i < ncaps1d; i++) {
+        for (int j = 0; j < ncaps1d; j++) {
+            for (int k = 0; k < ncaps1d; k++) {
+                if (sphereIndex < NCAPS) {
+                    centroids[3*sphereIndex] = i * separation + separation / 2. -0.5*L0;
+                    centroids[3*sphereIndex+1] = j * separation + separation / 2. -0.5*L0;
+                    centroids[3*sphereIndex+2] = k * separation + separation / 2. -0.5*L0;
+                    sphereIndex++;
+                }
+            }
+        }
+    }
+
+    for(int k=0; k<NCAPS; k++) 
+    {
+      CAPS(k).centroid.x = centroids[3*k];
+      CAPS(k).centroid.y = centroids[3*k+1];
+      CAPS(k).centroid.z = centroids[3*k+2];
+      for(int i=0; i<CAPS(k).nln; i++)
+        foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
+    }
+
+    for (int k = 0; k < NCAPS; k++) {
+        printf("ncaps1d %d, separation %lf, Sphere %d: Center(%.2f, %.2f, %.2f) \n", ncaps1d, separation, k, CAPS(k).centroid.x, CAPS(k).centroid.y, CAPS(k).centroid.z);
+    }
+
+  /** We generate stencils for the capsules **/
+  for(int k=0; k<NCAPS; k++) correct_lag_pos(&CAPS(k));
+    generate_lag_stencils(no_warning = true);
+}
+
+
+
+void compute_vorticity()
+{
+scalar omega_x[];
+scalar omega_y[];
+scalar omega_z[];
+foreach()
+{
+    omega_x[] = ((u.z[0,1] - u.z[0,-1] - u.y[0,0,1] + u.y[0,0,-1])/(2.*Delta))/(SHEAR_RATE); //Dimensionless vorticity.x
+    omega_y[] = ((u.z[1] - u.z[-1] - u.x[0,0,1] + u.x[0,0,-1])/(2.*Delta))/(SHEAR_RATE); // Dimensionless vorticity.y 
+    omega_z[] = ((u.y[1] - u.y[-1] - u.x[0,1] + u.x[0,-1])/(2.*Delta))/(SHEAR_RATE); //Dimensionless vorticity.z
+}
+boundary({omega_x, omega_y, omega_z});
+
+}
+
