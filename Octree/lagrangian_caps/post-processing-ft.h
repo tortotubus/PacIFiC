@@ -29,6 +29,7 @@ void dump_plain_nodes_pos(lagMesh* mesh, char* filename) {
       fprintf(file, ",%g %g %g", mesh->nodes[i].pos.x, mesh->nodes[i].pos.y,
       mesh->nodes[i].pos.z);
     }
+    //fprintf(file, ",%g ,%g", mesh->taylor_deform, mesh->ang_vel.z);
     fprintf(file, "\n");
     fclose(file);
     }
