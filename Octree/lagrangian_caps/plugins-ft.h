@@ -190,9 +190,9 @@ void generate_capsules_ordered()
         foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
     }
 
-    for (int k = 0; k < NCAPS; k++) {
-        printf("ncaps1d %d, separation %lf, Sphere %d: Center(%.2f, %.2f, %.2f) \n", ncaps1d, separation, k, CAPS(k).centroid.x, CAPS(k).centroid.y, CAPS(k).centroid.z);
-    }
+    // for (int k = 0; k < NCAPS; k++) {
+    //     printf("ncaps1d %d, separation %lf, Sphere %d: Center(%.2f, %.2f, %.2f) \n", ncaps1d, separation, k, CAPS(k).centroid.x, CAPS(k).centroid.y, CAPS(k).centroid.z);
+    // }
 
   /** We generate stencils for the capsules **/
   for(int k=0; k<NCAPS; k++) correct_lag_pos(&CAPS(k));

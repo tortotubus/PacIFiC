@@ -165,9 +165,11 @@ typedef struct lagMesh {
     Triangle* triangles;
   #endif
   coord centroid;
+  coord ang_vel;
   double initial_volume;
   double volume;
   double circum_radius;
+  double taylor_deform;
   bool updated_stretches;
   bool updated_normals;
   bool updated_curvatures;
@@ -384,7 +386,7 @@ void advect_lagMesh(lagMesh* mesh) {
   #endif
   comp_centroid(mesh);
   comp_volume(mesh);
-  comp_circum_radius(mesh);
+  comp_capsule_geodynamics(mesh);
 }
 
 

@@ -226,7 +226,7 @@ void comp_volume(lagMesh* mesh) {
 }
 
 trace
-void comp_circum_radius(lagMesh* mesh) {
+void comp_capsule_geodynamics(lagMesh* mesh) {
   
   /*Compute the cell size in the grid*/
   #if MULT_GRID == 1   
@@ -235,13 +235,61 @@ void comp_circum_radius(lagMesh* mesh) {
     double delta = (L0/(1 << grid->maxdepth));
   #endif
 
+
   comp_centroid(mesh);
-  double max_radius = 0;
-  for(int i=0; i<mesh->nln; i++) {
+  double max_radius = -HUGE;
+  double min_radius = HUGE;
+  coord angvel={0.,0.,0.};
+
+
+
+  for(int i=0; i<mesh->nln; i++) 
+  {
     double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
+    
     max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
-    }
+    min_radius = (tentative_radius < min_radius)? tentative_radius: min_radius; 
+
+    foreach_dimension()
+      angvel.x +=  (mesh->nodes[i].lagVel.x / tentative_radius) / mesh->nln;
+  }
+
+  /* Compute the circumference radius */
   mesh->circum_radius = max_radius + 3*delta;
+  
+  /*Compute the angular velocity of the capsule*/
+  foreach_dimension()
+    mesh->ang_vel.x = angvel.x;
+
+  /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
+  coord Idiag ={0}; 
+  for(int i=0; i<mesh->nlt; i++) 
+  {
+    double rn = 0.;
+    double rSquared = GENERAL_SQNORM(mesh->triangles[i].centroid, mesh->centroid);     
+    coord tri_vec = {0};
+
+    foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
+    foreach_dimension() rn += tri_vec.x * mesh->triangles[i].normal.x;
+    foreach_dimension() 
+      Idiag.x += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.x * tri_vec.x);
+  }
+
+  // Solve for a, b, c 
+  double a = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.y - Idiag.x + Idiag.z));
+  double b = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.z - Idiag.y + Idiag.x));
+  double c = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.x - Idiag.z + Idiag.y));
+
+  double rmax = a > b? a : b; 
+  rmax = rmax > c? rmax : c;
+  double rmin = a < b? a : b; 
+  rmin = rmin < c? rmin : c;
+
+  /*Compute the Taylor deformation factor: maxmin method */
+  mesh->taylor_deform = (rmax - rmin)/(rmax + rmin);
+
+  /*Compute the Taylor deformation factor: maxmin method */
+  // mesh->taylor_deform = (max_radius - min_radius)/(max_radius + min_radius);
 }
 
 

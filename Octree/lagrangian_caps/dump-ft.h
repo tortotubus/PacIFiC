@@ -112,7 +112,10 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   for(int i=0; i<mesh->nlt; i++) 
     dump_triangle(fp, &(mesh->triangles[i]));
   foreach_dimension() fwrite(&(mesh->centroid.x), sizeof(double), 1, fp);
+  foreach_dimension() fwrite(&(mesh->ang_vel.x), sizeof(double), 1, fp);
   fwrite(&(mesh->volume), sizeof(double), 1, fp);
+  fwrite(&(mesh->circum_radius), sizeof(double), 1, fp);
+  fwrite(&(mesh->taylor_deform), sizeof(double), 1, fp);
   fwrite(&(mesh->initial_volume), sizeof(double), 1, fp);
   int tmp;
   tmp = mesh->updated_stretches ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
@@ -133,7 +136,10 @@ void restore_lagmesh(FILE* fp, lagMesh* mesh) {
   mesh->triangles = malloc(mesh->nlt*sizeof(Triangle));
   for(int i=0; i<mesh->nlt; i++) restore_triangle(fp, &mesh->triangles[i]);
   foreach_dimension() fread(&(mesh->centroid.x), sizeof(double), 1, fp);
+  foreach_dimension() fread(&(mesh->ang_vel.x), sizeof(double), 1, fp);
   fread(&(mesh->volume), sizeof(double), 1, fp);
+  fread(&(mesh->circum_radius), sizeof(double), 1, fp);
+  fread(&(mesh->taylor_deform), sizeof(double), 1, fp);
   fread(&(mesh->initial_volume), sizeof(double), 1, fp);
   int tmp;
   fread(&(tmp), sizeof(int), 1, fp);
