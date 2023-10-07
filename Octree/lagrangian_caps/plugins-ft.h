@@ -161,6 +161,8 @@ void generate_capsules_from_input()
 }
 
 
+
+
 void generate_capsules_ordered()
 {
     /*Compute the cell size in the grid*/
@@ -172,7 +174,7 @@ void generate_capsules_ordered()
 
     int ncaps1d = cbrt(NCAPS);
     double separation = (L0 - 6*delta)/ncaps1d; // Calculate separation between spheres
-    if(separation <= RADIUS*2+2*delta) assert("Capsules too dense, please consider another method to generate!\n");
+    if(separation <= RADIUS*2+4*delta) assert("Capsules too dense, please consider another method to generate!\n");
     double centroids[3*NCAPS];
 
     int sphereIndex = 0;
@@ -180,9 +182,12 @@ void generate_capsules_ordered()
         for (int j = 0; j < ncaps1d; j++) {
             for (int k = 0; k < ncaps1d; k++) {
                 if (sphereIndex < NCAPS) {
-                    centroids[3*sphereIndex] = i * separation + separation / 2. -0.5*L0 + 3*delta;
-                    centroids[3*sphereIndex+1] = j * separation + separation / 2. -0.5*L0 + 3*delta;
-                    centroids[3*sphereIndex+2] = k * separation + separation / 2. -0.5*L0 + 3*delta;
+                    centroids[3*sphereIndex] = i * separation + separation / 2. -0.5*L0 + 3*delta \
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
+                    centroids[3*sphereIndex+1] = j * separation + separation / 2. -0.5*L0 + 3*delta\
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
+                    centroids[3*sphereIndex+2] = k * separation + separation / 2. -0.5*L0 + 3*delta\
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
                     sphereIndex++;
                 }
             }
