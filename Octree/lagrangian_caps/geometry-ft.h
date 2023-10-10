@@ -246,12 +246,16 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) 
   {
     double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
-    
+
     max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
     min_radius = (tentative_radius < min_radius)? tentative_radius: min_radius; 
 
+
     foreach_dimension()
-      angvel.x +=  (mesh->nodes[i].lagVel.x / tentative_radius) / mesh->nln;
+      angvel.x += (mesh->nodes[i].pos.y*mesh->nodes[i].lagVel.z -
+        mesh->nodes[i].pos.z*mesh->nodes[i].lagVel.y) /tentative_radius /tentative_radius;
+    // foreach_dimension()
+    //   angvel.x +=  (mesh->nodes[i].lagVel.x / tentative_radius);
   }
 
   /* Compute the circumference radius */
@@ -259,7 +263,7 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
   
   /*Compute the angular velocity of the capsule*/
   foreach_dimension()
-    mesh->ang_vel.x = angvel.x;
+    mesh->ang_vel.x = angvel.x / mesh->nln;
 
   /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
   coord Idiag ={0}; 
