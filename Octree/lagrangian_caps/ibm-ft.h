@@ -137,13 +137,12 @@ void generate_lag_stencils_one_caps(struct _generate_lag_stencils_one_caps p)
         // if((int)Index_lag_id.x[] < 0)
         Index_lag_id.x[] = i;
         Index_lag_id.y[] = -1;
-        // else if ((int)Index_lag_id.y[] < 0) 
-        // else if ((int)Index_lag_id.z[] < 0) 
-        // {Index_lag_id.z[] = i;}
+        Index_lag_id.y[] = -1;
       }
-      else if ((int)Index_lagnode[] != mesh->cap_id)// if the current cell has a node from another cap
+      else if ((int)Index_lagnode[] > -1 && (int)Index_lagnode[] != mesh->cap_id)// if the current cell has a node from another cap
       {
-        Index_lag_id.y[] = 1;
+        Index_lag_id.y[] = mesh->cap_id;
+        Index_lag_id.z[] = i; 
       }
     }
      free(c.p); 

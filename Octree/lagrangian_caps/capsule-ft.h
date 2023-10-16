@@ -472,11 +472,31 @@ void repulsive_vel()
                     {
                       foreach_dimension() lub_vel.x += lub_dir.x * K_lub * (sq(2*delta/lub_norm) - 1.);
                     }
-                  }  
+                  }
                 }
               }
-            /** The lubrication force is ready to be added to the Lagrangian force of the considered node. */
-            foreach_dimension() mesh->nodes[lagnode_id].lagVel.x += lub_vel.x;   
+            /** The velocity of the node is adjusted as the repulsive effect applies. */
+            foreach_dimension() mesh->nodes[lagnode_id].lagVel.x += 0.5*lub_vel.x; 
+            
+            /*A special case where the two nodes from different caps lie in the same cell, we push the node of the other capsule as well */
+            if(((int)Index_lagnode[] > -1) && ((int)Index_lag_id.y[] > -1) && ((mesh->cap_id) != (int)Index_lag_id.y[]))
+            {
+              coord checkpt = {0};
+              checkpt.x = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.x;
+              checkpt.y = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.y;
+              checkpt.z = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.z;
+
+              coord lub_dir = {0};
+              double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
+              foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
+              if(lub_norm < 2*delta)
+              {                 
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2*delta/lub_norm) - 1.);
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.y -= 0.5*lub_dir.y * K_lub * (sq(2*delta/lub_norm) - 1.);
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.z -= 0.5*lub_dir.z * K_lub * (sq(2*delta/lub_norm) - 1.);
+              }
+            }
+            
           }
         }
       }
@@ -501,11 +521,15 @@ event tracer_advection(i++) {
         eul2lag(&CAPS(i));
   }   
 
+ 
+  /*We synchronize the eul field and make sure that it is updated before applying repulsive velocity */
+  synchronize({Index_lagnode, Index_lag_id}); 
+  repulsive_vel();
+
   /**
   In case of parallel simulations, we communicate the Lagrangian velocity
   so that all processes have the same Lagrangian velocities.
   */
-  repulsive_vel();
   reduce_alllagVel();
 
 
