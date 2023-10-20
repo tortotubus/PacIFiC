@@ -161,6 +161,9 @@ class FS_RigidBody
 				             geomVector const& rayDir,
 								 double const& delta );
 
+      double analytical_distanceTo(geomVector const &source,
+                        geomVector const &rayDir);
+
       /** @brief Rotate the pt using the rigid body rotation matrix
       @param pt the point to rotate */
       void rotate(geomVector* pt);
