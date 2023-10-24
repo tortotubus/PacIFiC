@@ -265,6 +265,66 @@ double FS_Sphere:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
+double FS_Sphere::analytical_distanceTo(geomVector const &source,
+                                        geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_Sphere:: analytical_distanceTo");
+
+  // Intersection distance in x direction
+  if (rayDir(0) != 0)
+  {
+    double dx = 0.;
+    double dy = source(1) - m_gravity_center(1);
+    double dz = source(2) - m_gravity_center(2);
+    double x1 = 0., x2 = 0.;
+    if ((MAC::abs(dy) < m_agp_sphere.radius) && (MAC::abs(dz) < m_agp_sphere.radius))
+    {
+      dx = MAC::sqrt(MAC::pow(m_agp_sphere.radius, 2) - MAC::pow(dy, 2) - MAC::pow(dz, 2));
+      x1 = m_gravity_center(0) + dx;
+      x2 = m_gravity_center(0) - dx;
+    }
+
+    return MAC::min(MAC::abs(source(0) - x1), MAC::abs(source(0) - x2));
+  }
+  else if (rayDir(1) != 0)
+  {
+    double dx = source(0) - m_gravity_center(0);
+    double dy = 0.;
+    double dz = source(2) - m_gravity_center(2);
+    double x1 = 0., x2 = 0.;
+    if ((MAC::abs(dx) < m_agp_sphere.radius) && (MAC::abs(dz) < m_agp_sphere.radius))
+    {
+      dy = MAC::sqrt(MAC::pow(m_agp_sphere.radius, 2) - MAC::pow(dx, 2) - MAC::pow(dz, 2));
+      x1 = m_gravity_center(1) + dy;
+      x2 = m_gravity_center(1) - dy;
+    }
+
+    return MAC::min(MAC::abs(source(1) - x1), MAC::abs(source(1) - x2));
+  }
+  else if (rayDir(2) != 0)
+  {
+    double dx = source(0) - m_gravity_center(0);
+    double dy = source(1) - m_gravity_center(1);
+    double dz = 0.;
+    double x1 = 0., x2 = 0.;
+    if ((MAC::abs(dx) < m_agp_sphere.radius) && (MAC::abs(dy) < m_agp_sphere.radius))
+    {
+      dz = MAC::sqrt(MAC::pow(m_agp_sphere.radius, 2) - MAC::pow(dx, 2) - MAC::pow(dy, 2));
+      x1 = m_gravity_center(2) + dz;
+      x2 = m_gravity_center(2) - dz;
+    }
+
+    return MAC::min(MAC::abs(source(2) - x1), MAC::abs(source(2) - x2));
+  }
+
+  return (0.);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 struct FS_Sphere_Additional_Param const* FS_Sphere::
 	get_ptr_FS_Sphere_Additional_Param() const
 //---------------------------------------------------------------------------

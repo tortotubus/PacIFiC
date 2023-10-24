@@ -276,6 +276,51 @@ double FS_2Dcylinder:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
+double FS_2Dcylinder::analytical_distanceTo(geomVector const &source,
+                                            geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_2Dcylinder:: analytical_distanceTo");
+
+  // Intersection distance in x direction
+  if (rayDir(0) != 0)
+  {
+    double dx = 0.;
+    double dy = source(1) - m_gravity_center(1);
+    double x1 = 0., x2 = 0.;
+    if (MAC::abs(dy) < m_agp_2Dcylinder.radius)
+    {
+      dx = MAC::sqrt(MAC::pow(m_agp_2Dcylinder.radius, 2) 
+                   - MAC::pow(dy, 2));
+      x1 = m_gravity_center(0) + dx;
+      x2 = m_gravity_center(0) - dx;
+    }
+
+    return MAC::min(MAC::abs(source(0) - x1), MAC::abs(source(0) - x2));
+  }
+  else if (rayDir(1) != 0)
+  {
+    double dx = source(0) - m_gravity_center(0);
+    double dy = 0.;
+    double x1 = 0., x2 = 0.;
+    if (MAC::abs(dx) < m_agp_2Dcylinder.radius)
+    {
+      dy = MAC::sqrt(MAC::pow(m_agp_2Dcylinder.radius, 2) 
+                   - MAC::pow(dx, 2));
+      x1 = m_gravity_center(1) + dy;
+      x2 = m_gravity_center(1) - dy;
+    }
+
+    return MAC::min(MAC::abs(source(1) - x1), MAC::abs(source(1) - x2));
+  }
+
+  return (0.);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 struct FS_2Dcylinder_Additional_Param const* FS_2Dcylinder::
 	get_ptr_FS_2Dcylinder_Additional_Param() const
 //---------------------------------------------------------------------------

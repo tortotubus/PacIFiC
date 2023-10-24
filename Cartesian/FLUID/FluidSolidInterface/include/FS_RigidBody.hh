@@ -143,6 +143,9 @@ class FS_RigidBody
                                     , double const& y
                                     , double const& z ) const = 0;
 
+      virtual double analytical_distanceTo(geomVector const &source,
+                                           geomVector const &rayDir) const = 0;
+
       /** @brief Returns rigid body velocity including rotation speed at pt
       @param pt the point */
       geomVector rigid_body_velocity( geomVector const& pt ) const;
@@ -160,9 +163,6 @@ class FS_RigidBody
       double distanceTo( geomVector const& source,
 				             geomVector const& rayDir,
 								 double const& delta );
-
-      double analytical_distanceTo(geomVector const &source,
-                        geomVector const &rayDir);
 
       /** @brief Rotate the pt using the rigid body rotation matrix
       @param pt the point to rotate */

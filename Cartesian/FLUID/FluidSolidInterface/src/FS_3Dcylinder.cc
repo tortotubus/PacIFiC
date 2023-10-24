@@ -319,6 +319,19 @@ double FS_3Dcylinder:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
+double FS_3Dcylinder::analytical_distanceTo(geomVector const &source,
+                                            geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_3Dcylinder:: analytical_distanceTo");
+
+  return (0.);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 struct FS_3Dcylinder_Additional_Param const* FS_3Dcylinder::
 	get_ptr_FS_3Dcylinder_Additional_Param() const
 //---------------------------------------------------------------------------

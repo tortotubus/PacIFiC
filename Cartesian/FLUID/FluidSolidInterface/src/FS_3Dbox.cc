@@ -356,6 +356,19 @@ double FS_3Dbox:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
+double FS_3Dbox::analytical_distanceTo(geomVector const &source,
+                                       geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_3Dbox:: analytical_distanceTo");
+
+  return (0.);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 struct FS_3Dbox_Additional_Param const* FS_3Dbox::
 	get_ptr_FS_3Dbox_Additional_Param() const
 //---------------------------------------------------------------------------

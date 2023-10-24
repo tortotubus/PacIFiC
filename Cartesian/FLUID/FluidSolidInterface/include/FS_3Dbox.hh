@@ -99,6 +99,9 @@ class FS_3Dbox: public FS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
+      double analytical_distanceTo(geomVector const &source,
+                                   geomVector const &rayDir) const;
+
       /** @brief Calculate determinant 4 X 4 for checking
       a point in tetrahedron */
       double calcPointDeterm4by4( const geomVector &pointOne,

@@ -417,6 +417,19 @@ double FS_GeneralPolyhedron:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
+double FS_GeneralPolyhedron::analytical_distanceTo(geomVector const &source,
+                                                   geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_GeneralPolyhedron:: analytical_distanceTo");
+
+  return (0.);
+}
+
+
+
+
+//---------------------------------------------------------------------------
 struct FS_GeneralPolyhedron_Additional_Param const* FS_GeneralPolyhedron::
 	get_ptr_FS_GeneralPolyhedron_Additional_Param() const
 //---------------------------------------------------------------------------

@@ -99,6 +99,9 @@ class FS_3Dcylinder: public FS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
+      double analytical_distanceTo(geomVector const &source,
+                                   geomVector const &rayDir) const;
+
       /** @brief Update additional parameters */
       void update_additional_parameters( );
 
