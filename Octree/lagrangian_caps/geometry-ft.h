@@ -225,6 +225,119 @@ void comp_volume(lagMesh* mesh) {
   mesh->volume = volume/18;
 }
 
+
+void compute_taylor_factor(lagMesh* mesh, double* Taylor_deform, double* Inclin_angle, 
+coord* rs, double* TDmaxmin, double* TDang)
+{
+    /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
+  double Ixx = 0., Iyy = 0., Izz = 0., Ixy = 0., Ixz = 0., Iyz = 0.; 
+  for(int i=0; i<mesh->nlt; i++) 
+  {
+    double rn = 0.;
+    double rSquared = GENERAL_SQNORM(mesh->triangles[i].centroid, mesh->centroid);     
+    coord tri_vec = {0};
+
+    foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
+    foreach_dimension() rn += tri_vec.x * mesh->triangles[i].normal.x;
+    // rn = fabs(rn); // In case of centroid ouside of capsule, we change the sign of rn
+    
+    //Compute the components of inertia tensor
+    Ixx += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.x * tri_vec.x);
+    Iyy += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.y * tri_vec.y);
+    Izz += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.z * tri_vec.z);
+    Ixy += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.y);
+    Ixz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.z);
+    Iyz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.y * tri_vec.z);
+  }
+
+  //printf("Ixx: %lf, Iyy: %lf, Izz: %lf Ixy: %lf, Ixz: %lf, Iyz: %lf\n", Ixx, Iyy, Izz, Ixy, Ixz, Iyz);
+
+  double aa = 0., bb = 0., cc = 0., dd = 0.;
+  aa = 1.;
+  bb = -(Ixx + Iyy + Izz);
+  cc = (Ixx*Iyy + Ixx*Izz + Iyy*Izz - Ixy*Ixy - Ixz*Ixz - Iyz*Iyz);
+  dd = (Ixx*Iyz*Iyz + Iyy*Ixz*Ixz + Izz*Ixy*Ixy - 2*Ixy*Ixz*Iyz - Ixx*Iyy*Izz);
+
+  // solve_cubic(aa, bb, cc, dd);
+    // Normalize the coefficients
+    double A = bb / aa;
+    double B = cc / aa;
+    double C = dd / aa;
+
+    // Compute the discriminant
+    double Q = (A*A - 3*B) / 9;
+    double R = (2*A*A*A - 9*A*B + 27*C) / 54;
+    double D = Q*Q*Q - R*R;
+
+    if(D < 0) fprintf(stderr, "No roots found for inertia equivalent ellipsoid!\n");
+    // Normal Case: Three real roots
+    double theta = acos(R / sqrt(Q*Q*Q));
+    double r = -2 * sqrt(Q);
+    double lambd1 = r * cos(theta / 3) - A / 3;
+    double lambd2 = r * cos((theta - 2*M_PI) / 3) - A / 3;
+    double lambd3 = r * cos((theta - 4*M_PI) / 3) - A / 3;
+
+
+  double lambd_tmp =  0.;
+  if(lambd1 > lambd2)
+  {
+    lambd_tmp = lambd1;
+    lambd1 = lambd2;
+    lambd2 = lambd_tmp;
+  }
+  if(lambd2 > lambd3)
+  {
+    lambd_tmp = lambd2;
+    lambd2 = lambd3;
+    lambd3 = lambd_tmp;
+  }
+  if(lambd1 > lambd2)
+  {
+    lambd_tmp = lambd1;
+    lambd1 = lambd2;
+    lambd2 = lambd_tmp;
+  }
+
+  double Evx = 1.;
+  double Evy = -(Ixx - lambd1) / Ixy;
+  // double Evz = -(Ixy * Evx + (Iyy - lambd1) * Evy) / Iyz;
+
+  double r1 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd2 - lambd1 + lambd3));
+  double r2 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd3 - lambd2 + lambd1));
+  double r3 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd1 - lambd3 + lambd2));
+
+  *Taylor_deform = (r1 - r3)/(r1 + r3);
+  *Inclin_angle = atan2(Evy, Evx);
+
+  rs->x = r1;
+  rs->y = r2;
+  rs->z = r3;
+
+//////////////////////////////////////////////////////////Taylor Maxmin
+    double rmax = -HUGE;
+    double rmin = HUGE;
+    
+    for(int i = 0; i < mesh->nln; i++) 
+    {
+    /** The post-processing is only carried out if we are in the shear plane */
+        double x, y, z;
+        x = GENERAL_1DIST(mesh->nodes[i].pos.x, mesh->centroid.x);
+        y = GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y);
+        z = GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z);
+        double rad  = sqrt(sq(x) + sq(y) + sq(z));
+        if (rad > rmax) 
+        {
+          rmax = rad;
+          *TDang = (fabs(x) < 1.e-14) ? (y>0. ? pi/2. : 3*pi/2.) : atan2(y,x);
+        }
+        if (rad < rmin)
+         rmin = rad;
+    }
+
+    *TDmaxmin = (rmax - rmin)/(rmax + rmin);
+}
+
+
 trace
 void comp_capsule_geodynamics(lagMesh* mesh) {
   
@@ -236,11 +349,19 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
   #endif
 
 
+
+  coord center_vel = {0., 0., 0.};
+  for(int i=0; i<mesh->nln; i++) 
+  {
+    foreach_dimension()
+      center_vel.x += mesh->nodes[i].lagVel.x / mesh->nln;
+  }
+
+
   comp_centroid(mesh);
   double max_radius = -HUGE;
   double min_radius = HUGE;
   coord angvel={0.,0.,0.};
-
 
 
   for(int i=0; i<mesh->nln; i++) 
@@ -250,12 +371,10 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
     max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
     min_radius = (tentative_radius < min_radius)? tentative_radius: min_radius; 
 
-
     foreach_dimension()
-      angvel.x += (mesh->nodes[i].pos.y*mesh->nodes[i].lagVel.z -
-        mesh->nodes[i].pos.z*mesh->nodes[i].lagVel.y) /tentative_radius /tentative_radius;
-    // foreach_dimension()
-    //   angvel.x +=  (mesh->nodes[i].lagVel.x / tentative_radius);
+      angvel.x += (GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y)*(mesh->nodes[i].lagVel.z - center_vel.z) -
+        GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z)*(mesh->nodes[i].lagVel.y - center_vel.y)) /tentative_radius /tentative_radius;
+ 
   }
 
   /* Compute the circumference radius */
@@ -265,35 +384,85 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
   foreach_dimension()
     mesh->ang_vel.x = angvel.x / mesh->nln;
 
-  /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
-  coord Idiag ={0}; 
-  for(int i=0; i<mesh->nlt; i++) 
-  {
-    double rn = 0.;
-    double rSquared = GENERAL_SQNORM(mesh->triangles[i].centroid, mesh->centroid);     
-    coord tri_vec = {0};
+  // /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
+  // double Ixx = 0., Iyy = 0., Izz = 0., Ixy = 0., Ixz = 0., Iyz = 0.; 
+  // for(int i=0; i<mesh->nlt; i++) 
+  // {
+  //   double rn = 0.;
+  //   double rSquared = GENERAL_SQNORM(mesh->triangles[i].centroid, mesh->centroid);     
+  //   coord tri_vec = {0};
 
-    foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
-    foreach_dimension() rn += tri_vec.x * mesh->triangles[i].normal.x;
-    foreach_dimension() 
-      Idiag.x += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.x * tri_vec.x);
-  }
+  //   foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
+  //   foreach_dimension() rn += tri_vec.x * mesh->triangles[i].normal.x;
+  //   rn = fabs(rn); // In case of centroid ouside of capsule, we change the sign of rn
+    
+  //   //Compute the components of inertia tensor
+  //   Ixx += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.x * tri_vec.x);
+  //   Iyy += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.y * tri_vec.y);
+  //   Izz += mesh->triangles[i].area / 5.0 * rn * (rSquared - tri_vec.z * tri_vec.z);
+  //   Ixy += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.y);
+  //   Ixz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.z);
+  //   Iyz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.y * tri_vec.z);
+  // }
 
-  // Solve for a, b, c 
-  double a = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.y - Idiag.x + Idiag.z));
-  double b = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.z - Idiag.y + Idiag.x));
-  double c = sqrt((5.0 / (2.0 * mesh->volume)) * (Idiag.x - Idiag.z + Idiag.y));
+  // //printf("Ixx: %lf, Iyy: %lf, Izz: %lf Ixy: %lf, Ixz: %lf, Iyz: %lf\n", Ixx, Iyy, Izz, Ixy, Ixz, Iyz);
 
-  double rmax = a > b? a : b; 
-  rmax = rmax > c? rmax : c;
-  double rmin = a < b? a : b; 
-  rmin = rmin < c? rmin : c;
+  // double aa = 0., bb = 0., cc = 0., dd = 0.;
+  // aa = 1.;
+  // bb = -(Ixx + Iyy + Izz);
+  // cc = (Ixx*Iyy + Ixx*Izz + Iyy*Izz - Ixy*Ixy - Ixz*Ixz - Iyz*Iyz);
+  // dd = (Ixx*Iyz*Iyz + Iyy*Ixz*Ixz + Izz*Ixy*Ixy - 2*Ixy*Ixz*Iyz - Ixx*Iyy*Izz);
 
-  /*Compute the Taylor deformation factor: maxmin method */
-  mesh->taylor_deform = (rmax - rmin)/(rmax + rmin);
+  // // solve_cubic(aa, bb, cc, dd);
+  //   // Normalize the coefficients
+  //   double A = bb / aa;
+  //   double B = cc / aa;
+  //   double C = dd / aa;
 
-  /*Compute the Taylor deformation factor: maxmin method */
-  // mesh->taylor_deform = (max_radius - min_radius)/(max_radius + min_radius);
+  //   // Compute the discriminant
+  //   double Q = (A*A - 3*B) / 9;
+  //   double R = (2*A*A*A - 9*A*B + 27*C) / 54;
+  //   double D = Q*Q*Q - R*R;
+
+  //   if(D < 0) fprintf(stderr, "No roots found for inertia equivalent ellipsoid!\n");
+  //   // Normal Case: Three real roots
+  //   double theta = acos(R / sqrt(Q*Q*Q));
+  //   double r = -2 * sqrt(Q);
+  //   double lambd1 = r * cos(theta / 3) - A / 3;
+  //   double lambd2 = r * cos((theta - 2*M_PI) / 3) - A / 3;
+  //   double lambd3 = r * cos((theta - 4*M_PI) / 3) - A / 3;
+
+
+  // double lambd_tmp =  0.;
+  // if(lambd1 > lambd2)
+  // {
+  //   lambd_tmp = lambd1;
+  //   lambd1 = lambd2;
+  //   lambd2 = lambd_tmp;
+  // }
+  // if(lambd2 > lambd3)
+  // {
+  //   lambd_tmp = lambd2;
+  //   lambd2 = lambd3;
+  //   lambd3 = lambd_tmp;
+  // }
+  // if(lambd1 > lambd2)
+  // {
+  //   lambd_tmp = lambd1;
+  //   lambd1 = lambd2;
+  //   lambd2 = lambd_tmp;
+  // }
+
+  // double Evx = 1.;
+  // double Evy = -(Ixx - lambd1) / Ixy;
+  // double Evz = -(Ixy * Evx + (Iyy - lambd1) * Evy) / Iyz;
+
+  // double r1 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd2 - lambd1 + lambd3));
+  // double r2 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd3 - lambd2 + lambd1));
+  // double r3 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd1 - lambd3 + lambd2));
+
+  // mesh->taylor_deform = (r1 - r3)/(r1 + r3);
+
 }
 
 

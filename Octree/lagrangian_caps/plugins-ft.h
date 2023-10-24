@@ -226,6 +226,34 @@ foreach()
     omega_z[] = ((u.y[1] - u.y[-1] - u.x[0,1] + u.x[0,-1])/(2.*Delta))/(SHEAR_RATE); //Dimensionless vorticity.z
 }
 boundary({omega_x, omega_y, omega_z});
-
 }
 
+
+/** Save the time and time step in a file */
+//----------------------------------------------------------------------------
+void save_t_dt_restart( char* dirname, double time, double deltat )
+//----------------------------------------------------------------------------
+{
+  char dump_name[80] = "";
+  strcpy( dump_name, dirname );
+  strcat( dump_name, "/t_dt_restart.res" );
+  FILE* ft = fopen( dump_name, "w" );
+  fprintf ( ft, "%10e %10e", time, deltat );
+  fclose( ft );  
+}
+
+
+
+
+/** Read the restart time and time step from a file */
+//----------------------------------------------------------------------------
+void read_t_restart( char* dirname, double* time, double* deltat )
+//----------------------------------------------------------------------------
+{
+  char dump_name[80] = "";
+  strcpy( dump_name, dirname );
+  strcat( dump_name, "/t_dt_restart.res" );
+  FILE* ft = fopen( dump_name, "r" );
+  fscanf ( ft, "%lf %lf", time, deltat );
+  fclose( ft );  
+}

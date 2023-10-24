@@ -88,13 +88,20 @@ void output_vtu_bin_foreach (scalar * list, vector * vlist, FILE * fp, bool line
     free(c.p);
     foreach(serial) {no_cells += 1;}
   #else
-  foreach_cache(tree->vertices){
-  marker[] = _k;
-  no_points += 1;
+  // foreach_cache(tree->vertices){
+  // marker[] = _k;
+  // no_points += 1;
+  // }
+  // foreach_cache(tree->leaves){
+  // no_cells += 1;
+  // }
+  foreach_vertex(serial, noauto){
+    marker[] = _k;
+    no_points += 1;
   }
-  foreach_cache(tree->leaves){
-  no_cells += 1;
-  }
+  foreach(serial, noauto){
+    no_cells += 1;
+  }  
   #endif
 
 

@@ -332,6 +332,17 @@ file.
 #include "plugins-ft.h"
 
 
+
+//----------------------------------------------------------------------------
+trace void synchronize (scalar * list)
+//----------------------------------------------------------------------------
+{
+  for (scalar s in list)
+    s.dirty = true;
+  boundary(list);
+}
+
+
 /**
 The function below advects each Lagrangian node by
 interpolating the velocities around the node of interest. By default, a
@@ -631,15 +642,6 @@ void lubrication_force()
   }
 }
 
-
-//----------------------------------------------------------------------------
-trace void synchronize (scalar * list)
-//----------------------------------------------------------------------------
-{
-  for (scalar s in list)
-    s.dirty = true;
-  boundary(list);
-}
 
 /** In the acceleration event, we transfer the Lagrangian forces to the fluid
 using a regularized Dirac function. The acceleration is stored on the cell
