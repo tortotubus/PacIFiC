@@ -1,18 +1,18 @@
-#ifndef _DS_2DCYLINDER__
-#define _DS_2DCYLINDER__
+#ifndef _DS_DISC__
+#define _DS_DISC__
 
 #include <DS_RigidBody.hh>
 #include <string>
 using std::string;
 
 
-/** @brief The class DS_2Dcylinder.
+/** @brief The class DS_Disc.
 
-A moving or stationary rigid 2Dcylinder in the Direction Splitting solver.
+A moving or stationary rigid Disc in the Direction Splitting solver.
 
 @author A. Wachs - Pacific project 2021 */
 
-class DS_2Dcylinder: public DS_RigidBody
+class DS_Disc: public DS_RigidBody
 {
    public: //-----------------------------------------------------------------
 
@@ -21,14 +21,14 @@ class DS_2Dcylinder: public DS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Default constructor */
-      DS_2Dcylinder();
+      DS_Disc();
 
       /** @brief Constructor with arguments
       @param pgrb pointer to the corresponding geometric rigid body */
-      DS_2Dcylinder( FS_RigidBody* pgrb );
+      DS_Disc( FS_RigidBody* pgrb );
 
       /** @brief Destructor */
-      ~DS_2Dcylinder();
+      ~DS_Disc();
       //@}
 
 
@@ -36,7 +36,7 @@ class DS_2Dcylinder: public DS_RigidBody
 
       /**@name Set methods */
       //@{
-      /** @brief Updates the 2Dcylinder features from its corresponding
+      /** @brief Updates the Disc features from its corresponding
       geometric rigid body */
       void update();
       //@}
@@ -51,11 +51,11 @@ class DS_2Dcylinder: public DS_RigidBody
       @param indent_width indentation width */
       void display( ostream& out, size_t const& indent_width ) const;
 
-      /** @brief Computes the min and max extents of the 2Dcylinder halozone
+      /** @brief Computes the min and max extents of the Disc halozone
       , required for the computation of void fraction */
       void compute_rigid_body_halozone( double const& dx );
 
-      /** @brief Compute the surface points by discretizing the 2Dcylinder
+      /** @brief Compute the surface points by discretizing the Disc
       surface in approximately equal areas (if possible) */
       void compute_surface_points( );
 
@@ -119,7 +119,7 @@ class DS_2Dcylinder: public DS_RigidBody
       /** @brief Update additional parameters of each RB type */
       void update_additional_parameters( );
 
-      /** @brief Compute number of points on a 2Dcylinder
+      /** @brief Compute number of points on a Disc
       @param surface_cell_scale scale of surface cell compared with the grid
       @param dx grid size */
       void compute_number_of_surface_variables( double const& surface_cell_scale
@@ -145,8 +145,8 @@ class DS_2Dcylinder: public DS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Copy constructor
-      @param copy copied DS_2Dcylinder object */
-      DS_2Dcylinder( DS_2Dcylinder const& copy );
+      @param copy copied DS_Disc object */
+      DS_Disc( DS_Disc const& copy );
       //@}
 };
 

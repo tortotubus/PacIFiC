@@ -1,25 +1,25 @@
-#ifndef _FS_2DCYLINDER__
-#define _FS_2DCYLINDER__
+#ifndef _FS_DISC__
+#define _FS_DISC__
 
 #include <FS_RigidBody.hh>
 #include <iostream>
 using std::istream ;
 
 
-/** @brief Additional geometric parameters for the 2Dcylinder */
-struct FS_2Dcylinder_Additional_Param
+/** @brief Additional geometric parameters for the Disc */
+struct FS_Disc_Additional_Param
 {
-  double radius; /**< radius of the 2Dcylinder */
+  double radius; /**< radius of the Disc */
 };
 
 
-/** @brief The class FS_2Dcylinder.
+/** @brief The class FS_Disc.
 
-A moving or stationary rigid 2Dcylinder.
+A moving or stationary rigid Disc.
 
 @author A. Wachs - Pacific project 2021 */
 
-class FS_2Dcylinder: public FS_RigidBody
+class FS_Disc: public FS_RigidBody
 {
    public: //-----------------------------------------------------------------
 
@@ -28,15 +28,15 @@ class FS_2Dcylinder: public FS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Default constructor */
-      FS_2Dcylinder();
+      FS_Disc();
 
       /** @brief Constructor with arguments
       @param in input stream where features of rigid bodies are read
       @param id_ identification number */
-      FS_2Dcylinder( istream& in, size_t& id_ );
+      FS_Disc( istream& in, size_t& id_ );
 
       /** @brief Destructor */
-      ~FS_2Dcylinder();
+      ~FS_Disc();
       //@}
 
 
@@ -45,9 +45,9 @@ class FS_2Dcylinder: public FS_RigidBody
       /**@name Get methods */
       //@{
       /** @brief Returns a constant pointer to the structure containing the
-      additional geometric parameters for the 2Dcylinder */
-      struct FS_2Dcylinder_Additional_Param const*
-      	get_ptr_FS_2Dcylinder_Additional_Param() const;
+      additional geometric parameters for the Disc */
+      struct FS_Disc_Additional_Param const*
+      	get_ptr_FS_Disc_Additional_Param() const;
 
       //@}
 
@@ -71,7 +71,7 @@ class FS_2Dcylinder: public FS_RigidBody
       @param indent_width indentation width */
       void display( ostream& out, size_t const& indent_width ) const;
 
-      /** @brief Returns whether a point is inside the 2Dcylinder
+      /** @brief Returns whether a point is inside the Disc
       @param pt the point */
       bool isIn( geomVector const& pt ) const;
 
@@ -81,11 +81,11 @@ class FS_2Dcylinder: public FS_RigidBody
       @param z x-coordinate of the point */
       bool isIn( double const& x, double const& y, double const& z ) const;
 
-      /** @brief Returns the level set value of a point from a 2Dcylinder
+      /** @brief Returns the level set value of a point from a Disc
       @param pt the point */
       double level_set_value( geomVector const& pt ) const;
 
-      /** @brief Returns the level set value of a point from a 2Dcylinder
+      /** @brief Returns the level set value of a point from a Disc
       @param x x-coordinate of the point
       @param y x-coordinate of the point
       @param z x-coordinate of the point */
@@ -108,8 +108,8 @@ class FS_2Dcylinder: public FS_RigidBody
 
       /**@name Parameters */
       //@{
-      struct FS_2Dcylinder_Additional_Param m_agp_2Dcylinder; /**< Additional geometric
-      	parameters for the 2Dcylinder */
+      struct FS_Disc_Additional_Param m_agp_Disc; /**< Additional geometric
+      	parameters for the Disc */
       //@}
 
 
@@ -120,8 +120,8 @@ class FS_2Dcylinder: public FS_RigidBody
       /**@name Constructors & Destructor */
       //@{
       /** @brief Copy constructor
-      @param copy copied FS_2Dcylinder object */
-      FS_2Dcylinder( FS_2Dcylinder const& copy );
+      @param copy copied FS_Disc object */
+      FS_Disc( FS_Disc const& copy );
       //@}
 
 

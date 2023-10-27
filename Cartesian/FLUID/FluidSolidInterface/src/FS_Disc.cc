@@ -1,35 +1,35 @@
-#include <FS_2Dcylinder.hh>
+#include <FS_Disc.hh>
 #include <MAC.hh>
 #include <math.h>
 using std::endl;
 
 
 //---------------------------------------------------------------------------
-FS_2Dcylinder:: FS_2Dcylinder()
+FS_Disc:: FS_Disc()
 //---------------------------------------------------------------------------
   : FS_RigidBody()
 {
-  MAC_LABEL( "FS_2Dcylinder:: FS_2Dcylinder" ) ;
+  MAC_LABEL( "FS_Disc:: FS_Disc" ) ;
 
   m_space_dimension = 2;
-  m_shape_type = GEOM_2DCYLINDER;
-  m_agp_2Dcylinder.radius = 0.;
+  m_shape_type = GEOM_DISC;
+  m_agp_Disc.radius = 0.;
 }
 
 
 
 
 //---------------------------------------------------------------------------
-FS_2Dcylinder:: FS_2Dcylinder( istream& in, size_t& id_ )
+FS_Disc:: FS_Disc( istream& in, size_t& id_ )
 //---------------------------------------------------------------------------
   : FS_RigidBody()
 {
-  MAC_LABEL( "FS_2Dcylinder:: FS_2Dcylinder" ) ;
+  MAC_LABEL( "FS_Disc:: FS_Disc" ) ;
 
   // Default parameter
   m_space_dimension = 2;
   m_Id = id_;
-  m_shape_type = GEOM_2DCYLINDER;
+  m_shape_type = GEOM_DISC;
 
   // Resize parameters
   m_gravity_center.resize(3);
@@ -48,10 +48,10 @@ FS_2Dcylinder:: FS_2Dcylinder( istream& in, size_t& id_ )
 
 
 //---------------------------------------------------------------------------
-FS_2Dcylinder:: ~FS_2Dcylinder()
+FS_Disc:: ~FS_Disc()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: ~FS_2Dcylinder" ) ;
+  MAC_LABEL( "FS_Disc:: ~FS_Disc" ) ;
 
 }
 
@@ -59,10 +59,10 @@ FS_2Dcylinder:: ~FS_2Dcylinder()
 
 
 //---------------------------------------------------------------------------
-void FS_2Dcylinder:: update( istream& in )
+void FS_Disc:: update( istream& in )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: update" ) ;
+  MAC_LABEL( "FS_Disc:: update" ) ;
 
   // Set the rigid body features from the input stream
   set( in );
@@ -73,10 +73,10 @@ void FS_2Dcylinder:: update( istream& in )
 
 
 //---------------------------------------------------------------------------
-void FS_2Dcylinder:: set( istream& in )
+void FS_Disc:: set( istream& in )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: set" ) ;
+  MAC_LABEL( "FS_Disc:: set" ) ;
 
   size_t ncorners, i, nfaces, nper ;
 
@@ -123,22 +123,17 @@ void FS_2Dcylinder:: set( istream& in )
   in >> m_circumscribed_radius >> ncorners;
   in >> m_gravity_center;
 
-  // Force the mass equivalent to a disk
-  m_mass = MAC::pi() * m_circumscribed_radius
-                     * m_circumscribed_radius
-                     * m_density;
-
   // Set volume
   m_volume = m_mass / m_density ;
 
   // Set radius
-  m_agp_2Dcylinder.radius = m_circumscribed_radius;
+  m_agp_Disc.radius = m_circumscribed_radius;
 
   // Force moi of a 2D disk
-  m_inertia[0][0] = (1./2.) * m_mass
-                            * m_circumscribed_radius * m_circumscribed_radius;
-  m_inertia[1][1] = m_inertia[0][0];
-  m_inertia[2][2] = m_inertia[0][0];
+  // m_inertia[0][0] = (1./2.) * m_mass
+  //                           * m_circumscribed_radius * m_circumscribed_radius;
+  // m_inertia[1][1] = m_inertia[0][0];
+  // m_inertia[2][2] = m_inertia[0][0];
 
 }
 
@@ -146,17 +141,17 @@ void FS_2Dcylinder:: set( istream& in )
 
 
 //---------------------------------------------------------------------------
-void FS_2Dcylinder:: display( ostream& out, size_t const& indent_width ) const
+void FS_Disc:: display( ostream& out, size_t const& indent_width ) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: display" ) ;
+  MAC_LABEL( "FS_Disc:: display" ) ;
 
   string space( indent_width, ' ' ) ;
   string three( 3, ' ' ) ;
   out << space << "Shape type = " <<
   	FS_RigidBody::GEOMETRICSHAPE_name[m_shape_type] << endl;
   out << space << "Specific attributes" << endl;
-  out << space << three << "Radius = " << m_agp_2Dcylinder.radius << endl;
+  out << space << three << "Radius = " << m_agp_Disc.radius << endl;
   out << space << "General attributes" << endl;
 
   display_general( out, indent_width + 3 );
@@ -167,24 +162,24 @@ void FS_2Dcylinder:: display( ostream& out, size_t const& indent_width ) const
 
 
 //---------------------------------------------------------------------------
-bool FS_2Dcylinder:: isIn( geomVector const& pt ) const
+bool FS_Disc:: isIn( geomVector const& pt ) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: isIn(pt)" ) ;
+  MAC_LABEL( "FS_Disc:: isIn(pt)" ) ;
 
-  bool status = ( m_gravity_center.calcDist( pt ) <= m_agp_2Dcylinder.radius);
+  bool status = ( m_gravity_center.calcDist( pt ) <= m_agp_Disc.radius);
 
   if (m_periodic_directions) {
      for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
         if (status) break;
         status = (m_gravity_center + (*m_periodic_directions)[i]).calcDist( pt )
-                  <= m_agp_2Dcylinder.radius;
+                  <= m_agp_Disc.radius;
      }
   }
 
   return (status);
 
-  // return ( m_gravity_center.calcDist( pt ) <= m_agp_2Dcylinder.radius );
+  // return ( m_gravity_center.calcDist( pt ) <= m_agp_Disc.radius );
 
 }
 
@@ -192,27 +187,27 @@ bool FS_2Dcylinder:: isIn( geomVector const& pt ) const
 
 
 //---------------------------------------------------------------------------
-bool FS_2Dcylinder:: isIn( double const& x, double const& y, double const& z )
+bool FS_Disc:: isIn( double const& x, double const& y, double const& z )
 	const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: isIn(x,y,z)" ) ;
+  MAC_LABEL( "FS_Disc:: isIn(x,y,z)" ) ;
 
   geomVector pt(x, y, z);
 
-  bool status = ( m_gravity_center.calcDist( pt ) <= m_agp_2Dcylinder.radius);
+  bool status = ( m_gravity_center.calcDist( pt ) <= m_agp_Disc.radius);
 
   if (m_periodic_directions) {
      for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
         if (status) break;
         status = (m_gravity_center + (*m_periodic_directions)[i]).calcDist( pt )
-                  <= m_agp_2Dcylinder.radius;
+                  <= m_agp_Disc.radius;
      }
   }
 
   return (status);
 
-  // return ( m_gravity_center.calcDist( x, y, z ) <= m_agp_2Dcylinder.radius );
+  // return ( m_gravity_center.calcDist( x, y, z ) <= m_agp_Disc.radius );
 
 }
 
@@ -220,25 +215,25 @@ bool FS_2Dcylinder:: isIn( double const& x, double const& y, double const& z )
 
 
 //---------------------------------------------------------------------------
-double FS_2Dcylinder:: level_set_value( geomVector const& pt ) const
+double FS_Disc:: level_set_value( geomVector const& pt ) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: level_set_value(pt)" ) ;
+  MAC_LABEL( "FS_Disc:: level_set_value(pt)" ) ;
 
-  double value = ( m_gravity_center.calcDist( pt ) - m_agp_2Dcylinder.radius);
+  double value = ( m_gravity_center.calcDist( pt ) - m_agp_Disc.radius);
 
   if (m_periodic_directions) {
      for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
         double temp = (m_gravity_center +
                      (*m_periodic_directions)[i]).calcDist( pt )
-                     - m_agp_2Dcylinder.radius;
+                     - m_agp_Disc.radius;
         value = MAC::min(temp,value);
      }
   }
 
   return (value);
 
-  // return ( m_gravity_center.calcDist( pt ) - m_agp_2Dcylinder.radius );
+  // return ( m_gravity_center.calcDist( pt ) - m_agp_Disc.radius );
 
 }
 
@@ -246,29 +241,29 @@ double FS_2Dcylinder:: level_set_value( geomVector const& pt ) const
 
 
 //---------------------------------------------------------------------------
-double FS_2Dcylinder:: level_set_value( double const& x
+double FS_Disc:: level_set_value( double const& x
                                 , double const& y
                                 , double const& z ) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: level_set_value(x,y,z)" ) ;
+  MAC_LABEL( "FS_Disc:: level_set_value(x,y,z)" ) ;
 
   geomVector pt(x, y, z);
 
-  double value = ( m_gravity_center.calcDist( pt ) - m_agp_2Dcylinder.radius);
+  double value = ( m_gravity_center.calcDist( pt ) - m_agp_Disc.radius);
 
   if (m_periodic_directions) {
      for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
         double temp = (m_gravity_center +
                      (*m_periodic_directions)[i]).calcDist( pt )
-                     - m_agp_2Dcylinder.radius;
+                     - m_agp_Disc.radius;
         value = MAC::min(temp,value);
      }
   }
 
   return (value);
 
-  // return ( m_gravity_center.calcDist( x, y, z ) - m_agp_2Dcylinder.radius );
+  // return ( m_gravity_center.calcDist( x, y, z ) - m_agp_Disc.radius );
 
 }
 
@@ -276,11 +271,11 @@ double FS_2Dcylinder:: level_set_value( double const& x
 
 
 //---------------------------------------------------------------------------
-double FS_2Dcylinder::analytical_distanceTo(geomVector const &source,
+double FS_Disc::analytical_distanceTo(geomVector const &source,
                                             geomVector const &rayDir) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL("FS_2Dcylinder:: analytical_distanceTo");
+  MAC_LABEL("FS_Disc:: analytical_distanceTo");
 
   // Intersection distance in x direction
   if (rayDir(0) != 0)
@@ -288,9 +283,9 @@ double FS_2Dcylinder::analytical_distanceTo(geomVector const &source,
     double dx = 0.;
     double dy = source(1) - m_gravity_center(1);
     double x1 = 0., x2 = 0.;
-    if (MAC::abs(dy) < m_agp_2Dcylinder.radius)
+    if (MAC::abs(dy) < m_agp_Disc.radius)
     {
-      dx = MAC::sqrt(MAC::pow(m_agp_2Dcylinder.radius, 2) 
+      dx = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) 
                    - MAC::pow(dy, 2));
       x1 = m_gravity_center(0) + dx;
       x2 = m_gravity_center(0) - dx;
@@ -303,9 +298,9 @@ double FS_2Dcylinder::analytical_distanceTo(geomVector const &source,
     double dx = source(0) - m_gravity_center(0);
     double dy = 0.;
     double x1 = 0., x2 = 0.;
-    if (MAC::abs(dx) < m_agp_2Dcylinder.radius)
+    if (MAC::abs(dx) < m_agp_Disc.radius)
     {
-      dy = MAC::sqrt(MAC::pow(m_agp_2Dcylinder.radius, 2) 
+      dy = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) 
                    - MAC::pow(dx, 2));
       x1 = m_gravity_center(1) + dy;
       x2 = m_gravity_center(1) - dy;
@@ -321,13 +316,13 @@ double FS_2Dcylinder::analytical_distanceTo(geomVector const &source,
 
 
 //---------------------------------------------------------------------------
-struct FS_2Dcylinder_Additional_Param const* FS_2Dcylinder::
-	get_ptr_FS_2Dcylinder_Additional_Param() const
+struct FS_Disc_Additional_Param const* FS_Disc::
+	get_ptr_FS_Disc_Additional_Param() const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: get_ptr_FS_2Dcylinder_Additional_Param" ) ;
+  MAC_LABEL( "FS_Disc:: get_ptr_FS_Disc_Additional_Param" ) ;
 
-  return ( &m_agp_2Dcylinder );
+  return ( &m_agp_Disc );
 
 }
 
@@ -335,10 +330,10 @@ struct FS_2Dcylinder_Additional_Param const* FS_2Dcylinder::
 
 
 //---------------------------------------------------------------------------
-void FS_2Dcylinder::update_additional_parameters( )
+void FS_Disc::update_additional_parameters( )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_2Dcylinder:: update_additional_parameters( )" ) ;
+  MAC_LABEL( "FS_Disc:: update_additional_parameters( )" ) ;
 
 
 

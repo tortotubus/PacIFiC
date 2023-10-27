@@ -10,7 +10,7 @@
 FS_Grains3DPlugIn::FS_Grains3DPlugIn( string const& insertion_file_,
         string const& simulation_file_,
         double const& fluid_density,
-	bool const& correct_particle_acceleration,
+	      bool const& correct_particle_acceleration,
         bool const& b_restart,
         double const& grid_size,
         bool const& is_solidsolver_parallel,	

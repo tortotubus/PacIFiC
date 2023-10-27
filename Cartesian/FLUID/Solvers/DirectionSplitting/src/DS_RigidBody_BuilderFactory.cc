@@ -4,7 +4,8 @@
 #include <FS_RigidBody.hh>
 #include <DS_Sphere.hh>
 #include <DS_3Dcylinder.hh>
-#include <DS_2Dcylinder.hh>
+#include <DS_Disc.hh>
+#include <DS_2Dbox.hh>
 #include <DS_3Dbox.hh>
 #include <DS_GeneralPolyhedron.hh>
 #include <DS_STL.hh>
@@ -19,15 +20,15 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
 
   DS_RigidBody* dsrb = NULL;
 
-  // Build the Direction Splitting rigid body
+    // Build the Direction Splitting rigid body
   switch ( pgrb->get_shape_type() )
   {
     case GEOM_SPHERE:
       dsrb = new DS_Sphere( pgrb );
       break;
 
-    case GEOM_2DCYLINDER:
-      dsrb = new DS_2Dcylinder( pgrb );
+    case GEOM_DISC:
+      dsrb = new DS_Disc( pgrb );
       break;
 
     case GEOM_3DCYLINDER:
@@ -36,6 +37,10 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
 
     case GEOM_3DBOX:
       dsrb = new DS_3Dbox( pgrb );
+      break;
+
+    case GEOM_2DBOX:
+      dsrb = new DS_2Dbox(pgrb);
       break;
 
     case GEOM_GENERAL_POLYHEDRON:

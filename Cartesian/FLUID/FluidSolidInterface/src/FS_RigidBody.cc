@@ -2,8 +2,8 @@
 using std::endl;
 
 
-vector<string> FS_RigidBody::GEOMETRICSHAPE_name = { "Sphere", "2D cylinder",
-	"3D cylinder", "General polygon", "General polyhedron", "Square",
+vector<string> FS_RigidBody::GEOMETRICSHAPE_name = { "Sphere", "Disc",
+	"3D cylinder", "General polygon", "General polyhedron", "2D Box",
 	"3D Box", "Equilateral triangle", "Regular tetrahedron" };
 
 
