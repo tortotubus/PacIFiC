@@ -186,6 +186,9 @@ bool FS_2Dbox:: isIn( geomVector const& pt ) const
 {
   MAC_LABEL( "FS_2Dbox:: isIn(pt)" ) ;
 
+  // Inspired from the following website:
+  // www.jeffreythompson.org/collision-detection/line-line.php
+
   bool b_isIn = true;
 
   geomVector p1(pt);

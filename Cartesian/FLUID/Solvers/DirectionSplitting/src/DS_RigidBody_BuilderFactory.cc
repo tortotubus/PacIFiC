@@ -4,6 +4,7 @@
 #include <FS_RigidBody.hh>
 #include <DS_Sphere.hh>
 #include <DS_3Dcylinder.hh>
+#include <DS_3Dspheroidcylinder.hh>
 #include <DS_Disc.hh>
 #include <DS_2Dbox.hh>
 #include <DS_3Dbox.hh>
@@ -32,6 +33,7 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
       break;
 
     case GEOM_3DCYLINDER:
+      // dsrb = new DS_3Dspheroidcylinder( pgrb );
       dsrb = new DS_3Dcylinder( pgrb );
       break;
 

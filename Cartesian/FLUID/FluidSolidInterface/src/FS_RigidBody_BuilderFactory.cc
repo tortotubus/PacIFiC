@@ -3,6 +3,7 @@
 #include <FS_RigidBody.hh>
 #include <FS_Sphere.hh>
 #include <FS_3Dcylinder.hh>
+#include <FS_3Dspheroidcylinder.hh>
 #include <FS_Disc.hh>
 #include <FS_2Dbox.hh>
 #include <FS_3Dbox.hh>
@@ -45,8 +46,9 @@ FS_RigidBody* FS_RigidBody_BuilderFactory:: create( size_t& dimens,
 		  break;
 
       case 777:
-        prb = new FS_3Dcylinder( in, id_ );
-		  break;
+        // prb = new FS_3Dspheroidcylinder( in, id_ );
+		prb = new FS_3Dcylinder( in, id_ );
+		break;
 
 	   case 666:
 		  prb = new FS_3Dbox( in, id_ );
