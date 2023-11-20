@@ -325,7 +325,138 @@ double FS_3Dcylinder::analytical_distanceTo(geomVector const &source,
 {
   MAC_LABEL("FS_3Dcylinder:: analytical_distanceTo");
 
-  return (0.);
+  // Ref: https://hugi.scene.org/online/hugi24/coding%20graphics%20chris%20dragan%20raytracing%20shapes.htm
+
+  geomVector D(rayDir);
+  geomVector O(source);
+
+  geomVector V(m_agp_3dcyl.BottomToTopVec);
+  V = V * (1. / V.calcNorm());
+  geomVector C(m_agp_3dcyl.BottomCenter);
+  geomVector X(O - C);
+
+  // Coefficients of quadratic equation
+  double a = (D, D) - MAC::pow((D, V), 2.);
+  double b = 2. * ((D, X) - (D, V) * (X, V));
+  double c = (X, X) - MAC::pow((X, V), 2.) - MAC::pow(m_agp_3dcyl.cylinder_radius, 2.);
+
+  double det = MAC::pow(b, 2) - 4. * a * c;
+
+  if (det > 0)
+  {
+    double t1 = (-b + MAC::sqrt(det)) / (2. * a);
+    double t2 = (-b - MAC::sqrt(det)) / (2. * a);
+    double m1 = (D, V) * t1 + (X, V);
+    double m2 = (D, V) * t2 + (X, V);
+    // rayDir accounts for the direction, we only consider
+    // positive t1 and t2
+    if ((t1 > 0) && (t2 > 0))
+    {
+      if ((m1 >= 0. && m1 <= m_agp_3dcyl.cylinder_height) &&
+          (m2 >= 0. && m2 <= m_agp_3dcyl.cylinder_height))
+      {
+        return (MAC::min(t1, t2));
+      }
+      else if (m1 >= 0. && m1 <= m_agp_3dcyl.cylinder_height)
+      {
+        // second point intersection with a plane
+        geomVector Xt(O - C);
+        t2 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        geomVector P_t(O + t2 * D);
+        if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+          if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
+            return (t2);
+
+        Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+        t2 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        P_t = O + t2 * D;
+        if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+          if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
+            return (t2);
+
+        return (t1);
+      }
+      else if (m2 >= 0. && m2 <= m_agp_3dcyl.cylinder_height)
+      {
+        // first point intersection with a plane
+        geomVector Xt(O - C);
+        t1 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        geomVector P_t(O + t1 * D);
+        if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+          if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
+            return (t1);
+
+        Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+        t1 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        P_t = O + t1 * D;
+        if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+          if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
+            return (t1);
+
+        return (t2);
+      }
+      else
+      {
+        double dist = 0.;
+        geomVector Xt(O - C);
+        t1 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        geomVector P_t(O + t1 * D);
+        if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+          if (t1 > 0 && t1 < m_agp_3dcyl.cylinder_height)
+            dist = t1;
+
+        Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+        t2 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+        P_t = O + t2 * D;
+        if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+          if (t2 > 0 && t2 < m_agp_3dcyl.cylinder_height)
+            dist = (dist != 0) ? MAC::min(dist, t2) : t2;
+
+        return (dist);
+      }
+      return (MAC::min(t1, t2));
+    }
+    else if (t1 > 0)
+    {
+      // second point intersection with a plane
+      geomVector Xt(O - C);
+      t2 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+      geomVector P_t(O + t2 * D);
+      if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+        if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
+          return (t2);
+
+      Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+      t2 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+      P_t = O + t2 * D;
+      if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+        if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
+          return (t2);
+
+      return (t1);
+    }
+    else if (t2 > 0)
+    {
+      // first point intersection with a plane
+      geomVector Xt(O - C);
+      t1 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+      geomVector P_t(O + t1 * D);
+      if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+        if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
+          return (t1);
+
+      Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+      t1 = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+      P_t = O + t1 * D;
+      if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+        if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
+          return (t1);
+
+      return (t2);
+    }
+  }
+
+  return (m_agp_3dcyl.cylinder_radius);
 }
 
 

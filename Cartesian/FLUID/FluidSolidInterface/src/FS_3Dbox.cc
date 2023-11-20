@@ -194,6 +194,8 @@ void FS_3Dbox:: set( istream& in )
   m_rotation_matrix[2][0] = -MAC::sin(pitch);
   m_rotation_matrix[2][1] = MAC::cos(pitch)*MAC::sin(roll);
   m_rotation_matrix[2][2] = MAC::cos(pitch)*MAC::cos(roll);
+
+  display(std::cout, '\t');
 }
 
 
@@ -264,22 +266,9 @@ bool FS_3Dbox:: isIn( double const& x, double const& y, double const& z )
 {
   MAC_LABEL( "FS_3Dbox:: isIn(x,y,z)" ) ;
 
-  bool b_isIn = false;
-
   geomVector pt( x, y, z );
 
-  for (vector< vector<size_t> >::const_iterator
-         faceIter = m_agp_3dbox.facesVec.begin();
-         faceIter != m_agp_3dbox.facesVec.end() && !b_isIn; ++faceIter )
-     for (size_t idxPts = 2; idxPts < 4 && !b_isIn; ++idxPts ) {
-        if ( checkPointInTetrahedron( m_agp_3dbox.corners[ (*faceIter)[0] ],
-                               m_agp_3dbox.corners[ (*faceIter)[idxPts-1] ],
-                                 m_agp_3dbox.corners[ (*faceIter)[idxPts] ],
-                                      m_gravity_center, pt ) )
-           b_isIn = true;
-        }
-
-  return ( b_isIn );
+  return (isIn(pt));
 
 }
 
@@ -327,29 +316,10 @@ double FS_3Dbox:: level_set_value( double const& x
 {
   MAC_LABEL( "FS_3Dbox:: level_set_value(x,y,z)" ) ;
 
-  double value = 1.;       // +ve outside, -ve inside
-
   geomVector pt( x, y, z );
 
-  for (vector< vector<size_t> >::const_iterator
-           faceIter = m_agp_3dbox.facesVec.begin();
-           faceIter != m_agp_3dbox.facesVec.end() && (value > 0.);
-           ++faceIter )
-     for (size_t idxPts = 2; idxPts < 4 && (value > 0.); ++idxPts ) {
-        double temp = DistOfPointFromTetrahedron(
-                                 m_agp_3dbox.corners[ (*faceIter)[0] ],
-                                 m_agp_3dbox.corners[ (*faceIter)[idxPts-1] ],
-                                 m_agp_3dbox.corners[ (*faceIter)[idxPts] ],
-                                 m_gravity_center, pt );
+  return(level_set_value(pt));
 
-        if (temp >= 0.) {
-           value = std::max(temp, value);
-        } else {
-           value = temp;
-        }
-     }
-
-  return(value);
 }
 
 
@@ -361,6 +331,48 @@ double FS_3Dbox::analytical_distanceTo(geomVector const &source,
 //---------------------------------------------------------------------------
 {
   MAC_LABEL("FS_3Dbox:: analytical_distanceTo");
+
+  // Ref: https://hugi.scene.org/online/hugi24/coding%20graphics%20chris%20dragan%20raytracing%20shapes.htm
+
+  geomVector D(rayDir);
+  geomVector O(source);
+
+  vector<double> distance;
+
+  for (vector<vector<size_t>>::const_iterator
+      faceIter = m_agp_3dbox.facesVec.begin();
+      faceIter != m_agp_3dbox.facesVec.end(); ++faceIter) {
+
+      geomVector C = m_agp_3dbox.corners[(*faceIter)[0]];
+      geomVector v1 = m_agp_3dbox.corners[(*faceIter)[1]] - C;
+      geomVector v2 = m_agp_3dbox.corners[(*faceIter)[3]] - C;
+
+      geomVector V(v1^v2);
+      V = V * (1. / V.calcNorm());
+
+      geomVector X(O - C);
+
+      if ((D,V) != 0.) {
+        double t = - (X,V) / (D,V);
+
+        if (t > THRESHOLD) {
+          geomVector P = O + t * D;
+          geomVector v_PC = P - C;
+
+          double cos_v1 = (v_PC, v1) / v_PC.calcNorm() / v1.calcNorm();
+          double cos_v2 = (v_PC, v2) / v_PC.calcNorm() / v2.calcNorm();
+
+          if ((cos_v1 > 0) && (cos_v2 > 0)
+           && (v_PC.calcNorm() * cos_v1 < v1.calcNorm()) 
+           && (v_PC.calcNorm() * cos_v2 < v2.calcNorm())) {
+            distance.push_back(t);
+          }
+        }
+      }
+  }
+
+  if (distance.size() == 2) 
+    return (MAC::min(distance[0], distance[1]));
 
   return (0.);
 }
