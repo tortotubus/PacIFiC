@@ -183,11 +183,11 @@ void generate_capsules_ordered()
             for (int k = 0; k < ncaps1d; k++) {
                 if (sphereIndex < NCAPS) {
                     centroids[3*sphereIndex] = i * separation + separation / 2. -0.5*L0 + 3*delta \
-                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*max(separation*0.5 - RADIUS*1.05, delta);
                     centroids[3*sphereIndex+1] = j * separation + separation / 2. -0.5*L0 + 3*delta\
-                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*max(separation*0.5 - RADIUS*1.05, delta);
                     centroids[3*sphereIndex+2] = k * separation + separation / 2. -0.5*L0 + 3*delta\
-                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*4*delta;
+                    + ((double)rand() / (double)((unsigned)RAND_MAX + 1)-0.5)*max(separation*0.5 - RADIUS*1.05, delta);
                     sphereIndex++;
                 }
             }

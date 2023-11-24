@@ -112,14 +112,26 @@ void comp_triangle_area_normal(lagMesh* mesh, int i) {
   /** The next 15 lines compute the centroid of the triangle, making sure it is
   valid when the triangle lies across periodic boundaries. */
   foreach_dimension() mesh->triangles[i].centroid.x = 0.;
+
+  // for(int j=0; j<3; j++) {
+  //   foreach_dimension() {
+  //     mesh->triangles[i].centroid.x +=
+  //       ACROSS_PERIODIC(mesh->nodes[nid[j]].pos.x/3,
+  //       mesh->nodes[nid[0]].pos.x/3) ? mesh->nodes[nid[j]].pos.x/3 - L0 :
+  //       mesh->nodes[nid[j]].pos.x/3;
+  //   }
+  // }
+
+///////ggd 
   for(int j=0; j<3; j++) {
     foreach_dimension() {
-      mesh->triangles[i].centroid.x +=
-        ACROSS_PERIODIC(mesh->nodes[nid[j]].pos.x/3,
-        mesh->nodes[nid[0]].pos.x/3) ? mesh->nodes[nid[j]].pos.x/3 - L0 :
-        mesh->nodes[nid[j]].pos.x/3;
+      mesh->triangles[i].centroid.x += mesh->centroid.x + GENERAL_1DIST(mesh->nodes[nid[j]].pos.x, mesh->centroid.x);
     }
   }
+foreach_dimension() mesh->triangles[i].centroid.x /=3.;
+////ggd 
+
+
   coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
   foreach_dimension() {
     if (fabs(mesh->triangles[i].centroid.x - origin.x) > L0/2.) {
@@ -231,10 +243,12 @@ coord* rs, double* TDmaxmin, double* TDang)
 {
     /* To store the components of the diagonal inertia tensor Ixx, Iyy, Izz*/
   double Ixx = 0., Iyy = 0., Izz = 0., Ixy = 0., Ixz = 0., Iyz = 0.; 
-  for(int i=0; i<mesh->nlt; i++) 
+  for(int i = 0; i < mesh->nlt; i++) 
   {
     double rn = 0.;
-    double rSquared = GENERAL_SQNORM(mesh->triangles[i].centroid, mesh->centroid);     
+    double rSquared = sq(GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x)) 
+    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.y, mesh->centroid.y))
+    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.z, mesh->centroid.z)) ;     
     coord tri_vec = {0};
 
     foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
@@ -248,9 +262,9 @@ coord* rs, double* TDmaxmin, double* TDang)
     Ixy += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.y);
     Ixz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.x * tri_vec.z);
     Iyz += mesh->triangles[i].area / 5.0 * rn * (0. - tri_vec.y * tri_vec.z);
-  }
+ }
 
-  //printf("Ixx: %lf, Iyy: %lf, Izz: %lf Ixy: %lf, Ixz: %lf, Iyz: %lf\n", Ixx, Iyy, Izz, Ixy, Ixz, Iyz);
+
 
   double aa = 0., bb = 0., cc = 0., dd = 0.;
   aa = 1.;
@@ -320,15 +334,15 @@ coord* rs, double* TDmaxmin, double* TDang)
     for(int i = 0; i < mesh->nln; i++) 
     {
     /** The post-processing is only carried out if we are in the shear plane */
-        double x, y, z;
-        x = GENERAL_1DIST(mesh->nodes[i].pos.x, mesh->centroid.x);
-        y = GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y);
-        z = GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z);
-        double rad  = sqrt(sq(x) + sq(y) + sq(z));
+        double projx, projy, projz;
+        projx = GENERAL_1DIST(mesh->nodes[i].pos.x, mesh->centroid.x);
+        projy = GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y);
+        projz = GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z);
+        double rad  = sqrt(sq(projx) + sq(projy) + sq(projz));
         if (rad > rmax) 
         {
           rmax = rad;
-          *TDang = (fabs(x) < 1.e-14) ? (y>0. ? pi/2. : 3*pi/2.) : atan2(y,x);
+          *TDang = (fabs(projx) < 1.e-14) ? (projy>0. ? pi/2. : 3*pi/2.) : fmod(atan2(projy, projx) + pi, pi);
         }
         if (rad < rmin)
          rmin = rad;

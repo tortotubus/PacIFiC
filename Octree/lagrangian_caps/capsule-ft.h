@@ -456,7 +456,7 @@ void repulsive_vel()
           double K_lub = 0.;
           foreach_dimension()
             K_lub += sq(mesh->nodes[lagnode_id].lagVel.x);
-          K_lub = sqrt(K_lub);
+          K_lub = sqrt(K_lub); //half the velocity as coefficient
 
           if(point.level>-1)
           {        
@@ -479,9 +479,9 @@ void repulsive_vel()
                     coord lub_dir = {0};
                     double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
                     foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
-                    if(lub_norm < 2*delta)
+                    if(lub_norm < 2.*delta)
                     {
-                      foreach_dimension() lub_vel.x += lub_dir.x * K_lub * (sq(2*delta/lub_norm) - 1.);
+                      foreach_dimension() lub_vel.x += lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
                     }
                   }
                 }
@@ -500,11 +500,11 @@ void repulsive_vel()
               coord lub_dir = {0};
               double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
               foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
-              if(lub_norm < 2*delta)
+              if(lub_norm < 2.*delta)
               {                 
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2*delta/lub_norm) - 1.);
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.y -= 0.5*lub_dir.y * K_lub * (sq(2*delta/lub_norm) - 1.);
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.z -= 0.5*lub_dir.z * K_lub * (sq(2*delta/lub_norm) - 1.);
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.y -= 0.5*lub_dir.y * K_lub * (sq(2.*delta/lub_norm) - 1.);
+                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.z -= 0.5*lub_dir.z * K_lub * (sq(2.*delta/lub_norm) - 1.);
               }
             }
             
