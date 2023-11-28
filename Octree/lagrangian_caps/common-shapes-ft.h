@@ -376,8 +376,11 @@ void initialize_spherical_capsule(struct _initialize_circular_capsule p) {
     }
 
     #ifdef CAPS_VISCOSITY
-      fraction(I, sq(RADIUS) - sq(x - shift.x) - sq(y - shift.y)
-        - sq(z - shift.z));
+      // fraction(I, sq(RADIUS) - sq(x - shift.x) - sq(y - shift.y)
+      //   - sq(z - shift.z)); //previous
+      foreach(){
+        I[] = sq(x - shift.x) + sq(y - shift.y) + sq(z - shift.z) - sq(RADIUS) > 0 ? 0 : 1;
+      } //ggd 
       foreach() if (I[] > 1.e-6) prevI[] = I[];
     #endif
   }
