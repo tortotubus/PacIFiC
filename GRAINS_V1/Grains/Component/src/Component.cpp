@@ -536,10 +536,12 @@ void Component::addToCoordinationNumber( int const& nc )
 // Initializes all contact map entries to false
 void Component::setContactMapToFalse()
 {
-  map<std::tuple<int,int,int>,std::tuple<bool, Vector3, Vector3,
+/* // Generate an error when installing on some computer (EDF-scibian10):
+   // /usr/include/c++/8/bits/stl_tree.h:452:21: error: static assertion failed: comparison object must be invocable with two arguments of key type
+    map<std::tuple<int,int,int>,std::tuple<bool, Vector3, Vector3,
     Vector3>,bool >::iterator it;
   for (it=m_contactMap.begin();it!=m_contactMap.end();++it)
-    get<0>(it->second) = false;
+    get<0>(it->second) = false;*/
 }
 
 
