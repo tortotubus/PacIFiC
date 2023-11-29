@@ -25,6 +25,8 @@ extern "C" {
   void UpdateVelocityGrains( double arrayv[][6], const int m,
   	bool bsplit_explicit_acceleration );
   
+  void UpdateForceGrains( double arrayf[], int npart);
+  
   void SetInitialCycleNumber( int cycle0 );
 
 #ifdef __cplusplus

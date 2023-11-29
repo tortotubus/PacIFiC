@@ -27,6 +27,7 @@ enum ConvexType {
   POLYGON,
   BOX,
   CONE,
+  CONETRUNCATED,
   CYLINDER,
   POINT,
   SEGMENT,

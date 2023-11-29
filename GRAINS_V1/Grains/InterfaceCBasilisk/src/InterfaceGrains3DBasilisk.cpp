@@ -34,7 +34,7 @@ extern "C" {
     ReaderXML::terminate();
     
     string cmd = "/bin/rm " + simulation_file_exe;
-    GrainsExec::m_return_syscmd = system( cmd.c_str() ); 
+    GrainsExec::m_return_syscmd = system( cmd.c_str() );
          
     cout << "Construction of Grains completed" << endl;
   }
@@ -109,6 +109,27 @@ extern "C" {
 
     // We use the interface function of PeliGRIFF
     grains->updateParticlesVelocity( vecv, bsplit_explicit_acceleration );
+  }  
+  
+
+  void UpdateForceGrains( double arrayf[], int npart) 
+  {
+    // Transfer into a vector< vector<double> >
+    vector< vector<double> >* hydroFT;
+    if(!hydroFT){
+    vector<double> work(6, 0);
+    hydroFT = new vector<vector<double>>;
+    hydroFT->reserve(npart);
+    for(int k=0;k<npart;++k)
+        hydroFT->push_back(work);
+    }
+        
+    for (int i=0;i<npart;++i)
+      for (int j=0;j<6;++j)
+        (*hydroFT)[i][j] = arrayf[i*6+j];
+
+    grains->updateParticlesHydroFT( hydroFT );
+        
   }  
 
 

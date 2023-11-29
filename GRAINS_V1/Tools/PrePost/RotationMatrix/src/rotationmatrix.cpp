@@ -29,11 +29,11 @@ int main(int argc, char *argv[])
   double angleX,angleY,angleZ;
   string filename="rotationmatrix.txt"; 
   
-  cout << "Rotation angle around X : ";
+  cout << "Rotation angle around X (deg) : ";
   cin >> angleX;
-  cout << "Rotation angle around Y : ";
+  cout << "Rotation angle around Y (deg) : ";
   cin >> angleY;  
-  cout << "Rotation angle around Z : ";
+  cout << "Rotation angle around Z (deg) : ";
   cin >> angleZ;
 
   angleX *= PI / 180.;

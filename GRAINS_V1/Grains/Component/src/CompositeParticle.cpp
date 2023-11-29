@@ -1093,6 +1093,7 @@ void CompositeParticle::createSetElementaryParticles(
 // Outputs information to be transferred to the fluid
 void CompositeParticle::writePositionInFluid( ostream& fluid )
 {
+    fluid << " 0 0 0 0 0 0 " << endl;
   // TO DO
 }
 
