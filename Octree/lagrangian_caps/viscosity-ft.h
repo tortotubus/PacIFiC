@@ -129,7 +129,7 @@ event properties (i++) {
       construct_divG(divG, &CAPS(k));
   
   //ggd try non-continuous poisson problem
-  // if(i % 4 == 0)
+   if(i % 4 == 0)
     poisson(I, divG, tolerance = 1.e-6, minlevel = 4);
 
   // Simple clamping of I:
