@@ -480,6 +480,8 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
 }
 
 
+
+
 /** The function below updates the normal vectors on all the nodes as well as
 the lengths and midpoints of all the edges (in 2D) or the area and centroids of
 all the triangles (in 3D). */
@@ -1089,6 +1091,71 @@ double periodic_friendly_dot_product(coord a, coord b, coord ref) {
   correct_periodic_nodes_pos(nodes, a, b, ref);
   return cdot(nodes[0], nodes[1]);
 }
+
+
+
+
+
+/**
+The function below computes the nodal area of node $i$.
+*/
+
+#define cot(x) (cos(x)/sin(x))
+
+trace
+double compute_node_area(lagMesh* mesh, int i) {
+  double area = 0.;
+  for(int j=0; j<mesh->nodes[i].nb_triangles; j++) {
+    int tid = mesh->nodes[i].triangle_ids[j];
+    if (is_obtuse_triangle(mesh, tid)) {
+      area += (is_obtuse_node(mesh, tid, i)) ? mesh->triangles[tid].area/2 :
+        mesh->triangles[tid].area/4;
+    }
+    else {
+      double voronoi_area = 0.;
+      for(int k=0; k<3; k++) {
+        int nid = mesh->triangles[tid].node_ids[k];
+        if (nid != i) {
+          int eid = -1; // eid for "edge id", connecting i and nid
+          for (int l=0; l<3; l++) {
+            int teid = mesh->triangles[tid].edge_ids[l]; // temporary edge id
+            if ((mesh->edges[teid].node_ids[0] == i ||
+              mesh->edges[teid].node_ids[1] == i) &&
+              (mesh->edges[teid].node_ids[0] == nid ||
+              mesh->edges[teid].node_ids[1] == nid)) eid = teid;
+          }
+          int onid[2]; // onid for "opposite node ids"
+          // find onid[0], onid[1]
+          for(int l=0; l<2; l++) {
+            // tneid for "triangle neighboring eid"
+            int tneid = mesh->edges[eid].triangle_ids[l];
+            for(int m=0; m<3; m++)
+              if (mesh->triangles[tneid].node_ids[m] != i &&
+                mesh->triangles[tneid].node_ids[m] != nid)
+                onid[l] = mesh->triangles[tneid].node_ids[m];
+          }
+          // compute their angle facing the relevant triangle
+          double theta[2];
+          for(int l=0; l<2; l++) {
+            theta[l] = comp_angle(&(mesh->nodes[onid[l]]), &(mesh->nodes[i]),
+              &(mesh->nodes[nid]));
+          }
+          // compute the squared length of [i:nid]
+          double edge_length = 0.;
+          foreach_dimension()
+            edge_length += sq(GENERAL_1DIST(mesh->nodes[i].pos.x,
+              mesh->nodes[nid].pos.x));
+          voronoi_area += (cot(theta[0]) + cot(theta[1]))*edge_length;
+        }
+      }
+      area += voronoi_area/16.;
+    }
+  }
+  return area;
+}
+
+
+
 
 
 #endif // dimension > 2

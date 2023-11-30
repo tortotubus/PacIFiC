@@ -9,7 +9,10 @@
 #ifndef MUC
   #define MUC 1.;
 #endif
-#define CAPS_VISCOSITY 1.
+#ifndef CAPS_VISCOSITY
+ #define CAPS_VISCOSITY 1
+#endif
+
 
 /** We define the "grid gradient" $\bm{G}$, according to Tryggvason, JCP 2001.*/
 vector G[];
@@ -32,9 +35,10 @@ void construct_divG(scalar divG, lagMesh* mesh) {
           dist.x = GENERAL_1DIST(x, mesh->nodes[en[j]].pos.x);
           dist.y = GENERAL_1DIST(y, mesh->nodes[en[j]].pos.y);
           if (sq(dist.x) <= sq(2*Delta) && sq(dist.y) <= sq(2*Delta)) {
-            double weight =
-              (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))/
-              (16.*sq(Delta));
+            // double weight =
+            //   (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))/
+            //   (16.*sq(Delta));
+            double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta) / sq(Delta);
             foreach_dimension() G.x[] -= weight*.5*gg.x;
           }
         }
@@ -61,9 +65,10 @@ void construct_divG(scalar divG, lagMesh* mesh) {
           dist.z = GENERAL_1DIST(z, mesh->nodes[tn[j]].pos.z);
           if (sq(dist.x) <= sq(2*Delta) && sq(dist.y) <= sq(2*Delta)
             && sq(dist.z) <= sq(2*Delta)) {
-            double weight = (1 + cos(.5*pi*dist.x/Delta))
-              *(1 + cos(.5*pi*dist.y/Delta))*(1 + cos(.5*pi*dist.z/Delta))
-              /(cube(4*Delta));
+            // double weight = (1 + cos(.5*pi*dist.x/Delta))
+            //   *(1 + cos(.5*pi*dist.y/Delta))*(1 + cos(.5*pi*dist.z/Delta))
+            //   /(cube(4*Delta));
+            double weight =  weight_stencil(dist.x/Delta) * weight_stencil(dist.y/Delta) * weight_stencil(dist.z/Delta) / cube(Delta);
             foreach_dimension() G.x[] -= weight*gg.x/3.;
           }
         }
@@ -122,7 +127,10 @@ event properties (i++) {
   for (int k=0; k<NCAPS; k++)
     if (CAPS(k).isactive) 
       construct_divG(divG, &CAPS(k));
-  poisson(I, divG, tolerance = 1.e-6, minlevel = 4);
+  
+  //ggd try non-continuous poisson problem
+  // if(i % 4 == 0)
+    poisson(I, divG, tolerance = 1.e-6, minlevel = 4);
 
   // Simple clamping of I:
   foreach() {
