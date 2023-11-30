@@ -27,7 +27,7 @@ DEBUG  := -g
 MACRO       = -D_XML
 XERCESINC   := $(XERCESC_ROOT)/include
 XERCESLIB   := $(XERCESC_ROOT)/lib$(GRAINS_BITS_EXT)-$(GRAINS_SERCOMPIL_ENV)-$(GRAINS_SERCOMPIL_VERSION)
-XERCESFLAGS := -L$(XERCESLIB) -lxerces-c -lxerces-depdom
+XERCESFLAGS := -L$(XERCESLIB) -lxerces-c -lxerces-depdom -lz
 
 
 # MPI
