@@ -3393,7 +3393,17 @@ DS_NavierStokes:: compute_velocity_divergence ( FV_DiscreteField const* FF )
 													wht[5]/sum * divergence->operator()(p,0);
 								}
 								divergence->operator()(p,0) = 0.;
-							} else if ((sum == 0.) && (void_frac->operator()(p,0) != 0)) {
+                        // Assign non-conservative but stable flux to small cell
+                        // double flux_c = divergence->operator()(p,0);
+                        // double flux_nc 
+                        //          = wht[0] * divergence->operator()(p_lft, 0) 
+                        //          + wht[1] * divergence->operator()(p_rht, 0) 
+                        //          + wht[2] * divergence->operator()(p_bot, 0) 
+                        //          + wht[3] * divergence->operator()(p_top, 0) 
+                        //          + wht[4] * divergence->operator()(p_bhd, 0) 
+                        //          + wht[5] * divergence->operator()(p_frt, 0);
+                        // flux_nc /= sum;
+                     } else if ((sum == 0.) && (void_frac->operator()(p,0) != 0)) {
 								divergence->operator()(p,0) = 0.;
 							}
 						}
