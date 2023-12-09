@@ -375,14 +375,27 @@ void initialize_spherical_capsule(struct _initialize_circular_capsule p) {
           p.mesh->nodes[i].pos.x += shift.x;
     }
 
-    #ifdef CAPS_VISCOSITY
-      // fraction(I, sq(RADIUS) - sq(x - shift.x) - sq(y - shift.y)
-      //   - sq(z - shift.z)); //previous
-      foreach(){
-        I[] = sq(x - shift.x) + sq(y - shift.y) + sq(z - shift.z) - sq(RADIUS) > 0 ? 0 : 1;
-      } //ggd 
-      foreach() if (I[] > 1.e-6) prevI[] = I[];
-    #endif
+    // #ifdef CAPS_VISCOSITY
+    //   // fraction(I, sq(RADIUS) - sq(x - shift.x) - sq(y - shift.y)
+    //   //   - sq(z - shift.z)); //previous
+
+    //   foreach()
+    //   {
+    //     coord loc;
+    //     loc.x = x - shift.x;
+    //     loc.y = y - shift.y;
+    //     loc.z = z - shift.z;
+
+    //     for(int k = 0; k < NCAPS; k++)
+    //     {
+    //       if(I[] == 0)
+    //         I[] = GENERAL_SQNORM(loc, CAPS(k).centroid)- sq(RADIUS) > 0 ? 0 : 1;
+    //     } //ggd 
+    //   }
+    // foreach() if (I[] > 1.e-6) prevI[] = I[];
+    
+    // #endif
+
   }
   correct_lag_pos(p.mesh);
   comp_normals(p.mesh);

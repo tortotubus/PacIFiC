@@ -76,9 +76,6 @@ void construct_divG(scalar divG, lagMesh* mesh) {
     }
   }
   #endif
-  foreach()
-    if (cm[] > 1.e-20)
-      foreach_dimension() divG[] += (G.x[1] - G.x[-1])/(2.*Delta);
 }
 
 double muc, mup;
@@ -127,22 +124,29 @@ event properties (i++) {
   for (int k=0; k<NCAPS; k++)
     if (CAPS(k).isactive) 
       construct_divG(divG, &CAPS(k));
+
+  foreach()
+    if (cm[] > 1.e-20)
+      foreach_dimension() divG[] += (G.x[1] - G.x[-1])/(2.*Delta);
   
-  //ggd try non-continuous poisson problem
-   if(i % 4 == 0)
-    poisson(I, divG, tolerance = 1.e-6, minlevel = 4);
+  //ggd try poisson problem
+  //poisson(I, divG, tolerance = 1.e-6, minlevel = 4);
+  poisson(I, divG);
+  
 
   // Simple clamping of I:
   foreach() {
-    if (cm[] > 1.e-20) {
-      if (fabs(divG[]) > 1.e-10) {
-        I[] = clamp(I[], 0, 1);
-        prevI[] = I[];
-      }
-      else {
-        prevI[] = round(prevI[]);
-        I[] = prevI[];
-      }
+    if (cm[] > 1.e-20) 
+    {
+      //  if (fabs(divG[]) > 1.e-10) 
+      //  {
+      //    I[] = clamp(I[], 0, 1);
+      //    prevI[] = I[];
+      //  }
+      //  else {
+      //    prevI[] = round(prevI[]);
+      //    I[] = prevI[];
+      //  }
       I[] = clamp(I[], 0, 1);
     }
   }

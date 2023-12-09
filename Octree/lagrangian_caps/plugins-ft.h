@@ -89,7 +89,7 @@ void generate_capsules_from_input()
    FILE *file = NULL;
 
  if (pid() == 0) {
-    file = fopen("/media/localdata/guodong.gai/BasiliskDLM/Newtest/capsules/caps_shear/insert_position_x.dat", "r");
+    file = fopen("./insert_position_x.dat", "r");
     for (int k = 0; k < NCAPS; k++)
     {
         if (fscanf(file, "%lf", &CAPS(k).centroid.x) != 1)
@@ -101,7 +101,7 @@ void generate_capsules_from_input()
     }
     file = NULL;
 
-    file = fopen("/media/localdata/guodong.gai/BasiliskDLM/Newtest/capsules/caps_shear/insert_position_y.dat", "r");
+    file = fopen("./insert_position_y.dat", "r");
     for (int k = 0; k < NCAPS; k++)
     {
         if (fscanf(file, "%lf", &CAPS(k).centroid.y) != 1)
@@ -113,7 +113,7 @@ void generate_capsules_from_input()
     }
 
     file = NULL;
-    file = fopen("/media/localdata/guodong.gai/BasiliskDLM/Newtest/capsules/caps_shear/insert_position_z.dat", "r");
+    file = fopen("./insert_position_z.dat", "r");
     for (int k = 0; k < NCAPS; k++)
     {
         if (fscanf(file, "%lf", &CAPS(k).centroid.z) != 1)
