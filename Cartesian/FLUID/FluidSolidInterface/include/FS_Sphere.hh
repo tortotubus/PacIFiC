@@ -93,6 +93,10 @@ class FS_Sphere: public FS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
+      double analytical_distanceTo_nonPeriodic(geomVector const &gc,
+                                               geomVector const &source,
+                                               geomVector const &rayDir) const;
+
       double analytical_distanceTo(geomVector const &source,
                                    geomVector const &rayDir) const;
 
