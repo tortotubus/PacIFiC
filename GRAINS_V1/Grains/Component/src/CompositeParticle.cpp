@@ -159,14 +159,6 @@ CompositeParticle::CompositeParticle( DOMNode* root,
 
   // In case part of the particle acceleration computed explicity
   if ( Particle::m_splitExplicitAcceleration ) createVelocityInfosNm1();
-
-  // Reset the total number of created components by subtracting the number
-  // of elementary particles as the construction of each elementary particle
-  // increments the total number of created components by 1 when autonumbering
-  // is true
-  if ( autonumbering )
-    Component::setNbCreatedComponents( Component::getNbCreatedComponents()
-    	- int( m_nbElemPart ) );
 }
 
 
@@ -308,7 +300,6 @@ CompositeParticle::CompositeParticle( CompositeParticle const& other )
   // elementary particle increments the total number of created components by 1
   Component::setNbCreatedComponents( Component::getNbCreatedComponents()
     	- int( m_nbElemPart ) );
-
 }
 
 
@@ -467,21 +458,6 @@ list<Point3> CompositeParticle::get_polygonsPts_PARAVIEW(
   }
 
   return ( ParaviewPoints );
-}
-
-
-
-
-// ----------------------------------------------------------------------------
-// Writes the points describing the composite particle in a
-// Paraview format with a transformation that may be different than the current
-// transformation of the particle
-void CompositeParticle::write_polygonsPts_PARAVIEW( ostream& f,
-	Transform const& transform, Vector3 const* translation ) const
-{
-  for ( size_t i=0; i<m_nbElemPart; ++i )
-    m_elementaryParticles[i]->write_polygonsPts_PARAVIEW( f,
-	transform, translation );
 }
 
 
