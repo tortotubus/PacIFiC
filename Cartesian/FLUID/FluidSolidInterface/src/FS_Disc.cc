@@ -267,74 +267,86 @@ double FS_Disc:: level_set_value( double const& x
 
 }
 
-
-
-
 //---------------------------------------------------------------------------
 double FS_Disc::analytical_distanceTo(geomVector const &source,
-                                            geomVector const &rayDir) const
+                                      geomVector const &rayDir) const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL("FS_Disc:: analytical_distanceTo");
+
+  double value = analytical_distanceTo_nonPeriodic(m_gravity_center,
+                                                  source,
+                                                  rayDir);
+
+  if (m_periodic_directions) {
+    for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
+      double temp = analytical_distanceTo_nonPeriodic
+                      (m_gravity_center + (*m_periodic_directions)[i]
+                      , source, rayDir);
+      value = MAC::min(temp, value);
+    }
+  }
+
+  return (value);
+}
+
+
+//---------------------------------------------------------------------------
+double FS_Disc::analytical_distanceTo_nonPeriodic(geomVector const &gc,
+                                                  geomVector const &source,
+                                                  geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_Disc:: analytical_distanceTo");
+
+  double value = 0.;
 
   // Intersection distance in x direction
   if (rayDir(0) != 0)
   {
     double dx = 0.;
-    double dy = source(1) - m_gravity_center(1);
+    double dy = source(1) - gc(1);
     double x1 = 0., x2 = 0.;
     if (MAC::abs(dy) < m_agp_Disc.radius)
     {
-      dx = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) 
-                   - MAC::pow(dy, 2));
-      x1 = m_gravity_center(0) + dx;
-      x2 = m_gravity_center(0) - dx;
+      dx = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) - MAC::pow(dy, 2));
+      x1 = gc(0) + dx;
+      x2 = gc(0) - dx;
     }
 
-    return MAC::min(MAC::abs(source(0) - x1), MAC::abs(source(0) - x2));
+    value = MAC::min(MAC::abs(source(0) - x1), MAC::abs(source(0) - x2));
   }
   else if (rayDir(1) != 0)
   {
-    double dx = source(0) - m_gravity_center(0);
+    double dx = source(0) - gc(0);
     double dy = 0.;
     double x1 = 0., x2 = 0.;
     if (MAC::abs(dx) < m_agp_Disc.radius)
     {
-      dy = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) 
-                   - MAC::pow(dx, 2));
-      x1 = m_gravity_center(1) + dy;
-      x2 = m_gravity_center(1) - dy;
+      dy = MAC::sqrt(MAC::pow(m_agp_Disc.radius, 2) - MAC::pow(dx, 2));
+      x1 = gc(1) + dy;
+      x2 = gc(1) - dy;
     }
 
-    return MAC::min(MAC::abs(source(1) - x1), MAC::abs(source(1) - x2));
+    value = MAC::min(MAC::abs(source(1) - x1), MAC::abs(source(1) - x2));
   }
 
-  return (0.);
+  return (value);
 }
 
-
-
-
 //---------------------------------------------------------------------------
-struct FS_Disc_Additional_Param const* FS_Disc::
-	get_ptr_FS_Disc_Additional_Param() const
+struct FS_Disc_Additional_Param const *FS_Disc::
+    get_ptr_FS_Disc_Additional_Param() const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_Disc:: get_ptr_FS_Disc_Additional_Param" ) ;
+  MAC_LABEL("FS_Disc:: get_ptr_FS_Disc_Additional_Param");
 
-  return ( &m_agp_Disc );
-
+  return (&m_agp_Disc);
 }
 
-
-
-
 //---------------------------------------------------------------------------
-void FS_Disc::update_additional_parameters( )
+void FS_Disc::update_additional_parameters()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "FS_Disc:: update_additional_parameters( )" ) ;
-
-
-
+  MAC_LABEL("FS_Disc:: update_additional_parameters( )");
 }

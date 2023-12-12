@@ -158,8 +158,8 @@ double DS_Disc:: get_distanceTo( geomVector const& source,
 {
   MAC_LABEL( "DS_Disc:: get_distanceTo" ) ;
 
-  return (m_geometric_rigid_body->distanceTo(source, rayDir, delta));
-  // return (m_geometric_rigid_body->analytical_distanceTo(source, rayDir));
+  // return (m_geometric_rigid_body->distanceTo(source, rayDir, delta));
+  return (m_geometric_rigid_body->analytical_distanceTo(source, rayDir));
 }
 
 
