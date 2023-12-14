@@ -115,50 +115,38 @@ void GrainsCoupledWithFluid::Simulation( double time_interval )
   	m_min_dt );
   m_ndt = size_t( m_fluidflow_dt / dteff );
   m_dt = m_fluidflow_dt / double(m_ndt);  
-//   cout << m_fluidflow_dt << " " << m_dt << " " << m_ndt << endl;
-//   cout << m_time << endl;
+
 
   // Simulation: time marching algorithm
+  // We implement the kick-drift-kick version of the LeapFrog scheme
   for (size_t m=0;m<m_ndt;++m)
   {
     try 
     {        	
       m_time += m_dt;
-	
-      // Initiliaze all component transforms with crust to non computed
-      m_allcomponents.InitializeRBTransformWithCrustState( m_time, m_dt );
-
-
-      // Compute volume and contact forces
-      // Initialisation torsors with weight only
-      m_allcomponents.InitializeForces( m_time, m_dt, true );
       
-      // Compute forces from all applications     
-      for (app=m_allApp.begin(); app!=m_allApp.end(); app++)
-        (*app)->ComputeForces( m_time, m_dt, 
-      		m_allcomponents.getActiveParticles() );
-
-
+      // Move particles and obstacles
+      // Update particle velocity over dt/2 and particle position over dt,
+      // obstacle velocity and position over dt
+      // v_i+1/2 = v_i + a_i * dt / 2
+      // x_i+1 = x_i + v_i+1/2 * dt
+      
       // Solve Newton's law and move particles
-      m_allcomponents.Move( m_time, m_dt );
-      
-      
+      m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt );
+            
       // In case of periodicity, update periodic clones and destroy periodic
       // clones that are out of the linked cell grid
       if ( m_periodic )
         m_collision->updateDestroyPeriodicClones( 
 		m_allcomponents.getActiveParticles(),
 		m_allcomponents.getPeriodicCloneParticles() );
-      
-      	
+            	
       // Update particle activity
       m_allcomponents.UpdateParticleActivity();
  
-
       // Update the particle & obstacles links with the grid
       m_collision->LinkUpdate( m_time, m_dt, 
         	m_allcomponents.getActiveParticles() );
-
 
       // In case of periodicity, create new periodic clones and destroy periodic
       // clones because the master particle has changed tag/geoposition
@@ -166,29 +154,55 @@ void GrainsCoupledWithFluid::Simulation( double time_interval )
         m_collision->createDestroyPeriodicClones( 
 		m_allcomponents.getActiveParticles(),
 		m_allcomponents.getPeriodicCloneParticles(),
-		m_allcomponents.getReferenceParticles() );
+		m_allcomponents.getReferenceParticles() );      
+      
+      
+      // Compute particle forces and acceleration
+      // Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)      
+            	
+      // Initiliaze all component transforms with crust to non computed
+      m_allcomponents.InitializeRBTransformWithCrustState( m_time, m_dt );
+
+
+      // Compute forces from all applications
+      // Initialisation torsors with weight only
+      m_allcomponents.InitializeForces( m_time, m_dt, true );
+      
+      // Compute forces    
+      for (app=m_allApp.begin(); app!=m_allApp.end(); app++)
+        (*app)->ComputeForces( m_time, m_dt, 
+      		m_allcomponents.getActiveParticles() );
+
+      // Compute particle acceleration
+      m_allcomponents.computeParticlesAcceleration( m_time );
+
+
+
+      // Update particle velocity over dt/2
+      // v_i+1 = v_i+1/2 + a_i+1 * dt / 2 
+      m_allcomponents.advanceParticlesVelocity( m_time, 0.5 * m_dt );
   
         
       // Write force & torque exerted on obstacles
       m_allcomponents.outputObstaclesLoad( m_time, m_dt );
     } 
-    catch (ContactError &chocCroute) 
+    catch (ContactError &errContact) 
     {
       // Max overlap exceeded
       cout << endl;
       m_allcomponents.PostProcessingErreurComponents( "ContactError",
-            chocCroute.getComponents() );
-      chocCroute.Message( cout );
+            errContact.getComponents() );
+      errContact.Message( cout );
       m_error_occured = true;
       break;
     } 
-    catch (DisplacementError &errDeplacement) 
+    catch (DisplacementError &errDisplacement) 
     {
       // Particle displacement over dt is too large
       cout << endl;
       m_allcomponents.PostProcessingErreurComponents( "DisplacementError",
-            errDeplacement.getComponent() );
-      errDeplacement.Message(cout);
+            errDisplacement.getComponent() );
+      errDisplacement.Message(cout);
       m_error_occured = true;	
       break;
     } 

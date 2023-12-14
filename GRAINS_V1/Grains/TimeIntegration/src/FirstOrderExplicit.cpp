@@ -39,15 +39,16 @@ TimeIntegrator* FirstOrderExplicit::clone() const
 
 // ----------------------------------------------------------------------------
 // Computes the new velocity and position at time t+dt
-void FirstOrderExplicit::Move( Vector3& vtrans, Vector3 const& dUdt,
+void FirstOrderExplicit::Move( Vector3 const& dUdt, Vector3& vtrans, 
 	Vector3& transDisplacement, Vector3 const& dOmegadt,
-	Vector3& vrot, Vector3& meanVRot, double dt )
+	Vector3& vrot, Vector3& meanVRot, double const& dt_particle_vel, 
+    	double const& dt_particle_disp )
 {
-  // Velocity et deplacement translationnels
-  transDisplacement = vtrans * dt;
-  vtrans += dUdt * dt;
+  // Translational velocity and displacement
+  transDisplacement = vtrans * dt_particle_disp;
+  vtrans += dUdt * dt_particle_vel;
 
-  // Velocity et deplacement rotationnels
+  // Angular velocity and displacement
   meanVRot = vrot;  
-  vrot += dOmegadt * dt;  
+  vrot += dOmegadt * dt_particle_vel;  
 }
