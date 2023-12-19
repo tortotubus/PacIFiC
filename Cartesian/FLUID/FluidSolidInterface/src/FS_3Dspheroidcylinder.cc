@@ -13,7 +13,7 @@ FS_3Dspheroidcylinder:: FS_3Dspheroidcylinder()
   MAC_LABEL( "FS_3Dspheroidcylinder:: FS_3Dspheroidcylinder" ) ;
 
   m_space_dimension = 3;
-  m_shape_type = GEOM_3DCYLINDER;
+  m_shape_type = GEOM_3DSPHEROIDCYLINDER;
   m_agp_3dcyl.BottomCenter.resize(3);
   m_agp_3dcyl.TopCenter.resize(3);
   m_agp_3dcyl.BottomToTopVec.resize(3);
@@ -35,7 +35,7 @@ FS_3Dspheroidcylinder:: FS_3Dspheroidcylinder( istream& in, size_t& id_ )
   // Default parameter
   m_space_dimension = 3;
   m_Id = id_;
-  m_shape_type = GEOM_3DCYLINDER;
+  m_shape_type = GEOM_3DSPHEROIDCYLINDER;
 
   // Resize parameters
   m_gravity_center.resize(3);
@@ -198,26 +198,48 @@ bool FS_3Dspheroidcylinder:: isIn( geomVector const& pt ) const
 {
   MAC_LABEL( "FS_3Dspheroidcylinder:: isIn(pt)" ) ;
 
+  bool b_isIn = isIn_periodic(m_gravity_center, pt);
+
+  if (m_periodic_directions) {
+    for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
+      if (b_isIn) break;
+      b_isIn = isIn_periodic(m_gravity_center + (*m_periodic_directions)[i], pt);
+    }
+  }
+
+  return (b_isIn);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+bool FS_3Dspheroidcylinder::isIn_periodic(geomVector const &p_gravity_center,
+                                          geomVector const &pt) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_3Dspheroidcylinder:: isIn_periodic(pt)");
+
   bool b_isIn = false;
 
-  geomVector BottomToPoint( pt - m_agp_3dcyl.BottomCenter );
-  double dot = ( BottomToPoint , m_agp_3dcyl.BottomToTopVec )
-	                        /  m_agp_3dcyl.cylinder_height ;
+  geomVector temp_BottomCenter(m_agp_3dcyl.BottomCenter + p_gravity_center - m_gravity_center);
 
-  double eps_local = EPSILON*m_agp_3dcyl.cylinder_height;
+  geomVector BottomToPoint(pt - temp_BottomCenter);
+  double dot = (BottomToPoint, m_agp_3dcyl.BottomToTopVec) / m_agp_3dcyl.cylinder_height;
 
-  if ( dot <= m_agp_3dcyl.cylinder_height && dot >= - eps_local )
-    if ( BottomToPoint.calcNormSquare() - dot * dot  - eps_local <=
-         m_agp_3dcyl.cylinder_radius * m_agp_3dcyl.cylinder_radius )
-      b_isIn = true ;
+  double eps_local = EPSILON * m_agp_3dcyl.cylinder_height;
+
+  if (dot <= m_agp_3dcyl.cylinder_height && dot >= -eps_local)
+    if (BottomToPoint.calcNormSquare() - dot * dot - eps_local <=
+        m_agp_3dcyl.cylinder_radius * m_agp_3dcyl.cylinder_radius)
+      b_isIn = true;
 
   if (!b_isIn) {
-    b_isIn = (m_agp_3dcyl.BottomCenter.calcDist(pt) <= m_agp_3dcyl.cylinder_radius);
+    b_isIn = (temp_BottomCenter.calcDist(pt) <= m_agp_3dcyl.cylinder_radius);
   }
 
   if (!b_isIn) {
-    b_isIn = ((m_agp_3dcyl.BottomCenter 
-             + m_agp_3dcyl.BottomToTopVec).calcDist(pt) <= m_agp_3dcyl.cylinder_radius);
+    b_isIn = ((temp_BottomCenter + m_agp_3dcyl.BottomToTopVec).calcDist(pt) <= m_agp_3dcyl.cylinder_radius);
   }
 
   return (b_isIn);
@@ -273,24 +295,46 @@ double FS_3Dspheroidcylinder:: level_set_value( double const& x
 
 }
 
-
-
-
 //---------------------------------------------------------------------------
 double FS_3Dspheroidcylinder::analytical_distanceTo(geomVector const &source,
-                                            geomVector const &rayDir) const
+                                                    geomVector const &rayDir) const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL("FS_3Dspheroidcylinder:: analytical_distanceTo");
+
+  double value = analytical_distanceTo_nonPeriodic(m_gravity_center,
+                                                   source,
+                                                   rayDir);
+  if (m_periodic_directions) {
+    for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
+      double temp = analytical_distanceTo_nonPeriodic(
+          m_gravity_center + (*m_periodic_directions)[i], source, rayDir);
+      value = MAC::min(temp, value);
+    }
+  }
+
+  return (value);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+double FS_3Dspheroidcylinder::analytical_distanceTo_nonPeriodic(geomVector const &p_gravity_center,
+                                                                geomVector const &source,
+                                                                geomVector const &rayDir) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("FS_3Dspheroidcylinder:: analytical_distanceTo_nonPeriodic");
 
   // Ref: https://hugi.scene.org/online/hugi24/coding%20graphics%20chris%20dragan%20raytracing%20shapes.htm
 
   geomVector D(rayDir);
   geomVector O(source);
 
-  geomVector V(m_agp_3dcyl.BottomToTopVec);
+  geomVector V = m_agp_3dcyl.BottomToTopVec;
   V = V *(1./ V.calcNorm());
-  geomVector C(m_agp_3dcyl.BottomCenter);
+  geomVector C = m_agp_3dcyl.BottomCenter + (p_gravity_center - m_gravity_center);
   geomVector X(O - C);
 
   // Coefficients of quadratic equation
@@ -315,34 +359,34 @@ double FS_3Dspheroidcylinder::analytical_distanceTo(geomVector const &source,
         return (MAC::min(t1,t2));
       } else if (m1 >= 0. && m1 <= m_agp_3dcyl.cylinder_height) {
         // second point intersection with a plane
-        t2 = get_distance_from_sphere(source,rayDir);
+        t2 = get_distance_from_sphere(p_gravity_center, source, rayDir);
         if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
           return (t2);
 
         return (t1);
       } else if (m2 >= 0. && m2 <= m_agp_3dcyl.cylinder_height) {
         // first point intersection with a plane
-        t1 = get_distance_from_sphere(source, rayDir);
+        t1 = get_distance_from_sphere(p_gravity_center, source, rayDir);
         if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
           return (t1);
 
         return (t2);
       } else {
-        double dist = get_distance_from_sphere(source, rayDir);
+        double dist = get_distance_from_sphere(p_gravity_center, source, rayDir);
 
         return(dist);
       }
       return (MAC::min(t1, t2));
     } else if (t1 > 0) {
       // second point intersection with a plane
-      t2 = get_distance_from_sphere(source, rayDir);
+      t2 = get_distance_from_sphere(p_gravity_center, source, rayDir);
       if (t2 > 0 && t2 < t1 && t2 < m_agp_3dcyl.cylinder_height)
         return (t2);
 
       return (t1);
     } else if (t2 > 0) {
       // first point intersection with a plane
-      t1 = get_distance_from_sphere(source, rayDir);
+      t1 = get_distance_from_sphere(p_gravity_center, source, rayDir);
       if (t1 > 0 && t1 < t2 && t1 < m_agp_3dcyl.cylinder_height)
         return (t1);
 
@@ -353,8 +397,12 @@ double FS_3Dspheroidcylinder::analytical_distanceTo(geomVector const &source,
   return (m_agp_3dcyl.cylinder_radius);
 }
 
+
+
+
 //---------------------------------------------------------------------------
-double FS_3Dspheroidcylinder::get_distance_from_sphere(geomVector const &source,
+double FS_3Dspheroidcylinder::get_distance_from_sphere(geomVector const &p_gravity_center,
+                                                       geomVector const &source,
                                                        geomVector const &rayDir) const
 //---------------------------------------------------------------------------
 {
@@ -365,7 +413,7 @@ double FS_3Dspheroidcylinder::get_distance_from_sphere(geomVector const &source,
   geomVector D(rayDir);
   geomVector O(source);
 
-  geomVector C(m_agp_3dcyl.BottomCenter);
+  geomVector C(m_agp_3dcyl.BottomCenter + p_gravity_center - m_gravity_center);
   geomVector X(O - C);
 
   double a = (D,D);
@@ -388,7 +436,7 @@ double FS_3Dspheroidcylinder::get_distance_from_sphere(geomVector const &source,
     } 
   }
 
-  C = m_agp_3dcyl.TopCenter;
+  C = m_agp_3dcyl.TopCenter + p_gravity_center - m_gravity_center;
   X = O - C;
 
   a = (D, D);
@@ -418,7 +466,7 @@ double FS_3Dspheroidcylinder::get_distance_from_sphere(geomVector const &source,
     return(tb);
   }
 
-  return (0.);
+  return (m_agp_3dcyl.cylinder_radius);
 }
 
 

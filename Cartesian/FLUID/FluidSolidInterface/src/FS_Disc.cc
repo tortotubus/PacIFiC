@@ -277,7 +277,6 @@ double FS_Disc::analytical_distanceTo(geomVector const &source,
   double value = analytical_distanceTo_nonPeriodic(m_gravity_center,
                                                   source,
                                                   rayDir);
-
   if (m_periodic_directions) {
     for (size_t i = 0; i < m_periodic_directions->size(); ++i) {
       double temp = analytical_distanceTo_nonPeriodic

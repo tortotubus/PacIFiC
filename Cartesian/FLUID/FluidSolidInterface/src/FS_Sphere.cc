@@ -291,7 +291,7 @@ double FS_Sphere::analytical_distanceTo_nonPeriodic(geomVector const &gc,
                                               geomVector const &rayDir) const
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL("FS_Sphere:: analytical_distanceTo");
+  MAC_LABEL("FS_Sphere:: analytical_distanceTo_nonPeriodic");
 
   double value = 0.;
 

@@ -99,6 +99,10 @@ class FS_3Dcylinder: public FS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
+      double analytical_distanceTo_nonPeriodic(geomVector const &p_gravity_center,
+                                               geomVector const &source,
+                                               geomVector const &rayDir) const;
+
       double analytical_distanceTo(geomVector const &source,
                                    geomVector const &rayDir) const;
 

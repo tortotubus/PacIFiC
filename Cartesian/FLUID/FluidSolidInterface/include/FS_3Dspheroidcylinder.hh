@@ -81,6 +81,10 @@ class FS_3Dspheroidcylinder: public FS_RigidBody
       @param pt the point */
       bool isIn( geomVector const& pt ) const;
 
+      /** @brief Returns whether a point is inside the sphere
+            @param pt the point */
+      bool isIn_periodic(geomVector const &p_gravity_center, geomVector const &pt) const;
+
       /** @brief Returns whether a point is inside the rigid body
       @param x x-coordinate of the point
       @param y x-coordinate of the point
@@ -99,6 +103,10 @@ class FS_3Dspheroidcylinder: public FS_RigidBody
                             , double const& y
                             , double const& z ) const;
 
+      double analytical_distanceTo_nonPeriodic(geomVector const &p_gravity_center,
+                                               geomVector const &source,
+                                               geomVector const &rayDir) const;
+
       double analytical_distanceTo(geomVector const &source,
                                    geomVector const &rayDir) const;
 
@@ -106,7 +114,8 @@ class FS_3Dspheroidcylinder: public FS_RigidBody
        * spheriod cylinder and returns the distance
       @param source source point
       @param rayDir direction of ray */
-      double get_distance_from_sphere(geomVector const &source,
+      double get_distance_from_sphere(geomVector const &p_gravity_center,
+                                      geomVector const &source,
                                       geomVector const &rayDir) const;
 
       /** @brief Update additional parameters */

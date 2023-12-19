@@ -41,41 +41,44 @@ FS_RigidBody* FS_RigidBody_BuilderFactory:: create( size_t& dimens,
   {
     switch ( ncorners_ )
     {
-      case 1:
-        prb = new FS_Sphere( in, id_ );
-		  break;
+		case 1:
+			prb = new FS_Sphere( in, id_ );
+			break;
 
-      case 777:
-        // prb = new FS_3Dspheroidcylinder( in, id_ );
-		prb = new FS_3Dcylinder( in, id_ );
-		break;
+		case 1001:
+			prb = new FS_3Dspheroidcylinder( in, id_ );
+			break;
 
-	   case 666:
-		  prb = new FS_3Dbox( in, id_ );
-		  break;
+		case 777:
+			prb = new FS_3Dcylinder( in, id_ );
+			break;
 
-	   case 4:
-		  prb = new FS_GeneralPolyhedron( in, id_ );
-		  break;
+		case 666:
+			prb = new FS_3Dbox( in, id_ );
+			break;
 
-	   case 6:
-  		  prb = new FS_GeneralPolyhedron( in, id_ );
-  		  break;
+		case 4:
+			prb = new FS_GeneralPolyhedron( in, id_ );
+			break;
 
-	  	case 8:
-	     prb = new FS_GeneralPolyhedron( in, id_ );
-	     break;
+		case 6:
+			prb = new FS_GeneralPolyhedron( in, id_ );
+			break;
 
-	   case 12:
-	     prb = new FS_GeneralPolyhedron( in, id_ );
-	     break;
+		case 8:
+			prb = new FS_GeneralPolyhedron( in, id_ );
+			break;
+
+		case 12:
+			prb = new FS_GeneralPolyhedron( in, id_ );
+			break;
 
 		case 20:
- 	     prb = new FS_GeneralPolyhedron( in, id_ );
- 	     break;
+			prb = new FS_GeneralPolyhedron( in, id_ );
+			break;
 
-      default:
-        MAC::out() << "Unknown rigid body shape" << endl;
+		default:
+			MAC::out() << "Unknown rigid body shape" << endl;
     }
   }
 

@@ -32,6 +32,10 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
       dsrb = new DS_Disc( pgrb );
       break;
 
+    case GEOM_3DSPHEROIDCYLINDER:
+      dsrb = new DS_3Dspheroidcylinder( pgrb );
+      break;
+
     case GEOM_3DCYLINDER:
       // dsrb = new DS_3Dspheroidcylinder( pgrb );
       dsrb = new DS_3Dcylinder( pgrb );
