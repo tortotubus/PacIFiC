@@ -560,7 +560,7 @@ The macros below are useful to define an icosahedron
 
 The function below returns true if the two nodes $i$ and $j$ are neighbors
 */
-bool is_neighbor(lagMesh* mesh, int i, int j) {
+bool is_neighbor_ft(lagMesh* mesh, int i, int j) {
   for(int k=0; k<mesh->nodes[i].nb_neighbors; k++) {
     if (mesh->nodes[i].neighbor_ids[k] == j) return true;
   }
@@ -1012,8 +1012,8 @@ void refine_mesh(lagMesh* mesh) {
       int corner_id = -1;
       for(int k=0; k<3; k++) { // Loop over the current triangle vertices
         corner_id = mesh->triangles[i].node_ids[k];
-        if (is_neighbor(mesh, corner_id, mid_ids[j]) &&
-          is_neighbor(mesh, corner_id, mid_ids[(j+1)%3])) {
+        if (is_neighbor_ft(mesh, corner_id, mid_ids[j]) &&
+          is_neighbor_ft(mesh, corner_id, mid_ids[(j+1)%3])) {
           break;
         }
       }
