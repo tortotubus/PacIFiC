@@ -23,7 +23,7 @@
 #include <FS_SolidPlugIn.hh>
 #include <FS_Grains3DPlugIn.hh>
 #include <DS_AllRigidBodies.hh>
-
+#include <DS_AllImmersedBoundaries.hh>
 
 DS_DirectionSplitting const* DS_DirectionSplitting::PROTOTYPE
                                                  = new DS_DirectionSplitting() ;
@@ -82,6 +82,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    , is_solids( false )
    , is_GRAINS( false )
    , is_STL( false )
+   , is_IBM( false )
    , is_HE( false )
    , is_NS( false )
    , is_NSwithHE( false )
@@ -134,6 +135,12 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    // Read the presence of STL
    if ( exp->has_entry( "STL_as_RB" ) )
      is_STL = exp->bool_data( "STL_as_RB" ) ;
+
+   // Read the presence of IB
+   if (exp->has_entry("IBM")) {
+      is_IBM = exp->bool_data("IBM");
+      b_IBM_as_fixed_obstacles = false;
+   }
 
    // Read STL file name
    istringstream STL_input;
@@ -284,7 +291,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    }
 
    // Create Grains3D if solidSolverType is Grains3D;
-   if (is_GRAINS) {
+   if (is_GRAINS || is_IBM) {
       int error = 0;
       solidSolver = FS_SolidPlugIn_BuilderFactory:: create( solidSolverType,
          solidSolver_insertionFile, solidSolver_simulationFile,
@@ -307,7 +314,7 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
    gravity_vector = MAC_DoubleVector::create( this, gg );
 
    // Create rigid bodies objects depending on which PDE to solve
-   if (is_GRAINS || is_STL) {
+   if ((is_GRAINS && !is_IBM) || is_STL) {
       is_solids = true;
       if (is_NS) {
          allrigidbodies = new DS_AllRigidBodies( space_dimensions
@@ -345,6 +352,16 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
                           , mu
                           , RBTemp);
       }
+   }
+
+   // Create rigid bodies objects depending on which PDE to solve
+   if (is_IBM) {
+      allimmersedboundaries = new DS_AllImmersedBoundaries( space_dimensions
+                              , *solidFluid_transferStream
+                              , b_IBM_as_fixed_obstacles
+                              , dom->discrete_field( "velocity" )
+                              , surface_cell_scale
+                              , macCOMM);
    }
 
    // Create structure to input in the NS solver

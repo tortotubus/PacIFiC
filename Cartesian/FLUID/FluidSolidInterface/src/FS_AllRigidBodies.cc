@@ -24,7 +24,7 @@ FS_AllRigidBodies:: FS_AllRigidBodies( size_t& dimens, istream& in,
 //---------------------------------------------------------------------------
   : m_space_dimension( dimens )
 {
-  MAC_LABEL( "FS_AllRigidBodies:: FS_AllRigidBodies(size_t&,istream&)" ) ;
+  MAC_LABEL( "FS_AllRigidBodies:: FS_AllRigidBodies(size_t&,istream&,bool&)" ) ;
 
   FS_RigidBody* prb = NULL;
   size_t ncorners = 0, pIdsolidsolver = 0;

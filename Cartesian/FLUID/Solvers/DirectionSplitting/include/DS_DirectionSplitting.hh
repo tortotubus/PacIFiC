@@ -21,6 +21,7 @@ class FV_DiscreteField ;
 class FV_Mesh ;
 class FS_SolidPlugIn ;
 class DS_AllRigidBodies ;
+class DS_AllImmersedBoundaries ;
 
 /** @brief The Class DS_DirectionSplitting.
 
@@ -143,6 +144,7 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       bool is_solids;
       bool is_GRAINS;
       bool is_STL;
+      bool is_IBM;
       string STL_file;
       bool is_HE, is_NS, is_NSwithHE;
       double RBTemp;
@@ -167,8 +169,11 @@ class DS_DirectionSplitting : public FV_OneStepIteration,
       string solidSolver_insertionFile;
       string solidSolver_simulationFile;
       istringstream* solidFluid_transferStream;
+      istringstream* ibFluid_transferStream;
       DS_AllRigidBodies* allrigidbodies;
+      DS_AllImmersedBoundaries* allimmersedboundaries;
       bool b_particles_as_fixed_obstacles;
+      bool b_IBM_as_fixed_obstacles;
       vector< vector<double> >* hydroFT;
 
       // Grid motion

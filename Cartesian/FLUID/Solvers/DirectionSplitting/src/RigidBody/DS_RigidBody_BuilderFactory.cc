@@ -22,8 +22,7 @@ DS_RigidBody* DS_RigidBody_BuilderFactory:: create( FS_RigidBody* pgrb )
   DS_RigidBody* dsrb = NULL;
 
     // Build the Direction Splitting rigid body
-  switch ( pgrb->get_shape_type() )
-  {
+  switch ( pgrb->get_shape_type() ) {
     case GEOM_SPHERE:
       dsrb = new DS_Sphere( pgrb );
       break;
