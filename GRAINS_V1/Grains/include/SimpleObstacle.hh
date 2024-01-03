@@ -35,20 +35,6 @@ class SimpleObstacle : public Obstacle
     @param root XML node */
     SimpleObstacle( DOMNode* root );
 
-    /** @brief Copy constructor from a Component
-    @param copy copied Component
-    @param s obstacle name */
-    SimpleObstacle( Component& copy, char const* s = "obstacle" );
-
-    /** @brief Constructor with a rigid body, a name and a material as input
-    parameters
-    @param geoRBWC rigid body
-    @param name obstacle name
-    @param materialName material name
-    @param transferToFluid_ whether the obstacle is transferred to the fluid */
-    SimpleObstacle( RigidBodyWithCrust* geoRBWC, string const& name = "",
-      string const& materialName = "", bool const& transferToFluid_ = false );
-
     /** @brief Destructor */
     ~SimpleObstacle();
     //@}
@@ -223,6 +209,12 @@ class SimpleObstacle : public Obstacle
 
     /** @brief Returns the number of contacts in the contact map */
     virtual int getContactMapSize();
+    
+    /** @brief Displays the active neighbours in the 
+    format "my_elementary_id/neighbour_id/neightbout_elementary_id ; ...". 
+    Useful for debugging only.
+    @param id id of this component */
+    virtual void printActiveNeighbors( int const& id );    
     //@}
     
 
@@ -230,6 +222,9 @@ class SimpleObstacle : public Obstacle
     //@{
     /** @brief Initializes all contact map entries to false */
     void setContactMapToFalse();
+    
+    /** @brief Set contact map entry features to zero */
+    void setContactMapFeaturesToZero();     
 
     /** @brief Sets the frequency at which the obstacle link to
     the cells of the linked-cell grid is updated
@@ -313,6 +308,15 @@ class SimpleObstacle : public Obstacle
   	solver or not in case of coupling to a fluid solver */
     //@}
 
+
+  private:
+    /** @name Constructors */
+    //@{
+    /** @brief Copy constructor
+    @param copy copied SimpleObstacle
+    @param s obstacle name */
+    SimpleObstacle( SimpleObstacle const& copy );
+    //@}   
 };
 
 #endif

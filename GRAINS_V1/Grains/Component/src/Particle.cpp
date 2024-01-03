@@ -56,8 +56,8 @@ Particle::Particle( bool const& autonumbering )
 
 // ----------------------------------------------------------------------------
 // Copy constructor (the torsor is initialized to 0)
-Particle::Particle( Particle const& other )
-  : Component( other )
+Particle::Particle( Particle const& other, bool const& autonumbering )
+  : Component( other, autonumbering )
   , m_masterParticle( this )
   , m_density( other.m_density )
   , m_activity( WAIT )
@@ -97,9 +97,8 @@ Particle::Particle( Particle const& other )
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter. This constructor is
 // expected to be used for reference particles
-Particle::Particle( DOMNode* root, bool const& autonumbering,
-  	int const& pc )
-  : Component( autonumbering )
+Particle::Particle( DOMNode* root, int const& pc )
+  : Component( false )
   , m_masterParticle( this )
   , m_kinematics( NULL )
   , m_density( 2500. )
@@ -160,9 +159,8 @@ Particle::Particle( DOMNode* root, bool const& autonumbering,
 // Constructor with input parameters. This constructor is
 // expected to be used for reference particles
 Particle::Particle( RigidBodyWithCrust* georbwc, double const& density,
-    	string const& mat, bool const& autonumbering,
-  	int const& pc )
-  : Component( autonumbering )
+    	string const& mat, int const& pc )
+  : Component( false )
   , m_masterParticle( this )
   , m_kinematics( NULL )
   , m_density( 2500. )
@@ -287,11 +285,11 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 // ----------------------------------------------------------------------------
 // Constructor with input parameters
 Particle::Particle( int const& id_, Particle const* ParticleRef,
-	Vector3 const& vtrans,
-	Quaternion const& qrot,
-	Vector3 const& vrot,
-	Transform const& config,
-	ParticleActivity const& activ )
+	Vector3 const& vtrans, Quaternion const& qrot,
+	Vector3 const& vrot, Transform const& config,
+	ParticleActivity const& activ,
+     	map< std::tuple<int,int,int>,
+     	std::tuple<bool, Vector3, Vector3, Vector3> > const* contactMap )
   : Component( false )
   , m_masterParticle( this )
   , m_kinematics( NULL )
@@ -335,6 +333,9 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
     m_inertia[i] = ParticleRef->m_inertia[i];
     m_inertia_1[i] = ParticleRef->m_inertia_1[i];
   }
+  
+  // Contact map
+  if ( contactMap->size() ) m_contactMap = *contactMap;   
 
   // Weight
   computeWeight();
@@ -349,12 +350,11 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 // ----------------------------------------------------------------------------
 // Creates a clone of the particle. This method calls the standard
 // copy constructor and is used for new particles to be inserted in the
-// simulation. Numbering is automatic, total number of components is
-// incremented by 1 and activity is set to WAIT. The calling object is
+// simulation. Activity is set to WAIT. The calling object is
 // expected to be a reference particle
-Particle* Particle::createCloneCopy() const
+Particle* Particle::createCloneCopy( bool const& autonumbering ) const
 {
-  Particle* particle = new Particle( *this );
+  Particle* particle = new Particle( *this, autonumbering );
 
   return ( particle );
 }
@@ -367,15 +367,17 @@ Particle* Particle::createCloneCopy() const
 // constructor Particle( int const& id_, Particle const* ParticleRef, Vector3
 // const& vtrans, Quaternion const& qrot, Vector3 const& vrot,	Transform
 // const& config, ParticleActivity const& activ ) and is used for periodic
-// clone particles to be inserted in the simulation. Numbering is set with the
-// parameter id_ and total number of components left unchanged.
+// clone particles to be inserted in the simulation. Autonumbering
+// is set to false and numbering is set with the parameter id_
 Particle* Particle::createCloneCopy( int const& id_,
     	Particle const* ParticleRef, Vector3 const& vtrans,
 	Quaternion const& qrot,	Vector3 const& vrot,
-	Transform const& config, ParticleActivity const& activ ) const
+	Transform const& config, ParticleActivity const& activ,
+     	map< std::tuple<int,int,int>,
+     	std::tuple<bool, Vector3, Vector3, Vector3> > const* contactMap ) const
 {
   Particle* particle = new Particle( id_, ParticleRef, vtrans,
-	qrot, vrot, config, activ );
+	qrot, vrot, config, activ, contactMap );
 
   return ( particle );
 }
@@ -992,7 +994,10 @@ void Particle::read2014( istream& fileIn, vector<Particle*> const*
   if ( m_kinematics ) delete m_kinematics;
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
-  fileIn >> *m_kinematics;
+  m_kinematics->readParticleKinematics2014( fileIn );
+  
+  // Read contact map
+  readContactMap2014( fileIn );
 
   // In case part of the particle acceleration is computed explicity
   if ( Particle::m_splitExplicitAcceleration ) createVelocityInfosNm1();
@@ -1052,6 +1057,9 @@ void Particle::read2014_binary( istream& fileIn, vector<Particle*> const*
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
   m_kinematics->readParticleKinematics2014_binary( fileIn );
+
+  // Read contact map
+  readContactMap2014_binary( fileIn );
 
   // In case part of the particle acceleration is computed explicity
   if ( Particle::m_splitExplicitAcceleration ) createVelocityInfosNm1();
@@ -1147,6 +1155,7 @@ void Particle::write2014( ostream& fileSave ) const
   m_geoRBWC->getTransform()->writeTransform2014( fileSave );
   fileSave << " ";
   m_kinematics->writeParticleKinematics2014( fileSave );
+  writeContactMemory2014( fileSave );
   fileSave << endl;
 }
 
@@ -1164,6 +1173,7 @@ void Particle::write2014_binary( ostream& fileSave )
   fileSave.write( reinterpret_cast<char*>( &iact ), sizeof(unsigned int) );
   m_geoRBWC->getTransform()->writeTransform2014_binary( fileSave );
   m_kinematics->writeParticleKinematics2014_binary( fileSave );
+  writeContactMemory2014_binary( fileSave );
 }
 
 

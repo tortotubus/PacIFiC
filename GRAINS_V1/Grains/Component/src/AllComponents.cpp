@@ -24,7 +24,6 @@ AllComponents::AllComponents()
   , m_outputTorsorObstacles_frequency( 0 )
 {
   m_obstacle = new CompositeObstacle( "__AllObstacles___" );
-  Component::setNbCreatedComponents( 0 );
 }
 
 
@@ -929,8 +928,7 @@ void AllComponents::read( istream& fileSave, string const& filename )
   // Reload the obstacle tree
   string name;
   fileSave >> buffer;
-  fileSave >> buffer >> name;
-  m_obstacle = new CompositeObstacle( name );
+  fileSave >> buffer >> buffer;
   fileSave >> buffer;
   while ( buffer != "</Composite>" )
   {
@@ -1570,6 +1568,24 @@ void AllComponents::updateAllContactMaps()
   list<SimpleObstacle*>::iterator myObs;
   for( myObs=obstacles.begin(); myObs!=obstacles.end(); myObs++ )
     (*myObs)->updateContactMap();
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Set all contact map entry features to zero in all particles
+// and all elementary obstacles */
+void AllComponents::setAllContactMapFeaturesToZero()
+{
+  for (list<Particle*>::iterator particle=m_ActiveParticles.begin();
+	particle!=m_ActiveParticles.end();particle++)
+    (*particle)->setContactMapFeaturesToZero();
+
+  list<SimpleObstacle*> obstacles = m_obstacle->getObstacles();
+  list<SimpleObstacle*>::iterator myObs;
+  for( myObs=obstacles.begin(); myObs!=obstacles.end(); myObs++ )
+    (*myObs)->setContactMapFeaturesToZero();
 }
 
 
