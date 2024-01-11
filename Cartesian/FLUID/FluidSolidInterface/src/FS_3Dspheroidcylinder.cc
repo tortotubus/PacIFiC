@@ -392,6 +392,8 @@ double FS_3Dspheroidcylinder::analytical_distanceTo_nonPeriodic(geomVector const
 
       return (t2);
     }
+  } else if (det == 0.) {   // Condition for cylinder perfectly aligned with axis
+    return (get_distance_from_sphere(p_gravity_center, source, rayDir));
   }
 
   return (m_agp_3dcyl.cylinder_radius);

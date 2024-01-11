@@ -466,6 +466,21 @@ double FS_3Dcylinder::analytical_distanceTo_nonPeriodic(geomVector const &p_grav
 
       return (t2);
     }
+  } else if (det == 0) {    // Condition for perfectly aligned cylinder
+    // second point intersection with a plane
+    geomVector Xt(O - C);
+    double t = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+    geomVector P_t(O + t * D);
+    if (P_t.calcDist(C) <= m_agp_3dcyl.cylinder_radius)
+      if (t >= 0 && t < m_agp_3dcyl.cylinder_height)
+        return (t);
+
+    Xt = O - (C + V * m_agp_3dcyl.cylinder_height);
+    t = ((D, V) != 0.) ? -(Xt, V) / (D, V) : 0.;
+    P_t = O + t * D;
+    if (P_t.calcDist(C + V * m_agp_3dcyl.cylinder_height) <= m_agp_3dcyl.cylinder_radius)
+      if (t >= 0 && t < m_agp_3dcyl.cylinder_height)
+        return (t);
   }
 
   return (m_agp_3dcyl.cylinder_radius);
