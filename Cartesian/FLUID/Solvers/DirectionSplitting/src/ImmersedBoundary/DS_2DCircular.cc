@@ -67,10 +67,10 @@ void DS_2DCircular:: compute_number_of_surface_variables(
 
 
 //---------------------------------------------------------------------------
-void DS_2DCircular::compute_surface_points()
+void DS_2DCircular::compute_surface_parameters()
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL("DS_2DCircular:: compute_surface_points");
+  MAC_LABEL("DS_2DCircular:: compute_surface_parameters");
 
   // Pointers to location and additional parameters
   struct FS_Disc_Additional_Param const* pagp =
@@ -82,6 +82,7 @@ void DS_2DCircular::compute_surface_points()
 
 
   size_t Npoints = m_all_nodes.size();
+  size_t Nedges = Npoints;
   double d_theta = 2.*MAC::pi()/((double)Npoints);
   double theta = 0.5*d_theta;
 
@@ -92,28 +93,43 @@ void DS_2DCircular::compute_surface_points()
                      , pagp->radius*MAC::sin(theta)
                      , 0. );
       
+     // Store ID
+     m_all_nodes[i]->nodeID = i;
+
      // Create surface point
-     m_all_nodes[i].position[0] = point(0);
-     m_all_nodes[i].position[1] = point(1);
-     m_all_nodes[i].position[2] = point(2);
-     //  m_surface_area[i]->operator()(0) = pagp->radius*d_theta;
+     m_all_nodes[i]->position = point;
+
+     // Linking to neighbor nodes
+     m_all_nodes[i]->neighbor[0] = (i != 0) ? m_all_nodes[i-1] 
+                                            : m_all_nodes[Npoints - 1];
+     m_all_nodes[i]->neighbor[1] = (i != Npoints - 1) ? m_all_nodes[i+1]
+                                                      : m_all_nodes[0];
 
      // Create surface normal vectors
-     m_all_nodes[i].normal[0] = point(0);
-     m_all_nodes[i].normal[1] = point(1);
-     m_all_nodes[i].normal[2] = point(2);
+     m_all_nodes[i]->normal = point;
   }
+
+  for (size_t i = 0; i < Nedges; i++) {
+     m_all_edges[i]->edgeID = i;
+     m_all_edges[i]->connecting_node[0] = m_all_nodes[i];
+     m_all_edges[i]->connecting_node[1] = (i != Npoints - 1) ? m_all_nodes[i + 1]
+                                                             : m_all_nodes[0];
+     double dist = m_all_edges[i]->connecting_node[0]->position.calcDist(
+                    m_all_edges[i]->connecting_node[1]->position);
+
+     m_all_edges[i]->initial_length = dist;
+     m_all_edges[i]->length = dist;
+  }
+
+
 
   // Translate and rotate
   for (size_t i = 0; i < m_all_nodes.size(); i++) {
 //     m_geometric_rigid_body->rotate(m_surface_points[i]);
 //     m_geometric_rigid_body->rotate(m_surface_normal[i]);
-     m_all_nodes[i].position[0] += pgc->operator()(0);
-     m_all_nodes[i].position[1] += pgc->operator()(1);
-     m_all_nodes[i].position[2] += pgc->operator()(2);
-     std::cout << m_all_nodes[i].position[0] << "," 
-               << m_all_nodes[i].position[1] << "," 
-               << m_all_nodes[i].position[2] << "," << endl; 
+     m_all_nodes[i]->position(0) += pgc->operator()(0);
+     m_all_nodes[i]->position(1) += pgc->operator()(1);
+     m_all_nodes[i]->position(2) += pgc->operator()(2);
   }
 
 

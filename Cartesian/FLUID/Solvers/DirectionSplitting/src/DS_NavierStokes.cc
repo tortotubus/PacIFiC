@@ -70,6 +70,7 @@ DS_NavierStokes:: DS_NavierStokes( MAC_Object* a_owner,
    , rho( fromDS.rho_ )
    , b_restart ( fromDS.b_restart_ )
    , is_solids( fromDS.is_solids_ )
+   , is_IBM( false )
    , is_stressCal ( fromDS.is_stressCal_ )
    , ViscousStressOrder ( fromDS.ViscousStressOrder_ )
    , PressureStressOrder ( fromDS.PressureStressOrder_ )
@@ -108,14 +109,20 @@ DS_NavierStokes:: DS_NavierStokes( MAC_Object* a_owner,
    is_periodic[1][1] = false;
    is_periodic[1][2] = false;
 
-   // Timing routines
-   if ( my_rank == is_master ) {
-     CT_set_start();
-     SCT_insert_app("Objects_Creation");
-     SCT_set_start("Objects_Creation");
+   // Check if Lagrangian field is available for immersed boundaries
+   if (fromDS.dom_->discrete_field("lagrangian_force")) {
+      LF = fromDS.dom_->discrete_field("lagrangian_force");
+      is_IBM = true;
    }
 
-	if ( AdvectionScheme == "TVD"
+   // Timing routines
+   if (my_rank == is_master) {
+      CT_set_start();
+      SCT_insert_app("Objects_Creation");
+      SCT_set_start("Objects_Creation");
+   }
+
+   if ( AdvectionScheme == "TVD"
      && UF->primary_grid()->get_security_bandwidth() < 2 ) {
      string error_message="   >= 2 with TVD scheme";
      MAC_Error::object()->raise_bad_data_value( exp,
@@ -2735,6 +2742,9 @@ DS_NavierStokes:: assemble_DS_un_at_rhs ( FV_TimeIterator const* t_it,
                      if ( cpp==comp ) rhs += bodyterm*cellV;
                   }
                }
+
+               // Contribution from Immersed body
+               if (is_IBM) rhs += LF->DOF_value(i, j, k, comp, 0) * cellV;
 
                UF->set_DOF_value( i, j, k, comp, 0,
                                   rhs*(t_it -> time_step())/(cellV*rho));

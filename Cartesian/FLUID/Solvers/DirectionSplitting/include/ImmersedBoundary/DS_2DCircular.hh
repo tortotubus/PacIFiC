@@ -47,7 +47,7 @@ class DS_2DCircular: public DS_ImmersedBoundary
       //@{
       /** @brief Compute the surface points by discretizing the Disc
       surface in approximately equal areas (if possible) */
-      void compute_surface_points();
+      void compute_surface_parameters();
 
       /** @brief Compute number of points on a sphere
       @param surface_cell_scale scale of surface cell compared with the grid

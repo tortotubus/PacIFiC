@@ -356,10 +356,12 @@ DS_DirectionSplitting:: DS_DirectionSplitting( MAC_Object* a_owner,
 
    // Create rigid bodies objects depending on which PDE to solve
    if (is_IBM) {
+      surface_cell_scale = exp->double_data("SurfaceCellScale");
       allimmersedboundaries = new DS_AllImmersedBoundaries( space_dimensions
                               , *solidFluid_transferStream
                               , b_IBM_as_fixed_obstacles
                               , dom->discrete_field( "velocity" )
+                              , dom->discrete_field( "lagrangian_force" )
                               , surface_cell_scale
                               , macCOMM);
    }
@@ -460,6 +462,15 @@ DS_DirectionSplitting:: do_one_inner_iteration( FV_TimeIterator const* t_it )
       HeatSolver->do_one_inner_iteration( t_it ) ;
       stop_solving_timer() ;
       stop_total_timer() ;
+   }
+
+   // IB solver
+   if (is_IBM) {
+      allimmersedboundaries->reset_Lagrangian_and_Eulerian_Force_field();
+      allimmersedboundaries->interpolate_velocity_on_all_IB();
+      allimmersedboundaries->advect_all_IB(t_it->time_step());
+      allimmersedboundaries->compute_force_on_all_lagrange_nodes(6.e-6);
+      allimmersedboundaries->project_lagrangian_force_on_eulerian_grid();
    }
 
 //    // Rigid body motion
@@ -575,6 +586,10 @@ DS_DirectionSplitting:: do_after_time_stepping( void )
 
    if ( is_surfacestressOUT )
       allrigidbodies->write_surface_discretization_for_all_RB();
+
+   // IB solver
+   if (is_IBM)
+      allimmersedboundaries->finalize_all_pvd();
 
 }
 
@@ -730,6 +745,10 @@ DS_DirectionSplitting:: do_additional_savings( FV_TimeIterator const* t_it,
    // Solid solver
    if ( is_GRAINS )
      solidSolver->saveResults( "", t_it->time(), cycleNumber );
+   
+   // // IB solver
+   if (is_IBM)
+      allimmersedboundaries->write_all_IB_to_VTU(t_it->time(), cycleNumber);
 
 }
 

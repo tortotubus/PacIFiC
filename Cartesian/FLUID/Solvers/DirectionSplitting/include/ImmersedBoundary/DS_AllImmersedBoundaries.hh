@@ -48,6 +48,7 @@ class DS_AllImmersedBoundaries
       @param in input stream where features of rigid bodies are read
       @param b_IB_as_fixed_obstacles treat all IB as fixed obstacles
       @param arb_UF Pointer to flow field UF
+      @param arb_LF Pointer to Lagrangian force field LF
       @param arb_scs scale of cell on the rigid body surface as
       compared with the cell of computational grid
       @param arb_macCOMM communicator for MPI communications */
@@ -55,6 +56,7 @@ class DS_AllImmersedBoundaries
                               , istream &in
                               , bool const &b_IB_as_fixed_obstacles
                               , FV_DiscreteField const *arb_UF
+                              , FV_DiscreteField *arb_LF
                               , double const& arb_scs 
                               , MAC_Communicator const *arb_macCOMM);
 
@@ -92,6 +94,22 @@ class DS_AllImmersedBoundaries
       /** @brief Intialize the surface variables for all rigid bodies */
       void initialize_surface_variables_for_all_IB();
 
+      void write_all_IB_to_VTU(double const& time, size_t const& cyclenum);
+
+      void advect_all_IB(double const &dt);
+
+      void project_lagrangian_force_on_eulerian_grid();
+
+      void compute_force_on_all_lagrange_nodes(double const& Es);
+
+      void reset_Lagrangian_and_Eulerian_Force_field();
+
+      void initialize_all_pvd();
+
+      void finalize_all_pvd();
+
+      void interpolate_velocity_on_all_IB();
+
       //@}
 
 
@@ -117,6 +135,7 @@ class DS_AllImmersedBoundaries
 
       // Pointers to the constant fields and primary grid
       FV_DiscreteField const* UF ;
+      FV_DiscreteField * LF;
       FV_Mesh const* MESH ;
 
       double surface_cell_scale; /**< a variable to store the scale of surface

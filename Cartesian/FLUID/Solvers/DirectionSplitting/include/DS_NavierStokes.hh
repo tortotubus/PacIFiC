@@ -448,6 +448,8 @@ class DS_NavierStokes : public MAC_Object, public PAC_ComputingTime,
 
       FV_DiscreteField* UF;
       FV_DiscreteField* PF;
+      // Lagrangian field in case of Immersed boundaries
+      FV_DiscreteField* LF;
 
       DS_NavierStokesSystem* GLOBAL_EQ ;
       DS_PID* controller;
@@ -482,6 +484,7 @@ class DS_NavierStokes : public MAC_Object, public PAC_ComputingTime,
       double rho;
       bool b_restart ;
       bool is_solids;
+      bool is_IBM;
 
       bool is_stressCal;
       string ViscousStressOrder;
