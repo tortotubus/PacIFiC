@@ -392,49 +392,6 @@ void DS_ImmersedBoundary::compute_elastic_force_on_lagrange_nodes
 
 
 //---------------------------------------------------------------------------
-void DS_ImmersedBoundary::interpolate_velocity_on_lagrange_nodes
-                                      ( FV_DiscreteField const *UF)
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL("DS_ImmersedBoundary:: interpolate_velocity_on_lagrange_nodes");
-
-  size_t dim = UF->primary_grid()->nb_space_dimensions();
-
-  if (dim == 2) {
-    for (size_t i = 0; i < Ntot; ++i) {
-      m_all_nodes[i]->velocity(0) = UF->interpolateFieldValues(m_all_nodes[i]->position(0)
-                                                , m_all_nodes[i]->position(1)
-                                                , 0, 0);
-
-      m_all_nodes[i]->velocity(1) = UF->interpolateFieldValues(m_all_nodes[i]->position(0)
-                                                , m_all_nodes[i]->position(1)
-                                                , 1, 0);
-    }
-  } else if (dim == 3) {
-    for (size_t i = 0; i < Ntot; ++i) {
-      m_all_nodes[i]->velocity(0) = UF->interpolateFieldValues(m_all_nodes[i]->position(0)
-                                                , m_all_nodes[i]->position(1)
-                                                , m_all_nodes[i]->position(2)
-                                                , 0, 0);
-
-      m_all_nodes[i]->velocity(1) = UF->interpolateFieldValues(m_all_nodes[i]->position(0)
-                                                , m_all_nodes[i]->position(1)
-                                                , m_all_nodes[i]->position(2)
-                                                , 1, 0);
-
-      m_all_nodes[i]->velocity(2) = UF->interpolateFieldValues(m_all_nodes[i]->position(0)
-                                                , m_all_nodes[i]->position(1)
-                                                , m_all_nodes[i]->position(2)
-                                                , 2, 0);
-
-    }
-  }
-}
-
-
-
-
-//---------------------------------------------------------------------------
 void DS_ImmersedBoundary::check_and_update_periodic_clone(
                                                   FV_DiscreteField const *UF)
 //---------------------------------------------------------------------------
