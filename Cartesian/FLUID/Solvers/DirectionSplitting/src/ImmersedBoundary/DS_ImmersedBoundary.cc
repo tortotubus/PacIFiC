@@ -117,11 +117,12 @@ void DS_ImmersedBoundary:: write_one_IB_to_VTU( string const& rootname
   fileOUT << "</PointData>" << endl;
 
   // // Write scalar field
-  // fileOUT << "<PointData Scalars=\"name\">" << endl;
-  // fileOUT << "<DataArray type=\"Float32\" Name=\"name\" "
+  // fileOUT << "<PointData Scalars=\"procID\">" << endl;
+  // // Write the local proc ID's
+  // fileOUT << "<DataArray type=\"Float32\" Name=\"procID\" "
   //         << "format=\"ascii\">" << endl;
   // for (size_t i = 0; i < Ntot; ++i)
-  //   fileOUT << m_all_nodes[i].velocity[0] << " "
+  //   fileOUT << m_all_nodes[i]->local_procID << " "
   //           << endl;
   // fileOUT << "</DataArray>" << endl;
   // fileOUT << "</PointData>" << endl;
@@ -230,10 +231,10 @@ void DS_ImmersedBoundary::advect_IB(double const& dt)
 
 
 //---------------------------------------------------------------------------
-void DS_ImmersedBoundary::project_force_on_grid_for_oneIB(FV_DiscreteField *LF)
+void DS_ImmersedBoundary::project_force_on_grid_from_oneIB(FV_DiscreteField *LF)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL("DS_ImmersedBoundary::project_force_on_grid_for_oneIB");
+  MAC_LABEL("DS_ImmersedBoundary::project_force_on_grid_from_oneIB");
 
   geomVector delta(3);
 
@@ -247,25 +248,34 @@ void DS_ImmersedBoundary::project_force_on_grid_for_oneIB(FV_DiscreteField *LF)
           i0(dir) = i_temp;
       }
 
+      size_t ix_min = LF->get_min_index_unknown_handled_by_proc(comp, 0);
+      size_t ix_max = LF->get_max_index_unknown_handled_by_proc(comp, 0);
+      size_t iy_min = LF->get_min_index_unknown_handled_by_proc(comp, 1);
+      size_t iy_max = LF->get_max_index_unknown_handled_by_proc(comp, 1);
+
       for (size_t ix = i0(0)-2; ix <= i0(0)+2; ix++) {
-        for (size_t iy = i0(1)-2; iy <= i0(1)+2; iy++) {
-          double dx = m_all_nodes[i]->position(0) 
-                    - LF->get_DOF_coordinate(ix, comp, 0);
-          double dy = m_all_nodes[i]->position(1) 
-                    - LF->get_DOF_coordinate(iy, comp, 1);
+        if (ix >= ix_min && ix <= ix_max) {
+          for (size_t iy = i0(1)-2; iy <= i0(1)+2; iy++) {
+            if (iy >= iy_min && iy <= iy_max) {
+              double dx = m_all_nodes[i]->position(0) 
+                        - LF->get_DOF_coordinate(ix, comp, 0);
+              double dy = m_all_nodes[i]->position(1) 
+                        - LF->get_DOF_coordinate(iy, comp, 1);
 
-          double deltax = LF->get_cell_size(ix, comp, 0);
-          double deltay = LF->get_cell_size(iy, comp, 1);
+              double deltax = LF->get_cell_size(ix, comp, 0);
+              double deltay = LF->get_cell_size(iy, comp, 1);
 
-          double weight = (1. + MAC::cos(0.5 * MAC::pi() * dx / deltax))
-                        * (1. + MAC::cos(0.5 * MAC::pi() * dy / deltay))
-                        / (4. * deltax) / (4. * deltay);
+              double weight = (1. + MAC::cos(0.5 * MAC::pi() * dx / deltax))
+                            * (1. + MAC::cos(0.5 * MAC::pi() * dy / deltay))
+                            / (4. * deltax) / (4. * deltay);
 
-          if ((MAC::abs(dx) > 2. * deltax) || (MAC::abs(dy) > 2. * deltay)) 
-              weight = 0.;
-          
-          double value = m_all_nodes[i]->force(comp) * weight;
-          LF->add_value_to_DOF(ix, iy, 0, comp, 0, value);
+              if ((MAC::abs(dx) > 2. * deltax) || (MAC::abs(dy) > 2. * deltay)) 
+                  weight = 0.;
+              
+              double value = m_all_nodes[i]->force(comp) * weight;
+              LF->add_value_to_DOF(ix, iy, 0, comp, 0, value);
+            }
+          }
         }
       }
     }
@@ -277,47 +287,71 @@ void DS_ImmersedBoundary::project_force_on_grid_for_oneIB(FV_DiscreteField *LF)
 
 //---------------------------------------------------------------------------
 void DS_ImmersedBoundary::eulerian_velocity_on_lagrange_nodes
-                                      ( FV_DiscreteField const *UF)
+                                      ( FV_DiscreteField const *UF
+                                      , MAC_Communicator const* macCOMM)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL("DS_ImmersedBoundary:: eulerian_velocity_on_lagrange_nodes");
 
   geomVector delta(3);
+  doubleArray2D data_for_MPI(Ntot,3,0.);
 
   for (size_t i = 0; i < Ntot; ++i) {
-    for (size_t comp = 0; comp < UF->nb_components(); comp++) {
-      m_all_nodes[i]->velocity(comp) = 0.;
-      size_t_vector i0(3,0);
-      for (size_t dir = 0; dir < UF->primary_grid()->nb_space_dimensions(); dir++) {
-          size_t i_temp = 0;
-          FV_Mesh::between(UF->get_DOF_coordinates_vector(comp, dir),
-                                        m_all_nodes[i]->position(dir), i_temp);
-          i0(dir) = i_temp;
-      }
 
-      for (size_t ix = i0(0)-2; ix <= i0(0)+2; ix++) {
-        for (size_t iy = i0(1)-2; iy <= i0(1)+2; iy++) {
-          double dx = m_all_nodes[i]->position(0) 
-                    - UF->get_DOF_coordinate(ix, comp, 0);
-          double dy = m_all_nodes[i]->position(1) 
-                    - UF->get_DOF_coordinate(iy, comp, 1);
+    bool is_on_local_proc = UF->primary_grid()
+                          ->is_in_domain_on_current_processor(m_all_nodes[i]->position(0)
+                                                            , m_all_nodes[i]->position(1));
 
-          double deltax = UF->get_cell_size(ix, comp, 0);
-          double deltay = UF->get_cell_size(iy, comp, 1);
+    if (is_on_local_proc) {
+      for (size_t comp = 0; comp < UF->nb_components(); comp++) {
+        m_all_nodes[i]->velocity(comp) = 0.;
+        size_t_vector i0(3,0);
+        for (size_t dir = 0; dir < UF->primary_grid()->nb_space_dimensions(); dir++) {
+            size_t i_temp = 0;
+            FV_Mesh::between(UF->get_DOF_coordinates_vector(comp, dir),
+                                          m_all_nodes[i]->position(dir), i_temp);
+            i0(dir) = i_temp;
+        }
 
-          double weight = (1. + MAC::cos(0.5 * MAC::pi() * dx / deltax))
-                        * (1. + MAC::cos(0.5 * MAC::pi() * dy / deltay))
-                        / (4. * deltax) / (4. * deltay);
+        for (size_t ix = i0(0)-2; ix <= i0(0)+2; ix++) {
+          for (size_t iy = i0(1)-2; iy <= i0(1)+2; iy++) {
+            double dx = m_all_nodes[i]->position(0) 
+                      - UF->get_DOF_coordinate(ix, comp, 0);
+            double dy = m_all_nodes[i]->position(1) 
+                      - UF->get_DOF_coordinate(iy, comp, 1);
 
-          if ((MAC::abs(dx) > 2. * deltax) || (MAC::abs(dy) > 2. * deltay)) 
-              weight = 0.;
-          
-          double value = UF->DOF_value(ix, iy, 0, comp, 0) * weight * deltax * deltay;
-          m_all_nodes[i]->velocity(comp) += value;
+            double deltax = UF->get_cell_size(ix, comp, 0);
+            double deltay = UF->get_cell_size(iy, comp, 1);
+
+            double weight = (1. + MAC::cos(0.5 * MAC::pi() * dx / deltax))
+                          * (1. + MAC::cos(0.5 * MAC::pi() * dy / deltay))
+                          / (4. * deltax) / (4. * deltay);
+
+            if ((MAC::abs(dx) > 2. * deltax) || (MAC::abs(dy) > 2. * deltay)) 
+                weight = 0.;
+            
+            double value = UF->DOF_value(ix, iy, 0, comp, 0) * weight * deltax * deltay;
+            m_all_nodes[i]->velocity(comp) += value;
+          }
         }
       }
+      // Store values on an doubleArray2D for MPI communications
+      data_for_MPI(i, 0) = m_all_nodes[i]->velocity(0);
+      data_for_MPI(i, 1) = m_all_nodes[i]->velocity(1);
+      data_for_MPI(i, 2) = m_all_nodes[i]->velocity(2);
     }
   }
+
+  // Transfer and get velocity on all nodes
+  macCOMM->sum_array(data_for_MPI);
+
+  // Update the values to local nodal data structure
+  for (size_t i = 0; i < m_all_nodes.size(); i++) {
+    m_all_nodes[i]->velocity(0) = data_for_MPI(i, 0);
+    m_all_nodes[i]->velocity(1) = data_for_MPI(i, 1);
+    m_all_nodes[i]->velocity(2) = data_for_MPI(i, 2);
+  }
+
 }
 
 //---------------------------------------------------------------------------

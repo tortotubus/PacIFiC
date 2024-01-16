@@ -30,7 +30,6 @@ struct Node
    geomVector normal;
    geomVector force;
    vector<Node*> neighbor;
-   bool is_active;
    // vector<Edge*> connecting_edge;
 };
 
@@ -40,7 +39,6 @@ struct Edge
    vector<Node*> connecting_node;
    double initial_length;
    double length;
-   bool is_active;
 };
 
 
@@ -111,7 +109,7 @@ class DS_ImmersedBoundary
 
       void check_and_update_periodic_clone(FV_DiscreteField const *UF);
 
-      void eulerian_velocity_on_lagrange_nodes(FV_DiscreteField const *UF);
+      void eulerian_velocity_on_lagrange_nodes(FV_DiscreteField const *UF, MAC_Communicator const *macCOMM);
 
       void update_edge_length(FV_DiscreteField const *UF);
 
@@ -119,7 +117,7 @@ class DS_ImmersedBoundary
 
       void reset_Lagrangian_force_field();
 
-      void project_force_on_grid_for_oneIB(FV_DiscreteField *LF);
+      void project_force_on_grid_from_oneIB(FV_DiscreteField *LF);
 
       /** @brief Compute the surface points by discretizing the immersed boundary
       surface in approximately equal areas (if possible) */

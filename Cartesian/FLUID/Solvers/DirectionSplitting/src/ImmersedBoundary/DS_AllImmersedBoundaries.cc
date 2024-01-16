@@ -168,8 +168,10 @@ void DS_AllImmersedBoundaries::project_lagrangian_force_on_eulerian_grid()
   MAC_LABEL("DS_AllImmersedBoundaries:: project_lagrangian_force_on_eulerian_grid");
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    m_allDSimmersedboundaries[i]->project_force_on_grid_for_oneIB(LF);
+    m_allDSimmersedboundaries[i]->project_force_on_grid_from_oneIB(LF);
   }
+
+  LF->synchronize(0);
 
 }
 
@@ -222,8 +224,7 @@ void DS_AllImmersedBoundaries::interpolate_velocity_on_all_IB()
   MAC_LABEL("DS_AllImmersedBoundaries:: interpolate_velocity_on_all_IB");
 
   for (size_t i = 0; i < m_nIB; ++i) {
-    // m_allDSimmersedboundaries[i]->interpolate_velocity_on_lagrange_nodes(UF);
-    m_allDSimmersedboundaries[i]->eulerian_velocity_on_lagrange_nodes(UF);
+    m_allDSimmersedboundaries[i]->eulerian_velocity_on_lagrange_nodes(UF, m_macCOMM);
   }
 
 }
