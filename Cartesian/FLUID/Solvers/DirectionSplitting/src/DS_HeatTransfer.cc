@@ -2642,124 +2642,70 @@ double DS_HeatTransfer:: assemble_advection_Centered(
 
    // Parameters
    size_t component = 0 ;
-   double dxC = 0., dyC = 0., dzC = 0.;
 
    double AdvectedvalueC = 0., AdvectedvalueRi = 0.,
-   	AdvectedvalueLe = 0., AdvectedvalueTo = 0.,
-	AdvectedvalueBo = 0., AdvectedvalueFr = 0., AdvectedvalueBe = 0.;
+   	    AdvectedvalueLe = 0., AdvectedvalueTo = 0.,
+	       AdvectedvalueBo = 0., AdvectedvalueFr = 0., AdvectedvalueBe = 0.;
    double ur = 0., ul = 0., vt = 0., vb = 0., wf = 0., wb = 0.,
 	fri = 0., fle = 0., fto = 0., fbo = 0., ffr = 0., fbe = 0., flux = 0.;
 
    FV_SHIFT_TRIPLET shift = TF->shift_staggeredToCentered() ;
 
    // Perform assembling
+   double dxC = TF->get_cell_size(i, component, 0);
+   double dyC = TF->get_cell_size(j, component, 1);
+   double dzC = (dim == 3) ? TF->get_cell_size(k, component, 2) 
+                           : 1.;
 
-   dxC = TF->get_cell_size( i, component, 0 ) ;
+   AdvectedvalueC = TF->DOF_value(i, j, k, component, advected_level);
 
-   dyC = TF->get_cell_size( j, component, 1 ) ;
+   // Right and Left
+   // --------------
+   AdvectedvalueRi = TF->DOF_value(i + 1, j, k, component, advected_level);
+   AdvectedvalueLe = TF->DOF_value(i - 1, j, k, component, advected_level);
 
-   if ( dim == 2 ) {
-      AdvectedvalueC = TF->DOF_value( i, j, k, component, advected_level );
+   // Right (X)
+   ur = AdvectingField->DOF_value(i + shift.i, j, k, 0, advecting_level);
 
-      // Right and Left
-      // --------------
-      AdvectedvalueRi = TF->DOF_value( i+1, j, k, component, advected_level );
-      AdvectedvalueLe = TF->DOF_value( i-1, j, k, component, advected_level );
-
-      // Right (X)
-      ur = AdvectingField->DOF_value( i+shift.i, j, k, 0, advecting_level );
-
-      if ( TF->DOF_color( i+1, j, k, component ) == FV_BC_RIGHT ) {
-         fri = ur * AdvectedvalueRi;
-      } else {
-         fri = ur * 0.5*(AdvectedvalueRi + AdvectedvalueC);
-      }
-
-      // Left (X)
-      ul = AdvectingField->DOF_value( i+shift.i-1, j, k, 0, advecting_level );
-
-      if ( TF->DOF_color( i-1, j, k, component ) == FV_BC_LEFT ) {
-         fle = ul * AdvectedvalueLe;
-      } else {
-         fle = ul * 0.5*(AdvectedvalueLe + AdvectedvalueC);
-      }
-
-      // Top and Bottom
-      // --------------
-      AdvectedvalueTo = TF->DOF_value( i, j+1, k, component, advected_level );
-      AdvectedvalueBo = TF->DOF_value( i, j-1, k, component, advected_level );
-
-      // Top (Y)
-      vt = AdvectingField->DOF_value( i, j+shift.j, k, 1, advecting_level );
-
-      if ( TF->DOF_color( i, j+1, k, component ) == FV_BC_TOP ) {
-         fto = vt * AdvectedvalueTo;
-      } else {
-         fto = vt * 0.5*(AdvectedvalueTo + AdvectedvalueC);
-      }
-
-      // Bottom (Y)
-      vb = AdvectingField->DOF_value( i, j+shift.j-1, k, 1, advecting_level );
-
-      if ( TF->DOF_color( i, j-1, k, component ) == FV_BC_BOTTOM ) {
-         fbo = vb * AdvectedvalueBo;
-      } else {
-         fbo = vb * 0.5*(AdvectedvalueBo + AdvectedvalueC);
-      }
-
-      flux = ( fto - fbo ) * dxC + ( fri - fle ) * dyC;
-
+   if ( TF->DOF_color( i+1, j, k, component ) == FV_BC_RIGHT ) {
+      fri = ur * AdvectedvalueRi;
    } else {
-      dzC = TF->get_cell_size( k, component, 2 ) ;
+      fri = ur * 0.5*(AdvectedvalueRi + AdvectedvalueC);
+   }
 
-      AdvectedvalueC = TF->DOF_value( i, j, k, component, advected_level );
+   // Left (X)
+   ul = AdvectingField->DOF_value( i+shift.i-1, j, k, 0, advecting_level );
 
-      // Right and Left
-      // --------------
-      AdvectedvalueRi = TF->DOF_value( i+1, j, k, component, advected_level );
-      AdvectedvalueLe = TF->DOF_value( i-1, j, k, component, advected_level );
+   if ( TF->DOF_color( i-1, j, k, component ) == FV_BC_LEFT ) {
+      fle = ul * AdvectedvalueLe;
+   } else {
+      fle = ul * 0.5*(AdvectedvalueLe + AdvectedvalueC);
+   }
 
-      // Right (X)
-      ur = AdvectingField->DOF_value( i+shift.i, j, k, 0, advecting_level );
+   // Top and Bottom
+   // --------------
+   AdvectedvalueTo = TF->DOF_value( i, j+1, k, component, advected_level );
+   AdvectedvalueBo = TF->DOF_value( i, j-1, k, component, advected_level );
 
-      if ( TF->DOF_color( i+1, j, k, component ) == FV_BC_RIGHT ) {
-         fri = ur * AdvectedvalueRi;
-      } else {
-         fri = ur * 0.5*(AdvectedvalueRi + AdvectedvalueC);
-      }
+   // Top (Y)
+   vt = AdvectingField->DOF_value( i, j+shift.j, k, 1, advecting_level );
 
-      // Left (X)
-      ul = AdvectingField->DOF_value( i+shift.i-1, j, k, 0, advecting_level );
+   if ( TF->DOF_color( i, j+1, k, component ) == FV_BC_TOP ) {
+      fto = vt * AdvectedvalueTo;
+   } else {
+      fto = vt * 0.5*(AdvectedvalueTo + AdvectedvalueC);
+   }
 
-      if ( TF->DOF_color( i-1, j, k, component ) == FV_BC_LEFT ) {
-         fle = ul * AdvectedvalueLe;
-      } else {
-         fle = ul * 0.5*(AdvectedvalueLe + AdvectedvalueC);
-      }
+   // Bottom (Y)
+   vb = AdvectingField->DOF_value( i, j+shift.j-1, k, 1, advecting_level );
 
-      // Top and Bottom
-      // --------------
-      AdvectedvalueTo = TF->DOF_value( i, j+1, k, component, advected_level );
-      AdvectedvalueBo = TF->DOF_value( i, j-1, k, component, advected_level );
+   if ( TF->DOF_color( i, j-1, k, component ) == FV_BC_BOTTOM ) {
+      fbo = vb * AdvectedvalueBo;
+   } else {
+      fbo = vb * 0.5*(AdvectedvalueBo + AdvectedvalueC);
+   }
 
-      // Top (Y)
-      vt = AdvectingField->DOF_value( i, j+shift.j, k, 1, advecting_level );
-
-      if ( TF->DOF_color( i, j+1, k, component ) == FV_BC_TOP ) {
-         fto = vt * AdvectedvalueTo;
-      } else {
-         fto = vt * 0.5*(AdvectedvalueTo + AdvectedvalueC);
-      }
-
-      // Bottom (Y)
-      vb = AdvectingField->DOF_value( i, j+shift.j-1, k, 1, advecting_level );
-
-      if ( TF->DOF_color( i, j-1, k, component ) == FV_BC_BOTTOM ) {
-         fbo = vb * AdvectedvalueBo;
-      } else {
-         fbo = vb * 0.5*(AdvectedvalueBo + AdvectedvalueC);
-      }
-
+   if ( dim == 3 ) {
       // Front and Behind
       // ----------------
       AdvectedvalueFr = TF->DOF_value( i, j, k+1, component, advected_level );
@@ -2782,9 +2728,9 @@ double DS_HeatTransfer:: assemble_advection_Centered(
       } else {
          fbe = wb * 0.5*(AdvectedvalueBe + AdvectedvalueC);
       }
-
-      flux = ( fto - fbo ) * dxC * dzC + ( fri - fle ) * dyC * dzC + ( ffr - fbe ) * dxC * dyC;
    }
+   
+   flux = ( fto - fbo ) * dxC * dzC + ( fri - fle ) * dyC * dzC + ( ffr - fbe ) * dxC * dyC;
 
    return (coef * flux);
 
