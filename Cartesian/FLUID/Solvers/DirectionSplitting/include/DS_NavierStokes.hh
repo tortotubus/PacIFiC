@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+#include <DS_CommonMethods.hh>
 using namespace std;
 
 class MAC_Communicator ;
@@ -24,6 +25,7 @@ class LA_SeqVector ;
 class DS_NavierStokesSystem ;
 class LA_SeqMatrix ;
 class DS_AllRigidBodies ;
+class DS_CommonMethods ;
 
 /** For set of variables to pass from NavierStokes to System */
 struct DS2NS
@@ -318,9 +320,6 @@ class DS_NavierStokes : public MAC_Object, public PAC_ComputingTime,
                                , FV_TimeIterator const* t_it
                                , size_t const& dir );
 
-      /** @brief Initialize the velocity on the velocity nodes in MAC grid*/
-      void initialize_grid_nodes_on_rigidbody( vector<size_t> const& list );
-
       void ugradu_initialization ( );
 
       void correct_pressure_1st_layer_solid (size_t const& level );
@@ -508,6 +507,9 @@ class DS_NavierStokes : public MAC_Object, public PAC_ComputingTime,
       bool is_periodic[2][3];
 
       bool exceed, turn;
+
+      // Variable for common methods
+      DS_CommonMethods *commonMethods;
 } ;
 
 #endif

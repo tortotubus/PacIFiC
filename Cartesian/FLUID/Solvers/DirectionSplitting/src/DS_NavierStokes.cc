@@ -202,6 +202,10 @@ DS_NavierStokes:: DS_NavierStokes( MAC_Object* a_owner,
 		}
 	}
 
+   // Create object to access common methods
+   commonMethods = new DS_CommonMethods(dim, allrigidbodies, macCOMM
+                                       , UF, PF);
+
    // Timing routines
    if ( my_rank == is_master ) {
      SCT_insert_app("Matrix_Assembly&Initialization");
@@ -300,7 +304,7 @@ DS_NavierStokes:: do_before_time_stepping( FV_TimeIterator const* t_it,
 		// Field initialization
       vector<size_t> vec{ 0, 1, 3};
       if (dim == 3) vec.push_back(4);
-      initialize_grid_nodes_on_rigidbody(vec);
+      commonMethods->initialize_grid_nodes_on_rigidbody(UF,vec);
 
       if (my_rank == 0)
          cout << "Finished field initializations... \n" << endl;
@@ -407,7 +411,7 @@ DS_NavierStokes:: do_before_inner_iterations_stage(
 		// Field initialization
 		vector<size_t> vec{ 0, 1, 3};
 		if (dim == 3) vec.push_back(4);
-		initialize_grid_nodes_on_rigidbody(vec);
+		commonMethods->initialize_grid_nodes_on_rigidbody(UF,vec);
 
 		// // Extrapolate advecvtion term on fresh nodes
 		// allrigidbodies->extrapolate_scalar_on_fresh_nodes(UF,2);
@@ -2938,21 +2942,21 @@ DS_NavierStokes:: NS_velocity_update ( FV_TimeIterator const* t_it )
    Solve_i_in_jk(UF,t_it,0,1,2,gamma,3);
    // Synchronize the velocity field
 	UF->synchronize( 3 );
-   if (is_solids) initialize_grid_nodes_on_rigidbody({3});
+   if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(UF,{3});
 	UF->set_neumann_DOF_values();
 
 	size_t level = (dim == 2) ? 0 : 4 ;
    Solve_i_in_jk(UF,t_it,1,0,2,gamma,level);
 	// Synchronize the velocity field
 	UF->synchronize( level );
-   if (is_solids) initialize_grid_nodes_on_rigidbody({level});
+   if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(UF,{level});
 	UF->set_neumann_DOF_values();
 
    if (dim == 3) {
       Solve_i_in_jk(UF,t_it,2,0,1,gamma,0);
 		// Synchronize the velocity field
 		UF->synchronize( 0 );
-      if (is_solids) initialize_grid_nodes_on_rigidbody({0});
+      if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(UF,{0});
 		UF->set_neumann_DOF_values();
    }
 
@@ -2963,59 +2967,6 @@ DS_NavierStokes:: NS_velocity_update ( FV_TimeIterator const* t_it )
 
 	compute_velocity_divergence(PF);
 
-}
-
-
-
-
-//---------------------------------------------------------------------------
-void
-DS_NavierStokes::initialize_grid_nodes_on_rigidbody( vector<size_t> const& list )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_NavierStokes::initialize_grid_nodes_on_rigidbody" ) ;
-
-  size_t_vector min_unknown_index(3,0);
-  size_t_vector max_unknown_index(3,0);
-
-  // Vector for solid presence
-  size_t_array2D* void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-
-  for (size_t comp = 0; comp < nb_comps[1]; comp++) {
-     // Get local min and max indices
-     for (size_t dir = 0; dir < dim; dir++) {
-        if (is_periodic[1][dir]) {
-           min_unknown_index(dir) =
-                     UF->get_min_index_unknown_handled_by_proc( comp, dir ) - 1;
-           max_unknown_index(dir) =
-                     UF->get_max_index_unknown_handled_by_proc( comp, dir ) + 1;
-        } else {
-           min_unknown_index(dir) =
-                     UF->get_min_index_unknown_handled_by_proc( comp, dir );
-           max_unknown_index(dir) =
-                     UF->get_max_index_unknown_handled_by_proc( comp, dir );
-        }
-     }
-
-     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i) {
-        double xC = UF->get_DOF_coordinate( i, comp, 0 ) ;
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j) {
-           double yC = UF->get_DOF_coordinate( j, comp, 1 ) ;
-           for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k) {
-              double zC = (dim == 2) ? 0 : UF->get_DOF_coordinate( k, comp, 2 );
-              geomVector pt(xC,yC,zC);
-              size_t p = UF->DOF_local_number(i,j,k,comp);
-              if (void_frac->operator()(p,0) != 0) {
-                 size_t par_id = void_frac->operator()(p,0) - 1;
-                 geomVector rb_vel = allrigidbodies->rigid_body_velocity(par_id,pt);
-					  // geomVector rb_vel = allrigidbodies->rigid_body_GC_velocity(par_id);
-                 for (size_t level : list)
-                  UF->set_DOF_value( i, j, k, comp, level,rb_vel(comp));
-              }
-           }
-        }
-     }
-  }
 }
 
 

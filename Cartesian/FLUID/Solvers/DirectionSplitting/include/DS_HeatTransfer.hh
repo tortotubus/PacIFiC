@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+#include <DS_CommonMethods.hh>
 using namespace std;
 
 class MAC_Communicator ;
@@ -23,6 +24,7 @@ class LA_SeqVector ;
 class DS_HeatTransferSystem ;
 class LA_SeqMatrix ;
 class DS_AllRigidBodies ;
+class DS_CommonMethods ;
 
 /** @brief The Class DS_HeatTransfer.
 
@@ -218,9 +220,6 @@ class DS_HeatTransfer : public MAC_Object, public PAC_ComputingTime,
       /** @brief Call the appropriate functions to solve any particular direction in the other directions */
       void HeatEquation_DirectionSplittingSolver( FV_TimeIterator const* t_it ) ;
 
-      /** @brief Correct the fluxes and variables on the nodes due to presence of solid objects */
-      void nodes_temperature_initialization ( size_t const& level );
-
       /** @brief Compute advective term based on either Upwind or TVD spacial scheme */
       double compute_adv_component ( size_t const& comp
                                    , size_t const& i
@@ -352,6 +351,9 @@ class DS_HeatTransfer : public MAC_Object, public PAC_ComputingTime,
 
       // Grains3D variable
       DS_AllRigidBodies* allrigidbodies;
+
+      // Variable for common methods
+      DS_CommonMethods* commonMethods;
 } ;
 
 #endif

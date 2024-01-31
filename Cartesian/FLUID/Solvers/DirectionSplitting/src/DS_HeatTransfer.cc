@@ -133,6 +133,10 @@ DS_HeatTransfer:: DS_HeatTransfer( MAC_Object* a_owner,
    GLOBAL_EQ = DS_HeatTransferSystem::create( this, se, TF ) ;
    se->destroy() ;
 
+   // Create object to access common methods
+   commonMethods = new DS_CommonMethods(dim, allrigidbodies, macCOMM
+                                       , TF);
+
    // Timing routines
    if ( my_rank == is_master ) {
      SCT_insert_app("Matrix_Assembly&Initialization");
@@ -189,10 +193,10 @@ DS_HeatTransfer:: do_before_time_stepping( FV_TimeIterator const* t_it,
 	}
 
    if (is_solids) {
-      nodes_temperature_initialization(0);
-      nodes_temperature_initialization(1);
-      nodes_temperature_initialization(3);
-      if (dim == 3) nodes_temperature_initialization(4);
+      // Field initialization
+      vector<size_t> vec{0, 1, 3};
+      if (dim == 3) vec.push_back(4);
+      commonMethods->initialize_grid_nodes_on_rigidbody(TF, vec);
    }
 
    // Assemble 1D tridiagonal matrices and schur complement calculation
@@ -1838,62 +1842,6 @@ DS_HeatTransfer:: ugradu_initialization (  )
   }
 }
 
-//---------------------------------------------------------------------------
-void
-DS_HeatTransfer:: nodes_temperature_initialization ( size_t const& level )
-//---------------------------------------------------------------------------
-{
-  MAC_LABEL( "DS_HeatTransfer:: Solids_flux_correction" ) ;
-
-  size_t_vector min_unknown_index(dim,0);
-  size_t_vector max_unknown_index(dim,0);
-
-  // Vector for solid presence
-  size_t_array2D* void_frac = allrigidbodies->get_void_fraction_on_grid(TF);
-
-  for (size_t comp=0;comp<nb_comps;comp++) {
-     // Get local min and max indices
-     for (size_t l=0;l<dim;++l) {
-        if (is_iperiodic[l]) {
-           min_unknown_index(l) =
-			  				TF->get_min_index_unknown_handled_by_proc( comp, l ) - 1;
-           max_unknown_index(l) =
-			  				TF->get_max_index_unknown_handled_by_proc( comp, l ) + 1;
-        } else {
-           min_unknown_index(l) =
-			  				TF->get_min_index_unknown_handled_by_proc( comp, l );
-           max_unknown_index(l) =
-			  				TF->get_max_index_unknown_handled_by_proc( comp, l );
-        }
-     }
-
-     size_t local_min_k = 0;
-     size_t local_max_k = 0;
-
-     if (dim == 3) {
-        local_min_k = min_unknown_index(2);
-        local_max_k = max_unknown_index(2);
-     }
-
-     for (size_t i=min_unknown_index(0);i<=max_unknown_index(0);++i) {
-		  double xC = TF->get_DOF_coordinate( i, comp, 0 ) ;
-        for (size_t j=min_unknown_index(1);j<=max_unknown_index(1);++j) {
-			  double yC = TF->get_DOF_coordinate( j, comp, 1 ) ;
-           for (size_t k=local_min_k;k<=local_max_k;++k) {
-				  double zC = (dim == 2) ? 0 : TF->get_DOF_coordinate( k, comp, 2 );
-				  geomVector pt(xC,yC,zC);
-              size_t p = TF->DOF_local_number(i,j,k,comp);
-              if (void_frac->operator()(p,0) != 0) {
-                 size_t par_id = void_frac->operator()(p,0) - 1;
-					  geomVector Tpart = allrigidbodies->rigid_body_temperature(par_id,pt);
-                 TF->set_DOF_value( i, j, k, comp, level,Tpart(comp));
-              }
-           }
-        }
-     }
-  }
-}
-
 
 
 
@@ -1921,7 +1869,7 @@ DS_HeatTransfer:: HeatEquation_DirectionSplittingSolver ( FV_TimeIterator const*
   Solve_i_in_jk (t_it,gamma,0,1,2,3);
   // Synchronize the temperature field
   TF->synchronize( 3 );
-  if (is_solids) nodes_temperature_initialization(3);
+  if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(TF,{3});
   if ( my_rank == is_master ) SCT_get_elapsed_time("Solver x solution");
 
   size_t level = (dim == 2) ? 0 : 4 ;
@@ -1931,7 +1879,7 @@ DS_HeatTransfer:: HeatEquation_DirectionSplittingSolver ( FV_TimeIterator const*
   Solve_i_in_jk (t_it,gamma,1,0,2,level);
   // Synchronize the temperature field
   TF->synchronize( level );
-  if (is_solids) nodes_temperature_initialization(level);
+  if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(TF,{level});
   if ( my_rank == is_master ) SCT_get_elapsed_time("Solver y solution");
 
 
@@ -1941,7 +1889,7 @@ DS_HeatTransfer:: HeatEquation_DirectionSplittingSolver ( FV_TimeIterator const*
      Solve_i_in_jk (t_it,gamma,2,0,1,0);
      // Synchronize the temperature field
 	  TF->synchronize( 0 );
-     if (is_solids) nodes_temperature_initialization(0);
+     if (is_solids) commonMethods->initialize_grid_nodes_on_rigidbody(TF,{0});
 	  if ( my_rank == is_master ) SCT_get_elapsed_time("Solver z solution");
   }
 }
