@@ -24,6 +24,10 @@ meant to track the position and compute the stresses of an elasitc membrane.
   #define LUBR_FORCE 0
 #endif
 
+#ifndef LUBR_VEL
+  #define LUBR_VEL 0
+#endif
+
 /*Create the Index_lag*/
 scalar Index_lagnode[];
 vector Index_lag_id[];
@@ -156,6 +160,8 @@ when capsules are introduced during a simulation)
 
 typedef struct lagMesh {
   int cap_id;
+  double cap_es;
+  double cap_radius;
   int nln;
   lagNode* nodes;
   int nle;
@@ -174,7 +180,6 @@ typedef struct lagMesh {
   bool updated_normals;
   bool updated_curvatures;
   bool isactive;
-
 } lagMesh;
 
 /** We denote by ```NCAPS``` the number of Lagrangian meshes, or capsules, in
@@ -202,6 +207,8 @@ Capsules allCaps;
 ## Initialization, memory management and useful macros.
 */
 void initialize_empty_capsule(lagMesh* mesh) {
+  mesh->cap_es = 1.;
+  mesh->cap_radius = 1.;
   mesh->cap_id = -1;
   mesh->nln = 0;
   mesh->nle = 0;
@@ -438,6 +445,7 @@ void repulsive_vel()
     double delta = (L0/(1 << grid->maxdepth));
   #endif
 
+  
   /*The value of K_lub is up to the */
   // double K_lub = 0.001/(E_S);
 
@@ -456,7 +464,7 @@ void repulsive_vel()
           double K_lub = 0.;
           foreach_dimension()
             K_lub += sq(mesh->nodes[lagnode_id].lagVel.x);
-          K_lub = sqrt(K_lub); //half the velocity as coefficient
+          K_lub = sqrt(K_lub)*0.25; //half the velocity as coefficient
 
           if(point.level>-1)
           {        
@@ -488,6 +496,7 @@ void repulsive_vel()
               }
             /** The velocity of the node is adjusted as the repulsive effect applies. */
             foreach_dimension() mesh->nodes[lagnode_id].lagVel.x += 0.5*lub_vel.x; 
+      
             
             /*A special case where the two nodes from different caps lie in the same cell, we push the node of the other capsule as well */
             if(((int)Index_lagnode[] > -1) && ((int)Index_lag_id.y[] > -1) && ((mesh->cap_id) != (int)Index_lag_id.y[]))
@@ -534,9 +543,11 @@ event tracer_advection(i++) {
 
  
   /*We synchronize the eul field and make sure that it is updated before applying repulsive velocity */
+  
+#if (LUBR_VEL==1)
   synchronize({Index_lagnode, Index_lag_id}); 
   repulsive_vel();
-
+#endif 
   /**
   In case of parallel simulations, we communicate the Lagrangian velocity
   so that all processes have the same Lagrangian velocities.

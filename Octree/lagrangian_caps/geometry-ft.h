@@ -283,7 +283,7 @@ coord* rs, double* TDmaxmin, double* TDang)
     double R = (2*A*A*A - 9*A*B + 27*C) / 54;
     double D = Q*Q*Q - R*R;
 
-    if(D < 0) fprintf(stderr, "No roots found for inertia equivalent ellipsoid!\n");
+    if((D < 0) && (t > dt)) fprintf(stderr, "No roots found for inertia equivalent ellipsoid!\n");
     // Normal Case: Three real roots
     double theta = acos(R / sqrt(Q*Q*Q));
     double r = -2 * sqrt(Q);

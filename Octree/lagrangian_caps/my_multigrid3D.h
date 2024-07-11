@@ -39,21 +39,21 @@ typedef struct {
 
 #define BSIZE 128
 
-static void cache_level_append (CacheLevel * c, Point p)
-{
-  if (c->n >= c->nm) {
-    c->nm += BSIZE;
-    qrealloc (c->p, c->nm, IndexLevel);
-  }
-  c->p[c->n].i = p.i;
-#if dimension >= 2
-  c->p[c->n].j = p.j;
-#endif
-#if dimension >= 3
-  c->p[c->n].k = p.k;
-#endif
-  c->n++;
-}
+// static void cache_level_append (CacheLevel * c, Point p)
+// {
+//   if (c->n >= c->nm) {
+//     c->nm += BSIZE;
+//     qrealloc (c->p, c->nm, IndexLevel);
+//   }
+//   c->p[c->n].i = p.i;
+// #if dimension >= 2
+//   c->p[c->n].j = p.j;
+// #endif
+// #if dimension >= 3
+//   c->p[c->n].k = p.k;
+// #endif
+//   c->n++;
+// }
 
 static void cache_level_shrink (CacheLevel * c)
 {
@@ -160,11 +160,11 @@ void cache_shrink (Cache * c)
 @define end_foreach_cache_level() } } }
 
 
-static void free_cache (CacheLevel * c)
-{
-  for (int l = 0; l <= depth(); l++)
-    free (c[l].p);
-  free (c);
-}
+// static void free_cache (CacheLevel * c)
+// {
+//   for (int l = 0; l <= depth(); l++)
+//     free (c[l].p);
+//   free (c);
+// }
 
 

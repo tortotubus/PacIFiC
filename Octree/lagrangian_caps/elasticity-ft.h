@@ -15,8 +15,8 @@ method introduced by [Charrier et al.](#charrier1989free).
   #ifndef E_S
     #define E_S 1.
   #endif
-  #define DWDL1(L1, L2) (E_S/(3.*L1)*(sq(L1) - 1./(sq(L1*L2))))
-  #define DWDL2(L1, L2) (E_S/(3.*L2)*(sq(L2) - 1./(sq(L1*L2))))
+  #define DWDL1(L1, L2, Es) (Es/(3.*L1)*(sq(L1) - 1./(sq(L1*L2))))
+  #define DWDL2(L1, L2, Es) (Es/(3.*L2)*(sq(L2) - 1./(sq(L1*L2))))
 #endif
 
 /**
@@ -138,7 +138,7 @@ void comp_elastic_stress(lagMesh* mesh) {
       double stretch_cube =
         cube(mesh->edges[edge_id].length/mesh->edges[edge_id].l0);
       double tension_norm = (fabs(stretch_cube) > 1.e-10) ?
-        E_S*(stretch_cube - 1.)/sqrt(stretch_cube) : 0.;
+        mesh->cap_es*(stretch_cube - 1.)/sqrt(stretch_cube) : 0.;
       /** We compute the direction vector $e$ for the tension */
       edge_node1 = mesh->edges[edge_id].node_ids[0];
       edge_node2 = mesh->edges[edge_id].node_ids[1];
@@ -222,8 +222,8 @@ void comp_elastic_stress(lagMesh* mesh) {
 
     /** Below we add the stretch and stress  */
     double t1, t2;
-    t1 = DWDL1(lambda[0], lambda[1])/lambda[1];
-    t2 = DWDL2(lambda[0], lambda[1])/lambda[0];
+    t1 = DWDL1(lambda[0], lambda[1], mesh->cap_es)/lambda[1];
+    t2 = DWDL2(lambda[0], lambda[1], mesh->cap_es)/lambda[0];
     mesh->triangles[i].tension[0] = t1;
     mesh->triangles[i].tension[1] = t2;
     mesh->triangles[i].stretch[0] = lambda[0];
@@ -262,10 +262,11 @@ void comp_elastic_stress(lagMesh* mesh) {
       \frac{\partial W}{\partial \lambda_2}
       \frac{\partial \lambda_2}{\partial \bm{v_j}} $$*/
       coord fj;
-      fj.x = DWDL1(lambda[0], lambda[1])*dldv[0][0] +
-        DWDL2(lambda[0], lambda[1])*dldv[1][0];
-      fj.y = DWDL1(lambda[0], lambda[1])*dldv[0][1] +
-        DWDL2(lambda[0], lambda[1])*dldv[1][1];
+      fj.x = DWDL1(lambda[0], lambda[1], mesh->cap_es)*dldv[0][0] +
+        DWDL2(lambda[0], lambda[1], mesh->cap_es)*dldv[1][0];
+      fj.y = DWDL1(lambda[0], lambda[1], mesh->cap_es)*dldv[0][1] +
+        DWDL2(lambda[0], lambda[1], mesh->cap_es)*dldv[1][1];
+     
 
       /** 5.3 Rotate the force in the common plane to the current plane:
       $\bm{f_j} = \bm{R^T} \bm{f_j}^P$ */

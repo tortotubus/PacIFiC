@@ -20,7 +20,7 @@
 #if GLOBAL_REF_CURV
   #ifndef C0
   /** $c_0/a = -2.09$ is the typical reference curvature of a red blood cell. */
-    #define C0 (-2.09/RADIUS)
+    // #define C0 (-2.09/RADIUS)
   #endif
 #endif
 #ifndef LINEAR_BENDING
@@ -48,7 +48,10 @@ compute_proc_borders(&proc_max, &proc_min);
             double gcurv = mesh->nodes[j].gcurv;
           #endif
           double lbcurv = laplace_beltrami(mesh, j, true);
-          double bending_surface_force = 2*E_B*(lbcurv
+          // E_B=(ND_EB*E_S*sq(RADIUS))
+          double Eb = ND_EB * mesh->cap_es * sq(mesh->cap_radius);
+          // printf("ND_EB: %g, Eb: %lf, es: %g, radius: %g\n", ND_EB, Eb, mesh->cap_es, mesh->cap_radius);
+          double bending_surface_force = 2*Eb*(lbcurv
             #if (!LINEAR_BENDING)
               + 2*(curv - rcurv)*(sq(curv) - gcurv + rcurv*curv)
             #endif

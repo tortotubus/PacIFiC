@@ -159,6 +159,13 @@ void pv_output_ascii(int pv_timestep) {
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[1]);
     }
     fprintf(file, "\n");
+    fprintf(file, "SCALARS Radius double 1 \n");
+    fprintf(file, "LOOKUP_TABLE default\n");
+    for(int j=0; j<NCAPS; j++) {
+      for(int k=0; k<CAPS(j).nlt; k++)
+        fprintf(file, "%g ", CAPS(j).cap_radius);
+    }
+    fprintf(file, "\n");
     fclose(file);
   }
   pv_timestep++;
@@ -253,4 +260,173 @@ void output_caps_node_tri()
       dump_plain_nodes_pos(&CAPS(k), fposname);
       dump_plain_triangles(&CAPS(k), ftriname);
     }
+}
+
+
+
+
+
+
+void output_physics(int cap_number, int iter) {
+
+double top_visc_stress = 0;
+  int top_nb_cells = 0;
+  foreach_boundary(top, reduction(+:top_visc_stress) reduction(+:top_nb_cells)) {
+    top_nb_cells++;
+    top_visc_stress += (u.x[0, 1] - u.x[])*Delta +
+      (u.y[1] - u.y[-1])*.5*Delta;
+  }
+  top_visc_stress *= MU/(sq(L0));
+
+  double bottom_visc_stress = 0;
+  int bottom_nb_cells = 0;
+  foreach_boundary(bottom, reduction(+:bottom_visc_stress) reduction(+:bottom_nb_cells)) {
+    bottom_nb_cells++;
+    bottom_visc_stress += (u.x[0, 1] - u.x[])*Delta +
+      (u.y[1] - u.y[-1])*.5*Delta;
+  }
+  bottom_visc_stress *= MU/(sq(L0));
+
+  double fluid_visc_stress = (top_visc_stress + bottom_visc_stress) / 2.;
+
+ 
+
+////////////////////////////////////// Particle Stresslet
+
+  double* send_stress_pack = (double*)calloc(1*4, sizeof(double));
+  double* recv_stress_pack = (double*)calloc(1*4, sizeof(double));
+
+  double pN1 = 0.;
+  double pN2 = 0.;
+  double pmu = 0.;
+  double ppres = 0.;
+
+  int k = cap_number;
+
+    double sigmaxy = 0.;
+    double sigmaxx = 0.;
+    double sigmayy = 0.;
+    double sigmazz = 0.;
+
+    Point point = locate(CAPS(k).centroid.x, CAPS(k).centroid.y, CAPS(k).centroid.z);
+
+    if(point.level > -1)
+    {
+
+	for(int i=0; i<CAPS(k).nln; i++) 
+	{
+	double rx, ry, rz;
+        rx = CAPS(k).centroid.x + GENERAL_1DIST(CAPS(k).nodes[i].pos.x, CAPS(k).centroid.x);
+        ry = CAPS(k).centroid.y + GENERAL_1DIST(CAPS(k).nodes[i].pos.y, CAPS(k).centroid.y);
+        rz = CAPS(k).centroid.z + GENERAL_1DIST(CAPS(k).nodes[i].pos.z, CAPS(k).centroid.z);
+
+	#ifndef CAPS_VISCOSITY
+	sigmaxx += - CAPS(k).nodes[i].lagForce.x * rx;
+	sigmayy += - CAPS(k).nodes[i].lagForce.y * ry;
+	sigmazz += - CAPS(k).nodes[i].lagForce.z * rz;
+	sigmaxy += - (CAPS(k).nodes[i].lagForce.x * ry + CAPS(k).nodes[i].lagForce.y * rx) / 2.;
+	#else 
+	
+  double visc_ratio = 1.;
+	double nodal_area = 1.;
+
+  visc_ratio = 1./MUP * MUC;
+          /** We now have to compute the area associated with each node */
+        nodal_area = compute_node_area(&(CAPS(k)), i);
+        
+	sigmaxx += - CAPS(k).nodes[i].lagForce.x * rx + 2.*MU*(visc_ratio - 1)*(CAPS(k).nodes[i].lagVel.x*CAPS(k).nodes[i].normal.x)*nodal_area;
+	sigmayy += - CAPS(k).nodes[i].lagForce.y * ry + 2.*MU*(visc_ratio - 1)*(CAPS(k).nodes[i].lagVel.y*CAPS(k).nodes[i].normal.y)*nodal_area;
+	sigmazz += - CAPS(k).nodes[i].lagForce.z * rz + 2.*MU*(visc_ratio - 1)*(CAPS(k).nodes[i].lagVel.z*CAPS(k).nodes[i].normal.z)*nodal_area;
+	sigmaxy += - (CAPS(k).nodes[i].lagForce.x * ry + CAPS(k).nodes[i].lagForce.y * rx) / 2. 
+	           + MU*(visc_ratio - 1)*(CAPS(k).nodes[i].lagVel.x*CAPS(k).nodes[i].normal.y + CAPS(k).nodes[i].lagVel.y*CAPS(k).nodes[i].normal.x)*nodal_area;
+	#endif	
+
+	}
+
+    pN1 = (sigmaxx - sigmayy);
+    pN2 = (sigmayy - sigmazz);
+    pmu = sigmaxy;
+    ppres = -(sigmaxx + sigmayy + sigmazz)/3.;
+
+    send_stress_pack[0*4] = pN1;
+    send_stress_pack[0*4 + 1] = pN2;
+    send_stress_pack[0*4 + 2] = pmu;
+    send_stress_pack[0*4 + 3] = ppres;
+    }
+
+  pN1 = 0.;
+  pN2 = 0.;
+  pmu = 0.;
+  ppres = 0.;
+ 
+
+MPI_Reduce(send_stress_pack, recv_stress_pack, 4*1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+if (pid() == 0) 
+{
+    pN1 = 0.;
+    pN2 = 0.;
+    pmu = 0.;
+    ppres = 0.;
+
+  //  for(int k = 0; k < NCAPS; k++)
+  //  {
+	pN1 += recv_stress_pack[0*4];
+	pN2 += recv_stress_pack[0*4 + 1];
+	pmu += recv_stress_pack[0*4 + 2];
+	ppres += recv_stress_pack[0*4 + 3];
+  //  }
+
+}
+free(send_stress_pack);
+free(recv_stress_pack);
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+
+  if (pid() == 0) 
+  {
+    double cap_area = 0;
+    double cap_volume = 0;
+    cap_volume += CAPS(cap_number).volume/CAPS(cap_number).initial_volume;
+    for(int i=0; i<CAPS(cap_number).nlt; i++) cap_area += CAPS(cap_number).triangles[i].area/(4*pi*sq(CAPS(cap_number).cap_radius)); 
+
+  /*Compute average Taylor deformation and angular velocity*/
+    double TDmaxmin = 0;
+    double TDang = 0;
+    double taylor_deform = 0;
+    double inclin_angle = 0;
+    double ang_vel = 0;
+    coord rs = {0., 0., 0.};
+    coord centers = {0., 0., 0.};
+    compute_taylor_factor(&CAPS(cap_number), &taylor_deform, &inclin_angle, &rs, &TDmaxmin, &TDang);
+    ang_vel = CAPS(cap_number).ang_vel.z;
+    foreach_dimension() 
+    {
+      rs.x = rs.x/CAPS(cap_number).cap_radius;
+      centers.x = CAPS(cap_number).centroid.x / CAPS(cap_number).cap_radius;
+    } 
+
+  
+    char name[128];
+    char default_name[30];
+    sprintf(default_name, "%s", result_dir );
+    strcat(default_name, "/" );
+    strcat(default_name, "Individual_outputs\0" );
+    // char* prefix = p.name ? p.name : default_name;
+    char* prefix = default_name;
+    char suffix[64];
+    sprintf(suffix, "_cap%d.txt", cap_number);
+    sprintf(name, "%s%s", prefix, suffix);
+    FILE* foutput_physics = fopen(name, "a+");
+    assert(foutput_physics);
+
+    fprintf(foutput_physics, "%d %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n", iter, t, 
+      fluid_visc_stress, ppres, pmu, pN1, pN2, taylor_deform, inclin_angle, TDmaxmin, TDang,
+      rs.x, rs.y, rs.z, ang_vel, cap_area, cap_volume, centers.x, centers.y, centers.z);
+    fflush(foutput_physics);
+
+    fclose(foutput_physics);
+  }
+   
 }

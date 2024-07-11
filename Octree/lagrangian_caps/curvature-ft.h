@@ -328,8 +328,12 @@ void initialize_refcurv_onecaps(lagMesh* mesh) {
   #endif
   for(int j=0; j<mesh->nln; j++) {
     #if (REF_CURV)
-      #if GLOBAL_REF_CURV
-        mesh->nodes[j].ref_curv = C0;
+      #if GLOBAL_REF_CURV    
+
+        /** $c_0/a = -2.09$ is the typical reference curvature of a red blood cell. */
+        double C0_ref = -2.09/mesh->cap_radius;
+      
+        mesh->nodes[j].ref_curv = C0_ref;
       #else
         mesh->nodes[j].ref_curv = mesh->nodes[j].curv;
       #endif
