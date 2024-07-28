@@ -13,74 +13,74 @@
 #define MAX_POSITIONING_ATTEMPTS 1.e+6
 
 
-bool no_intersection(lagMesh* caps, int k) {
-  bool no_intersection = true;
-  for(int i=0; i<k; i++) {
-    foreach_dimension() {
-      if (fabs(GENERAL_SQNORM(caps[i].centroid, caps[k].centroid)) < sq(2*caps[k].cap_radius
-        + MIN_INITIAL_GAP)) {
-        no_intersection = false;
-        break;
-      }
-    }
-  }
-  return no_intersection;
-}
+// bool no_intersection(lagMesh* caps, int k) {
+//   bool no_intersection = true;
+//   for(int i=0; i<k; i++) {
+//     foreach_dimension() {
+//       if (fabs(GENERAL_SQNORM(caps[i].centroid, caps[k].centroid)) < sq(2*caps[k].cap_radius
+//         + MIN_INITIAL_GAP)) {
+//         no_intersection = false;
+//         break;
+//       }
+//     }
+//   }
+//   return no_intersection;
+// }
 
 
-void generate_random_capsules()
-{
+// void generate_random_capsules()
+// {
 
-  if (pid() == 0) {
-    for(int k=0; k<NCAPS; k++) {
-      bool keep_drawing_positions = true;
-      int nb_attempts = 0;
-      while (keep_drawing_positions && nb_attempts < MAX_POSITIONING_ATTEMPTS) {
-        CAPS(k).centroid.x = rand_pos(CAPS(k).cap_radius);
-        CAPS(k).centroid.y = rand_pos(CAPS(k).cap_radius);
-        CAPS(k).centroid.z = rand_pos(CAPS(k).cap_radius);
-        if (no_intersection(allCaps.caps, k)) {
-          for(int i=0; i<CAPS(k).nln; i++)
-            foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
-          keep_drawing_positions = false;
-          fprintf(stderr, "Number of attempts to insert capsule %d: %d\n", k,
-            nb_attempts+1);
-        }
-        nb_attempts++;
-      }
-      if (nb_attempts == MAX_POSITIONING_ATTEMPTS) {
-        fprintf(stderr, "Error: max number of attempts to insert capsule \
-          %d reached.\n", k);
-        assert(false); //ggd
-      }
-    }
-  }
-  #if _MPI
-    /** We now inform all the other processors of the positions of the capsules */
-    double centroids[3*NCAPS];
-    if (pid() == 0) {
-      for(int k=0; k<NCAPS; k++) {
-        centroids[3*k] = CAPS(k).centroid.x;
-        centroids[3*k+1] = CAPS(k).centroid.y;
-        centroids[3*k+2] = CAPS(k).centroid.z;
-      }
-    }
-    MPI_Bcast(centroids, 3*NCAPS, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    if (pid() > 0) {
-      for(int k=0; k<NCAPS; k++) {
-        CAPS(k).centroid.x = centroids[3*k];
-        CAPS(k).centroid.y = centroids[3*k+1];
-        CAPS(k).centroid.z = centroids[3*k+2];
-        for(int i=0; i<CAPS(k).nln; i++)
-          foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
-      }
-    }
-  #endif
+//   if (pid() == 0) {
+//     for(int k=0; k<NCAPS; k++) {
+//       bool keep_drawing_positions = true;
+//       int nb_attempts = 0;
+//       while (keep_drawing_positions && nb_attempts < MAX_POSITIONING_ATTEMPTS) {
+//         CAPS(k).centroid.x = rand_pos(CAPS(k).cap_radius);
+//         CAPS(k).centroid.y = rand_pos(CAPS(k).cap_radius);
+//         CAPS(k).centroid.z = rand_pos(CAPS(k).cap_radius);
+//         if (no_intersection(allCaps.caps, k)) {
+//           for(int i=0; i<CAPS(k).nln; i++)
+//             foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
+//           keep_drawing_positions = false;
+//           fprintf(stderr, "Number of attempts to insert capsule %d: %d\n", k,
+//             nb_attempts+1);
+//         }
+//         nb_attempts++;
+//       }
+//       if (nb_attempts == MAX_POSITIONING_ATTEMPTS) {
+//         fprintf(stderr, "Error: max number of attempts to insert capsule \
+//           %d reached.\n", k);
+//         assert(false); //ggd
+//       }
+//     }
+//   }
+//   #if _MPI
+//     /** We now inform all the other processors of the positions of the capsules */
+//     double centroids[3*NCAPS];
+//     if (pid() == 0) {
+//       for(int k=0; k<NCAPS; k++) {
+//         centroids[3*k] = CAPS(k).centroid.x;
+//         centroids[3*k+1] = CAPS(k).centroid.y;
+//         centroids[3*k+2] = CAPS(k).centroid.z;
+//       }
+//     }
+//     MPI_Bcast(centroids, 3*NCAPS, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+//     if (pid() > 0) {
+//       for(int k=0; k<NCAPS; k++) {
+//         CAPS(k).centroid.x = centroids[3*k];
+//         CAPS(k).centroid.y = centroids[3*k+1];
+//         CAPS(k).centroid.z = centroids[3*k+2];
+//         for(int i=0; i<CAPS(k).nln; i++)
+//           foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
+//       }
+//     }
+//   #endif
 
-  /** We generate stencils for the capsules **/
-  for(int k=0; k<NCAPS; k++) correct_lag_pos(&CAPS(k));
-    generate_lag_stencils(no_warning = true);
-}
+//   /** We generate stencils for the capsules **/
+//   for(int k=0; k<NCAPS; k++) correct_lag_pos(&CAPS(k));
+//     generate_lag_stencils(no_warning = true);
+// }
 
 
 void generate_capsules_from_input()

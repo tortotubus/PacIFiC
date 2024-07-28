@@ -404,7 +404,7 @@ free(recv_stress_pack);
     foreach_dimension() 
     {
       rs.x = rs.x/CAPS(cap_number).cap_radius;
-      centers.x = CAPS(cap_number).centroid.x / CAPS(cap_number).cap_radius;
+      centers.x = CAPS(cap_number).centroid.x;
     } 
 
   
