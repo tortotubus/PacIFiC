@@ -104,6 +104,7 @@ void restore_triangle(FILE* fp, Triangle* triangle) {
 
 void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   fwrite(&(mesh->cap_id), sizeof(int), 1, fp);
+  fwrite(&(mesh->cap_type), sizeof(int), 1, fp);
   fwrite(&(mesh->cap_es), sizeof(double), 1, fp);
   fwrite(&(mesh->cap_radius), sizeof(double), 1, fp);
   fwrite(&(mesh->nln), sizeof(int), 1, fp);
@@ -128,6 +129,7 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
 
 void restore_lagmesh(FILE* fp, lagMesh* mesh) {
   fread(&(mesh->cap_id), sizeof(int), 1, fp);
+  fread(&(mesh->cap_type), sizeof(int), 1, fp);
   fread(&(mesh->cap_es), sizeof(double), 1, fp);
   fread(&(mesh->cap_radius), sizeof(double), 1, fp);
   fread(&(mesh->nln), sizeof(int), 1, fp);

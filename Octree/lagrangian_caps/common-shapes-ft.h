@@ -15,6 +15,7 @@
 struct _initialize_circular_capsule {
   lagMesh* mesh;
   int cap_id;
+  int cap_type;
   double cap_radius;
   double cap_es;
   // double radius;
@@ -462,6 +463,7 @@ void activate_spherical_capsule(struct _initialize_circular_capsule p) {
   p.mesh->cap_es = p.cap_es;
   p.mesh->cap_radius = p.cap_radius;
   p.mesh->cap_id = p.cap_id;
+  p.mesh->cap_type = p.cap_type;
   p.mesh->isactive = true;
   initialize_spherical_capsule(p);
   initialize_capsule_stencils(p.mesh);
@@ -477,6 +479,7 @@ void activate_spherical_capsule(struct _initialize_circular_capsule p) {
 void activate_biconcave_capsule(struct _initialize_circular_capsule p) {
   initialize_empty_capsule(p.mesh);
   p.mesh->cap_id = p.cap_id;
+  p.mesh->cap_type = p.cap_type;
   p.mesh->cap_es = p.cap_es;
   p.mesh->cap_radius = p.cap_radius;
   p.mesh->isactive = true;

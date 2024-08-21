@@ -160,6 +160,7 @@ when capsules are introduced during a simulation)
 
 typedef struct lagMesh {
   int cap_id;
+  int cap_type;
   double cap_es;
   double cap_radius;
   int nln;
@@ -210,6 +211,7 @@ void initialize_empty_capsule(lagMesh* mesh) {
   mesh->cap_es = 1.;
   mesh->cap_radius = 1.;
   mesh->cap_id = -1;
+  mesh->cap_type = -1;
   mesh->nln = 0;
   mesh->nle = 0;
   mesh->nodes = NULL;
@@ -274,8 +276,9 @@ void initialize_all_capsules_stencils() {
       initialize_capsule_stencils(&CAPS(i));
 }
 
-void initialize_active_capsule(lagMesh* mesh, int cap_id) {
+void initialize_active_capsule(lagMesh* mesh, int cap_id, int cap_type) {
   initialize_empty_capsule(mesh);
+  mesh->cap_type = cap_type;
   mesh->cap_id = cap_id;
   mesh->isactive = true;
   initialize_capsule_stencils(mesh);
