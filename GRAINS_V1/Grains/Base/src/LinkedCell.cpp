@@ -53,46 +53,46 @@ size_t LinkedCell::set( double cellsize_, string const& oshift )
   {
     m_domain_global_origin[Z] = - EPSILON;
     m_domain_local_origin[Z] = - EPSILON; 
-    m_domain_global_size_Z = 2. * EPSILON;
-    m_domain_local_size_Z = 2. * EPSILON;
+    m_domain_global_size[Z] = 2. * EPSILON;
+    m_domain_local_size[Z] = 2. * EPSILON;
     m_domain_global_periodicity[Z] = false;
   }
   
   m_LC_global_origin = m_domain_global_origin;
   m_LC_global_max = m_domain_global_origin;
-  m_LC_global_max[X] += m_domain_global_size_X;
-  m_LC_global_max[Y] += m_domain_global_size_Y;  
-  m_LC_global_max[Z] += m_domain_global_size_Z;  
+  m_LC_global_max[X] += m_domain_global_size[X];
+  m_LC_global_max[Y] += m_domain_global_size[Y];  
+  m_LC_global_max[Z] += m_domain_global_size[Z];  
   m_LC_local_origin = m_domain_local_origin;
 
   // Number of cells and cell edge length in each direction and
   // Default is 1 unique cell if cellsize_ is zero
   if ( cellsize_ > EPSILON )
   {
-    m_nbi = (int)( ( App::m_domain_local_size_X + EPSILON ) / cellsize_ );
+    m_nbi = (int)( ( App::m_domain_local_size[X] + EPSILON ) / cellsize_ );
     if ( !m_nbi ) m_nbi = 1;
-    m_cellsize_X = App::m_domain_local_size_X / m_nbi ;
-    m_nbj = (int)( ( App::m_domain_local_size_Y + EPSILON ) / cellsize_ );
+    m_cellsize_X = App::m_domain_local_size[X] / m_nbi ;
+    m_nbj = (int)( ( App::m_domain_local_size[Y] + EPSILON ) / cellsize_ );
     if ( !m_nbj ) m_nbj = 1;    
-    m_cellsize_Y = App::m_domain_local_size_Y / m_nbj ;
+    m_cellsize_Y = App::m_domain_local_size[Y] / m_nbj ;
     if ( GrainsBuilderFactory::getContext() == DIM_2 )
     {
       m_nbk = 1;
-      m_cellsize_Z = App::m_domain_local_size_Z;
+      m_cellsize_Z = App::m_domain_local_size[Z];
     }
     else
     {
-      m_nbk = (int)( ( App::m_domain_local_size_Z + EPSILON ) / cellsize_);
+      m_nbk = (int)( ( App::m_domain_local_size[Z] + EPSILON ) / cellsize_);
       if ( !m_nbk ) m_nbk = 1;
-      m_cellsize_Z = App::m_domain_local_size_Z / m_nbk ;
+      m_cellsize_Z = App::m_domain_local_size[Z] / m_nbk ;
     }
   }
   else  
   {
     m_nbi = m_nbj = m_nbk = 1;
-    m_cellsize_X = App::m_domain_local_size_X;
-    m_cellsize_Y = App::m_domain_local_size_Y;    
-    m_cellsize_Z = App::m_domain_local_size_Z;
+    m_cellsize_X = App::m_domain_local_size[X];
+    m_cellsize_Y = App::m_domain_local_size[Y];    
+    m_cellsize_Z = App::m_domain_local_size[Z];
   }
   
   // Periodicity
@@ -434,46 +434,46 @@ size_t LinkedCell::set( double cellsize_, int const* nprocsdir,
   {
     m_domain_global_origin[Z] = - EPSILON;
     m_domain_local_origin[Z] = - EPSILON; 
-    m_domain_global_size_Z = 2. * EPSILON;
-    m_domain_local_size_Z = 2. * EPSILON;
+    m_domain_global_size[Z] = 2. * EPSILON;
+    m_domain_local_size[Z] = 2. * EPSILON;
     m_domain_global_periodicity[Z] = false;
   }
 
   m_LC_global_origin = m_domain_global_origin;
   m_LC_global_max = m_domain_global_origin;
-  m_LC_global_max[X] += m_domain_global_size_X;
-  m_LC_global_max[Y] += m_domain_global_size_Y;  
-  m_LC_global_max[Z] += m_domain_global_size_Z;  
+  m_LC_global_max[X] += m_domain_global_size[X];
+  m_LC_global_max[Y] += m_domain_global_size[Y];  
+  m_LC_global_max[Z] += m_domain_global_size[Z];  
   m_LC_local_origin = m_domain_local_origin;
 
   // Number of cells and cell edge length in each direction and
   // Default is 1 unique cell if cellsize_ is zero
   if ( cellsize_ > EPSILON )
   {
-    m_nbi = (int)( ( App::m_domain_local_size_X + EPSILON ) / cellsize_);
+    m_nbi = (int)( ( App::m_domain_local_size[X] + EPSILON ) / cellsize_);
     if ( !m_nbi ) m_nbi = 1;
-    m_cellsize_X = App::m_domain_local_size_X / m_nbi ;
-    m_nbj = (int)( ( App::m_domain_local_size_Y + EPSILON ) / cellsize_);
+    m_cellsize_X = App::m_domain_local_size[X] / m_nbi ;
+    m_nbj = (int)( ( App::m_domain_local_size[Y] + EPSILON ) / cellsize_);
     if ( !m_nbj ) m_nbj = 1;
-    m_cellsize_Y = App::m_domain_local_size_Y / m_nbj ;
+    m_cellsize_Y = App::m_domain_local_size[Y] / m_nbj ;
     if ( GrainsBuilderFactory::getContext() == DIM_2 )
     {
       m_nbk = 1;
-      m_cellsize_Z = App::m_domain_local_size_Z;
+      m_cellsize_Z = App::m_domain_local_size[Z];
     } 
     else
     {
-      m_nbk = (int)( ( App::m_domain_local_size_Z + EPSILON ) / cellsize_);
+      m_nbk = (int)( ( App::m_domain_local_size[Z] + EPSILON ) / cellsize_);
       if ( !m_nbk ) m_nbk = 1;
-      m_cellsize_Z = App::m_domain_local_size_Z / m_nbk ;    
+      m_cellsize_Z = App::m_domain_local_size[Z] / m_nbk ;    
     }   
   }
   else  
   {
     m_nbi = m_nbj = m_nbk = 1;
-    m_cellsize_X = App::m_domain_local_size_X;
-    m_cellsize_Y = App::m_domain_local_size_Y;    
-    m_cellsize_Z = App::m_domain_local_size_Z;
+    m_cellsize_X = App::m_domain_local_size[X];
+    m_cellsize_Y = App::m_domain_local_size[Y];    
+    m_cellsize_Z = App::m_domain_local_size[Z];
   }
 
   // Add cells in clone zones
@@ -1334,12 +1334,13 @@ void LinkedCell::Link( Obstacle* root_obstacle )
   Transform cellPosition;
   double alpha = 2.;
   Point3 const* cg = NULL;
+  Point3 obscg;
   bool add = false;
 
   for (myObs=m_allSimpleObstacles.begin();myObs!=m_allSimpleObstacles.end();
   	myObs++)
   {
-    RigidBody const* obstacleRigidBody = (*myObs)->getRigidBody();
+    RigidBodyWithCrust* obstacleRBWC = (*myObs)->getRigidBody();
     BBox const* obstacleBBox = (*myObs)->getObstacleBox();
     Vector3 cellBoxExtension( 0.5 * alpha * m_cellsize_X, 
     	0.5 * alpha * m_cellsize_Y,
@@ -1347,7 +1348,8 @@ void LinkedCell::Link( Obstacle* root_obstacle )
     Convex* cellBox = new Box( 2. * cellBoxExtension[X], 
     	2. * cellBoxExtension[Y],
     	2. * cellBoxExtension[Z] );
-    RigidBody cellBoxRigidBody( cellBox, cellPosition );
+    RigidBodyWithCrust cellBoxRBWC( cellBox, cellPosition, false,
+    	(*myObs)->getCrustThickness() );
 
     // Intersection of the cell with the obstacle
     for (int i=0; i<m_nb; i++)
@@ -1361,8 +1363,9 @@ void LinkedCell::Link( Obstacle* root_obstacle )
         if ( (*myObs)->isSTLObstacle() ) add = true; // Temporary, TO DO
 	else 
 	{
-	  cellBoxRigidBody.setOrigin( (*cg)[X], (*cg)[Y], (*cg)[Z] );
-	  add = cellBoxRigidBody.isContact( *obstacleRigidBody );	
+	  cellBoxRBWC.setOrigin( (*cg)[X], (*cg)[Y], (*cg)[Z] );
+	  cellBoxRBWC.initialize_transformWithCrust_to_notComputed();
+	  add = cellBoxRBWC.isContact( *obstacleRBWC );
 	}
 	
 	if ( add )
@@ -1373,9 +1376,9 @@ void LinkedCell::Link( Obstacle* root_obstacle )
       }
     }
 
-    // Rem: we do not explicitly destroy the convex convexCell because the
-    // destructor of CelRigidBody, object of type RigidBody, takes care of it
-    // (cf RigidBody.cpp)
+    // Rem: we do not explicitly destroy the convex cellBox because the
+    // destructor of cellBoxRBWC, object of type RigidBodyWithCrust, takes care
+    // of it (cf RigidBodyWithCrust.cpp)
   }
 }
 
@@ -1637,7 +1640,7 @@ void LinkedCell::DestroyOutOfDomainClones( double time,
       if ( GrainsExec::m_MPI_verbose )
       {
         ostringstream oss;
-        oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT ) <<
+        oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
       		" Destroy clone               Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -1847,6 +1850,8 @@ pair<bool,bool> LinkedCell::insertParticleParallel( double time,
     geoloc = GeoPosition( wrapper->Broadcast_INT( int(geoloc), source ) );
     
     // Loop over the domain periodic vectors for this geographic position
+    if ( !force_insertion )
+    {
     for ( size_t i=0;i<m_periodic_vector_indices[geoloc].size() &&
 	!contact;++i)
     {
@@ -1864,6 +1869,7 @@ pair<bool,bool> LinkedCell::insertParticleParallel( double time,
 		m_periodic_vector_indices[geoloc][i]] );
     }    
     contact = wrapper->max_INT( contact ); 
+    }
     if ( contact ) insert.second = true;
     
     // If no contact for periodic clones, create them in local domains
@@ -1884,7 +1890,7 @@ pair<bool,bool> LinkedCell::insertParticleParallel( double time,
           if ( GrainsExec::m_MPI_verbose )
           {
             ostringstream oss;
-            oss << "   t=" << GrainsExec::doubleToString(time,TIMEFORMAT)
+            oss << "   t=" << GrainsExec::doubleToString(time,FORMAT10DIGITS)
 		<< " Create Clone                Id = " 
 		<< particle->getID()
 		<< " Type = " << particle->getGeometricType() << " " 
@@ -2417,7 +2423,8 @@ vector<double> LinkedCell::global_coordinates( size_t const& dir ) const
 
 // ----------------------------------------------------------------------------
 // Checks that none of the structured array positions is exactly 
-// at a limit of the linked cell grid, otherwise shift by 1e-12 
+// at a limit of the linked cell grid or of the domain, otherwise shift 
+// by 1e-12 
 void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion* 
     	InsertionArray, GrainsMPIWrapper const* wrapper ) const
 {
@@ -2436,7 +2443,9 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   {
     position[X] = InsertionArray->box.ptA[X] + ( double(k) + 0.5 ) * deltax;
     if ( fabs( position[X] - m_LC_local_origin[X] ) < geoshift
-    	|| fabs( position[X] - m_LC_local_max[X] ) < geoshift ) 
+    	|| fabs( position[X] - m_LC_local_max[X] ) < geoshift 
+	|| fabs( position[X] - m_domain_local_origin[X] ) < geoshift
+    	|| fabs( position[X] - m_domain_local_max[X] ) < geoshift ) 
       coorMatchLocLim[X] = 1;
   }
   
@@ -2444,7 +2453,9 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   {
     position[Y] = InsertionArray->box.ptA[Y] + ( double(l) + 0.5 ) * deltay;
     if ( fabs( position[Y] - m_LC_local_origin[Y] ) < geoshift
-    	|| fabs( position[Y] - m_LC_local_max[Y] ) < geoshift ) 
+    	|| fabs( position[Y] - m_LC_local_max[Y] ) < geoshift 
+	|| fabs( position[Y] - m_domain_local_origin[Y] ) < geoshift
+    	|| fabs( position[Y] - m_domain_local_max[Y] ) < geoshift ) 
       coorMatchLocLim[Y] = 1;
   }  
 
@@ -2452,7 +2463,9 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   {
     position[Z] = InsertionArray->box.ptA[Z] + ( double(m) + 0.5 ) * deltaz;
     if ( fabs( position[Z] - m_LC_local_origin[Z] ) < geoshift
-    	|| fabs( position[Z] - m_LC_local_max[Z] ) < geoshift ) 
+    	|| fabs( position[Z] - m_LC_local_max[Z] ) < geoshift 
+	|| fabs( position[Z] - m_domain_local_origin[Z] ) < geoshift
+    	|| fabs( position[Z] - m_domain_local_max[Z] ) < geoshift ) 
       coorMatchLocLim[Z] = 1;
   }
   
@@ -2467,8 +2480,8 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   	&& wrapper->get_rank() == 0 )
   {
     cout << endl << "Warning: Structured array positions: some coordinates"
-    	<< " exactly match local linked cell grid limits in the following "
-	<< "directions:" << endl;
+    	<< " exactly match local linked cell grid or domain limits in the "
+	<< "following directions:" << endl;
     for (size_t i=0;i<3;++i)
       if ( coorMatchLocLim[i] )
         cout << "   * " << ( i == 0 ? "X" : i == 1 ? "Y" : "Z" ) << 

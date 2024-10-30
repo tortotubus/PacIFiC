@@ -108,15 +108,13 @@ class AllComponents
     @param time physical time
     @param dt_particle_vel velocity time step magnitude 
     @param dt_particle_disp motion time step magnitude
-    @param dt_obstacle obstacle velocity and motion time step magnitude */
+    @param dt_obstacle obstacle velocity and motion time step magnitude 
+    @param LC linked cell grid */
     list<SimpleObstacle*> Move( double time,
 	double const& dt_particle_vel, 
     	double const& dt_particle_disp,
-	double const& dt_obstacle );
-	
-    /** @brief Computes particles acceleration
-    @param time physical time */
-    void computeParticlesAcceleration( double time );
+	double const& dt_obstacle,
+	LinkedCell const* LC );
     
     /** @brief Advances particles velocity over dt_particle_vel
     @param time physical time 
@@ -353,9 +351,13 @@ class AllComponents
     and all elementary obstacles */
     void updateAllContactMaps();
     
-    /** @brief Set all contact map entry features to zero in all particles
+    /** @brief Set all contact map cumulative features to zero in all particles
     and all elementary obstacles */
-    void setAllContactMapFeaturesToZero(); 
+    void setAllContactMapCumulativeFeaturesToZero(); 
+    
+    /** @brief Sets time integration scheme in all particles using the macro 
+    variable GrainsExec::m_TIScheme */
+    void setTimeIntegrationScheme();     
     //@}
 
 
@@ -452,8 +454,8 @@ class AllComponents
     @param increaseCounterOnly increases the writing counter only
     @param rank process rank */
     void outputObstaclesLoad( double time, double dt,
-    	bool enforceOutput = false, bool increaseCounterOnly = false,
-	int rank = 0 );
+    	bool enforceOutput, bool increaseCounterOnly,
+	int rank );
 
     /** @brief Computes load on obstacles
     @param time physical time
@@ -466,8 +468,8 @@ class AllComponents
     @param rank process rank
     @param coupledFluid whether the simulation is coupled to a fluid solver
     @param time physical time */
-    void initialiseOutputObstaclesLoadFiles( int rank = 0,
-      	bool coupledFluid = false, double time = 0. );
+    void initialiseOutputObstaclesLoadFiles( int rank,
+      	bool coupledFluid, double time );
     //@}
 
 

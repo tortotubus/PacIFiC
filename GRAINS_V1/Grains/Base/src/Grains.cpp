@@ -38,6 +38,7 @@ Grains::Grains()
   , m_randomseed( RGS_DEFAULT )
   , m_InsertionArray( NULL )
   , m_insertion_position( NULL )
+  , m_insertion_angular_position( NULL )  
   , m_insertion_frequency( 1 )
   , m_force_insertion( false )
   , m_RandomMotionCoefTrans( 0. )
@@ -50,6 +51,7 @@ Grains::Grains()
 {
   if ( GrainsBuilderFactory::getContext() == DIM_2 ) m_dimension = 2;
   m_insertion_position = new list<Point3>;
+  m_insertion_angular_position = new list<Matrix>;
 }
 
 
@@ -67,6 +69,8 @@ Grains::~Grains()
   GrainsExec::GarbageCollector();
   m_insertion_position->clear();
   delete m_insertion_position;
+  m_insertion_angular_position->clear();
+  delete m_insertion_angular_position;  
 }
 
 
@@ -143,6 +147,13 @@ void Grains::do_before_time_stepping( DOMElement* rootElement )
     m_allcomponents.initialiseOutputObstaclesLoadFiles( m_rank, false, m_time );
     m_allcomponents.outputObstaclesLoad( m_time, m_dt, false,
       GrainsExec::m_ReloadType == "same", m_rank );
+      
+    // Postprocessing of force statistics
+    m_collision->initialiseForceStatsFiles( m_rank, false, m_time );      
+    bool forcestats = m_collision->outputForceStatsAtThisTime( false, 
+	GrainsExec::m_ReloadType == "same" );	
+    if ( forcestats )
+      m_collision->outputForceStats( m_time, m_dt, m_rank, m_wrapper );
 
     // Next time of writing results
     m_timeSave = m_save.begin();
@@ -153,8 +164,8 @@ void Grains::do_before_time_stepping( DOMElement* rootElement )
     if ( GrainsExec::m_TIScheme == "SecondOrderLeapFrog" && 
     	!GrainsExec::m_isReloaded )
     {
-      computeParticlesForceAndAcceleration();
-      m_allcomponents.setAllContactMapFeaturesToZero();
+      computeParticlesForceAndTorque();
+      m_allcomponents.setAllContactMapCumulativeFeaturesToZero();
     }
 
     if ( m_rank == 0 ) cout << "Initialization completed" << endl << endl;
@@ -242,6 +253,7 @@ void Grains::do_after_time_stepping()
 void Grains::Simulation( double time_interval )
 {
   double vmax = 0., vmean = 0. ;
+  bool forcestats = false;
 
   // Timers
   SCT_insert_app( "ParticlesInsertion" );
@@ -258,26 +270,30 @@ void Grains::Simulation( double time_interval )
     try
     {
       m_time += m_dt;
-
+      GrainsExec::m_time_counter++;
 
       // Check whether data are output at this time
       m_lastTime_save = false;
       GrainsExec::m_output_data_at_this_time = false;
+      GrainsExec::m_postprocess_forces_at_this_time = false;
       if ( m_timeSave != m_save.end() )
         if ( *m_timeSave - m_time < 0.01 * m_dt )
 	{
 	  // Set the global data output boolean to true
 	  GrainsExec::m_output_data_at_this_time = true;
 
-	  // Reset counter for force postprocessing
-	  m_collision->resetPPForceIndex();
-
 	  // Next time of writing files
 	  m_timeSave++;
 
 	  m_lastTime_save = true;
 	}
-
+      forcestats = m_collision->outputForceStatsAtThisTime( false, false );
+      if ( GrainsExec::m_output_data_at_this_time || forcestats )
+      {
+        GrainsExec::m_postprocess_forces_at_this_time = true;
+	m_collision->resetPPForceIndex();
+      }
+	
 
       // Insertion of particles
       SCT_set_start( "ParticlesInsertion" );      
@@ -310,10 +326,10 @@ void Grains::Simulation( double time_interval )
 	// x_i+1 = x_i + v_i+1/2 * dt
         moveParticlesAndObstacles( 0.5 * m_dt, m_dt, m_dt );
 	
-        // Compute particle forces and acceleration
+        // Compute particle forces and torque
 	// Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)
 	SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndAcceleration();
+        computeParticlesForceAndTorque();
         SCT_get_elapsed_time( "ComputeForces" );	
 	
 	// Update particle velocity over dt/2
@@ -322,10 +338,10 @@ void Grains::Simulation( double time_interval )
       }
       else
       {
-        // Compute particle forces and acceleration
+        // Compute particle forces and torque
 	// Compute f_i and a_i as a function of (x_i,v_i) 
 	SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndAcceleration();
+        computeParticlesForceAndTorque();
         SCT_get_elapsed_time( "ComputeForces" );
       
         // Move particles and obstacles
@@ -337,8 +353,13 @@ void Grains::Simulation( double time_interval )
 
       // Compute and write force & torque exerted on obstacles
       m_allcomponents.computeObstaclesLoad( m_time, m_dt ); 
-      m_allcomponents.outputObstaclesLoad( m_time, m_dt );
-
+      m_allcomponents.outputObstaclesLoad( m_time, m_dt, false, false, m_rank );
+      
+      
+      // Compute and write force statistics
+      if ( forcestats ) m_collision->outputForceStats( m_time, m_dt, m_rank, 
+      	m_wrapper );
+        
 
       // Write postprocessing and reload files
       if ( GrainsExec::m_output_data_at_this_time )
@@ -401,8 +422,8 @@ void Grains::Simulation( double time_interval )
 
 
 // ----------------------------------------------------------------------------
-// Computes particle forces and acceleration
-void Grains::computeParticlesForceAndAcceleration()
+// Computes particle forces and torques
+void Grains::computeParticlesForceAndTorque()
 {
   // Initiliaze all component transforms with crust to non computed
   m_allcomponents.InitializeRBTransformWithCrustState( m_time, m_dt );
@@ -425,9 +446,6 @@ void Grains::computeParticlesForceAndAcceleration()
   // TODO: add if-statement that bypasses this step when contact model has
   // no memory.
   m_allcomponents.updateAllContactMaps();
-      
-  // Compute particle acceleration
-  m_allcomponents.computeParticlesAcceleration( m_time );
 }
 
 
@@ -442,7 +460,7 @@ void Grains::moveParticlesAndObstacles( double const& dt_particle_vel,
   // Solve Newton's law and move particles
   SCT_set_start( "Move" );
   m_allcomponents.Move( m_time, dt_particle_vel, dt_particle_disp, 
-      	dt_obstacle );
+      	dt_obstacle, m_collision );
 
 
   // In case of periodicity, update periodic clones and destroy periodic
@@ -623,7 +641,8 @@ void Grains::Construction( DOMElement* rootElement )
                       ReaderXML::getNode( root, "CollisionDetectionAlgorithm" );
     if ( !collision )
     {
-      cout << GrainsExec::m_shift6 <<
+      if ( m_rank == 0 )
+        cout << GrainsExec::m_shift6 <<
               "Default collision detection algorithm using GJK, " <<
               "1E-15 tolerance, " << 
               "without acceleration, " <<
@@ -633,13 +652,14 @@ void Grains::Construction( DOMElement* rootElement )
     {
       DOMNode* collisionAlg = 
                        ReaderXML::getNode( collision, "CollisionDetection" );
-      if ( m_rank == 0 && collisionAlg )
+      if ( collisionAlg )
       {
         string nCollisionAlg = 
                           ReaderXML::getNodeAttr_String( collisionAlg, "Type" );
         if ( nCollisionAlg != "GJK" )
         {
-          cout << GrainsExec::m_shift6 <<
+          if ( m_rank == 0 )
+	    cout << GrainsExec::m_shift6 <<
               "Collision detection algorithm is not defined!" << endl;
           grainsAbort();
         }
@@ -647,7 +667,8 @@ void Grains::Construction( DOMElement* rootElement )
         double tol = ReaderXML::getNodeAttr_Double( collisionAlg, "Tolerance" );
         if ( tol < 1e-15 )
         {
-          cout << GrainsExec::m_shift6 <<
+          if ( m_rank == 0 )
+	    cout << GrainsExec::m_shift6 <<
               "Tolerance should be greater than 1E-15!" << endl;
           grainsAbort();
         }
@@ -662,12 +683,14 @@ void Grains::Construction( DOMElement* rootElement )
           GrainsExec::m_colDetAcceleration = false;
         else
         {
-          cout << GrainsExec::m_shift6 <<
+          if ( m_rank == 0 )
+	    cout << GrainsExec::m_shift6 <<
               "Acceleration should be ON or OFF!" << endl;
           grainsAbort();
         }
 
-        cout << GrainsExec::m_shift6 <<
+        if ( m_rank == 0 )
+	  cout << GrainsExec::m_shift6 <<
               "Collision detection algorithm using " <<
               GrainsExec::m_colDetMethod << ", " <<
               GrainsExec::m_colDetTolerance <<
@@ -676,7 +699,8 @@ void Grains::Construction( DOMElement* rootElement )
       }
       else
       {
-        cout << GrainsExec::m_shift6 <<
+        if ( m_rank == 0 )
+	  cout << GrainsExec::m_shift6 <<
               "Default collision detection algorithm using GJK, " <<
               "1E-15 tolerance, and without acceleration!" << endl;
       }
@@ -703,6 +727,7 @@ void Grains::Construction( DOMElement* rootElement )
         cout << GrainsExec::m_shift6 <<
         "Pre-collision Test with bounding volumes is off." << endl;
     }
+
 
     // Particles
     DOMNode* particles = ReaderXML::getNode( root, "Particles" );
@@ -732,7 +757,14 @@ void Grains::Construction( DOMElement* rootElement )
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Reading new particle types completed" << endl;
     }
-
+    
+    if ( GrainsExec::getMinCrustThickness() <= 0. )
+    {
+      if ( m_rank == 0 )
+        cout << "Some Particles have been defined with a negative or"
+		" 0 crust thickness" << endl;
+      grainsAbort();            
+    }
 
     // Composite particles
     DOMNode* nCompositeParticles =
@@ -772,6 +804,14 @@ void Grains::Construction( DOMElement* rootElement )
       	"Reading new composite particle types completed" << endl;
     }
     
+    if ( GrainsExec::getMinCrustThickness() <= 0. )
+    {
+      if ( m_rank == 0 )
+        cout << "Some Composite Particles have been defined with a negative or"
+		" 0 crust thickness" << endl;
+      grainsAbort();            
+    }    
+    
     if  ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Number of particle types = " << 
 	m_allcomponents.getReferenceParticles()->size() << endl;
@@ -796,6 +836,16 @@ void Grains::Construction( DOMElement* rootElement )
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Reading new obstacles completed" << endl;
     }
+    
+    
+    // Check that crust thickness is positive for all rigid bodies
+    if ( GrainsExec::getMinCrustThickness() <= 0. )
+    {
+      if ( m_rank == 0 )
+        cout << "Some Obstacles have been defined with a negative or"
+		" 0 crust thickness" << endl;
+      grainsAbort();            
+    }
 
 
     // Contact force models
@@ -815,7 +865,7 @@ void Grains::Construction( DOMElement* rootElement )
     if ( !contactForceModels_ok )
     {
       if ( m_rank == 0 )
-        cout << GrainsExec::m_shift6 << "No contact force model defined for "
+        cout << "No contact force model defined for "
 		"materials : " << check_matA << " & " << check_matB << endl;
       grainsAbort();
     }
@@ -994,6 +1044,8 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
     if ( nTimeIntegration )
       GrainsExec::m_TIScheme = ReaderXML::getNodeAttr_String( nTimeIntegration,
     		"Type" );
+    if ( GrainsExec::m_TIScheme != "SecondOrderLeapFrog" )
+      m_allcomponents.setTimeIntegrationScheme();
     if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Time integration scheme = " << GrainsExec::m_TIScheme << endl;
 
@@ -1145,10 +1197,18 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
       {
         string type = ReaderXML::getNodeAttr_String( nInitAngPos, "Type" );
 	if ( type == "Random" ) m_init_angpos = IAP_RANDOM;
+	else if ( type == "File" ) 
+	{
+	  m_init_angpos = IAP_FILE;
+	  m_angular_position = 
+	    ReaderXML::getNodeAttr_String( nInitAngPos, "Name" );
+	}
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Initial angular"
       	" position = " << ( m_init_angpos == IAP_FIXED ? "Fixed as defined in "
-		"input file particle class" : "Random" ) << endl;
+		"input file particle class" : ( 
+		m_init_angpos == IAP_RANDOM ? "Random" : "Fixed defined in "
+		"file " + m_angular_position ) ) << endl;
 
 
       // Random generator seed
@@ -1607,6 +1667,30 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	  }
 	}
       }
+      
+      
+      // Force statistics (for now macro stress tensor in the whole domain)
+      DOMNode* nForceStats = ReaderXML::getNode( nPostProcessing,
+      	"ForceStats" );
+      if ( nForceStats )
+      {
+        size_t FSoutputFreq = size_t( 
+		ReaderXML::getNodeAttr_Int( nForceStats, "Every" ) );
+        string ppObsdir = ReaderXML::getNodeAttr_String( nForceStats,
+		"Directory" );
+        m_collision->setForceStatsParameters( ppObsdir, FSoutputFreq );		
+
+	if ( m_rank == 0 )
+	{
+	  cout << GrainsExec::m_shift9 << "Force stats in the whole domain" 
+	  	<< endl;
+          cout << GrainsExec::m_shift12 << "Write values in file every " <<
+		FSoutputFreq << " time step" <<
+		( FSoutputFreq > 1 ? "s" : "" ) << endl;
+          cout << GrainsExec::m_shift12 << "Output file directory name = "
+    		<< ppObsdir << endl;
+	}
+      }      
     }
     else
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6
@@ -1641,6 +1725,11 @@ void Grains::InsertCreateNewParticles()
     else error = setPositionParticlesFromFile();
   }
   if ( error ) grainsAbort();
+  
+  // Set angular particle positions from file
+  if ( m_angular_position != "" )
+    error = setAngularPositionParticlesFromFile();
+  if ( error ) grainsAbort();  
 
   // Insertion at initial time
   if ( m_insertion_mode == IM_INITIALTIME )
@@ -1680,16 +1769,16 @@ Point3 Grains::getInsertionPoint()
   if ( !m_insertion_position->empty() )
   {
     // If order, pick the first position
-    il_sp = m_insertion_position->begin();    
+    m_il_sp = m_insertion_position->begin();    
     
     // If random, pick a random position in the list
     if ( m_insertion_order == PM_RANDOM )  
     {
       double n = double(random()) / double(INT_MAX);
       size_t shift = size_t( n * double(m_insertion_position->size()) );
-      std::advance( il_sp, shift );      
+      std::advance( m_il_sp, shift );      
     }
-    P = *il_sp; 
+    P = *m_il_sp; 
   }
   // Insertion windows
   else
@@ -1809,6 +1898,7 @@ bool Grains::insertParticle( PullMode const& mode )
   Vector3 vtrans, vrot ;
   Quaternion qrot;
   size_t npositions = m_insertion_position->size();
+  size_t nangpositions = m_insertion_angular_position->size();  
 
   if ( insert_counter == 0 )
   {
@@ -1822,10 +1912,16 @@ bool Grains::insertParticle( PullMode const& mode )
       // Rem: we compose to the right by a pure rotation as the particle
       // already has a non-zero position that we do not want to change (and
       // that we would change if we would compose to the left)
-      if ( m_init_angpos == IAP_RANDOM )
+      if ( m_init_angpos != IAP_FIXED )
       {
         Transform trot;
-        trot.setBasis( GrainsExec::RandomRotationMatrix( m_dimension ) );
+	if ( m_init_angpos == IAP_RANDOM ) 
+          trot.setBasis( GrainsExec::RandomRotationMatrix( m_dimension ) );
+	else // m_init_angpos == IAP_FILE
+	{
+	  m_il_sap = m_insertion_angular_position->begin();
+	  trot.setBasis( *m_il_sap );
+	}
         particle->composePositionRightByTransform( trot );
       }
 
@@ -1850,8 +1946,8 @@ bool Grains::insertParticle( PullMode const& mode )
       {
         m_allcomponents.WaitToActive();
 	particle->InitializeForce( true );
-	particle->computeAcceleration( m_time );
-	if ( npositions ) m_insertion_position->erase( il_sp );
+	if ( npositions ) m_insertion_position->erase( m_il_sp );
+	if ( nangpositions ) m_insertion_angular_position->erase( m_il_sap );	
       }
     }
   }
@@ -1944,6 +2040,7 @@ size_t Grains::setPositionParticlesFromFile()
     for (il=m_newParticles.cbegin();il!=m_newParticles.cend();il++)
       nnewpart += il->second;
     while ( filePos >> position ) ++npos;
+    filePos.close();
     if ( nnewpart != npos )
     {
       cout << "ERR: number of new particles to insert is different from the"
@@ -1955,15 +2052,62 @@ size_t Grains::setPositionParticlesFromFile()
     else
     {
       // Read positions from the file and add them to the list
-      filePos.seekg( 0, filePos.beg );
+      filePos.open( m_position.c_str() );
       while ( filePos >> position ) m_insertion_position->push_back( position );
       filePos.close();
+    }
+  }
+
+  return ( error );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets angular particle initial positions from a file
+size_t Grains::setAngularPositionParticlesFromFile()
+{
+  size_t nnewpart = 0, npos = 0, error = 0;
+  list< pair<Particle*,size_t> >::const_iterator il;
+  Matrix mat;
+  ifstream fileAngPos( m_angular_position.c_str() );
+
+  // Check that the file exists
+  if ( !fileAngPos.is_open() )
+  {
+    cout << "ERR : File " << m_angular_position << " does not exist !" << endl;
+    error = 1;
+  }
+
+  // Check that the number of positions in the file equals the number of 
+  // new particles to insert
+  if ( !error )
+  {
+    for (il=m_newParticles.cbegin();il!=m_newParticles.cend();il++)
+      nnewpart += il->second;
+    while ( fileAngPos >> mat ) ++npos;
+    fileAngPos.close();
+    if ( nnewpart != npos )
+    {
+      cout << "ERR: number of new particles to insert is different from the"
+    	<< " number of angular positions in file " << m_angular_position 
+	<< " : " << nnewpart << " != " << npos << endl;
+      fileAngPos.close(); 
+      error = 1;
+    }
+    else
+    {
+      // Read angular positions from the file and add them to the list
+      fileAngPos.open( m_angular_position.c_str() ); 
+      while ( fileAngPos >> mat ) 
+        m_insertion_angular_position->push_back( mat );
+      fileAngPos.close();
     }
   }
   
   return ( error );
 }
-
 
 
 
@@ -2042,10 +2186,7 @@ bool Grains::isModePredictor()
 void Grains::readDomainDecomposition( DOMNode* root,
   	double const& lx, double const& ly, double const& lz )
 {
-  int nprocs[3] = { 1, 1, 1 };
-  int coords[3] = { 0, 0, 0 };
-  App::set_local_domain_size( lx, ly, lz );
-  App::set_local_domain_origin( nprocs, coords );
+  // Nothing to do in serial mode
   m_processorIsActive = true;
 }
 

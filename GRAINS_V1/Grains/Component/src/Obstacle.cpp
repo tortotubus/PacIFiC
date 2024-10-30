@@ -424,10 +424,10 @@ void Obstacle::setContactMapToFalse()
 
 
 // ----------------------------------------------------------------------------
-// Set contact map entry features to zero */
-void Obstacle::setContactMapFeaturesToZero()
+// Set contact map cumulative features to zero */
+void Obstacle::setContactMapCumulativeFeaturesToZero()
 {
-  cout << "Warning when calling Obstacle::setContactMapFeaturesToZero() "
+  cout << "Warning when calling Obstacle::setContactMapCumulativeFeaturesToZero() "
        << "\nShould not go into this class !\n"
        << "Need for an assistance ! Stop running !\n";
   exit(10);
@@ -630,3 +630,14 @@ void Obstacle::setVelocity()
   	+ *(m_confinement.getTranslationalVelocity());
   m_angularVelocity = *(m_kinematics.getAngularVelocity());
 } 
+
+
+
+
+// ----------------------------------------------------------------------------
+// Returns whether to store the contact force for post-processing 
+bool Obstacle::storePPForce( Component const* othercomp ) const
+{
+  // Here we know that the other component is automatically a particle
+  return ( othercomp->getTag() != 2 );
+}

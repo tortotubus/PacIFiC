@@ -236,7 +236,7 @@ vector<Point3> Superquadric::getEnvelope() const
 // Returns the number of vertices/corners
 int Superquadric::getNbCorners() const
 {
-  return ( 777 );
+  return ( 222 );
 }
 
 
@@ -283,8 +283,7 @@ void Superquadric::writeShape( ostream &fileOut ) const
 // Input operator
 void Superquadric::readShape( istream &fileIn )
 {
-  cerr << "Program Error :\n" << "Superquadric::readShape non accessible.\n";
-  exit( 3 );
+  fileIn >> m_a >> m_b >> m_c >> m_n1 >> m_n2;
 }
 
 
@@ -315,22 +314,19 @@ void Superquadric::write_polygonsPts_PARAVIEW( ostream &f,
   // Center
   pp[Z] = 0.;
   pptrans = transform( pp );
-  if ( translation )
-    pptrans += *translation;
+  if ( translation ) pptrans += *translation;
   f << pptrans[X] << " " << pptrans[Y] << " " << pptrans[Z] << endl;
 
   // Top point
   pp[Z] = m_c;
   pptrans = transform( pp );
-  if ( translation )
-    pptrans += *translation;
+  if ( translation ) pptrans += *translation;
   f << pptrans[X] << " " << pptrans[Y] << " " << pptrans[Z] << endl;
 
   // Bottom point
   pp[Z] = -m_c;
   pptrans = transform( pp ) ;
-  if ( translation )
-    pptrans += *translation;
+  if ( translation ) pptrans += *translation;
   f << pptrans[X] << " " << pptrans[Y] << " " << pptrans[Z] << endl;
 
   // Regular points on the surface
@@ -373,8 +369,7 @@ void Superquadric::write_polygonsPts_PARAVIEW( ostream &f,
       pp[Z] = m_c * costeps1;
 
       pptrans = transform( pp );
-      if ( translation )
-        pptrans += *translation;
+      if ( translation ) pptrans += *translation;
       f << pptrans[X] << " " << pptrans[Y] << " " << pptrans[Z] << endl;
     }
   }
@@ -399,22 +394,19 @@ list<Point3> Superquadric::get_polygonsPts_PARAVIEW( Transform const& transform,
     // Gravity center
     pp[Z] = 0.;
     pptrans = transform( pp );
-    if ( translation )
-      pptrans += *translation;
+    if ( translation ) pptrans += *translation;
     ParaviewPoints.push_back( pptrans );
 
     // Top point
     pp[Z] = m_c;
     pptrans = transform( pp );
-    if ( translation )
-      pptrans += *translation;
+    if ( translation ) pptrans += *translation;
     ParaviewPoints.push_back( pptrans );
 
     // Bottom point
     pp[Z] = -m_c;
     pptrans = transform( pp ) ;
-    if ( translation )
-      pptrans += *translation;
+    if ( translation ) pptrans += *translation;
     ParaviewPoints.push_back( pptrans );
 
     // Regular points on the surface
@@ -457,8 +449,7 @@ list<Point3> Superquadric::get_polygonsPts_PARAVIEW( Transform const& transform,
         pp[Z] = m_c * costeps1 ;
 
         pptrans = transform( pp ) ;
-        if ( translation )
-          pptrans += *translation;
+        if ( translation ) pptrans += *translation;
         ParaviewPoints.push_back( pptrans );
       }
     }

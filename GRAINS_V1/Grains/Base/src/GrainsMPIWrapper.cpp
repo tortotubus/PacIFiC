@@ -1175,8 +1175,7 @@ vector< vector<double> >* GrainsMPIWrapper::
   double intTodouble = 0.1 ;  
   MPI_Status status;
   MPI_Request idreq;
-  
-  
+    
   // Allocate the receiving vector on master process
   if ( m_rank == m_rank_master )
   { 
@@ -1214,10 +1213,6 @@ vector< vector<double> >* GrainsMPIWrapper::
   // Reception by the master process
   if ( m_rank == m_rank_master )
   {
-    // Allocate the receiving vector on master process
-    vector<double> work( NB_DOUBLE_PART, 0. );
-    data_Global = new vector< vector<double> >( nb_total_particles, work );
-
     for (int irank=0; irank<m_nprocs; ++irank)
     {
       // Size of the message
@@ -1590,7 +1585,9 @@ void GrainsMPIWrapper::UpdateClones(double time,
     else
     {
       cout << "!!! Warning !!! Clone " << id << " not found in proc " 
-      	<< m_rank << endl;
+      	<< m_rank << " at time " << time << " and position " << 
+	recvbuf_DOUBLE[j+22] << " " << recvbuf_DOUBLE[j+23] << " " <<
+	recvbuf_DOUBLE[j+24] << endl;
     } 
     
     j += NB_DOUBLE_PART + 1 + contact_map_size * NB_DOUBLE_PER_CONTACT; 
@@ -1684,7 +1681,7 @@ void GrainsMPIWrapper::CreateClones(double time,
       if ( GrainsExec::m_MPI_verbose )
       {
         ostringstream oss;
-        oss << "   t=" << GrainsExec::doubleToString(time,TIMEFORMAT)
+        oss << "   t=" << GrainsExec::doubleToString(time,FORMAT10DIGITS)
 		<< " Create Clone                Id = " 
 		<< id
 		<< " Type = " << classe << " " 
@@ -2359,6 +2356,39 @@ Matrix GrainsMPIWrapper::Broadcast_Matrix( Matrix const& mat ) const
   delete [] mat_coef;
   
   return ( bmat );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sums a matrix from all processes on the master process 
+// within the MPI_COMM_activProc communicator
+Matrix GrainsMPIWrapper::sum_Matrix( Matrix const& mat ) const
+{
+  double *mat_coef = new double[9];
+  double *sum_mat_coef = new double[9];  
+  Mat3 const& mmat = mat.getValue(); 
+  mat_coef[0] = mmat[X][X];
+  mat_coef[1] = mmat[X][Y];  
+  mat_coef[2] = mmat[X][Z];  
+  mat_coef[3] = mmat[Y][X];
+  mat_coef[4] = mmat[Y][Y];  
+  mat_coef[5] = mmat[Y][Z];   
+  mat_coef[6] = mmat[Z][X];
+  mat_coef[7] = mmat[Z][Y];  
+  mat_coef[8] = mmat[Z][Z];     
+
+  MPI_Allreduce( mat_coef, sum_mat_coef, 9, MPI_DOUBLE, MPI_SUM, 
+  	m_MPI_COMM_activeProc );
+  
+  Matrix smat( sum_mat_coef[0], sum_mat_coef[1], sum_mat_coef[2],
+  	sum_mat_coef[3], sum_mat_coef[4], sum_mat_coef[5],
+	sum_mat_coef[6], sum_mat_coef[7], sum_mat_coef[8]);
+  delete [] mat_coef;
+  delete [] sum_mat_coef;
+    
+  return ( smat );
 }
 
 

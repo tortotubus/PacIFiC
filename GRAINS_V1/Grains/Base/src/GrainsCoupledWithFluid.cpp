@@ -131,7 +131,7 @@ void GrainsCoupledWithFluid::Simulation( double time_interval )
       // x_i+1 = x_i + v_i+1/2 * dt
       
       // Solve Newton's law and move particles
-      m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt );
+      m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision );
             
       // In case of periodicity, update periodic clones and destroy periodic
       // clones that are out of the linked cell grid
@@ -172,9 +172,6 @@ void GrainsCoupledWithFluid::Simulation( double time_interval )
         (*app)->ComputeForces( m_time, m_dt, 
       		m_allcomponents.getActiveParticles() );
 
-      // Compute particle acceleration
-      m_allcomponents.computeParticlesAcceleration( m_time );
-
 
       // Update particle velocity over dt/2
       // v_i+1 = v_i+1/2 + a_i+1 * dt / 2 
@@ -182,7 +179,8 @@ void GrainsCoupledWithFluid::Simulation( double time_interval )
   
         
       // Write force & torque exerted on obstacles
-      m_allcomponents.outputObstaclesLoad( m_time, m_dt );
+      m_allcomponents.computeObstaclesLoad( m_time, m_dt ); 
+      m_allcomponents.outputObstaclesLoad( m_time, m_dt, false, false, m_rank );
     } 
     catch (ContactError &errContact) 
     {
@@ -795,7 +793,7 @@ void GrainsCoupledWithFluid::setInitialTime( double const& time0 )
   // Postprocessing of force & torque on obstacles 
   m_allcomponents.initialiseOutputObstaclesLoadFiles( m_rank, false, m_time );  
   m_allcomponents.outputObstaclesLoad( m_time, m_dt, false, 
-      GrainsExec::m_ReloadType == "same" );
+      GrainsExec::m_ReloadType == "same", m_rank );
 }
 
 
@@ -940,57 +938,57 @@ void GrainsCoupledWithFluid::GrainsToFluid( istringstream &is ) const
 
           particles_features << componentIDinFluid << " " << ncorners << endl;
           particles_features << particleType << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[X] ) << " " << 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[Y] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[Z] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[X] ) << " " << 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[Y] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[Z] ) << " " << 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			density ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mass ) << " " <<			 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[0] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[1] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[2] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[3] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[4] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			inertia[5] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][Z] ) << " " <<	
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][Z] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][Z] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[Y] ) << " " <<				
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[Z] ) << endl;			
 
           if ( particleType == "PP" )
@@ -1002,11 +1000,11 @@ void GrainsCoupledWithFluid::GrainsToFluid( istringstream &is ) const
 	      periodic_clone = imm->second;
               periodicVector = *(periodic_clone->getPosition()) - *centre;
               particles_features << 
-	      	GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	      	GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			periodicVector[X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			periodicVector[Y] ) << " " <<				
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			periodicVector[Z] ) << endl;	      
 	    }
           }
@@ -1046,42 +1044,42 @@ void GrainsCoupledWithFluid::GrainsToFluid( istringstream &is ) const
 
       particles_features << componentIDinFluid << " " << ncorners << endl;
       particles_features << obstacleType << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[X] ) << " " << 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[Y] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vtrans)[Z] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[X] ) << " " << 
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[Y] ) << " " << 			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*vrot)[Z] ) << " " << 
 		"1000. 0. 0. 0. 0. 0. 0. 0. " <<		
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[X][Z] ) << " " <<	
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Y][Z] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][Y] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			mr[Z][Z] ) << " " <<			
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[X] ) << " " <<
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[Y] ) << " " <<				
-		GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+		GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
 			(*centre)[Z] ) << endl;			
 
       particles_features << radius ;
@@ -1178,6 +1176,7 @@ void GrainsCoupledWithFluid::updateParticlesHydroFT(
 void GrainsCoupledWithFluid::setFluidCorrectedAcceleration( bool correct )
 {
   Particle::setFluidCorrectedAcceleration( correct );
+  // TO DO: update coupling factor in ParticleKinematics
 }
 
 

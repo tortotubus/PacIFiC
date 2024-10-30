@@ -166,6 +166,10 @@ class Component
     /** @brief Returns whether a point lies inside the component
     @param pt point */
     virtual bool isIn( Point3 const& pt ) const;
+    
+    /** @brief Returns whether to store the contact force for post-processing 
+    @param othercomp the other component invovled in the contact */
+    virtual bool storePPForce( Component const* othercomp ) const = 0;
     //@}
 
 
@@ -191,8 +195,8 @@ class Component
     /** @brief Initializes all contact map entries to false */
     virtual void setContactMapToFalse();
     
-    /** @brief Sets contact map entry features to zero */
-    virtual void setContactMapFeaturesToZero();
+    /** @brief Sets contact map cumulative features to zero */
+    virtual void setContactMapCumulativeFeaturesToZero();
     
     /** @brief Sets the contact map 
     @param othermap the contact map to be copied */

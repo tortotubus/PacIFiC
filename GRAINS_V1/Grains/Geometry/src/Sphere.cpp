@@ -1,4 +1,7 @@
 #include "Sphere.hh"
+#include "BVolume.hh"
+#include "OBB.hh"
+#include "OBC.hh"
 #include "sstream"
 #include <math.h>
 
@@ -538,7 +541,7 @@ bool Sphere::isIn( Point3 const& pt ) const
 {
   return ( pt[X] * pt[X] + pt[Y] * pt[Y] +  pt[Z] * pt[Z] 
   	<= m_radius * m_radius );
-} 
+}
 
 
 

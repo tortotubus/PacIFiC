@@ -19,7 +19,8 @@ CompositeObstacle::CompositeObstacle( string const& s )
   m_id = GrainsExec::m_CompositeObstacleDefaultID;
   m_minCompositeObstacleID--;
   m_CompositeObstacle_id = m_minCompositeObstacleID;   
-  m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform() ); 
+  m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform(), true,
+  	EPSILON ); 
 }
 
 
@@ -37,7 +38,8 @@ CompositeObstacle::CompositeObstacle( DOMNode* root )
     
   assert( root != NULL );
 
-  m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform() );
+  m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform(), true,
+  	EPSILON );
 
   m_name = ReaderXML::getNodeAttr_String( root, "name" );
 
@@ -648,7 +650,7 @@ void CompositeObstacle::InitializeForce( bool const& withWeight )
 // Returns a pointer to the torsor exerted on the composite obstacle
 Torsor const* CompositeObstacle::getTorsor()
 {
-  m_torsor.setToBodyForce( *getPosition(), Vector3Null );  
+  m_torsor.setToBodyForce( *getPosition(), Vector3Null ); 
 
   for (list<Obstacle*>::iterator obstacle=m_obstacles.begin(); 
   	obstacle!=m_obstacles.end(); obstacle++)
@@ -769,11 +771,11 @@ void CompositeObstacle::setContactMapToFalse()
 
 
 // ----------------------------------------------------------------------------
-// Set contact map entry features to zero */
-void CompositeObstacle::setContactMapFeaturesToZero()
+// Set contact map cumulative features to zero */
+void CompositeObstacle::setContactMapCumulativeFeaturesToZero()
 {
   cout << "Warning when calling CompositeObstacle::"
-       << "setContactMapFeaturesToZero() "
+       << "setContactMapCumulativeFeaturesToZero() "
        << "\nShould not go into this class !\n"
        << "Need for an assistance ! Stop running !\n";
   exit(10);

@@ -154,12 +154,12 @@ class Matrix
     void copyMatrix( double *vit, int i ) const;
 
     /** @brief Writes the object with a high precision format given by
-    POSITIONFORMAT defined in GrainsExec.hh
+    FORMAT16DIGITS defined in GrainsExec.hh
     @param fileOut output stream */
     void writeMatrix( ostream& fileOut ) const;
 
     /** @brief Writes the object with a high precision format given by
-    POSITIONFORMAT defined in GrainsExec.hh and the 2014 reload format
+    FORMAT16DIGITS defined in GrainsExec.hh and the 2014 reload format
     @param fileOut output stream */
     void writeMatrix2014( ostream& fileOut ) const;
 
@@ -191,6 +191,9 @@ class Matrix
 
     /** @brief Returns whether the matrix is a rotation matrix */
     bool isRotation( double tol = EPSILON ) const;
+    
+    /** @brief Returns the trace of the matrix */
+    double trace() const;       
     //@}
 
 
@@ -215,6 +218,10 @@ class Matrix
     /** @brief Equal operator to another Matrix object
     @param m the other Matrix object */
     Matrix& operator = ( Matrix const& m );
+    
+    /** @brief Operator /= by a float number
+    @param d the float number */
+    Matrix& operator /= ( double const& d );        
     //@}
 
 

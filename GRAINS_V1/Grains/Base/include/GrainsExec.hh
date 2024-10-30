@@ -79,6 +79,9 @@ class GrainsExec
     (i.e. on all subdomains/processes), i.e. sum of total number of active 
     particles with tag 0 or 1 and inactive particles */
     static size_t getTotalNumberPhysicalParticles();
+    
+    /** @brief Returns the minimum crust thickness */
+    static double getMinCrustThickness();    
     //@}
 
 
@@ -97,6 +100,10 @@ class GrainsExec
     particles with tag 0 or 1 and inactive particles
     @param nb_ total number of physical particles */
     static void setTotalNumberPhysicalParticles( size_t const& nb_ );
+    
+    /** @brief Sets the minimum crust thickness
+    @param ct new crust thickness */
+    static void setMinCrustThickness( double const& ct );    
     //@}
 
 
@@ -306,6 +313,8 @@ class GrainsExec
     static string m_shift15; /**< string of 15 blank spaces */
     static bool m_output_data_at_this_time; /**< writes data in
     	result files at this time */
+    static bool m_postprocess_forces_at_this_time; /**< post-process forces
+    	at this time */	
     static string m_inputFile; /**< Grains3D major input file */
     static int m_return_syscmd; /**< Returned value of system command */
     static string m_colDetMethod; /**< Collision detection method */
@@ -317,7 +326,8 @@ class GrainsExec
     static int m_CompositeObstacleDefaultID; /**< Default ID number of composite
     	obstacle */ 
     static int m_ReferenceParticleDefaultID; /**< Default ID number of reference
-    	particle */ 		    
+    	particle */
+    static size_t m_time_counter; /**< Discrete time counter */
     //@}
 
 
@@ -341,6 +351,8 @@ class GrainsExec
   	indices of vertex used by the polytopes */
     static list<vector< vector<int> >*> m_allPolyhedronFacesConnectivity; /**<
   	list of face connectivity in the polyhedrons */
+    static double m_minCrustThickness; /**< minimum crust thickness over all 
+    	rigid bodies in the simulation */	
     //@}
 
 

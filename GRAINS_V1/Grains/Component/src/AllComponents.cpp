@@ -183,9 +183,14 @@ void AllComponents::LinkImposedMotion( ObstacleImposedForce* load )
 list<SimpleObstacle*> AllComponents::Move( double time,
 	double const& dt_particle_vel, 
     	double const& dt_particle_disp,
-	double const& dt_obstacle )
+	double const& dt_obstacle,
+	LinkedCell const* LC )
 {
-  try{
+  double subinterval = 0.;
+  bool anyactive = false;
+  static bool anyactive_previousdt = false;
+  
+  try {
   // Particles motion
   list<Particle*>::iterator particle;
   for (particle=m_ActiveParticles.begin();
@@ -197,18 +202,39 @@ list<SimpleObstacle*> AllComponents::Move( double time,
   list<SimpleObstacle*> displacedObstacles;
   if ( !m_AllImposedVelocitiesOnObstacles.empty()
   	|| !m_AllImposedForcesOnObstacles.empty() )
-  {
-    m_obstacle->resetKinematics();
-    displacedObstacles = m_obstacle->Move( time, dt_obstacle, false, false );
-
+  {            
+    anyactive = false;
+    
+    // Update stress dependent imposed velocity and check if any imposed 
+    // velocity/force is active over this time interval
     list<ObstacleImposedVelocity*>::iterator il;
+    for (il=m_AllImposedVelocitiesOnObstacles.begin();
+  	il!=m_AllImposedVelocitiesOnObstacles.end();il++)
+      if ( (*il)->isActif( time - dt_obstacle, time, dt_obstacle, 
+      	subinterval ) )
+      {
+	(*il)->updateImposedVelocity( LC );
+	anyactive = true;
+      }
+    list<ObstacleImposedForce*>::iterator il_F;
+    for (il_F=m_AllImposedForcesOnObstacles.begin();
+  	il_F!=m_AllImposedForcesOnObstacles.end() && !anyactive;il_F++) 
+      if ( (*il_F)->isActif( time - dt_obstacle, time, dt_obstacle, 
+      	subinterval ) )	anyactive = true;        
+    	           
+    // Move obstacles
+    if ( anyactive || anyactive_previousdt ) m_obstacle->resetKinematics();
+    if ( anyactive ) displacedObstacles = 
+    	m_obstacle->Move( time, dt_obstacle, false, false );
+
+    // Update imposed velocity kinematics
     for (il=m_AllImposedVelocitiesOnObstacles.begin();
   	il!=m_AllImposedVelocitiesOnObstacles.end(); )
       if ( (*il)->isCompleted( time, dt_obstacle ) )
         il = m_AllImposedVelocitiesOnObstacles.erase( il );
       else il++;
 
-    list<ObstacleImposedForce*>::iterator il_F;
+    // Update imposed force kinematics    
     for (il_F=m_AllImposedForcesOnObstacles.begin();
   	il_F!=m_AllImposedForcesOnObstacles.end(); )
     {
@@ -224,21 +250,6 @@ list<SimpleObstacle*> AllComponents::Move( double time,
     throw MotionError();
   }
 }
-
-
-
-
-// ----------------------------------------------------------------------------
-// Computes particles acceleration
-void AllComponents::computeParticlesAcceleration( double time )
-{
-  list<Particle*>::iterator particle;
-  for (particle=m_ActiveParticles.begin();
-      particle!=m_ActiveParticles.end(); particle++)
-    if ( (*particle)->getTag() != 2 )
-      (*particle)->computeAcceleration( time );
-}
-
 
 
 
@@ -1299,11 +1310,11 @@ void AllComponents::write( ostream &fileSave, string const& filename,
     {
       list<Point3>::const_iterator il;
       for (il=known_positions->cbegin();il!=known_positions->cend();il++)
-        fileSave << GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+        fileSave << GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[X]) << " " << 
-		GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+		GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[Y]) << " " << 
-		GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+		GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[Z]) << endl;
     }     
               
@@ -1477,11 +1488,11 @@ void AllComponents::write_singleMPIFile( ostream &fileSave,
     {
       list<Point3>::const_iterator il;
       for (il=known_positions->cbegin();il!=known_positions->cend();il++)
-        fileSave << GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+        fileSave << GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[X]) << " " << 
-		GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+		GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[Y]) << " " << 
-		GrainsExec::doubleToString(ios::scientific,POSITIONFORMAT,
+		GrainsExec::doubleToString(ios::scientific,FORMAT16DIGITS,
   		(*il)[Z]) << endl;
     }
 
@@ -2118,18 +2129,18 @@ void AllComponents::updateAllContactMaps()
 
 
 // ----------------------------------------------------------------------------
-// Set all contact map entry features to zero in all particles
+// Set all contact map cumulative features to zero in all particles
 // and all elementary obstacles */
-void AllComponents::setAllContactMapFeaturesToZero()
+void AllComponents::setAllContactMapCumulativeFeaturesToZero()
 {
   for (list<Particle*>::iterator particle=m_ActiveParticles.begin();
 	particle!=m_ActiveParticles.end();particle++)
-    (*particle)->setContactMapFeaturesToZero();
+    (*particle)->setContactMapCumulativeFeaturesToZero();
 
   list<SimpleObstacle*> obstacles = m_obstacle->getObstacles();
   list<SimpleObstacle*>::iterator myObs;
   for( myObs=obstacles.begin(); myObs!=obstacles.end(); myObs++ )
-    (*myObs)->setContactMapFeaturesToZero();
+    (*myObs)->setContactMapCumulativeFeaturesToZero();
 }
 
 
@@ -2283,7 +2294,7 @@ void AllComponents::updateParticleLists( double time,
           if ( GrainsExec::m_MPI_verbose )
 	  {
 	    ostringstream oss;
-	    oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT ) <<
+	    oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
 		" Interior to Buffer (0 -> 1) Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2301,7 +2312,7 @@ void AllComponents::updateParticleLists( double time,
             if ( GrainsExec::m_MPI_verbose )
 	    {
               ostringstream oss;
-              oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT )
+              oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
       		<< " Buffer to Interior (1 -> 0) Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2318,7 +2329,7 @@ void AllComponents::updateParticleLists( double time,
               if ( GrainsExec::m_MPI_verbose )
 	      {
                 ostringstream oss;
-                oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT )
+                oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
       		<< " Buffer to Buffer (1 -> 1)   Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2338,7 +2349,7 @@ void AllComponents::updateParticleLists( double time,
 	    if ( GrainsExec::m_MPI_verbose )
             {
               ostringstream oss;
-              oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT )
+              oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
       		<< " Buffer to Clone (1 -> 2)    Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2357,7 +2368,7 @@ void AllComponents::updateParticleLists( double time,
           if ( GrainsExec::m_MPI_verbose )
 	  {
             ostringstream oss;
-            oss << "   t=" << GrainsExec::doubleToString( time, TIMEFORMAT ) <<
+            oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
       		" Clone to Buffer (2 -> 1)    Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2388,4 +2399,26 @@ void AllComponents::setParticleMaxIDObstacleMinID(
   Particle::setMaxIDnumber( maxID );
 
   m_obstacle->setMinIDnumber();
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets time integration scheme in all particles using the macro variable 
+// GrainsExec::m_TIScheme
+void AllComponents::setTimeIntegrationScheme()
+{
+  list<Particle*>::iterator particle;
+  vector<Particle*>::iterator ivp;
+
+  // Reference types
+  for (ivp=m_ReferenceParticles.begin();
+  	ivp!=m_ReferenceParticles.end(); ivp++)
+    (*ivp)->setTimeIntegrationScheme();
+
+  // Active particles
+  for (particle=m_ActiveParticles.begin();
+  	particle!=m_ActiveParticles.end(); particle++)
+    (*particle)->setTimeIntegrationScheme(); 
 }

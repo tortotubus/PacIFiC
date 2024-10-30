@@ -50,6 +50,7 @@ void GrainsMPI::Simulation( double time_interval )
   {
     double vmax = 0., vmean = 0. ;
     list<Particle*>* newBufPart = new list<Particle*>;
+    bool forcestats = false;    
 
     // Timers
     SCT_insert_app( "ParticlesInsertion" );
@@ -65,11 +66,13 @@ void GrainsMPI::Simulation( double time_interval )
       try
       {
         m_time += m_dt;
-
+	GrainsExec::m_time_counter++;
+	
 
         // Check whether data are output at this time
         m_lastTime_save = false;
         GrainsExec::m_output_data_at_this_time = false;
+	GrainsExec::m_postprocess_forces_at_this_time = false;
         if ( m_timeSave != m_save.end() )
           if ( *m_timeSave - m_time < 0.01 * m_dt )
 	  {
@@ -78,15 +81,18 @@ void GrainsMPI::Simulation( double time_interval )
 	    if ( m_rank == 0 ) cout << endl << "Time = " << m_time << endl
 	  	<< std::flush;
 
-	    // Reset counter for force postprocessing
-	    m_collision->resetPPForceIndex();
-
 	    // Next time of writing files
 	    m_timeSave++;
 
 	    m_lastTime_save = true;
 	  }
-
+        forcestats = m_collision->outputForceStatsAtThisTime( false, false );
+        if ( GrainsExec::m_output_data_at_this_time || forcestats )
+	{
+          GrainsExec::m_postprocess_forces_at_this_time = true;
+	  m_collision->resetPPForceIndex();
+        }
+	
 
         // Insertion of particles     
         SCT_set_start( "ParticlesInsertion" );
@@ -115,7 +121,7 @@ void GrainsMPI::Simulation( double time_interval )
         // x_i+1 = x_i + v_i+1/2 * dt
         // Solve Newton's law and move particles
         SCT_set_start( "Move" );
-        m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt );
+        m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision );
 
    
         // Update clone particle position and velocity
@@ -158,24 +164,29 @@ void GrainsMPI::Simulation( double time_interval )
         SCT_get_elapsed_time( "LinkUpdate" );
       
       
-        // Compute particle forces and acceleration
+        // Compute particle forces and torque
         // Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)
         SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndAcceleration();
+        computeParticlesForceAndTorque();
         SCT_get_elapsed_time( "ComputeForces" );
 
 
         // Update particle velocity over dt/2
         // v_i+1 = v_i+1/2 + a_i+1 * dt / 2 
         SCT_set_start( "Move" );      
-        m_allcomponents.advanceParticlesVelocity( m_time, 0.5 * m_dt );            
+        m_allcomponents.advanceParticlesVelocity( m_time, 0.5 * m_dt );
         SCT_add_elapsed_time( "Move" );
 
 
         // Compute and write force & torque exerted on obstacles
         m_allcomponents.computeObstaclesLoad( m_time, m_dt, m_wrapper ); 
 	m_allcomponents.outputObstaclesLoad( m_time, m_dt, false,
-      		GrainsExec::m_ReloadType == "same", m_rank );
+      		false, m_rank );
+		
+
+        // Compute and write force statistics
+        if ( forcestats ) m_collision->outputForceStats( m_time, m_dt, m_rank, 
+      		m_wrapper );		
 
 
         // Write postprocessing and reload files
@@ -313,6 +324,7 @@ bool GrainsMPI::insertParticle( PullMode const& mode )
   Quaternion qrot;    
   int ptype = - 1;
   size_t npositions = m_insertion_position->size();
+  size_t nangpositions = m_insertion_angular_position->size();  
   Particle *particle = NULL;    
   
   if ( insert_counter == 0 )
@@ -341,10 +353,18 @@ bool GrainsMPI::insertParticle( PullMode const& mode )
       // Rem: we compose to the right by a pure rotation as the particle
       // already has a non-zero position that we do not want to change (and
       // that we would change if we would compose to the left)
-      if ( m_init_angpos == IAP_RANDOM )
+      if ( m_init_angpos != IAP_FIXED )
       {
-        if ( m_rank == 0 ) mrot = GrainsExec::RandomRotationMatrix( 
-	  	m_dimension );
+        if ( m_rank == 0 ) 
+	{
+	  if ( m_init_angpos == IAP_RANDOM ) 
+	    mrot = GrainsExec::RandomRotationMatrix( m_dimension );
+	  else // m_init_angpos == IAP_FILE
+	  {
+	    m_il_sap = m_insertion_angular_position->begin();
+	    mrot = *m_il_sap;
+	  }
+	} 
         mrot = m_wrapper->Broadcast_Matrix( mrot );
         trot.setBasis( mrot );
         particle->composePositionRightByTransform( trot );
@@ -380,13 +400,13 @@ bool GrainsMPI::insertParticle( PullMode const& mode )
 	{
 	  m_allcomponents.WaitToActive( true );
 	  particle->InitializeForce( true );
-	  particle->computeAcceleration( m_time );
         }
 	// If not in LinkedCell
         else
           m_allcomponents.DeleteAndDestroyWait();
 
-	if ( npositions ) m_insertion_position->erase( il_sp );
+	if ( npositions ) m_insertion_position->erase( m_il_sp );
+	if ( nangpositions ) m_insertion_angular_position->erase( m_il_sap );
       }
     }
   }
@@ -424,6 +444,11 @@ void GrainsMPI::InsertCreateNewParticles()
     else error = setPositionParticlesFromFile();
   }
   if ( error )  grainsAbort();
+
+  // Set angular particle positions from file
+  if ( m_angular_position != "" )
+    error = setAngularPositionParticlesFromFile();
+  if ( error ) grainsAbort();  
 
   // Insertion at initial time
   size_t nbPW = 0 ;
@@ -464,7 +489,23 @@ size_t GrainsMPI::setPositionParticlesFromFile()
   size_t error = 0;
   
   // Note: only the master proc reads and stores positions  
-  if ( m_rank == 0 ) error = GrainsMPI::setPositionParticlesFromFile();
+  if ( m_rank == 0 ) error = Grains::setPositionParticlesFromFile();
+  error = m_wrapper->Broadcast_UNSIGNED_INT( error );
+
+  return ( error );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets angular particle initial positions from a file
+size_t GrainsMPI::setAngularPositionParticlesFromFile()
+{
+  size_t error = 0;
+  
+  // Note: only the master proc reads and stores positions  
+  if ( m_rank == 0 ) error = Grains::setAngularPositionParticlesFromFile();
   error = m_wrapper->Broadcast_UNSIGNED_INT( error );
 
   return ( error );

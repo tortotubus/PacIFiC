@@ -100,6 +100,8 @@ Particle::Particle( Particle const& other, bool const& autonumbering )
     m_VelocityInfosNm1->RotationalVelocity_difference =
     	other.m_VelocityInfosNm1->RotationalVelocity_difference;
   }
+  
+  m_kinematics->setCouplingFactor( m_density );
 }
 
 
@@ -137,6 +139,7 @@ Particle::Particle( DOMNode* root, int const& pc )
   m_geoRBWC = new RigidBodyWithCrust( root );
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
+  m_kinematics->setCouplingFactor( m_density );	
 
   // Particle density
   if ( ReaderXML::hasNodeAttr( root, "Density" ) )
@@ -202,6 +205,7 @@ Particle::Particle( RigidBodyWithCrust* georbwc, double const& density,
   m_geoRBWC = georbwc;
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
+  m_kinematics->setCouplingFactor( m_density );	
 
   // Particle density
   m_density = density;
@@ -282,6 +286,7 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 
   // Mass and inertia
   m_density = ParticleRef->m_density;
+  m_kinematics->setCouplingFactor( m_density );
   m_mass = ParticleRef->m_mass;
   for (int i=0; i<6; i++)
   {
@@ -344,6 +349,7 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 
   // Mass and inertia
   m_density = ParticleRef->m_density;
+  m_kinematics->setCouplingFactor( m_density );  
   m_mass = ParticleRef->m_mass;
   for (int i=0; i<6; i++)
   {
@@ -458,20 +464,10 @@ void Particle::Move( double time,
 
 
 // ----------------------------------------------------------------------------
-// Computes acceleration
-void Particle::computeAcceleration( double time )
-{
-  m_kinematics->computeAcceleration( m_torsor, this );
-}
-
-
-
-
-// ----------------------------------------------------------------------------
 // Advances velocity over dt_particle_vel
 void Particle::advanceVelocity( double time, double const& dt_particle_vel )
 {
-  m_kinematics->advanceVelocity( dt_particle_vel );
+  m_kinematics->advanceVelocity( this, dt_particle_vel );
 }
 
 
@@ -502,7 +498,7 @@ void Particle::InterAction( Component* voisin,
 	<< ( GrainsExec::m_MPI ? GrainsExec::getComm()->get_rank() : 0 )
 	<< " has thrown an ContactError exception" <<  endl;
       erreur_level2.setMessage( "Particle::InterAction : choc de croute a t="
-      	+ GrainsExec::doubleToString( time, TIMEFORMAT ) );
+      	+ GrainsExec::doubleToString( time, FORMAT10DIGITS ) );
       erreur_level2.setComponents( this, voisin, time );
       GrainsExec::m_exception_Contact = true;
       throw(erreur_level2);
@@ -559,7 +555,7 @@ void Particle::SearchContact( Component* voisin, double dt,
 	<< ( GrainsExec::m_MPI ? GrainsExec::getComm()->get_rank() : 0 )
 	<< " has thrown an ContactError exception" <<  endl;
       erreur_level2.setMessage( "Particle::InterAction : choc de croute a t="
-      	+ GrainsExec::doubleToString( time, TIMEFORMAT ) );
+      	+ GrainsExec::doubleToString( time, FORMAT10DIGITS ) );
       erreur_level2.setComponents( this, voisin, time );
       GrainsExec::m_exception_Contact = true;
       throw(erreur_level2);
@@ -683,16 +679,6 @@ Vector3 const* Particle::getAngularVelocity() const
 Vector3 const* Particle::getTranslationalVelocity() const
 {
   return ( m_kinematics->getTranslationalVelocity() );
-}
-
-
-
-
-// ----------------------------------------------------------------------------
-// Returns total force exerted on the particle
-Vector3 const* Particle::getForce() const
-{
-  return ( m_torsor.getForce() );
 }
 
 
@@ -1022,7 +1008,7 @@ void Particle::read2014( istream& fileIn, vector<Particle*> const*
   if ( m_kinematics ) delete m_kinematics;
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
-  m_kinematics->readParticleKinematics2014( fileIn );
+  m_kinematics->readParticleKinematics2014( fileIn, this );
   
   // Read contact map
   readContactMap2014( fileIn );
@@ -1083,7 +1069,7 @@ void Particle::read2014_binary( istream& fileIn, vector<Particle*> const*
   if ( m_kinematics ) delete m_kinematics;
   m_kinematics = KinematicsBuilderFactory::create(
   	m_geoRBWC->getConvex() );
-  m_kinematics->readParticleKinematics2014_binary( fileIn );
+  m_kinematics->readParticleKinematics2014_binary( fileIn, this );
 
   // Read contact map
   readContactMap2014_binary( fileIn );
@@ -1110,36 +1096,36 @@ void Particle::write( ostream& fileSave ) const
   fileSave << "*Type " << m_GeomType << endl;
   fileSave << "*Tag " << m_tag << endl;
   fileSave << "*Mass "
-	   << GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	   << GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_mass ) << endl;
   fileSave << "*Density "
-	   << GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	   << GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_density ) << endl;
   fileSave << "*MomentOfInertiaTensor" << endl
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[0] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[1] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[2] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[3] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[4] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia[5] ) << endl;
   fileSave << "*InverseOfMOIT" << endl
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[0] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[1] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[2] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[3] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[4] ) << " "
-	<< GrainsExec::doubleToString( ios::scientific, POSITIONFORMAT,
+	<< GrainsExec::doubleToString( ios::scientific, FORMAT16DIGITS,
   		m_inertia_1[5] ) << endl;
 
   Component::writePosition( fileSave );
@@ -1181,7 +1167,7 @@ void Particle::write2014( ostream& fileSave ) const
   	( m_activity == COMPUTE ? true : false ) << " ";
   m_geoRBWC->getTransform()->writeTransform2014( fileSave );
   fileSave << " ";
-  m_kinematics->writeParticleKinematics2014( fileSave );
+  m_kinematics->writeParticleKinematics2014( fileSave, this );
   writeContactMemory2014( fileSave );
   fileSave << endl;
 }
@@ -1199,7 +1185,7 @@ void Particle::write2014_binary( ostream& fileSave )
   unsigned int iact = m_activity == COMPUTE ? true : false ;
   fileSave.write( reinterpret_cast<char*>( &iact ), sizeof(unsigned int) );
   m_geoRBWC->getTransform()->writeTransform2014_binary( fileSave );
-  m_kinematics->writeParticleKinematics2014_binary( fileSave );
+  m_kinematics->writeParticleKinematics2014_binary( fileSave, this );
   writeContactMemory2014_binary( fileSave );
 }
 
@@ -1212,8 +1198,8 @@ void Particle::write2014_binary( ostream& fileSave )
 size_t Particle::get_numberOfBytes() const
 {
   return ( 3 * sizeof(int) + sizeof(unsigned int) 
-  	+ Transform::m_sizeofTransform 
-	+ m_kinematics->get_numberOfBytes()
+  	+ Transform::m_sizeofTransform
+ 	+ m_kinematics->get_numberOfBytes()
 	+ sizeof(int) 
 	+ m_contactMap.size() * Component::m_sizeofContactMemory );
 }
@@ -1885,4 +1871,45 @@ int Particle::getMaxIDnumber()
 void Particle::setMaxIDnumber( int const& maxID_ )
 {
   m_maxID = maxID_;
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Returns whether to store the contact force for post-processing 
+bool Particle::storePPForce( Component const* othercomp ) const
+{
+  bool store = false;
+  // Case of an interior or buffer particle
+  if ( m_tag < 2 )
+  {
+    // Other component is either an obstacle or an interior/buffer particle
+    if ( othercomp->getTag() < 2 ) store = true;
+    // Other component is a clone particle and we store if ID > othercomp.ID
+    // to avoid duplicate storing on multi-procs or with periodic BC
+    else if ( m_id > othercomp->getID() ) store = true; 
+  }
+  // Case of clone particle
+  else
+  {
+    // Other component is an obstacle -> we do not store
+    // Other component is an interior/buffer particle: we store if 
+    // ID > othercomp.ID to avoid duplicate storing on multi-procs or with 
+    // periodic BC
+    if ( !othercomp->isObstacle() && othercomp->getTag() < 2
+    	&& m_id < othercomp->getID() ) store = true;  
+  }
+  
+  return ( store );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets time integration scheme using the macro variable GrainsExec::m_TIScheme
+void Particle::setTimeIntegrationScheme()
+{
+  m_kinematics->setTimeIntegrationScheme();
 }
