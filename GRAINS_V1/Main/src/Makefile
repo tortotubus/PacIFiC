@@ -38,8 +38,6 @@ export LIBMPI_FOR_GRAINS___ = `echo ${GRAINS_MPI_LIBS} | sed 's%[^ ][^ ]*%-l&%g'
 MPIFLAGS    := -L$(MPILIB) $(LIBMPI_FOR_GRAINS___)
 
 
-<<<<<<< HEAD
-=======
 # Zlib
 ZINC := $(GRAINS_Z_INCDIR)
 ZLIB := $(GRAINS_Z_LIBDIR)
