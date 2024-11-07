@@ -663,6 +663,99 @@ double closest_points( Convex const& a, Convex const& b, Transform const& a2w,
 
 
 
+// ----------------------------------------------------------------------------
+// Returns the minimal distance between 2 convex shapes and a point per
+// convex shape that represents the tips of the minimal distance segment
+double closest_points( Convex const& a, 
+                       Convex const& b, 
+                       Transform const& a2w,
+                       Transform const& b2w, 
+                       Vector3& v,
+                       Point3& pa, 
+                       Point3& pb, 
+                       int& nbIter )
+{
+  // note that 
+  Vector3 w = a2w( a.support( v ) ) - b2w( b.support( v ) );
+  Vector3 d = w;
+  double dist = Norm(w);
+
+  bits = 0;
+  all_bits = 0;
+  numIterations = 0;
+  double mu = 0.;
+
+  double momentum, oneMinusMomentum;
+  bool acceleration = GrainsExec::m_colDetAcceleration;
+  double relError = GrainsExec::m_colDetTolerance;
+  double absError = 1.e-4 * relError;
+
+  while (bits < 15 && dist > EPSILON2 && numIterations < 1000)
+  {
+    ++numIterations;
+    last = 0;
+    last_bit = 1;
+    while (bits & last_bit) { ++last; last_bit <<= 1; }
+
+    // Finding the suitable direction using either Nesterov or original
+    // The number 8 is hard-coded. Emprically, it shows the best convergence for
+    // superquadrics. For the rest of shapes, we really do not need to use
+    // Nesterov as the improvemenet is marginal.
+    if ( acceleration && numIterations % 8 != 0 )
+    {
+      momentum = numIterations / ( numIterations + 2. );
+      oneMinusMomentum = 1. - momentum;
+      d = momentum * d + 
+          momentum * oneMinusMomentum * v +
+          oneMinusMomentum * oneMinusMomentum * w;
+    }
+    else
+      d = v;
+
+    p[last] = a.support( ( -d ) * a2w.getBasis() );
+    q[last] = b.support( (  d ) * b2w.getBasis() );
+    w = a2w(p[last]) - b2w(q[last]);
+
+    // termination criteria
+    mu = dist - v * w / dist;
+    if ( mu < dist * relError ||
+         mu < absError )
+    {
+      if ( acceleration )
+      {
+        if ( Norm( d - v ) < EPSILON )
+          break;
+        acceleration = false;
+        p[last] = a.support( ( -v ) * a2w.getBasis() );
+        q[last] = b.support( (  v ) * b2w.getBasis() );
+        w = a2w( p[last] ) - b2w( q[last] );
+      }
+      else
+        break;
+    }
+
+    if (degenerate(w))
+      break;
+
+    
+    y[last] = w;
+    all_bits = bits|last_bit;
+
+    if ( !closest( v ) )
+      break;
+    dist = Norm(v);
+  }
+  compute_points(bits, pa, pb);
+  if (numIterations > 1000) 
+    catch_me();
+  else 
+    nbIter = numIterations;
+  return ( dist );
+}
+
+
+
+
 // ---------------------------------------------------------------------
 // Output operator
 ostream& operator << ( ostream& fileOut, Convex const& convex )

@@ -48,7 +48,6 @@ ZFLAGS := -L$(ZLIB) -lz
 MACRO      += -D_TIMER
 
 
->>>>>>> origin/NewGrains
 # Compiler flags
 INCFLAGS  := $(XERCESINC:%=-I%) $(GRAINSINC:%=-I%) $(MPIINC:%=-I%) $(ZINC:%=-I%)
 COMPFLAGS := $(DEBUG) $(INCFLAGS)
