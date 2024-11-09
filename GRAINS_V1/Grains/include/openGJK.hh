@@ -66,4 +66,16 @@ double closest_points_GJK_SV2( Convex const& a,
                        Point3& pb,
                        int& nbIter );
 
+/*! @brief Invoke the GJK algorithm to compute the minimum distance between two polytopes with a better intial guess.
+   *
+   * The simplex has to be initialised prior the call to this function. */
+double closest_points_GJK_SV2( Convex const& a, 
+                       Convex const& b, 
+                       Transform const& a2w,
+                       Transform const& b2w, 
+                       Vector3& vVec,
+                       Point3& pa,
+                       Point3& pb,
+                       int& nbIter );
+
 #endif // OPENGJK_H__

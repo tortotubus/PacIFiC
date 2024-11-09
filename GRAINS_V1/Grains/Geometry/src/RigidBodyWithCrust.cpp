@@ -260,19 +260,24 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
       Transform const* b2w = neighbor.getTransformWithCrust();
       Point3 pointA, pointB;
       int nbIterGJK = 0;
-
-      // TODO: 
-      // Here, we can choose between different collision detection algorithms.
-      // Maybe, it is best to dynamically choose the algorithm of interest in the
-      // XML file. Probably, using a new class CollisionDetection and overloading
-      // the operator ().
-      // So far, it is hard-coded for the original GJK algorithm.
-      double distance = closest_points( *m_convex, *(neighbor.m_convex), *a2w,
-	*b2w, pointA, pointB, nbIterGJK );
-//       double distance = closest_points_GJK_SV( *m_convex, 
-//       	*(neighbor.m_convex), *a2w, *b2w, pointA, pointB, nbIterGJK );
-//       double distance = closest_points_GJK_SV2( *m_convex, 
-//       	*(neighbor.m_convex), *a2w, *b2w, pointA, pointB, nbIterGJK );
+      double distance = 0;
+      // Choose the appropriate GJK version according to the input XML
+      if ( GrainsExec::m_colDetGJK_SV ) // Signed-Volume
+        distance = closest_points_GJK_SV2( *m_convex, 
+                                           *(neighbor.m_convex), 
+                                           *a2w, 
+                                           *b2w,
+                                           pointA, 
+                                           pointB, 
+                                           nbIterGJK );
+      else // default: Johnson
+        distance = closest_points( *m_convex, 
+                                   *(neighbor.m_convex),
+                                   *a2w,
+                                   *b2w, 
+                                   pointA, 
+                                   pointB, 
+                                   nbIterGJK );
 
       if ( distance < EPSILON )
       {
@@ -390,16 +395,16 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
       double distance = 0.;
 
       // Choose the appropriate GJK version according to the input XML
-      // if ( GrainsExec::m_GJK_SV ) // Signed-Volume
-      //   distance = closest_points_GJK_SV2( *m_convex, 
-      //                                      *(neighbor.m_convex), 
-      //                                      *a2w, 
-      //                                      *b2w, 
-      //                                      initialDirection,
-      //                                      pointA, 
-      //                                      pointB, 
-      //                                      nbIterGJK );
-      // else // default: Johnson
+      if ( GrainsExec::m_colDetGJK_SV ) // Signed-Volume
+        distance = closest_points_GJK_SV2( *m_convex, 
+                                           *(neighbor.m_convex), 
+                                           *a2w, 
+                                           *b2w, 
+                                           initialDirection,
+                                           pointA, 
+                                           pointB, 
+                                           nbIterGJK );
+      else // default: Johnson
         distance = closest_points( *m_convex, 
                                    *(neighbor.m_convex),
                                    *a2w,

@@ -654,28 +654,14 @@ void Grains::Construction( DOMElement* rootElement )
                        ReaderXML::getNode( collision, "CollisionDetection" );
       if ( collisionAlg )
       {
+
+        // Method
         string nCollisionAlg = 
                           ReaderXML::getNodeAttr_String( collisionAlg, "Type" );
         if ( nCollisionAlg == "GJK" )
-        {
-          if ( m_rank == 0 )
-          {
-            GrainsExec::m_colDetGJK_SV = false;
-            cout << GrainsExec::m_shift6 
-                 << "Collision detection algorithm is GJK!" 
-                 << endl;
-          }
-        }
+          GrainsExec::m_colDetGJK_SV = false;
         else if ( nCollisionAlg == "GJK_SV" )
-        {
-          if ( m_rank == 0 )
-          {
             GrainsExec::m_colDetGJK_SV = true;
-            cout << GrainsExec::m_shift6 
-                 << "Collision detection algorithm is GJK_SV!" 
-                 << endl;
-          }
-        }
         else
         {
           if ( m_rank == 0 )
@@ -686,20 +672,21 @@ void Grains::Construction( DOMElement* rootElement )
             grainsAbort();
           }
         }
-	    
-        }
 
+        // Tolerance
         double tol = ReaderXML::getNodeAttr_Double( collisionAlg, "Tolerance" );
         if ( tol < 1e-15 )
         {
           if ( m_rank == 0 )
-	    cout << GrainsExec::m_shift6 <<
-              "Tolerance should be greater than 1E-15!" << endl;
+	          cout << GrainsExec::m_shift6 
+                 << "Tolerance should be greater than 1E-15!" 
+                 << endl;
           grainsAbort();
         }
         else
           GrainsExec::m_colDetTolerance = tol;
         
+        // Acceleration
         string acc = 
                   ReaderXML::getNodeAttr_String( collisionAlg, "Acceleration" );
         if ( acc == "ON" )
@@ -709,13 +696,14 @@ void Grains::Construction( DOMElement* rootElement )
         else
         {
           if ( m_rank == 0 )
-	    cout << GrainsExec::m_shift6 <<
-              "Acceleration should be ON or OFF!" << endl;
+            cout << GrainsExec::m_shift6 
+                 << "Acceleration should be ON or OFF!" 
+                 << endl;
           grainsAbort();
         }
 
-        string hist = 
-                  ReaderXML::getNodeAttr_String( collisionAlg, "History" );
+        // History
+        string hist = ReaderXML::getNodeAttr_String( collisionAlg, "History" );
         if ( hist == "ON" )
           GrainsExec::m_colDetWithHistory = true;
         else if ( hist == "OFF" )
@@ -724,31 +712,36 @@ void Grains::Construction( DOMElement* rootElement )
         {
           if ( m_rank == 0 )
             cout << GrainsExec::m_shift6 
-                 << "History should be ON or OFF!" << endl;
+                 << "History should be ON or OFF!" 
+                 << endl;
           grainsAbort();
         }
 
+        // Final output
         if ( m_rank == 0 )
-	  cout << GrainsExec::m_shift6 
-         << "Collision detection algorithm using " 
-         << ( GrainsExec::m_colDetGJK_SV ? "GJK_SV" : "GJK" )
-         << ", " 
-         << GrainsExec::m_colDetTolerance 
-         << " tolerance, acceleration is " 
-         << ( GrainsExec::m_colDetAcceleration ? "on" : "off" )
-         << ", and history is " 
-         << ( GrainsExec::m_colDetWithHistory ? "on." : "off." ) 
-         << endl;
+          cout << GrainsExec::m_shift6 
+               << "Collision detection algorithm using " 
+               << ( GrainsExec::m_colDetGJK_SV ? "GJK_SV" : "GJK" )
+               << ", " 
+               << GrainsExec::m_colDetTolerance 
+               << " tolerance, acceleration is " 
+               << ( GrainsExec::m_colDetAcceleration ? "on" : "off" )
+               << ", and history is " 
+               << ( GrainsExec::m_colDetWithHistory ? "on." : "off." ) 
+               << endl;
+      }
       else
       {
         if ( m_rank == 0 )
-	  cout << GrainsExec::m_shift6 <<
-              "Default collision detection algorithm using GJK, " <<
-              "1E-15 tolerance, and without acceleration and history!" << endl;
+          cout << GrainsExec::m_shift6 
+               << "Default collision detection algorithm using GJK, " 
+               << "1E-15 tolerance, and without acceleration and history!" 
+               << endl;
       }
 
-      DOMNode* bVolumeAlg = 
-                       ReaderXML::getNode( collision, "BoundingVolume" );
+
+      // Bounding volume
+      DOMNode* bVolumeAlg = ReaderXML::getNode( collision, "BoundingVolume" );
       if ( bVolumeAlg )
       {
         string nBVtype = ReaderXML::getNodeAttr_String( bVolumeAlg, "Type" );
@@ -760,14 +753,17 @@ void Grains::Construction( DOMElement* rootElement )
           GrainsExec::m_colDetBoundingVolume = 0;
       }
       if ( m_rank == 0 && GrainsExec::m_colDetBoundingVolume == 1 )
-        cout << GrainsExec::m_shift6 <<
-        "Pre-collision Test with oriented bounding boxes." << endl;
+        cout << GrainsExec::m_shift6 
+             << "Pre-collision Test with oriented bounding boxes." 
+             << endl;
       else if ( m_rank == 0 && GrainsExec::m_colDetBoundingVolume == 2 )
-        cout << GrainsExec::m_shift6 <<
-        "Pre-collision Test with oriented bounding cylinders." << endl;
+        cout << GrainsExec::m_shift6 
+             << "Pre-collision Test with oriented bounding cylinders." 
+             << endl;
       else if ( m_rank == 0 )
-        cout << GrainsExec::m_shift6 <<
-        "Pre-collision Test with bounding volumes is off." << endl;
+        cout << GrainsExec::m_shift6 
+             << "Pre-collision Test with bounding volumes is off." 
+             << endl;
     }
 
 

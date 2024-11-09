@@ -675,20 +675,33 @@ double closest_points( Convex const& a,
                        Point3& pb, 
                        int& nbIter )
 {
-  // note that 
-  Vector3 w = a2w( a.support( v ) ) - b2w( b.support( v ) );
-  Vector3 d = w;
-  double dist = Norm(w);
-
+  // Misc variables, e.g. tolerance, ...
+  double relError = GrainsExec::m_colDetTolerance;
+  double absError = 1.e-4 * relError;
+  bool acceleration = GrainsExec::m_colDetAcceleration;
+  double momentum = 0., oneMinusMomentum = 1.;
   bits = 0;
   all_bits = 0;
   numIterations = 0;
   double mu = 0.;
 
-  double momentum, oneMinusMomentum;
-  bool acceleration = GrainsExec::m_colDetAcceleration;
-  double relError = GrainsExec::m_colDetTolerance;
-  double absError = 1.e-4 * relError;
+  // Initializing vectors; It only matters for the accelerated version where
+  // we have initialization of w and d.
+  Vector3 w, d;
+  if ( v != Vector3Null )
+    w = a2w( a.support( ( -v ) * a2w.getBasis() ) ) - 
+        b2w( b.support( (  v ) * b2w.getBasis() ) );
+  else // if we don't have a better guess
+  {
+    v = a2w( a.support( Vector3Null ) ) - b2w( b.support( Vector3Null ) );
+    w = v;
+  }
+  d = v;
+  // d is the search direction, so we better set it to v not the supp( v ).
+  // Vector3 d = v;
+  // dist is norm of w. It is actually not correct, but it is OK for the initial
+  // guess
+  double dist = 1.;
 
   while (bits < 15 && dist > EPSILON2 && numIterations < 1000)
   {
@@ -714,7 +727,7 @@ double closest_points( Convex const& a,
 
     p[last] = a.support( ( -d ) * a2w.getBasis() );
     q[last] = b.support( (  d ) * b2w.getBasis() );
-    w = a2w(p[last]) - b2w(q[last]);
+    w = a2w( p[last] ) - b2w( q[last] );
 
     // termination criteria
     mu = dist - v * w / dist;
