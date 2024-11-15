@@ -405,6 +405,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
                                            pointB, 
                                            nbIterGJK );
       else // default: Johnson
+      {
         distance = closest_points( *m_convex, 
                                    *(neighbor.m_convex),
                                    *a2w,
@@ -413,7 +414,24 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
                                    pointA, 
                                    pointB, 
                                    nbIterGJK );
-      
+        // double diff = distance;
+        // Point3 pointAdiff = pointA, pointBdiff = pointB;
+        // int nbIterGJKdiff = nbIterGJK;
+        // distance = closest_points( *m_convex, 
+        //                            *(neighbor.m_convex),
+        //                            *a2w,
+        //                            *b2w, 
+        //                            pointA, 
+        //                            pointB, 
+        //                            nbIterGJK );
+        // diff -= distance;
+        // if ( abs( diff ) > 1.e-6 )
+        // {
+          
+        //   cout << nbIterGJKdiff << " "
+        //        << diff << " " << pointA - pointAdiff << " " << pointB - pointBdiff << endl;
+        // }
+      }
       if ( distance < EPSILON )
       {
         cout << "ERR RigidBodyWithCrust::ClosestPoint on Processor "

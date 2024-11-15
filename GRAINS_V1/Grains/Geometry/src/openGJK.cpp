@@ -746,7 +746,7 @@ double closest_points_GJK_SV2( Convex const& a,
   
   /* Initialise simplex */
   double v[3];
-  double dist = 1.;
+  double dist = Norm( wVec );
   gkSimplex s = { 1, { 0. } };
   for (int t = 0; t < 3; ++t)
     s.vrtx[0][t] = wVec[t];
@@ -793,9 +793,8 @@ double closest_points_GJK_SV2( Convex const& a,
 
     /* Add new vertex to simplex */
     i = s.nvrtx;
-    for (int t = 0; t < 3; ++t) {
+    for (int t = 0; t < 3; ++t)
       s.vrtx[i][t] = wVec[t];
-    }
     s.nvrtx++;
 
     /* Invoke distance sub-algorithm */
@@ -803,8 +802,8 @@ double closest_points_GJK_SV2( Convex const& a,
     dist = sqrt( norm2( v ) );
     vVec.setValue( v[0], v[1], v[2] );
 
-  } while ( ( s.nvrtx != 4 ) && 
-            ( numIterations != maxNumIterations ) && 
+  } while ( ( s.nvrtx < 4 ) && 
+            ( numIterations < maxNumIterations ) && 
             ( dist > EPSILON2 ) );
 
   // It is not the best way to return the witness points.
@@ -812,6 +811,8 @@ double closest_points_GJK_SV2( Convex const& a,
   // original GJK.
   // We can use the latest update on wVec to get a better estimate on witness
   // points.
+  // pa = a2w( a.support( ( -vVec ) * a2w.getBasis() ) );
+  // pb = b2w( a.support( (  vVec ) * b2w.getBasis() ) );
   pa = a.support( ( -vVec ) * a2w.getBasis() );
   pb = a.support( (  vVec ) * b2w.getBasis() );
   nbIter = numIterations;

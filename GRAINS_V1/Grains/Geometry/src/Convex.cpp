@@ -675,6 +675,17 @@ double closest_points( Convex const& a,
                        Point3& pb, 
                        int& nbIter )
 {
+  // RESET ALL TO ZERO
+  for ( int i = 0; i < 4; ++i )
+  {
+    p[i] = Point3Null;
+    q[i] = Point3Null;
+    y[i] = Vector3Null;
+    for ( int j = 0; j < 16; ++j )
+      det[j][i] = 0;   
+  }
+
+
   // Misc variables, e.g. tolerance, ...
   double relError = GrainsExec::m_colDetTolerance;
   double absError = 1.e-4 * relError;
@@ -689,18 +700,21 @@ double closest_points( Convex const& a,
   // we have initialization of w and d.
   Vector3 w, d;
   if ( v != Vector3Null )
+  {
+    // constexpr double eps = 1.e-6;
+    // v[X] += eps; v[Y] += eps; v[Z] += eps;
     w = a2w( a.support( ( -v ) * a2w.getBasis() ) ) - 
         b2w( b.support( (  v ) * b2w.getBasis() ) );
+    // w = a2w( a.support( -v )nbIterGJK ) - 
+    //     b2w( b.support( v ) );
+  }
   else // if we don't have a better guess
   {
     v = a2w( a.support( Vector3Null ) ) - b2w( b.support( Vector3Null ) );
     w = v;
   }
   d = v;
-  // d is the search direction, so we better set it to v not the supp( v ).
-  // Vector3 d = v;
-  // dist is norm of w. It is actually not correct, but it is OK for the initial
-  // guess
+  
   double dist = 1.;
 
   while (bits < 15 && dist > EPSILON2 && numIterations < 1000)
@@ -729,6 +743,7 @@ double closest_points( Convex const& a,
     q[last] = b.support( (  d ) * b2w.getBasis() );
     w = a2w( p[last] ) - b2w( q[last] );
 
+
     // termination criteria
     mu = dist - v * w / dist;
     if ( mu < dist * relError ||
@@ -737,20 +752,27 @@ double closest_points( Convex const& a,
       if ( acceleration )
       {
         if ( Norm( d - v ) < EPSILON )
+        {
+          // if ( numIterations > 4 ) break; 
+          // else continue;
           break;
+        }
         acceleration = false;
         p[last] = a.support( ( -v ) * a2w.getBasis() );
         q[last] = b.support( (  v ) * b2w.getBasis() );
         w = a2w( p[last] ) - b2w( q[last] );
       }
       else
+      {
+        // if ( numIterations > 4 ) break; 
+        // else continue;
         break;
+      }
     }
 
     if (degenerate(w))
       break;
 
-    
     y[last] = w;
     all_bits = bits|last_bit;
 
@@ -758,10 +780,15 @@ double closest_points( Convex const& a,
       break;
     dist = Norm(v);
   }
+  // bool temp = closest( v );
   compute_points(bits, pa, pb);
+  // pa = p[last];
+  // pb = q[last];
+  // pa = a.support( ( -v ) * a2w.getBasis() );
+  // pb = a.support( (  v ) * b2w.getBasis() );
   if (numIterations > 1000) 
     catch_me();
-  else 
+  else
     nbIter = numIterations;
   return ( dist );
 }
