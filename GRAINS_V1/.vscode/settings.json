@@ -10,6 +10,7 @@
         "vector": "cpp",
         "forward_list": "cpp",
         "tuple": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "random": "cpp"
     }
 }

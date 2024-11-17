@@ -248,7 +248,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
       // In case one rigid body is a rectangle
       if ( convexA->getConvexType() == RECTANGLE2D ||
          convexB->getConvexType() == RECTANGLE2D )
-        return ( ClosestPointRECTANGLE( *this, neighbor, true ) );
+        return ( ClosestPointRECTANGLE( *this, neighbor, false ) );
 
       // Pre-collision Test
       if( GrainsExec::m_colDetBoundingVolume && 
@@ -385,7 +385,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
       // In case one rigid body is a rectangle
       if ( convexA->getConvexType() == RECTANGLE2D ||
            convexB->getConvexType() == RECTANGLE2D )
-        return ( ClosestPointRECTANGLE( *this, neighbor, true ) );
+        return ( ClosestPointRECTANGLE( *this, neighbor, false ) );
 
       // Distance between the 2 rigid bodies shrunk by their crust thickness
       Transform const* a2w = this->getTransformWithCrust();
@@ -405,7 +405,6 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
                                            pointB, 
                                            nbIterGJK );
       else // default: Johnson
-      {
         distance = closest_points( *m_convex, 
                                    *(neighbor.m_convex),
                                    *a2w,
@@ -414,24 +413,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
                                    pointA, 
                                    pointB, 
                                    nbIterGJK );
-        // double diff = distance;
-        // Point3 pointAdiff = pointA, pointBdiff = pointB;
-        // int nbIterGJKdiff = nbIterGJK;
-        // distance = closest_points( *m_convex, 
-        //                            *(neighbor.m_convex),
-        //                            *a2w,
-        //                            *b2w, 
-        //                            pointA, 
-        //                            pointB, 
-        //                            nbIterGJK );
-        // diff -= distance;
-        // if ( abs( diff ) > 1.e-6 )
-        // {
-          
-        //   cout << nbIterGJKdiff << " "
-        //        << diff << " " << pointA - pointAdiff << " " << pointB - pointBdiff << endl;
-        // }
-      }
+
       if ( distance < EPSILON )
       {
         cout << "ERR RigidBodyWithCrust::ClosestPoint on Processor "

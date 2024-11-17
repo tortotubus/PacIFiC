@@ -43,7 +43,8 @@ enum ConvexType {
 
     @author D.PETIT - Institut Francais du Petrole - 2000 - Modification
     @author D.RAKOTONIRINA - IFP Energies Nouvelles - 2014 - Modification
-    @author A.WACHS - 2019 - Major cleaning & refactoring */
+    @author A.WACHS - 2019 - Major cleaning & refactoring
+    @author A.YAZDANI - 2024 - GJK Refactoring */
 // ============================================================================
 class Convex : public Shape
 {
@@ -236,31 +237,31 @@ of A
 bool intersect( Convex const& a, Convex const& b, Transform const& b2a,
 	Vector3& v );
 
-/** @brief Returns whether 2 convex shapes intersect and if they intersect
-returns an intersection point per convex shape in each convex reference frame
-@param a convex shape A
-@param b convex shape B
-@param a2w geometric tramsformation describing convex A in the world reference
-frame
-@param b2w geometric tramsformation describing convex B in the world reference
-frame
-@param v initial direction of GJK
-@param pa intersection point of A in the reference frame of A
-@param pb intersection point of B in the reference frame of B */
-bool common_point( Convex const& a, Convex const& b, Transform const& a2w,
-	Transform const& b2w, Vector3& v, Point3& pa, Point3& pb );
+// /** @brief Returns whether 2 convex shapes intersect and if they intersect
+// returns an intersection point per convex shape in each convex reference frame
+// @param a convex shape A
+// @param b convex shape B
+// @param a2w geometric tramsformation describing convex A in the world reference
+// frame
+// @param b2w geometric tramsformation describing convex B in the world reference
+// frame
+// @param v initial direction of GJK
+// @param pa intersection point of A in the reference frame of A
+// @param pb intersection point of B in the reference frame of B */
+// bool common_point( Convex const& a, Convex const& b, Transform const& a2w,
+// 	Transform const& b2w, Vector3& v, Point3& pa, Point3& pb );
 
-/** @brief Returns whether 2 convex shapes intersect and if they intersect
-returns an intersection point per convex shape in each convex reference frame
-@param a convex shape A
-@param b convex shape B
-@param b2a geometric tramsformation describing convex B in the reference frame
-of A
-@param v initial direction of GJK
-@param pa intersection point of A in the reference frame of A
-@param pb intersection point of B in the reference frame of B */
-bool common_point( Convex const& a, Convex const& b, Transform const& b2a,
-	Vector3& v, Point3& pa, Point3& pb );
+// /** @brief Returns whether 2 convex shapes intersect and if they intersect
+// returns an intersection point per convex shape in each convex reference frame
+// @param a convex shape A
+// @param b convex shape B
+// @param b2a geometric tramsformation describing convex B in the reference frame
+// of A
+// @param v initial direction of GJK
+// @param pa intersection point of A in the reference frame of A
+// @param pb intersection point of B in the reference frame of B */
+// bool common_point( Convex const& a, Convex const& b, Transform const& b2a,
+// 	Vector3& v, Point3& pa, Point3& pb );
 
 /** @brief Returns the minimal distance between 2 convex shapes and a point per
 convex shape that represents the tips of the minimal distance segment
