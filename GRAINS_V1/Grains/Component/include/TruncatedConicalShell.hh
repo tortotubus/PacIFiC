@@ -1,5 +1,5 @@
-#ifndef _CYLINDRICALSHELL_HH_
-#define _CYLINDRICALSHELL_HH_
+#ifndef _TruncatedConicalShell_HH_
+#define _TruncatedConicalShell_HH_
 
 #include "CompositeObstacle.hh"
 #include "SimpleObstacle.hh"
@@ -10,39 +10,39 @@ using namespace std;
 #include "ReaderXML.hh"
 
 
-/** @brief The class CylindricalShell
+/** @brief The class TruncatedConicalShell
 
-    Cylindrical shell made of boxes.
+    Truncated conical shell made of trapezoidal prisms.
 
     @author A.WACHS - 2024 - Creation */
 // ============================================================================
-class CylindricalShell : public CompositeObstacle
+class TruncatedConicalShell : public CompositeObstacle
 {
   public:
     /** @name Constructors */
     //@{
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    CylindricalShell( DOMNode* root );
+    TruncatedConicalShell( DOMNode* root );
 
     /** @brief Constructor with name as input parameter
     @param s obstacle name */
-    CylindricalShell( string const& s );
+    TruncatedConicalShell( string const& s );
 
     /** @brief Destructor */
-    ~CylindricalShell();
+    ~TruncatedConicalShell();
     //@}
 
 
     /** @name I/O methods */
     //@{
-    /** @brief Reloads the cylindrical shell and links it to the higher level 
-    obstacle in the obstacle tree
+    /** @brief Reloads the truncated conical shell and links it to the higher 
+    level obstacle in the obstacle tree
     @param mother higher level obstacle
     @param file input stream */
     virtual void reload( Obstacle& mother, istream& file ) ;    
 
-    /** @brief Outputs the cylindrical shell for reload
+    /** @brief Outputs the truncated conical shell for reload
     @param fileSave output stream */
     virtual void write( ostream& fileSave ) const;
     //@}
@@ -52,7 +52,8 @@ class CylindricalShell : public CompositeObstacle
     /** @name Parameters */
     //@{  
     double m_height; /**< height */
-    double m_innerRadius; /**< inner radius */
+    double m_innerLargeRadius; /**< inner large radius */
+    double m_innerSmallRadius; /**< inner small radius */    
     double m_shellWidth; /**< shell radial width */
     size_t m_nbBoxes; /**< number of boxes in the angular direction */   
     //@}
@@ -61,8 +62,8 @@ class CylindricalShell : public CompositeObstacle
     /** @name Constructors */
     //@{
     /** @brief Copy constructor
-    @param copy copied CylindricalShell */
-    CylindricalShell( CylindricalShell const& copy );    
+    @param copy copied TruncatedConicalShell */
+    TruncatedConicalShell( TruncatedConicalShell const& copy );    
     //@}   
 };
 

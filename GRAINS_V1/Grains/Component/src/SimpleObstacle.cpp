@@ -71,7 +71,6 @@ SimpleObstacle::SimpleObstacle( string const& name,
     	string const& mat, bool const& toFluid, 
 	bool const& autonumbering )
   : Obstacle( "", autonumbering )
-  , m_transferToFluid( false )
 {
   m_ObstacleType = "SimpleObstacle";
 
@@ -727,7 +726,7 @@ void SimpleObstacle::setMinIDnumber()
 
 // ----------------------------------------------------------------------------
 // Computes center of mass position
-pair<Point3,double> SimpleObstacle::computeCenterOfMass()
+pair<Point3,double> SimpleObstacle::computeVolumeCenterOfMass()
 {
   return( pair<Point3,double>( *(getPosition()), getVolume() ) );
 }
