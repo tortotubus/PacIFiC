@@ -771,6 +771,49 @@ bool Polyhedron::isIn( Point3 const& pt ) const
 
 
 // ----------------------------------------------------------------------------
+// Returns the bounding volume to polyhedron
+BVolume* Polyhedron::computeBVolume( unsigned int type ) const
+{
+  // It is typically not straightforward to find the bounding volume to a general
+  // polyhedron. The method we use here is not by any means the optimal 
+  // (most fitted) bounding volume to the given polyhedron.
+  // Here, we simply loop over all vertices to find those with maximum abs value
+  // in each direction. Persumably, for regular polyhedron it is going to be
+  // enough.
+  BVolume* bvol = NULL;
+  double x = 0., y = 0., z = 0.;
+  Point3 pt;
+  if ( type == 1 ) // OBB
+  {
+    for ( int i = 0; i < numVerts(); i++ )
+    {
+      pt = m_base[i];
+      x = fabs( pt[X] ) > x ? fabs( pt[X] ) : x;
+      y = fabs( pt[Y] ) > y ? fabs( pt[Y] ) : y;
+      z = fabs( pt[Z] ) > z ? fabs( pt[Z] ) : z;
+    }
+    bvol = new OBB( Vector3( x, y, z ), Matrix() );
+  }
+  // else if ( type == 2 ) // OBC
+  // {
+  //   double a[2];
+  //   int axis = ( a[X] = fabs( m_extent[X] ) ) < ( a[Y] = fabs( m_extent[Y] ) )
+  //     ? Y : X;
+  //   int i = a[axis] < fabs( m_extent[Z] ) ? Z : axis;
+  //   Vector3 e( 0., 0., 0. );
+  //   e[i] = 1.;
+  //   double h = 2. * m_extent[i];
+  //   double r = sqrt( Norm2(m_extent) - m_extent[i]*m_extent[i]);
+
+  //   bvol = new OBC( r, h, e );
+  // }
+
+  return( bvol );
+}
+
+
+
+// ----------------------------------------------------------------------------
 // Performs advanced comparison of the two polyhedrons and returns whether 
 // they match
 bool Polyhedron::equalType_level2( Convex const* other ) const
