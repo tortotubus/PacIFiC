@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "Bash": "bat",
         "iostream": "cpp",
         "unordered_map": "cpp",
         "*.tcc": "cpp",
@@ -11,6 +12,13 @@
         "forward_list": "cpp",
         "tuple": "cpp",
         "ostream": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "expected": "cpp",
+        "memory": "cpp",
+        "future": "cpp",
+        "istream": "cpp",
+        "functional": "cpp",
+        "format": "cpp",
+        "cmath": "cpp"
     }
 }

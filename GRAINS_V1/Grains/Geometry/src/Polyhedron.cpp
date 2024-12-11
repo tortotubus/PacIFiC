@@ -781,32 +781,40 @@ BVolume* Polyhedron::computeBVolume( unsigned int type ) const
   // in each direction. Persumably, for regular polyhedron it is going to be
   // enough.
   BVolume* bvol = NULL;
-  double x = 0., y = 0., z = 0.;
   Point3 pt;
+  Vector3 extent( 0., 0., 0. );
+  for ( int i = 0; i < numVerts(); i++ )
+  {
+    pt = m_base[i];
+    extent[X] = fabs( pt[X] ) > extent[X] ? fabs( pt[X] ) : extent[X];
+    extent[Y] = fabs( pt[Y] ) > extent[Y] ? fabs( pt[Y] ) : extent[Y];
+    extent[Z] = fabs( pt[Z] ) > extent[Z] ? fabs( pt[Z] ) : extent[Z];
+  }
   if ( type == 1 ) // OBB
   {
-    for ( int i = 0; i < numVerts(); i++ )
-    {
-      pt = m_base[i];
-      x = fabs( pt[X] ) > x ? fabs( pt[X] ) : x;
-      y = fabs( pt[Y] ) > y ? fabs( pt[Y] ) : y;
-      z = fabs( pt[Z] ) > z ? fabs( pt[Z] ) : z;
-    }
-    bvol = new OBB( Vector3( x, y, z ), Matrix() );
+    bvol = new OBB( extent, Matrix() );
   }
-  // else if ( type == 2 ) // OBC
-  // {
-  //   double a[2];
-  //   int axis = ( a[X] = fabs( m_extent[X] ) ) < ( a[Y] = fabs( m_extent[Y] ) )
-  //     ? Y : X;
-  //   int i = a[axis] < fabs( m_extent[Z] ) ? Z : axis;
-  //   Vector3 e( 0., 0., 0. );
-  //   e[i] = 1.;
-  //   double h = 2. * m_extent[i];
-  //   double r = sqrt( Norm2(m_extent) - m_extent[i]*m_extent[i]);
+  else if ( type == 2 ) // OBC
+  {
+    double xy = fabs( extent[X] - extent[Y] );
+    double xz = fabs( extent[X] - extent[Z] );
+    double yz = fabs( extent[Y] - extent[Z] );
+    // pick from xy and xz, store to xy
+    int zAxis = xy < xz ? Z : Y;
+    xy = xy < xz ? xy : xz;
+    // pick from xy and yz
+    zAxis = xy < yz ? zAxis : X;
 
-  //   bvol = new OBC( r, h, e );
-  // }
+    Vector3 e( 0., 0., 0. );
+    e[ zAxis ] = 1.;
+    double h = 2. * extent[zAxis];
+    double r = sqrt( extent[X] * extent[X] + 
+                     extent[Y] * extent[Y] +
+                     extent[Z] * extent[Z] -
+                     extent[zAxis] * extent[zAxis] );
+
+    bvol = new OBC( r, h, e );
+  }
 
   return( bvol );
 }

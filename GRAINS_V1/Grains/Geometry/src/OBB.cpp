@@ -135,24 +135,24 @@ bool isContactBVolume( OBB const& obbA,
   Matrix ori = transpose( a2w.getBasis() );
   Point3 const cen = ori * ( *( b2w.getOrigin() ) - *( a2w.getOrigin() ) );
   ori *= b2w.getBasis();
-  // Matrix const oriAbs( fabs(ori[0][0]) + LOWEPS,
-  //                      fabs(ori[0][1]) + LOWEPS,
-  //                      fabs(ori[0][2]) + LOWEPS,
-  //                      fabs(ori[1][0]) + LOWEPS, 
-  //                      fabs(ori[1][1]) + LOWEPS, 
-  //                      fabs(ori[1][2]) + LOWEPS,
-  //                      fabs(ori[2][0]) + LOWEPS, 
-  //                      fabs(ori[2][1]) + LOWEPS, 
-  //                      fabs(ori[2][2]) + LOWEPS );
-  Matrix const oriAbs( fabs(ori[0][0]),
-                       fabs(ori[0][1]),
-                       fabs(ori[0][2]),
-                       fabs(ori[1][0]), 
-                       fabs(ori[1][1]), 
-                       fabs(ori[1][2]),
-                       fabs(ori[2][0]), 
-                       fabs(ori[2][1]), 
-                       fabs(ori[2][2]) );
+  Matrix const oriAbs( fabs(ori[0][0]) + LOWEPS,
+                       fabs(ori[0][1]) + LOWEPS,
+                       fabs(ori[0][2]) + LOWEPS,
+                       fabs(ori[1][0]) + LOWEPS, 
+                       fabs(ori[1][1]) + LOWEPS, 
+                       fabs(ori[1][2]) + LOWEPS,
+                       fabs(ori[2][0]) + LOWEPS, 
+                       fabs(ori[2][1]) + LOWEPS, 
+                       fabs(ori[2][2]) + LOWEPS );
+  // Matrix const oriAbs( fabs(ori[0][0]),
+  //                      fabs(ori[0][1]),
+  //                      fabs(ori[0][2]),
+  //                      fabs(ori[1][0]), 
+  //                      fabs(ori[1][1]), 
+  //                      fabs(ori[1][2]),
+  //                      fabs(ori[2][0]), 
+  //                      fabs(ori[2][1]), 
+  //                      fabs(ori[2][2]) );
 
   // CASE 1: ( three of them )
   if TESTCASE1( 0 ) return ( false );
@@ -165,15 +165,15 @@ bool isContactBVolume( OBB const& obbA,
   if TESTCASE2( 2 ) return ( false );
 
   // CASE 3: ( nine of them )
-  // if TESTCASE3( 0, 0 ) return ( false );
-  // if TESTCASE3( 1, 0 ) return ( false );
-  // if TESTCASE3( 2, 0 ) return ( false );
-  // if TESTCASE3( 0, 1 ) return ( false );
-  // if TESTCASE3( 1, 1 ) return ( false );
-  // if TESTCASE3( 2, 1 ) return ( false );
-  // if TESTCASE3( 0, 2 ) return ( false );
-  // if TESTCASE3( 1, 2 ) return ( false );
-  // if TESTCASE3( 2, 2 ) return ( false );
+  if TESTCASE3( 0, 0 ) return ( false );
+  if TESTCASE3( 1, 0 ) return ( false );
+  if TESTCASE3( 2, 0 ) return ( false );
+  if TESTCASE3( 0, 1 ) return ( false );
+  if TESTCASE3( 1, 1 ) return ( false );
+  if TESTCASE3( 2, 1 ) return ( false );
+  if TESTCASE3( 0, 2 ) return ( false );
+  if TESTCASE3( 1, 2 ) return ( false );
+  if TESTCASE3( 2, 2 ) return ( false );
   
   return ( true );
 }
