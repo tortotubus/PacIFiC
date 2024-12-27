@@ -9,7 +9,6 @@
 #include "Particle.hh"
 #include "BBox.hh"
 #include "GJK_SV.hh"
-#include "openGJK.hh"
 
 #include <fstream>
 #include <sstream>
@@ -296,13 +295,13 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
       double distance = 0;
       // Choose the appropriate GJK version according to the input XML
       if ( GrainsExec::m_colDetGJK_SV ) // Signed-Volume
-        distance = closest_points_GJK_SV2( *m_convex, 
-                                           *(neighbor.m_convex), 
-                                           *a2w, 
-                                           *b2w,
-                                           pointA, 
-                                           pointB, 
-                                           nbIterGJK );
+        distance = closest_points_GJK_SV( *m_convex, 
+                                          *(neighbor.m_convex), 
+                                          *a2w, 
+                                          *b2w,
+                                          pointA, 
+                                          pointB, 
+                                          nbIterGJK );
       else // default: Johnson
         distance = closest_points( *m_convex, 
                                    *(neighbor.m_convex),
@@ -463,14 +462,14 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
 
       // Choose the appropriate GJK version according to the input XML
       if ( GrainsExec::m_colDetGJK_SV ) // Signed-Volume
-        distance = closest_points_GJK_SV2( *m_convex, 
-                                           *(neighbor.m_convex), 
-                                           *a2w, 
-                                           *b2w, 
-                                           initialDirection,
-                                           pointA, 
-                                           pointB, 
-                                           nbIterGJK );
+        distance = closest_points_GJK_SV( *m_convex, 
+                                          *(neighbor.m_convex), 
+                                          *a2w, 
+                                          *b2w, 
+                                          initialDirection,
+                                          pointA, 
+                                          pointB, 
+                                          nbIterGJK );
       else // default: Johnson
         distance = closest_points( *m_convex, 
                                    *(neighbor.m_convex),

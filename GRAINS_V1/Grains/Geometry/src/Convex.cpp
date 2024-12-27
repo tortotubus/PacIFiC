@@ -497,7 +497,7 @@ bool intersect( Convex const& a,
     unsigned int last = 0;           // identifies last found support point
     unsigned int last_bit = 0;       // last_bit = 1<<last
     unsigned int all_bits = 0;       // all_bits = bits|last_bit
-    Vector3 y[4];                 // support points of A-B in world
+    Vector3 y[4];                    // support points of A-B in world
     double det[16][4] = {0. };       // cached sub-determinants
     double dp[4][4] = { 0. };
 
@@ -548,28 +548,28 @@ double closest_points( Convex const& a,
     Point3 p[4];                     // support points of A in local
     Point3 q[4];                     // support points of B in local
     Vector3 y[4];                    // support points of A-B in world
+    double mu = 0.;                  // optimality gap
+    int numIterations = 0;           // No. iterations
     double det[16][4] = { 0. };      // cached sub-determinants
     double dp[4][4] = { 0. };
-    double dist = 0.;                // distance
 
     // Misc variables, e.g. tolerance, ...
     double relError = GrainsExec::m_colDetTolerance; // rel error for opt gap
     double absError = 1.e-4 * relError; // abs error for optimality gap
     bool acceleration = GrainsExec::m_colDetAcceleration; // isAcceleration?
     double momentum = 0., oneMinusMomentum = 1.; // in case we use acceleration
-    int numIterations = 0;          // No. iterations
-    double mu = 0.;                 // optimality gap
 
     // Initializing vectors
     Vector3 v( a2w( a.support( Vector3Null ) ) - 
                b2w( b.support( Vector3Null ) ) );
     Vector3 w( v );
     Vector3 d( v );
-    dist = Norm( v );
+    double dist = Norm( v );
 
     while ( bits < 15 && dist > EPSILON2 && numIterations < 1000 )
     {
         ++numIterations;
+        // Updating the bits, ...
         last = 0;
         last_bit = 1;
         while (bits & last_bit) { ++last; last_bit <<= 1; }

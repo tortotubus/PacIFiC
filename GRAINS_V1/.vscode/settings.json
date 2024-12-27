@@ -19,6 +19,9 @@
         "istream": "cpp",
         "functional": "cpp",
         "format": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "chrono": "cpp",
+        "span": "cpp",
+        "valarray": "cpp"
     }
 }
