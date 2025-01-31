@@ -1,11 +1,11 @@
-#ifndef REG_PROJ_NAVIER_STOKES_HH
-#define REG_PROJ_NAVIER_STOKES_HH
+#ifndef DLMFD_PROJ_NAVIER_STOKES_HH
+#define DLMFD_PROJ_NAVIER_STOKES_HH
 
 #include <FV_OneStepIteration.hh>
 #include <geomVector.hh>
 #include <PAC_computingtime.hh>
 #include <PAC_solvercomputingtime.hh>
-#include <REG_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <FV_DiscreteField.hh>
 #include <vector>
 #include <string>
@@ -19,13 +19,13 @@ class MAC_Communicator ;
 class MAC_ListIdentity ;
 
 
-/** @brief The Class REG_ProjectionNavierStokes.
+/** @brief The Class DLMFD_ProjectionNavierStokes.
 
 Solver for the incompressible Newtonian NavierStokes problem. 
 
 @author A. Wachs - Pacific project 2018-2019 */
 
-class REG_ProjectionNavierStokes : public FV_OneStepIteration, 
+class DLMFD_ProjectionNavierStokes : public FV_OneStepIteration, 
 public PAC_ComputingTime, public PAC_SolverComputingTime
 {
    public: //-----------------------------------------------------------------
@@ -87,32 +87,32 @@ public PAC_ComputingTime, public PAC_SolverComputingTime
       /** @name Constructors & Destructor */
       //@{
       /** @brief Destructor */          
-      ~REG_ProjectionNavierStokes( void ) ;
+      ~DLMFD_ProjectionNavierStokes( void ) ;
      
       /** @brief Copy constructor */      
-      REG_ProjectionNavierStokes( REG_ProjectionNavierStokes const& other ) ;
+      DLMFD_ProjectionNavierStokes( DLMFD_ProjectionNavierStokes const& other ) ;
       
       /** @brief Operator == 
       @param other the right hand side */        
-      REG_ProjectionNavierStokes& operator=( 
-      	REG_ProjectionNavierStokes const& other ) ;
+      DLMFD_ProjectionNavierStokes& operator=( 
+      	DLMFD_ProjectionNavierStokes const& other ) ;
       
       /** @brief Constructor with arguments 
       @param a_owner the PEL-based object   
       @param dom mesh and fields
       @param exp to read the data file */                 
-      REG_ProjectionNavierStokes( MAC_Object* a_owner, 
+      DLMFD_ProjectionNavierStokes( MAC_Object* a_owner, 
       		FV_DomainAndFields const* dom,
 		MAC_ModuleExplorer const* exp ) ;
 
       /** @brief Constructor without argument */      
-      REG_ProjectionNavierStokes( void ) ;
+      DLMFD_ProjectionNavierStokes( void ) ;
 
       /** @brief Create a clone
       @param a_owner the PEL-based object
       @param dom mesh and fields
       @param exp to read the data file */
-      virtual REG_ProjectionNavierStokes* create_replica( 
+      virtual DLMFD_ProjectionNavierStokes* create_replica( 
 		MAC_Object* a_owner,
 		FV_DomainAndFields const* dom,
 		MAC_ModuleExplorer* exp ) const ;
@@ -179,14 +179,14 @@ public PAC_ComputingTime, public PAC_SolverComputingTime
       
    //-- Class attributes
 
-      static REG_ProjectionNavierStokes const* PROTOTYPE ;
+      static DLMFD_ProjectionNavierStokes const* PROTOTYPE ;
 
    //-- Attributes
 
       FV_DiscreteField* UU;
       FV_DiscreteField* PP;              
       
-      REG_ProjectionNavierStokesSystem* GLOBAL_EQ ;      
+      DLMFD_ProjectionNavierStokesSystem* GLOBAL_EQ ;      
 
       // MPI parameters
       size_t nb_ranks;
