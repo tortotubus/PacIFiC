@@ -1,4 +1,4 @@
-#include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <REG_ProjectionNavierStokesSystem.hh>
 #include <LA_Matrix.hh>
 #include <LA_Vector.hh>
 #include <LA_Scatter.hh>
@@ -28,8 +28,8 @@
 
 
 //----------------------------------------------------------------------
-DLMFD_ProjectionNavierStokesSystem*
-DLMFD_ProjectionNavierStokesSystem:: create( MAC_Object* a_owner,
+REG_ProjectionNavierStokesSystem*
+REG_ProjectionNavierStokesSystem:: create( MAC_Object* a_owner,
 	MAC_ModuleExplorer const* exp,
 	FV_DiscreteField* mac_uu,
 	FV_DiscreteField* mac_pp,
@@ -40,13 +40,13 @@ DLMFD_ProjectionNavierStokesSystem:: create( MAC_Object* a_owner,
 	bool const& b_HighOrderPressureCorrection_ )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: create" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: create" ) ;
    MAC_CHECK_PRE( exp != 0 ) ;
    MAC_CHECK_PRE( mac_uu != 0 ) ;
    MAC_CHECK_PRE( mac_pp != 0 ) ;     
 
-   DLMFD_ProjectionNavierStokesSystem* result = 
-         new DLMFD_ProjectionNavierStokesSystem( a_owner, exp, mac_uu, mac_pp,
+   REG_ProjectionNavierStokesSystem* result = 
+         new REG_ProjectionNavierStokesSystem( a_owner, exp, mac_uu, mac_pp,
 	 	NS_Viscous_TimeAccuracy_, NS_Advection_TimeAccuracy_,
 		b_pressure_rescaling_, b_ExplicitPressureGradient_,
 		b_HighOrderPressureCorrection_ ) ;
@@ -61,7 +61,7 @@ DLMFD_ProjectionNavierStokesSystem:: create( MAC_Object* a_owner,
 
 
 //----------------------------------------------------------------------
-DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem(
+REG_ProjectionNavierStokesSystem:: REG_ProjectionNavierStokesSystem(
 	MAC_Object* a_owner,
 	MAC_ModuleExplorer const* exp,
 	FV_DiscreteField* mac_uu,
@@ -112,7 +112,7 @@ DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem(
    , b_HighOrderPressureCorrection( b_HighOrderPressureCorrection_ )
 {
    MAC_LABEL( 
-     "DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem" ) ;
+     "REG_ProjectionNavierStokesSystem:: REG_ProjectionNavierStokesSystem" ) ;
 
    // Build the matrices & vectors
    build_system( exp ) ;
@@ -125,10 +125,10 @@ DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: build_system( MAC_ModuleExplorer const* exp )
+REG_ProjectionNavierStokesSystem:: build_system( MAC_ModuleExplorer const* exp )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: build_system" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: build_system" ) ;
 
    // Velocity unsteady matrix and rhs
    MAT_A_VelocityUnsteady = LA_Matrix::make( this,
@@ -217,10 +217,10 @@ DLMFD_ProjectionNavierStokesSystem:: build_system( MAC_ModuleExplorer const* exp
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: re_initialize( void )
+REG_ProjectionNavierStokesSystem:: re_initialize( void )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: re_initialize" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: re_initialize" ) ;
 
    size_t u_glob = UU->nb_global_unknowns() ;
    size_t u_loc = UU->nb_local_unknowns() ;
@@ -283,7 +283,7 @@ DLMFD_ProjectionNavierStokesSystem:: re_initialize( void )
 
 
 //----------------------------------------------------------------------
-DLMFD_ProjectionNavierStokesSystem:: ~DLMFD_ProjectionNavierStokesSystem( void )
+REG_ProjectionNavierStokesSystem:: ~REG_ProjectionNavierStokesSystem( void )
 //----------------------------------------------------------------------
 {}
 
@@ -292,10 +292,10 @@ DLMFD_ProjectionNavierStokesSystem:: ~DLMFD_ProjectionNavierStokesSystem( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::at_each_time_step( void )
+REG_ProjectionNavierStokesSystem::at_each_time_step( void )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: at_each_time_step" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: at_each_time_step" ) ;
 
    // Store velocity at previous time
    VEC_U->synchronize() ; 
@@ -308,10 +308,10 @@ DLMFD_ProjectionNavierStokesSystem::at_each_time_step( void )
 
 //----------------------------------------------------------------------
 double 
-DLMFD_ProjectionNavierStokesSystem:: compute_velocity_change( void )
+REG_ProjectionNavierStokesSystem:: compute_velocity_change( void )
 //----------------------------------------------------------------------
 { 	
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: compute_velocity_change" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: compute_velocity_change" ) ;
 
    VEC_U->synchronize() ;
    VEC_U_timechange->set( VEC_U ) ;
@@ -330,11 +330,11 @@ DLMFD_ProjectionNavierStokesSystem:: compute_velocity_change( void )
 
 //----------------------------------------------------------------------
 double
-DLMFD_ProjectionNavierStokesSystem:: compute_velocity_divergence_norm( void )
+REG_ProjectionNavierStokesSystem:: compute_velocity_divergence_norm( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-     "DLMFD_ProjectionNavierStokesSystem:: compute_velocity_divergence_norm" ) ;
+     "REG_ProjectionNavierStokesSystem:: compute_velocity_divergence_norm" ) ;
 
    MAT_B_VelocityDivergence->multiply_vec_then_add( VEC_U, VEC_r, -1.0 ) ;
    VEC_r->sum( VEC_rhs_B_VelocityDivergence ) ;
@@ -350,11 +350,11 @@ DLMFD_ProjectionNavierStokesSystem:: compute_velocity_divergence_norm( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::nullify_velocity_advection_rhs( void )
+REG_ProjectionNavierStokesSystem::nullify_velocity_advection_rhs( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   	"DLMFD_ProjectionNavierStokesSystem:: nullify_velocity_advection_rhs" ) ;
+   	"REG_ProjectionNavierStokesSystem:: nullify_velocity_advection_rhs" ) ;
 
    // Nullify inertia rhs
    VEC_rhs_VelocityAdvection->nullify() ;
@@ -366,10 +366,10 @@ DLMFD_ProjectionNavierStokesSystem::nullify_velocity_advection_rhs( void )
 
 //----------------------------------------------------------------------
 LA_SeqVector const*
-DLMFD_ProjectionNavierStokesSystem:: get_solution_velocity( void ) const
+REG_ProjectionNavierStokesSystem:: get_solution_velocity( void ) const
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: get_solution_U" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: get_solution_U" ) ;
 
    UU_NUM->scatter()->get( VEC_U, U_LOC ) ;
 
@@ -384,10 +384,10 @@ DLMFD_ProjectionNavierStokesSystem:: get_solution_velocity( void ) const
 
 //----------------------------------------------------------------------
 LA_SeqVector const*
-DLMFD_ProjectionNavierStokesSystem:: get_solution_pressure( void ) const
+REG_ProjectionNavierStokesSystem:: get_solution_pressure( void ) const
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: get_solution_P" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: get_solution_P" ) ;
 
    PP_NUM->scatter()->get( VEC_P, P_LOC ) ;
 
@@ -402,7 +402,7 @@ DLMFD_ProjectionNavierStokesSystem:: get_solution_pressure( void ) const
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::initialize_velocity( void )
+REG_ProjectionNavierStokesSystem::initialize_velocity( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( "MAC_NavierStokesSystem:: initialize_velocity" ) ;
@@ -417,7 +417,7 @@ DLMFD_ProjectionNavierStokesSystem::initialize_velocity( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::initialize_pressure( void )
+REG_ProjectionNavierStokesSystem::initialize_pressure( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( "MAC_NavierStokesSystem:: initialize_pressure" ) ;
@@ -432,11 +432,11 @@ DLMFD_ProjectionNavierStokesSystem::initialize_pressure( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: finalize_constant_matrices( void )
+REG_ProjectionNavierStokesSystem:: finalize_constant_matrices( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   	"DLMFD_ProjectionNavierStokesSystem:: finalize_constant_matrices" ) ;
+   	"REG_ProjectionNavierStokesSystem:: finalize_constant_matrices" ) ;
 
    bool same_pattern = false ;   
    MAC_Communicator const* macCOMM = MAC_Exec::communicator();    
@@ -470,14 +470,14 @@ DLMFD_ProjectionNavierStokesSystem:: finalize_constant_matrices( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: compute_velocityAdvectionDiffusion_rhs( 
+REG_ProjectionNavierStokesSystem:: compute_velocityAdvectionDiffusion_rhs( 
 	bool const& b_restart,
 	size_t const& iteration_number, 
 	bool const& b_with_advection,
 	double const& dpdl )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: "
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: "
    	"compute_velocityAdvectionDiffusion_rhs" ) ;     
    
    // Unsteady + viscous term
@@ -554,12 +554,12 @@ DLMFD_ProjectionNavierStokesSystem:: compute_velocityAdvectionDiffusion_rhs(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_viscous_matrix_rhs( 
+REG_ProjectionNavierStokesSystem:: assemble_velocity_viscous_matrix_rhs( 
 	double const& coef_lap )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   "DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_viscous_matrix_rhs" ) ;
+   "REG_ProjectionNavierStokesSystem:: assemble_velocity_viscous_matrix_rhs" ) ;
 
    UU->assemble_constantcoef_laplacian_matrix( coef_lap,
 	MAT_A_VelocityUnsteadyPlusViscous, VEC_rhs_A_VelocityViscous );	
@@ -571,12 +571,12 @@ DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_viscous_matrix_rhs(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_unsteady_matrix( 
+REG_ProjectionNavierStokesSystem:: assemble_velocity_unsteady_matrix( 
 	double const& coef )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   "DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_unsteady_matrix" ) ;
+   "REG_ProjectionNavierStokesSystem:: assemble_velocity_unsteady_matrix" ) ;
 
    UU->assemble_mass_matrix( coef, MAT_A_VelocityUnsteady );
    
@@ -587,11 +587,11 @@ DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_unsteady_matrix(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: assemble_pdivv_matrix_rhs( 
+REG_ProjectionNavierStokesSystem:: assemble_pdivv_matrix_rhs( 
 	double const& coef )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: assemble_pdivv_matrix_rhs" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: assemble_pdivv_matrix_rhs" ) ;
 
    PP->assemble_pDivv_matrix( UU, coef, MAT_B_VelocityDivergence,
    	VEC_rhs_B_VelocityDivergence );		
@@ -603,14 +603,14 @@ DLMFD_ProjectionNavierStokesSystem:: assemble_pdivv_matrix_rhs(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_advection( 
+REG_ProjectionNavierStokesSystem:: assemble_velocity_advection( 
 	string const& AdvectionScheme,
       	size_t advecting_level, double const& coef, 
 	size_t advected_level  )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   	"DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_advection" ) ;
+   	"REG_ProjectionNavierStokesSystem:: assemble_velocity_advection" ) ;
 
    if ( AdvectionScheme == "Upwind" )
      UU->assemble_advection_Upwind( UU, advecting_level, coef,
@@ -626,12 +626,12 @@ DLMFD_ProjectionNavierStokesSystem:: assemble_velocity_advection(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem:: assemble_pressure_laplacian_matrix_rhs( 
+REG_ProjectionNavierStokesSystem:: assemble_pressure_laplacian_matrix_rhs( 
 	double const& coef_lap )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
- "DLMFD_ProjectionNavierStokesSystem:: assemble_pressure_laplacian_matrix_rhs" ) ;
+ "REG_ProjectionNavierStokesSystem:: assemble_pressure_laplacian_matrix_rhs" ) ;
 
    PP->assemble_constantcoef_laplacian_matrix( coef_lap, 
    	MAT_D_PressureLaplacian, VEC_rhs_D_PressureLaplacian, 
@@ -644,11 +644,11 @@ DLMFD_ProjectionNavierStokesSystem:: assemble_pressure_laplacian_matrix_rhs(
 
 //----------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokesSystem:: pressure_laplacian_correction( void )
+REG_ProjectionNavierStokesSystem:: pressure_laplacian_correction( void )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   	"DLMFD_ProjectionNavierStokesSystem:: pressure_laplacian_correction" ) ;
+   	"REG_ProjectionNavierStokesSystem:: pressure_laplacian_correction" ) ;
       
    MAC_Communicator const* macCOMM = MAC_Exec::communicator();  
 
@@ -677,11 +677,11 @@ DLMFD_ProjectionNavierStokesSystem:: pressure_laplacian_correction( void )
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::add_storable_objects(
+REG_ProjectionNavierStokesSystem::add_storable_objects(
 	MAC_ListIdentity* list ) const
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: add_storable_objects" ) ; 
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: add_storable_objects" ) ; 
 
    list->extend( VECS_Storage );
    if ( NS_Advection_TimeAccuracy == 2 )
@@ -697,10 +697,10 @@ DLMFD_ProjectionNavierStokesSystem::add_storable_objects(
 
 //----------------------------------------------------------------------
 bool
-DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver( void )
+REG_ProjectionNavierStokesSystem::VelocityDiffusion_solver( void )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: VelocityDiffusion_solver" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: VelocityDiffusion_solver" ) ;
 
    // Copy the advection-diffusion rhs to VEC_rhs_A_Velocity
    VEC_rhs_A_Velocity->set( VEC_rhs_VelocityAdvectionDiffusion );
@@ -735,13 +735,13 @@ DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver( void )
 
 //----------------------------------------------------------------------
 double
-DLMFD_ProjectionNavierStokesSystem:: VelocityPressure_correction_solver( 
+REG_ProjectionNavierStokesSystem:: VelocityPressure_correction_solver( 
 	double const& density, double const& viscosity, 
 	double const& timestep )
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-   "DLMFD_ProjectionNavierStokesSystem:: VelocityPressure_correction_solver" ) ;
+   "REG_ProjectionNavierStokesSystem:: VelocityPressure_correction_solver" ) ;
 
    size_t niter_sublin = 0 ;
    double normdivu = 0. ;
@@ -848,12 +848,12 @@ DLMFD_ProjectionNavierStokesSystem:: VelocityPressure_correction_solver(
 
 //----------------------------------------------------------------------
 LA_Vector*
-DLMFD_ProjectionNavierStokesSystem::get_pressure_DirichletBC_vector(
+REG_ProjectionNavierStokesSystem::get_pressure_DirichletBC_vector(
 	void ) 
 //----------------------------------------------------------------------
 {
    MAC_LABEL( 
-     "DLMFD_ProjectionNavierStokesSystem:: get_pressure_DirichletBC_vector" ) ; 
+     "REG_ProjectionNavierStokesSystem:: get_pressure_DirichletBC_vector" ) ; 
 
    return ( VEC_rhs_Bt_PressureGradient ) ;
 	
@@ -864,11 +864,11 @@ DLMFD_ProjectionNavierStokesSystem::get_pressure_DirichletBC_vector(
 
 //----------------------------------------------------------------------
 LA_Vector*
-DLMFD_ProjectionNavierStokesSystem::get_unitary_periodic_pressure_drop_vector(
+REG_ProjectionNavierStokesSystem::get_unitary_periodic_pressure_drop_vector(
 	void ) 
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: "
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: "
    	"get_unitary_periodic_pressure_drop_vector" ) ; 
 
    return ( VEC_rhs_A_UnitaryPeriodicPressureGradient ) ;
@@ -880,11 +880,11 @@ DLMFD_ProjectionNavierStokesSystem::get_unitary_periodic_pressure_drop_vector(
 
 //----------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokesSystem::store_ugradu_Nm2( 
+REG_ProjectionNavierStokesSystem::store_ugradu_Nm2( 
 	size_t const& n_advection_subtimesteps )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: store_ugradu_Nm2" ) ; 
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: store_ugradu_Nm2" ) ; 
 
    VEC_rhs_VelocityAdvection_Nm2->set( VEC_rhs_VelocityAdvection );
    VEC_rhs_VelocityAdvection_Nm2->scale( double(n_advection_subtimesteps) );
@@ -896,10 +896,10 @@ DLMFD_ProjectionNavierStokesSystem::store_ugradu_Nm2(
 
 //----------------------------------------------------------------------
 bool
-DLMFD_ProjectionNavierStokesSystem:: VelocityAdvection_solver( void  )
+REG_ProjectionNavierStokesSystem:: VelocityAdvection_solver( void  )
 //----------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokesSystem:: VelocityAdvection_solver" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokesSystem:: VelocityAdvection_solver" ) ;
 
    // Compute velocity unsteady rhs
    MAT_A_VelocityUnsteady->multiply_vec_then_add(

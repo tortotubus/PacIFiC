@@ -1,5 +1,5 @@
-#ifndef DLMFD_PROJ_NAVIER_STOKES_SYSTEM_HH
-#define DLMFD_PROJ_NAVIER_STOKES_SYSTEM_HH
+#ifndef REG_PROJ_NAVIER_STOKES_SYSTEM_HH
+#define REG_PROJ_NAVIER_STOKES_SYSTEM_HH
 
 #include <MAC_Object.hh>
 #include <utility>
@@ -23,13 +23,13 @@ class FV_SystemNumbering ;
 class FV_DiscreteField ;
 
 
-/** @brief The Class DLMFD_ProjectionNavierStokesSystem.
+/** @brief The Class REG_ProjectionNavierStokesSystem.
 
 Generic matrix systems for the resolution of NavierStokes equations 
 
 @author A. Wachs - Pacific project 2018-2019 */
 
-class DLMFD_ProjectionNavierStokesSystem : public MAC_Object
+class REG_ProjectionNavierStokesSystem : public MAC_Object
 {
    private: //----------------------------------------------------------
 
@@ -38,19 +38,19 @@ class DLMFD_ProjectionNavierStokesSystem : public MAC_Object
       /** @name Constructors & Destructor */
       //@{
       /** @brief Constructor without argument */      
-      DLMFD_ProjectionNavierStokesSystem( void ) ;
+      REG_ProjectionNavierStokesSystem( void ) ;
 
       /** @brief Destructor */       
-      virtual ~DLMFD_ProjectionNavierStokesSystem( void ) ;	
+      virtual ~REG_ProjectionNavierStokesSystem( void ) ;	
 
       /** @brief Copy constructor */       
-      DLMFD_ProjectionNavierStokesSystem( 
-      	DLMFD_ProjectionNavierStokesSystem const& other ) ;
+      REG_ProjectionNavierStokesSystem( 
+      	REG_ProjectionNavierStokesSystem const& other ) ;
 
       /** @brief Operator == 
       @param other the right hand side */   
-      DLMFD_ProjectionNavierStokesSystem& operator=( 
-      	DLMFD_ProjectionNavierStokesSystem const& other ) ;
+      REG_ProjectionNavierStokesSystem& operator=( 
+      	REG_ProjectionNavierStokesSystem const& other ) ;
       
       /** @brief Constructor with arguments 
       @param a_owner the MAC-based object
@@ -67,7 +67,7 @@ class DLMFD_ProjectionNavierStokesSystem : public MAC_Object
       	advection-diffusion predictor 
       @param b_HighOrderPressureCorrection_ use high order pressure correction 
       */      
-      DLMFD_ProjectionNavierStokesSystem ( MAC_Object* a_owner,
+      REG_ProjectionNavierStokesSystem ( MAC_Object* a_owner,
 	MAC_ModuleExplorer const* exp,
         FV_DiscreteField* mac_uu,
         FV_DiscreteField* mac_pp,
@@ -86,7 +86,7 @@ class DLMFD_ProjectionNavierStokesSystem : public MAC_Object
       /** @name Instance delivery and initialization */
       //@{
       /** @brief Create and initialize an instance of 
-      DLMFD_ProjectionNavierStokesSystem
+      REG_ProjectionNavierStokesSystem
       @param a_owner the MAC-based object
       @param exp to read the data file 
       @param mac_uu MAC velocity field 
@@ -101,7 +101,7 @@ class DLMFD_ProjectionNavierStokesSystem : public MAC_Object
       	advection-diffusion predictor 
       @param b_HighOrderPressureCorrection_ use high order pressure correction 
       */
-      static DLMFD_ProjectionNavierStokesSystem* create( MAC_Object* a_owner,
+      static REG_ProjectionNavierStokesSystem* create( MAC_Object* a_owner,
 	MAC_ModuleExplorer const* exp,
         FV_DiscreteField* mac_uu,
         FV_DiscreteField* mac_pp,

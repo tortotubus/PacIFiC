@@ -1,4 +1,4 @@
-#include <DLMFD_ProjectionNavierStokes.hh>
+#include <REG_ProjectionNavierStokes.hh>
 #include <FV_DomainAndFields.hh>
 #include <FV_DomainBuilder.hh>
 #include <FV_DiscreteField.hh>
@@ -24,34 +24,34 @@
 #include <cstdlib>
 
 
-DLMFD_ProjectionNavierStokes const* DLMFD_ProjectionNavierStokes::PROTOTYPE
-			= new DLMFD_ProjectionNavierStokes() ;
+REG_ProjectionNavierStokes const* REG_ProjectionNavierStokes::PROTOTYPE
+			= new REG_ProjectionNavierStokes() ;
 
 
 //---------------------------------------------------------------------------
-DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( void )
+REG_ProjectionNavierStokes:: REG_ProjectionNavierStokes( void )
 //--------------------------------------------------------------------------
-   : FV_OneStepIteration( "DLMFD_ProjectionNavierStokes" )
+   : FV_OneStepIteration( "REG_ProjectionNavierStokes" )
    , PAC_ComputingTime("Solver")
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: REG_ProjectionNavierStokes" ) ;
 }
 
 
 
 
 //---------------------------------------------------------------------------
-DLMFD_ProjectionNavierStokes*
-DLMFD_ProjectionNavierStokes:: create_replica( MAC_Object* a_owner,
+REG_ProjectionNavierStokes*
+REG_ProjectionNavierStokes:: create_replica( MAC_Object* a_owner,
 		FV_DomainAndFields const* dom,
 		MAC_ModuleExplorer* exp ) const
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: create_replica" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: create_replica" ) ;
    MAC_CHECK( create_replica_PRE( a_owner, dom, exp ) ) ;
 
-   DLMFD_ProjectionNavierStokes* result =
-                        new DLMFD_ProjectionNavierStokes( a_owner, dom, exp ) ;
+   REG_ProjectionNavierStokes* result =
+                        new REG_ProjectionNavierStokes( a_owner, dom, exp ) ;
 
    MAC_CHECK( create_replica_POST( result, a_owner, dom, exp ) ) ;
    return( result ) ;
@@ -62,7 +62,7 @@ DLMFD_ProjectionNavierStokes:: create_replica( MAC_Object* a_owner,
 
 
 //---------------------------------------------------------------------------
-DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( MAC_Object* a_owner,
+REG_ProjectionNavierStokes:: REG_ProjectionNavierStokes( MAC_Object* a_owner,
 		FV_DomainAndFields const* dom,
 		MAC_ModuleExplorer const* exp )
 //---------------------------------------------------------------------------
@@ -83,13 +83,13 @@ DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( MAC_Object* a_owner
    , b_restart( false )
    , b_pressure_rescaling( false )
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: REG_ProjectionNavierStokes" ) ;
    MAC_ASSERT( PP->discretization_type() == "centered" ) ;
    MAC_ASSERT( UU->discretization_type() == "staggered" ) ;
 
 
    // Call of MAC_Communicator routine to set the rank of each proces and
-   // the number of processes during execution of DLMFD_ProjectionNavierStokes
+   // the number of processes during execution of REG_ProjectionNavierStokes
    macCOMM = MAC_Exec::communicator();
    my_rank = macCOMM->rank();
    nb_ranks = macCOMM->nb_ranks();
@@ -211,8 +211,8 @@ DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( MAC_Object* a_owner
 
    // Build the matrix system
    MAC_ModuleExplorer* se =
-     exp->create_subexplorer( 0, "DLMFD_ProjectionNavierStokesSystem" ) ;
-   GLOBAL_EQ = DLMFD_ProjectionNavierStokesSystem::create( this, se, UU, PP,
+     exp->create_subexplorer( 0, "REG_ProjectionNavierStokesSystem" ) ;
+   GLOBAL_EQ = REG_ProjectionNavierStokesSystem::create( this, se, UU, PP,
    	ViscousTimeAccuracy, AdvectionTimeAccuracy, b_pressure_rescaling,
 	b_ExplicitPressureGradient, b_HighOrderPressureCorrection ) ;
    se->destroy() ;
@@ -235,10 +235,10 @@ DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( MAC_Object* a_owner
 
 
 //---------------------------------------------------------------------------
-DLMFD_ProjectionNavierStokes:: ~DLMFD_ProjectionNavierStokes( void )
+REG_ProjectionNavierStokes:: ~REG_ProjectionNavierStokes( void )
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: ~DLMFD_ProjectionNavierStokes" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: ~REG_ProjectionNavierStokes" ) ;
 
 }
 
@@ -247,14 +247,14 @@ DLMFD_ProjectionNavierStokes:: ~DLMFD_ProjectionNavierStokes( void )
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_one_inner_iteration( 
+REG_ProjectionNavierStokes:: do_one_inner_iteration( 
 	FV_TimeIterator const* t_it ) 
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_one_inner_iteration" ) ;
+  MAC_LABEL( "REG_ProjectionNavierStokes:: do_one_inner_iteration" ) ;
   MAC_CHECK_PRE( do_one_inner_iteration_PRE( t_it ) ) ;
 
-  start_total_timer( "DLMFD_ProjectionNavierStokes:: do_one_inner_iteration" ) ;
+  start_total_timer( "REG_ProjectionNavierStokes:: do_one_inner_iteration" ) ;
   start_solving_timer() ;
   macCOMM->barrier();
 
@@ -272,14 +272,14 @@ DLMFD_ProjectionNavierStokes:: do_one_inner_iteration(
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_before_time_stepping( 
+REG_ProjectionNavierStokes:: do_before_time_stepping( 
 	FV_TimeIterator const* t_it, 
       	std::string const& basename )
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_before_time_stepping" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: do_before_time_stepping" ) ;
    
-   start_total_timer( "DLMFD_ProjectionNavierStokes:: do_before_time_stepping" ) ;
+   start_total_timer( "REG_ProjectionNavierStokes:: do_before_time_stepping" ) ;
 
    FV_OneStepIteration::do_before_time_stepping( t_it, basename ) ;
 
@@ -298,7 +298,7 @@ DLMFD_ProjectionNavierStokes:: do_before_time_stepping(
    // Note: we assemble here the total viscous matrix, in case of 2nd order 
    // Crank-Nicholson scheme for the viscous term, half viscosity for the 
    // velocity operator is taken care of at the matrix level in
-   // DLMFD_ProjectionNavierStokesSystem:: finalize_constant_matrices       
+   // REG_ProjectionNavierStokesSystem:: finalize_constant_matrices       
    if ( my_rank == is_master ) 
      MAC::out() << "            Velocity viscous matrix & rhs" << endl;
    GLOBAL_EQ->assemble_velocity_viscous_matrix_rhs( - viscosity );	       
@@ -345,10 +345,10 @@ DLMFD_ProjectionNavierStokes:: do_before_time_stepping(
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_after_time_stepping( void )
+REG_ProjectionNavierStokes:: do_after_time_stepping( void )
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_after_time_stepping" ) ;  
+   MAC_LABEL( "REG_ProjectionNavierStokes:: do_after_time_stepping" ) ;  
 
    // Elapsed time by sub-problems
    if ( my_rank == is_master ) 
@@ -366,15 +366,15 @@ DLMFD_ProjectionNavierStokes:: do_after_time_stepping( void )
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage( 
+REG_ProjectionNavierStokes:: do_before_inner_iterations_stage( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------
 {
    MAC_LABEL( 
-   	"DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage" ) ;
+   	"REG_ProjectionNavierStokes:: do_before_inner_iterations_stage" ) ;
 
    start_total_timer( 
-   	"DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage" ) ;
+   	"REG_ProjectionNavierStokes:: do_before_inner_iterations_stage" ) ;
 
    FV_OneStepIteration::do_before_inner_iterations_stage( t_it ) ;
 
@@ -394,14 +394,14 @@ DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage(
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage( 
+REG_ProjectionNavierStokes:: do_after_inner_iterations_stage( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: do_after_inner_iterations_stage" ) ;
    
    start_total_timer( 
-   	"DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage" ) ;
+   	"REG_ProjectionNavierStokes:: do_after_inner_iterations_stage" ) ;
 
    FV_OneStepIteration::do_after_inner_iterations_stage( t_it ) ;  
 
@@ -429,13 +429,13 @@ DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage(
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_additional_savings( FV_TimeIterator const* t_it,
+REG_ProjectionNavierStokes:: do_additional_savings( FV_TimeIterator const* t_it,
       	int const& cycleNumber )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_additional_savings" ) ;
+  MAC_LABEL( "REG_ProjectionNavierStokes:: do_additional_savings" ) ;
 
-  start_total_timer( "DLMFD_ProjectionNavierStokes:: do_additional_savings" ) ;
+  start_total_timer( "REG_ProjectionNavierStokes:: do_additional_savings" ) ;
   
   // Elapsed time by sub-problems
   if ( my_rank == is_master ) 
@@ -455,15 +455,15 @@ DLMFD_ProjectionNavierStokes:: do_additional_savings( FV_TimeIterator const* t_i
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: do_additional_save_for_restart( 
+REG_ProjectionNavierStokes:: do_additional_save_for_restart( 
 	FV_TimeIterator const* t_it,
       	size_t const& restartCycleNumber, std::string const& basename )
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_additional_save_for_restart" ) ;
+  MAC_LABEL( "REG_ProjectionNavierStokes:: do_additional_save_for_restart" ) ;
 
   start_total_timer( 
-  	"DLMFD_ProjectionNavierStokes:: do_additional_save_for_restart" );
+  	"REG_ProjectionNavierStokes:: do_additional_save_for_restart" );
 
   stop_total_timer() ;    
     
@@ -474,11 +474,11 @@ DLMFD_ProjectionNavierStokes:: do_additional_save_for_restart(
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes::NavierStokes_Projection( 
+REG_ProjectionNavierStokes::NavierStokes_Projection( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------	
 {   
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: NavierStokes_Projection" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: NavierStokes_Projection" ) ;
 
    // Solve advection-diffusion velocity prediction step
    NavierStokes_AdvectionDiffusion_PredictionStep( t_it );     
@@ -497,11 +497,11 @@ DLMFD_ProjectionNavierStokes::NavierStokes_Projection(
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionStep( 
+REG_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionStep( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------	
 {   
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: "
+   MAC_LABEL( "REG_ProjectionNavierStokes:: "
    	"NavierStokes_AdvectionDiffusion_PredictionStep" ) ;
 
    sub_prob_number = 1;
@@ -547,7 +547,7 @@ DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionStep(
 	b_restart, t_it->iteration_number(), true, dpdl ) ;
     
      // If the explicit pressure gradient is added to the rhs, this is done by 
-     // DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver at the 
+     // REG_ProjectionNavierStokesSystem::VelocityDiffusion_solver at the 
      // matrix level. However here we want to add the gradient of the actual
      // pressure, while at the matrix level at that stage, the pressure vector
      // contains the pressure correction, not the pressure, hence we 
@@ -613,7 +613,7 @@ DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionStep(
         b_restart, t_it->iteration_number(), false, dpdl ) ;
 
      // If the explicit pressure gradient is added to the rhs, this is done by 
-     // DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver at the 
+     // REG_ProjectionNavierStokesSystem::VelocityDiffusion_solver at the 
      // matrix level. However here we want to add the gradient of the actual
      // pressure, while at the matrix level at that stage, the pressure vector
      // contains the pressure correction, not the pressure, hence we 
@@ -642,11 +642,11 @@ DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionStep(
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes::NavierStokes_VelocityPressure_CorrectionStep( 
+REG_ProjectionNavierStokes::NavierStokes_VelocityPressure_CorrectionStep( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------	
 {   
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: "
+   MAC_LABEL( "REG_ProjectionNavierStokes:: "
    	"NavierStokes_VelocityPressure_CorrectionStep" ) ;
 
    if ( my_rank == is_master )
@@ -680,10 +680,10 @@ DLMFD_ProjectionNavierStokes::NavierStokes_VelocityPressure_CorrectionStep(
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes:: do_additional_reload( string const& basename )
+REG_ProjectionNavierStokes:: do_additional_reload( string const& basename )
 //---------------------------------------------------------------------------
 { 
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: do_additional_reload" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: do_additional_reload" ) ;
 
 }
 
@@ -692,10 +692,10 @@ DLMFD_ProjectionNavierStokes:: do_additional_reload( string const& basename )
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes:: add_storable_objects( MAC_ListIdentity* list )
+REG_ProjectionNavierStokes:: add_storable_objects( MAC_ListIdentity* list )
 //---------------------------------------------------------------------------
 { 
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: add_storable_objects" ) ;
+   MAC_LABEL( "REG_ProjectionNavierStokes:: add_storable_objects" ) ;
 
    GLOBAL_EQ->add_storable_objects( list ) ;
 
@@ -706,7 +706,7 @@ DLMFD_ProjectionNavierStokes:: add_storable_objects( MAC_ListIdentity* list )
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: assemble_pressure_DirichletBC_in_momentumEquation( 
+REG_ProjectionNavierStokes:: assemble_pressure_DirichletBC_in_momentumEquation( 
 	LA_Vector* VEC_rhs )
 //---------------------------------------------------------------------------
 { 
@@ -876,11 +876,11 @@ DLMFD_ProjectionNavierStokes:: assemble_pressure_DirichletBC_in_momentumEquation
 
 //---------------------------------------------------------------------------
 void
-DLMFD_ProjectionNavierStokes:: assemble_unitary_periodic_pressure_gradient_rhs ( 
+REG_ProjectionNavierStokes:: assemble_unitary_periodic_pressure_gradient_rhs ( 
 	LA_Vector* VEC_rhs )
 //---------------------------------------------------------------------------
 { 
-   MAC_LABEL( "DLMFD_ProjectionNavierStokes:: "
+   MAC_LABEL( "REG_ProjectionNavierStokes:: "
    	"assemble_unitary_periodic_pressure_gradient_rhs" ) ;
    
    // Parameters
@@ -933,12 +933,12 @@ DLMFD_ProjectionNavierStokes:: assemble_unitary_periodic_pressure_gradient_rhs (
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate( 
+REG_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate( 
 	FV_TimeIterator const* t_it )
 //---------------------------------------------------------------------------
 { 
    MAC_LABEL( 
-     "DLMFD_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate" ) ;
+     "REG_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate" ) ;
 
    FV_Mesh const* primary_mesh = UU->primary_grid() ;
    
@@ -993,11 +993,11 @@ DLMFD_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate(
 
 //---------------------------------------------------------------------------
 void 
-DLMFD_ProjectionNavierStokes:: compute_and_print_divu_norm( void )
+REG_ProjectionNavierStokes:: compute_and_print_divu_norm( void )
 //---------------------------------------------------------------------------
 { 
    MAC_LABEL( 
-     "DLMFD_ProjectionNavierStokes:: compute_and_print_divu_norm" ) ;
+     "REG_ProjectionNavierStokes:: compute_and_print_divu_norm" ) ;
 
   size_t i,j,k;
   size_t_vector min_unknown_index(dim,0);
