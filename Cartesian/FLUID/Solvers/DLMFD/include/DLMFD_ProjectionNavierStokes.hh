@@ -6,6 +6,7 @@
 #include <PAC_computingtime.hh>
 #include <PAC_solvercomputingtime.hh>
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_FictitiousDomain.hh>
 #include <FV_DiscreteField.hh>
 #include <vector>
 #include <string>

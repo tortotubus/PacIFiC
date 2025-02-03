@@ -25,9 +25,10 @@
 
 
 DLMFD_ProjectionNavierStokes const* DLMFD_ProjectionNavierStokes::PROTOTYPE
-			= new DLMFD_ProjectionNavierStokes() ;
+			= new DLMFD_ProjectionNavierStokes();
 
-
+DLMFD_FictitiousDomain const* dlm = new DLMFD_FictitiousDomain();
+      
 //---------------------------------------------------------------------------
 DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( void )
 //--------------------------------------------------------------------------
@@ -261,6 +262,10 @@ DLMFD_ProjectionNavierStokes:: do_one_inner_iteration(
   // Solve the constrained problem momentum + mass conservation
   // by a fractional step projection algorithm
   NavierStokes_Projection( t_it );
+
+  // Use the Fictitious Domain method to update the velocity
+  // and the position of the particles
+  dlm->do_one_inner_iteration(t_it)
 
   stop_solving_timer() ;
   stop_total_timer() ;   	
