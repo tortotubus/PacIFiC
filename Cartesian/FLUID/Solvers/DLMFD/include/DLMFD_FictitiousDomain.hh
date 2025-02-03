@@ -19,11 +19,11 @@ class MAC_Communicator ;
 class FV_DiscreteField ;
 class FV_Mesh ;
 class FS_SolidPlugIn ;
-class DS_AllRigidBodies ;
+class DLMFD_AllRigidBodies ;
 
 /** @brief The Class DLMFD_FictitiousDomain.
 
-Server for the intiating the NavierStokes class.
+Server for the intiating of the NavierStokes class.
 
 @author A. Goyal - Pacific project 2022 */
 
@@ -165,7 +165,7 @@ class DLMFD_FictitiousDomain : public FV_OneStepIteration,
       string solidSolver_insertionFile;
       string solidSolver_simulationFile;
       istringstream* solidFluid_transferStream;
-      DS_AllRigidBodies* allrigidbodies;
+      DLMFD_AllRigidBodies* allrigidbodies;
       bool b_particles_as_fixed_obstacles;
       vector< vector<double> >* hydroFT;
 
