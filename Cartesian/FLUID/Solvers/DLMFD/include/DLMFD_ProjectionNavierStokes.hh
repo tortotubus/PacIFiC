@@ -188,6 +188,10 @@ public PAC_ComputingTime, public PAC_SolverComputingTime
       FV_DiscreteField* PP;              
       
       DLMFD_ProjectionNavierStokesSystem* GLOBAL_EQ ;      
+      
+
+      // Fictitious Domain instance
+      DLMFD_FictitiousDomain* dlm;
 
       // MPI parameters
       size_t nb_ranks;
