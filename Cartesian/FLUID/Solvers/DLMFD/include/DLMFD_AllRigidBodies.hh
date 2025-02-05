@@ -8,8 +8,7 @@ using std::istream ;
 
 /** @brief The class DS_AllRigidBodies.
 
-The array of all rigid bodies in the Direction Splitting solver.
-
+The array of all rigid bodies in the Fictitious Domain solver.
 
 @author M. Houlette - Pacific project 2025 */
 
