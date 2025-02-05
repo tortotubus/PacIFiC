@@ -8,7 +8,7 @@
 Solver for the coupling with particles using a Distributed Lagrange
 Multiplier/Fictitious Domain method.
 
-@author A. Wachs - Pacific project 2024-2025 */
+@author A. Wachs & M. Houlette - Pacific project 2024-2025 */
 
 class DLMFD_FictitiousDomain: public MAC_Object
 {
