@@ -1,4 +1,5 @@
 #include <DLMFD_ProjectionNavierStokes.hh>
+#include <DLMFD_AllRigidBodies.hh>
 #include <FV_DomainAndFields.hh>
 #include <FV_DomainBuilder.hh>
 #include <FV_DiscreteField.hh>
@@ -22,6 +23,8 @@
 #include <PAC_Misc.hh>
 #include <math.h>
 #include <cstdlib>
+#include <FS_SolidPlugIn_BuilderFactory.hh>
+#include <FS_SolidPlugIn.hh>
 
 
 DLMFD_ProjectionNavierStokes const* DLMFD_ProjectionNavierStokes::PROTOTYPE
@@ -35,8 +38,6 @@ DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( void )
 {
    MAC_LABEL( "DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes" ) ;
 }
-
-
 
 
 //---------------------------------------------------------------------------
@@ -227,9 +228,28 @@ DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes( MAC_Object* a_owner
      SCT_insert_app("Diffusion_PredictionStep");                
      SCT_get_elapsed_time("Objects_Creation");
    }
+   // Create solid readable files
+      solidSolverType = "Grains3D";
+      b_solidSolver_parallel = false;
+      solidSolver_insertionFile = "Grains/Init/insert.xml";
+      solidSolver_simulationFile = "Grains/Res/simul.xml";
+      int error = 0;
 
-   // Fictitious Domain instance
-   dlm = DLMFD_FictitiousDomain::create(a_owner);
+    // Create rigid bodies object
+
+    solidSolver = FS_SolidPlugIn_BuilderFactory:: create(solidSolverType,
+      solidSolver_insertionFile, solidSolver_simulationFile, density, false,
+      b_restart, dom->primary_grid()->get_smallest_constant_grid_size(), 
+      b_solidSolver_parallel, error);
+  
+    solidFluid_transferStream = NULL;
+    solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
+
+    allrigidbodies = new DLMFD_AllRigidBodies(dim, *solidFluid_transferStream, 
+      are_particles_fixed);
+
+    // Fictitious Domain instance
+    dlm = DLMFD_FictitiousDomain::create(a_owner);
 
 }
 
@@ -390,6 +410,9 @@ DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage(
    // Update pressure drop in case of periodic imposed flow rate
    if ( UU->primary_grid()->is_periodic_flow_rate() )
      update_pressure_drop_imposed_flow_rate( t_it );
+
+   // Updating the Rigid Bodies 
+   allrigidbodies->update(*solidFluid_transferStream);
    
    stop_total_timer() ;
       

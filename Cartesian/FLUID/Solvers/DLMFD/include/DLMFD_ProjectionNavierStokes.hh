@@ -7,6 +7,8 @@
 #include <PAC_solvercomputingtime.hh>
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <DLMFD_FictitiousDomain.hh>
+#include <DLMFD_AllRigidBodies.hh>
+#include <FS_SolidPlugIn.hh>
 #include <FV_DiscreteField.hh>
 #include <vector>
 #include <string>
@@ -213,6 +215,16 @@ public PAC_ComputingTime, public PAC_SolverComputingTime
       bool b_ExplicitPressureGradient ;
       bool b_HighOrderPressureCorrection ;
       size_t sub_prob_number;
+
+      // Grains3D variables
+      string solidSolverType;
+      FS_SolidPlugIn* solidSolver;
+      bool b_solidSolver_parallel;
+      string solidSolver_insertionFile;
+      string solidSolver_simulationFile;
+      istringstream* solidFluid_transferStream;
+      DLMFD_AllRigidBodies* allrigidbodies;
+      bool are_particles_fixed;
       
       // Restart
       bool b_restart ;

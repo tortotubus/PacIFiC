@@ -35,5 +35,5 @@ void DLMFD_FictitiousDomain:: do_one_inner_iteration()
 void DLMFD_FictitiousDomain:: run_DLMFD_UzawaSolver()
 //---------------------------------------------------------------------------
 {
-   printf("Hello World!");
+   printf("Hello World from Uzawa algorithm \n");
 }

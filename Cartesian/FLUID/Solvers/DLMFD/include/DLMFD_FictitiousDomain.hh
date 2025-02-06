@@ -27,7 +27,7 @@ class DLMFD_FictitiousDomain: public MAC_Object
 
       DLMFD_FictitiousDomain(MAC_Object* a_owner);
 
-      ~DLMFD_FictitiousDomain(void);
+      ~DLMFD_FictitiousDomain();
 };
 
 #endif

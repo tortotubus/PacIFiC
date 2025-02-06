@@ -7,7 +7,7 @@
 
 A moving or stationary rigid body in the Fictitious Domain solver.
 
-@author A. Wachs - Pacific project 2021 */
+@author M. Houlette - Pacific project 2025 */
 
 class DLMFD_RigidBody
 {
@@ -18,6 +18,7 @@ class DLMFD_RigidBody
         ~DLMFD_RigidBody();
 
         geomVector get_rigid_body_velocity(geomVector const& point);
+
     
     protected: //--------------------------------------------------------------
    
