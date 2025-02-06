@@ -16,11 +16,13 @@ class DLMFD_AllRigidBodies
 {
     public: //-----------------------------------------------------------------
 
-        DLMFD_AllRigidBodies(size_t& dim, istream& in, bool const& are_particles_fixed);
+        DLMFD_AllRigidBodies(size_t& dim, istringstream& in, bool const& are_particles_fixed);
 
         ~DLMFD_AllRigidBodies();
 
         size_t get_number_rigid_bodies() const;
+
+        void update(istringstream& in);
     
     protected: //--------------------------------------------------------------
    
