@@ -11,20 +11,16 @@ A moving or stationary rigid body in the Fictitious Domain solver.
 
 class DLMFD_RigidBody
 {
-   public: //-----------------------------------------------------------------
+public: //-----------------------------------------------------------------
+    DLMFD_RigidBody();
 
-        DLMFD_RigidBody();
+    ~DLMFD_RigidBody();
 
-        ~DLMFD_RigidBody();
+    geomVector get_rigid_body_velocity(geomVector const &point);
 
-        geomVector get_rigid_body_velocity(geomVector const& point);
-
-    
-    protected: //--------------------------------------------------------------
-   
-    private: //----------------------------------------------------------------
-
-        FS_RigidBody* ptr_FSrigidbody;
+protected: //--------------------------------------------------------------
+private:   //----------------------------------------------------------------
+    FS_RigidBody *ptr_FSrigidbody;
 };
 
 #endif

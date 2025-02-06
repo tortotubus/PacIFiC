@@ -10,24 +10,20 @@ Multiplier/Fictitious Domain method.
 
 @author A. Wachs & M. Houlette - Pacific project 2024-2025 */
 
-class DLMFD_FictitiousDomain: public MAC_Object
+class DLMFD_FictitiousDomain : public MAC_Object
 {
-   public: //-----------------------------------------------------------------
+public: //-----------------------------------------------------------------
+   static DLMFD_FictitiousDomain *create(MAC_Object *a_owner);
 
-      static DLMFD_FictitiousDomain* create(MAC_Object* a_owner);
+   void do_one_inner_iteration();
 
-      void do_one_inner_iteration();
+   void run_DLMFD_UzawaSolver();
 
-      void run_DLMFD_UzawaSolver();
+protected: //--------------------------------------------------------------
+private:   //----------------------------------------------------------------
+   DLMFD_FictitiousDomain(MAC_Object *a_owner);
 
-   
-   protected: //--------------------------------------------------------------
-   
-   private: //----------------------------------------------------------------
-
-      DLMFD_FictitiousDomain(MAC_Object* a_owner);
-
-      ~DLMFD_FictitiousDomain();
+   ~DLMFD_FictitiousDomain();
 };
 
 #endif
