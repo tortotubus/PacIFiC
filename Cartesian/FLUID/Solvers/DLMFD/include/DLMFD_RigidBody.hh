@@ -14,13 +14,14 @@ class DLMFD_RigidBody
 public: //-----------------------------------------------------------------
     DLMFD_RigidBody();
 
+    DLMFD_RigidBody(FS_RigidBody *pgrb);
+
     ~DLMFD_RigidBody();
 
-    geomVector get_rigid_body_velocity(geomVector const &point);
-
 protected: //--------------------------------------------------------------
-private:   //----------------------------------------------------------------
     FS_RigidBody *ptr_FSrigidbody;
+
+private: //----------------------------------------------------------------
 };
 
 #endif
