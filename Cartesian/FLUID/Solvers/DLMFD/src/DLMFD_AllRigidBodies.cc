@@ -41,9 +41,12 @@ size_t DLMFD_AllRigidBodies::get_number_rigid_bodies() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::update(istringstream &in)
+void DLMFD_AllRigidBodies::update(istringstream &solidFluid_transferStream)
 //---------------------------------------------------------------------------
 {
+   MAC_LABEL("DLMFD_AllRigidBodies:: update");
+
+   ptr_FSallrigidbodies->update(solidFluid_transferStream);
    cout << "Hello World from Rigid body updating"
         << endl;
 }

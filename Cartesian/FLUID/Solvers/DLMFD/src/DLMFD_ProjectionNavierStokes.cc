@@ -203,25 +203,6 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     SCT_get_elapsed_time("Objects_Creation");
   }
 
-  // // Create solid readable files
-  // solidSolverType = "Grains3D";
-  // b_solidSolver_parallel = false;
-  // solidSolver_insertionFile = "Grains/Init/insert.xml";
-  // solidSolver_simulationFile = "Grains/Res/simul.xml";
-  // int error = 0;
-
-  // // Create rigid bodies object
-  // solidSolver = FS_SolidPlugIn_BuilderFactory::create(solidSolverType,
-  //                                                     solidSolver_insertionFile, solidSolver_simulationFile, density, false,
-  //                                                     b_restart, dom->primary_grid()->get_smallest_constant_grid_size(),
-  //                                                     b_solidSolver_parallel, error);
-
-  // solidFluid_transferStream = NULL;
-  // solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
-
-  // allrigidbodies = new DLMFD_AllRigidBodies(dim, *solidFluid_transferStream,
-  //                                           are_particles_fixed, UU, PP);
-
   // Create Fictitious Domain solver
   dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp);
 }
@@ -251,7 +232,7 @@ void DLMFD_ProjectionNavierStokes::do_one_inner_iteration(
 
   // Use the Fictitious Domain method to solve the coupling
   // between the fluid and the solid
-  dlmfd_solver->do_one_inner_iteration();
+  dlmfd_solver->do_one_inner_iteration(t_it);
 
   stop_solving_timer();
   stop_total_timer();

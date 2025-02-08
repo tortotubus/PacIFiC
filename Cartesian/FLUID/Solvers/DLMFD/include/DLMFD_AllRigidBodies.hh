@@ -18,7 +18,7 @@ class DLMFD_AllRigidBodies
 {
 public: //-----------------------------------------------------------------
     DLMFD_AllRigidBodies(size_t &dim,
-                         istringstream &in,
+                         istringstream &solidFluid_transferStream,
                          bool const &are_particles_fixed,
                          FV_DiscreteField const *UF,
                          FV_DiscreteField const *PF);
@@ -27,13 +27,23 @@ public: //-----------------------------------------------------------------
 
     size_t get_number_rigid_bodies() const;
 
-    void update(istringstream &in);
+    void update(istringstream &solidFluid_transferStream);
 
 protected: //--------------------------------------------------------------
 private:   //----------------------------------------------------------------
+    // Pointer to the geometric rigid bodies
     FS_AllRigidBodies *ptr_FSallrigidbodies;
+
+    // Pointer to the vector of DLMFD rigid bodies
     vector<DLMFD_RigidBody *> vec_ptr_DLMFDallrigidbodies;
+
+    // Numerical parameters
     size_t RBs_number;
+
+    // Pointers to the constant fields and primary grid
+    FV_DiscreteField const *UF;
+    FV_DiscreteField const *PF;
+    FV_Mesh const *MESH;
 };
 
 #endif

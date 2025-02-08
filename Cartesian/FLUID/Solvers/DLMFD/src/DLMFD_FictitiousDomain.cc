@@ -18,7 +18,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    solidSolver_simulationFile = "Grains/Res/simul.xml";
    int error = 0;
 
-   // Create rigid bodies object
+   // Create the Solid/Fluid transfer stream
    solidSolver = FS_SolidPlugIn_BuilderFactory::create(solidSolverType,
                                                        solidSolver_insertionFile, solidSolver_simulationFile, density, false,
                                                        b_restart, dom->primary_grid()->get_smallest_constant_grid_size(),
@@ -27,6 +27,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    solidFluid_transferStream = NULL;
    solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
 
+   // Create the Rigid Bodies
    allrigidbodies = new DLMFD_AllRigidBodies(dim, *solidFluid_transferStream,
                                              are_particles_fixed, UU, PP);
 }
@@ -45,40 +46,62 @@ DLMFD_FictitiousDomain *DLMFD_FictitiousDomain::create(MAC_Object *a_owner,
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: create");
-   DLMFD_FictitiousDomain *result = new DLMFD_FictitiousDomain(a_owner, dom, exp);
-   return (result);
+
+   DLMFD_FictitiousDomain *dlmfd_solver = new DLMFD_FictitiousDomain(a_owner, dom, exp);
+   return (dlmfd_solver);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::do_one_inner_iteration()
+void DLMFD_FictitiousDomain::do_one_inner_iteration(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
+   MAC_LABEL("DLMFD_FictitiousDomain:: do_one_inner_iteration");
 
-   update_rigid_bodies();
-   run_DLMFD_UzawaSolver();
+   update_rigid_bodies(t_it);
+   run_DLMFD_UzawaSolver(t_it);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::update_rigid_bodies()
+void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
+   MAC_LABEL("DLMFD_FictitiousDomain:: update_rigid_bodies");
+
    sub_prob_number = 3;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
    MAC::out() << "Sub-problem " << sub_prob_number
               << " : Rigid Bodies updating" << endl;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
-   allrigidbodies->update(*solidFluid_transferStream);
+
+   // Update the Rigid Bodies
+   solidSolver->Simulation(t_it->time_step());
+   MAC::out() << "Solid components written in stream by solid solver" << endl;
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver()
+void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
+   MAC_LABEL("DLMFD_FictitiousDomain:: run_DLMFD_UzawaSolver");
+
    sub_prob_number = 4;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
    MAC::out() << "Sub-problem " << sub_prob_number
-              << " : DLMFD processing" << endl;
+              << " : DLMFD solving" << endl;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
-   cout << "Hello World from Uzawa algorithm"
-        << endl;
+
+   // Initialize the DLMFD correction problem
+   initialize_DLMFD_problem(t_it);
+
+   // Solve the DLMFD correction problem
+   cout << "SOLVING THE DLMFD PROLEM" << endl;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::initialize_DLMFD_problem(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: initialize_DLMFD_problem");
+
+   cout << "INITIALIZING THE DLMFD PROLEM" << endl;
 }

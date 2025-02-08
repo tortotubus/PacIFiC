@@ -6,6 +6,7 @@
 #include <DLMFD_AllRigidBodies.hh>
 #include <FV_DomainAndFields.hh>
 #include <MAC_ModuleExplorer.hh>
+#include <FV_TimeIterator.hh>
 
 /** @brief The Class DLMFD_FictitiousDomain.
 
@@ -20,11 +21,13 @@ public: //-----------------------------------------------------------------
    static DLMFD_FictitiousDomain *create(MAC_Object *a_owner, FV_DomainAndFields const *dom,
                                          MAC_ModuleExplorer const *exp);
 
-   void do_one_inner_iteration();
+   void do_one_inner_iteration(FV_TimeIterator const *t_it);
 
-   void update_rigid_bodies();
+   void update_rigid_bodies(FV_TimeIterator const *t_it);
 
-   void run_DLMFD_UzawaSolver();
+   void run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it);
+
+   void initialize_DLMFD_problem(FV_TimeIterator const *t_it);
 
 protected: //--------------------------------------------------------------
 private:   //----------------------------------------------------------------
