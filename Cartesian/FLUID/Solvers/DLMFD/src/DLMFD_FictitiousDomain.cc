@@ -73,7 +73,7 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
               << " : Rigid Bodies updating" << endl;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
 
-   // Update the Rigid Bodies
+   // Update the Rigid Bodies (Prediction problem)
    solidSolver->Simulation(t_it->time_step());
    MAC::out() << "Solid components written in stream by solid solver" << endl;
 }
@@ -91,14 +91,14 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
 
    // Initialize the DLMFD correction problem
-   initialize_DLMFD_problem(t_it);
+   DLMFD_construction(t_it);
 
    // Solve the DLMFD correction problem
    cout << "SOLVING THE DLMFD PROLEM" << endl;
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::initialize_DLMFD_problem(FV_TimeIterator const *t_it)
+void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: initialize_DLMFD_problem");
