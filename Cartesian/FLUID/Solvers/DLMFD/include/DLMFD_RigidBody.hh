@@ -2,6 +2,8 @@
 #define _DLMFD_RIGIDBODY__
 
 #include <FS_RigidBody.hh>
+#include <DLMFD_BoundaryMultiplierPoint.hh>
+#include <DLMFD_InteriorMultiplierPoint.hh>
 
 /** @brief The class DLMFD_RigidBody.
 
@@ -28,10 +30,20 @@ public: //-----------------------------------------------------------------
 
     //@}
 
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Set DLMFD boundary and interior points */
+    virtual void set_all_points() = 0;
+
 protected: //--------------------------------------------------------------
     //-- Attributes
 
-    FS_RigidBody *ptr_FSrigidbody;
+    FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */
+
+    list<DLMFD_BoundaryMultiplierPoint *> boundarypoints; /* List of pointers to boundary points */
+    list<DLMFD_InteriorMultiplierPoint *> interiorpoints; /* List of pointers to interior points */
 
 private: //----------------------------------------------------------------
 };

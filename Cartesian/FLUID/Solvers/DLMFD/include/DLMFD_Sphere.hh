@@ -30,6 +30,15 @@ public: //------------------------------------------------------------------
 
     //@}
 
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Set DLMFD boundary and interior points */
+    void set_all_points();
+
+    //@}
+
     //-- Get methods
     /** @name Get methods */
     //@{

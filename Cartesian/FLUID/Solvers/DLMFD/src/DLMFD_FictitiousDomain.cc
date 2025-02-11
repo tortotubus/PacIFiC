@@ -103,5 +103,6 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: initialize_DLMFD_problem");
 
+   allrigidbodies->set_all_points();
    cout << "INITIALIZING THE DLMFD PROLEM" << endl;
 }

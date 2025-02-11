@@ -38,12 +38,23 @@ public: //-----------------------------------------------------------------
     ~DLMFD_AllRigidBodies();
     //@}
 
+    // -- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Return the total number of rigid bodies */
+    void set_all_points() const;
+
+    //@}
+
     // -- Get methods
     /** @name Get methods */
     //@{
 
     /** @brief Return the total number of rigid bodies */
     size_t get_number_rigid_bodies() const;
+
+    //@}
 
     // -- Update methods
     /** @name Get methods */
@@ -54,15 +65,18 @@ public: //-----------------------------------------------------------------
     void update(istringstream &solidFluid_transferStream);
     //@}
 
-protected: //--------------------------------------------------------------
+protected: //----------------------------------------------------------------
 private:   //----------------------------------------------------------------
     //-- Attributes
 
-    /**@name Parameters */
+    /** @name Parameters */
     //@{
+
     size_t RBs_number;                                     /**< Number of rigid bodies */
     FS_AllRigidBodies *ptr_FSallrigidbodies;               /**< Pointer to the geometric rigid bodies */
     vector<DLMFD_RigidBody *> vec_ptr_DLMFDallrigidbodies; /**<  Pointer to the vector of DLMFD rigid bodies */
+
+    //@}
 
     // Pointers to the constant fields and primary grid
     FV_DiscreteField const *UF;

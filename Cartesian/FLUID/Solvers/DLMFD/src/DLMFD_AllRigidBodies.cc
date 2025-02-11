@@ -32,6 +32,18 @@ DLMFD_AllRigidBodies::~DLMFD_AllRigidBodies()
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_all_points() const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
+
+   for (size_t i = 0; i < RBs_number; i++)
+   {
+      vec_ptr_DLMFDallrigidbodies[i]->set_all_points();
+   }
+}
+
+//---------------------------------------------------------------------------
 size_t DLMFD_AllRigidBodies::get_number_rigid_bodies() const
 //---------------------------------------------------------------------------
 {
