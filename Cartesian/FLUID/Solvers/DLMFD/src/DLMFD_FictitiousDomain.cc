@@ -95,6 +95,7 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
 
    // Solve the DLMFD correction problem
    cout << "SOLVING THE DLMFD PROLEM" << endl;
+   allrigidbodies->update_RB_position_and_velocity()
 }
 
 //---------------------------------------------------------------------------
@@ -103,6 +104,7 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: initialize_DLMFD_problem");
 
-   allrigidbodies->set_all_points();
+   double critical_distance = 1.0e-3;
+   allrigidbodies->set_all_points(critical_distance);
    cout << "INITIALIZING THE DLMFD PROLEM" << endl;
 }

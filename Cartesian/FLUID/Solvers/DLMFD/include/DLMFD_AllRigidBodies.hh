@@ -42,8 +42,9 @@ public: //-----------------------------------------------------------------
     /** @name Set methods */
     //@{
 
-    /** @brief Return the total number of rigid bodies */
-    void set_all_points() const;
+    /** @brief Return the total number of rigid bodies
+    @param critical_distance Critical distance */
+    void set_all_points(double critical_distance) const;
 
     //@}
 
@@ -63,6 +64,16 @@ public: //-----------------------------------------------------------------
     /** @brief Update method
     @param solidFluid_transferStream */
     void update(istringstream &solidFluid_transferStream);
+
+    /** @brief Update the RB position and velocity
+    @param pos updated position
+    @param vel updated translation velocity */
+    void update_RB_position_and_velocity(geomVector const &pos,
+                                         geomVector const &vel,
+                                         geomVector const &ang_vel,
+                                         vector<geomVector> const &periodic_directions,
+                                         double const &time_step);
+
     //@}
 
 protected: //----------------------------------------------------------------

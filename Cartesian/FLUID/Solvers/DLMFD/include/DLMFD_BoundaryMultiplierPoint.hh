@@ -21,7 +21,7 @@ public: //----------------------------------------------------------------
     /** @brief Constructor with arguments
     @param position point position
     @param gravity_center gravity center of the particle the point belongs to */
-    DLMFD_BoundaryMultiplierPoint(const geomVector &position, const geomVector &gravity_center);
+    DLMFD_BoundaryMultiplierPoint(const geomVector &point, const geomVector &gravity_center);
 
     /** @brief Destructor */
     ~DLMFD_BoundaryMultiplierPoint();

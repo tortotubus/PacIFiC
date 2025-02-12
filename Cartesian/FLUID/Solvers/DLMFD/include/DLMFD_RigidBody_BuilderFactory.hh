@@ -2,7 +2,7 @@
 #define _DLMFD_RIGIDBODY_BUILDERFACTORY__
 
 #include <iostream>
-using std::istream;
+using namespace std;
 class FS_RigidBody;
 class DLMFD_RigidBody;
 class FV_Mesh;

@@ -4,6 +4,7 @@
 #include <FS_RigidBody.hh>
 #include <DLMFD_Sphere.hh>
 using namespace std;
+
 //---------------------------------------------------------------------------
 DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_rb)
 //---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_r
 
     default:
         MAC::out() << "Unknown geometric shape in "
-                      "DS_RigidBody_BuilderFactory::create"
+                      "DLMFD_RigidBody_BuilderFactory::create"
                    << endl;
     }
 

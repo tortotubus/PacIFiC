@@ -32,14 +32,14 @@ DLMFD_AllRigidBodies::~DLMFD_AllRigidBodies()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::set_all_points() const
+void DLMFD_AllRigidBodies::set_all_points(double critical_distance) const
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
 
    for (size_t i = 0; i < RBs_number; i++)
    {
-      vec_ptr_DLMFDallrigidbodies[i]->set_all_points();
+      vec_ptr_DLMFDallrigidbodies[i]->set_all_points(critical_distance);
    }
 }
 
@@ -61,4 +61,20 @@ void DLMFD_AllRigidBodies::update(istringstream &solidFluid_transferStream)
    ptr_FSallrigidbodies->update(solidFluid_transferStream);
    cout << "Hello World from Rigid body updating"
         << endl;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::update_RB_position_and_velocity(geomVector const &pos,
+                                                           geomVector const &vel,
+                                                           geomVector const &ang_vel,
+                                                           vector<geomVector> const &periodic_directions,
+                                                           double const &time_step)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
+
+   for (size_t i = 0; i < RBs_number; i++)
+   {
+      vec_ptr_DLMFDallrigidbodies[i]->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step);
+   }
 }
