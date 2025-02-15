@@ -46,6 +46,9 @@ public: //-----------------------------------------------------------------
     @param critical_distance Critical distance */
     void set_all_points(double critical_distance) const;
 
+    /** @brief Set the list of IDs of on proc */
+    void set_listIdOnProc();
+
     //@}
 
     // -- Get methods
@@ -76,6 +79,19 @@ public: //-----------------------------------------------------------------
 
     //@}
 
+    // -- Output methods
+    /** @name Output methods */
+    //@{
+
+    /** @brief Output DLMFD points in Paraview
+    @param filename File name */
+    void output_DLMFDPoints_PARAVIEW(const string &filename,
+                                     geomVector const *translated_distance_vector,
+                                     const bool &withIntPts,
+                                     size_t rank) const;
+
+    //@}
+
 protected: //----------------------------------------------------------------
 private:   //----------------------------------------------------------------
     //-- Attributes
@@ -86,12 +102,13 @@ private:   //----------------------------------------------------------------
     size_t RBs_number;                                     /**< Number of rigid bodies */
     FS_AllRigidBodies *ptr_FSallrigidbodies;               /**< Pointer to the geometric rigid bodies */
     vector<DLMFD_RigidBody *> vec_ptr_DLMFDallrigidbodies; /**<  Pointer to the vector of DLMFD rigid bodies */
+    list<int> onProc;                                      /**< list of ids of solid component located on this process */
 
     //@}
 
     // Pointers to the constant fields and primary grid
-    FV_DiscreteField const *UF;
-    FV_DiscreteField const *PF;
+
+    FV_DiscreteField const *pField; /**< Pointer to constrained field*/
     FV_Mesh const *MESH;
 };
 

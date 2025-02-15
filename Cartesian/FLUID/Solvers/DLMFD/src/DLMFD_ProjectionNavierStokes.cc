@@ -204,7 +204,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   }
 
   // Create Fictitious Domain solver
-  dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp);
+  struct NavierStokes2FluidSolid transfert;
+  transfert.solid_resDir = resultsDirectory;
+
+  dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 }
 
 //---------------------------------------------------------------------------
@@ -394,6 +397,8 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
                << "Full problem" << endl;
     write_elapsed_time_smhd(MAC::out(), cputime, "Computation time");
     SCT_get_summary(MAC::out(), cputime);
+
+    dlmfd_solver->do_additional_savings(cycleNumber, t_it);
   }
 
   stop_total_timer();
