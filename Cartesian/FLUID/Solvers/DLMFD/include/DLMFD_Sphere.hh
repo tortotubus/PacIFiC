@@ -2,6 +2,8 @@
 #define _DLMFD_SPHERE__
 
 #include <DLMFD_RigidBody.hh>
+#include <FV_DiscreteField.hh>
+#include <FV_Mesh.hh>
 #include <string>
 using namespace std;
 
@@ -35,8 +37,18 @@ public: //------------------------------------------------------------------
     //@{
 
     /** @brief Set DLMFD boundary and interior points
+    @param critical_distance Critical distance
+    @param pField Pointer to constrained field */
+    void set_all_points(FV_DiscreteField const *pField, double critical_distance);
+
+    /** @brief Set DLMFD boundary points
+    @param critical_distance Critical distance
+    @param pField Pointer to constrained field */
+    void set_boundary_points(FV_DiscreteField const *pField, double critical_distance);
+
+    /** @brief Set DLMFD interior points
     @param critical_distance Critical distance */
-    void set_all_points(double critical_distance);
+    void set_interior_points(FV_DiscreteField const *pField, double critical_distance);
 
     //@}
 
@@ -70,6 +82,32 @@ public: //------------------------------------------------------------------
                                          geomVector const &vel,
                                          geomVector const &ang_vel,
                                          vector<geomVector> const &periodic_directions, double const &time_step);
+
+    //@}
+
+    //-- Geometric methods
+    /** @name Geometric methods */
+    //@{
+
+    /** @brief isIn method
+    @param x x-component
+    @param y y-component
+    @param z z-component */
+    bool isIn(double const &x, double const &y, double const &z) const;
+
+    //@}
+
+    //-- Add methods
+    /** @name Add methods */
+    //@{
+
+    /** @brief Allocate default boundary points
+    @param nbBPdef Number of default boundary points */
+    void allocate_default_boundary_points_sphere(size_t const &nbBPdef);
+
+    /** @brief Allocate default interior points
+    @param nbIPdef Number of default interior points */
+    void allocate_default_interior_points_sphere(size_t const &nbIPdef);
 
     //@}
 

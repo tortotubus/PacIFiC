@@ -22,10 +22,32 @@ public: //----------------------------------------------------------------
     /** @brief Constructor with arguments
     @param position point position
     @param gravity_center gravity center of the particle the point belongs to */
-    DLMFD_InteriorMultiplierPoint(const geomVector &position, const geomVector &gravity_center);
+    DLMFD_InteriorMultiplierPoint(const size_t &comp, const geomVector &position,
+                                  size_t i, size_t j, size_t k,
+                                  const geomVector &gravity_center);
 
     /** @brief Destructor */
     ~DLMFD_InteriorMultiplierPoint();
+
+    //@}
+
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Set
+    @param comp Component number
+    @param x x-coordinate
+    @param y y-coordinate
+    @param z z-coordinate
+    @param i x index of FV triplet
+    @param j y index of FV triplet
+    @param k z index of FV triplet
+    @param gravity_center Gravity center */
+    void set(const size_t &comp,
+             double const &x, double const &y, double const &z,
+             size_t i, size_t j, size_t k,
+             const geomVector &gravity_center);
 
     //@}
 

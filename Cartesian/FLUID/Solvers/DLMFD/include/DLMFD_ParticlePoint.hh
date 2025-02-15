@@ -15,6 +15,7 @@ class DLMFD_ParticlePoint
 protected:                       //----------------------------------------------------------------
     geomVector pointCoordinates; /**< coordinates of the point */
     geomVector GCPointVector;    /**< vector from gravity center to the point */
+    size_t component_number;     /**< the component number for MAC FVM */
 
 public: //----------------------------------------------------------------
     //-- Constructors & Destructor
@@ -31,12 +32,31 @@ public: //----------------------------------------------------------------
 
     //@}
 
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Set
+    @param comp Component number
+    @param x x-coordinate
+    @param y y-coordinate
+    @param z z-coordinate
+    @param gravity_center Gravity center */
+    void set(const size_t &comp, double const &x, double const &y, double const &z,
+             const geomVector &gravity_center);
+
+    //@}
+
     //-- Get methods
     /** @name Get methods */
     //@{
 
     /** @brief Get the coordinates of the point */
     geomVector get_coordinates() const;
+
+    /** @brief Get the coordinates of the point
+    @param dir Direction */
+    double get_oneCoordinate(const size_t &dir) const;
 
     //@}
 

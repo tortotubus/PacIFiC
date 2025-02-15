@@ -37,8 +37,15 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Set DLMFD boundary and interior points
-    @param critical_distance Critical distance */
-    virtual void set_all_points(double critical_distance) = 0;
+    @param critical_distance Critical distance
+    @param pField Constrained field */
+    virtual void set_all_points(FV_DiscreteField const *pField, double critical_distance) = 0;
+
+    /** @brief Set DLMFD boundary point in the list
+    @param TO Write */
+    void setBndPoint(double const &x, double const &y,
+                     double const &z, FV_Mesh const *primary_grid,
+                     list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp);
 
     //@}
 
@@ -52,16 +59,23 @@ public: //-----------------------------------------------------------------
     /** @brief Returns circumscribed radius */
     virtual double get_circumscribed_radius() const = 0;
 
+    /** @brief Returns the number of output points
+    @param withIntPts True if the interior points are taken into account */
+    size_t get_npts_output(bool const &withIntPts);
+
     //@}
 
     //-- Add methods
     /** @name Add methods */
     //@{
 
-    /** @brief Add a boundary point to the list of boundary points
-    @param point Point
-    @param critical_distance Critical distance */
-    void add_boundary_point(const geomVector &point, double critical_distance);
+    /** @brief Extend the list of boundary points
+    @param np Number of points */
+    void extent_bp_list(size_t const &np);
+
+    /** @brief Extend the list of interior points
+    @param np Number of points */
+    void extent_ip_list(size_t const &np);
 
     //@}
 
@@ -80,17 +94,52 @@ public: //-----------------------------------------------------------------
 
     //@}
 
+    //-- Geometric methods
+    /** @name Geometric methods */
+    //@{
+
+    /** @brief isIn method
+    @param x x-component
+    @param y y-component
+    @param z z-component */
+    virtual bool isIn(double const &x, double const &y, double const &z) const = 0;
+
+    /** @brief Print the particule points coordinates */
+    void print_partPointsCoordinates(ofstream &f,
+                                     geomVector const *translated_distance_vector,
+                                     const string &text2write_before,
+                                     const string &text2write_after,
+                                     bool const &withIntPts) const;
+
+    //@}
+
+    //-- Clear methods
+    /** @name Clear methods */
+    //@{
+
+    /** @brief Clear the lists of points */
+    void clear_listOfPointsAndVectors();
+
+    //@}
+
 protected: //--------------------------------------------------------------
     //-- Attributes
 
     FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */
 
     // Geometric attributes
-    list<DLMFD_BoundaryMultiplierPoint *> boundarypoints; /* List of pointers to boundary points */
-    list<DLMFD_InteriorMultiplierPoint *> interiorpoints; /* List of pointers to interior points */
+    list<DLMFD_BoundaryMultiplierPoint *> boundary_points; /* List of pointers to boundary points */
+    size_t nBP;                                            /**< number of boundary points on proc */
+    list<DLMFD_InteriorMultiplierPoint *> interior_points; /* List of pointers to interior points */
+    size_t nIP;                                            /**< number of interior points on proc */
 
-    geomVector gravity_center; /**< center of gravity coordinates */
-    double radius;             /**< external radius */
+    size_t_array2D *index_min; /**< lower bound index in the mesh related to the
+ solid component circumscribing box */
+    size_t_array2D *index_max; /**< upper bound index in the mesh related to the
+     solid component circumscribing box */
+
+    geomVector gravity_center; /**< Center of gravity coordinates */
+    double radius;             /**< External radius */
 
 private: //----------------------------------------------------------------
 };
