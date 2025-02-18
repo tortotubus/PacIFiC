@@ -27,7 +27,7 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    }
 
    // Set the constrained field
-   pField = UF;
+   set_ptr_constrained_field(UF);
 
    // Set the onProc IDs
    set_listIdOnProc();
@@ -41,7 +41,7 @@ DLMFD_AllRigidBodies::~DLMFD_AllRigidBodies()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::set_all_points(double critical_distance) const
+void DLMFD_AllRigidBodies::set_all_points(double critical_distance)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
@@ -65,6 +65,15 @@ void DLMFD_AllRigidBodies::set_listIdOnProc()
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_ptr_constrained_field(FV_DiscreteField const *pField_)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies:: set_ptr_constrained_field");
+
+   pField = pField_;
+}
+
+//---------------------------------------------------------------------------
 size_t DLMFD_AllRigidBodies::get_number_rigid_bodies() const
 //---------------------------------------------------------------------------
 {
@@ -74,14 +83,12 @@ size_t DLMFD_AllRigidBodies::get_number_rigid_bodies() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::update(istringstream &solidFluid_transferStream)
+void DLMFD_AllRigidBodies::update(double critical_distance)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: update");
 
-   ptr_FSallrigidbodies->update(solidFluid_transferStream);
-   cout << "Hello World from Rigid body updating"
-        << endl;
+   set_all_points(critical_distance);
 }
 
 //---------------------------------------------------------------------------

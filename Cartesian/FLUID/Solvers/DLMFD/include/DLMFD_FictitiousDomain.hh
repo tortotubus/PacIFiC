@@ -50,6 +50,16 @@ public: //-----------------------------------------------------------------
 
    //@}
 
+   //-- Set methods
+   /** @name Set methods */
+   //@{
+
+   /** @brief Setting the critical distance attribute
+   @param t_icritical_distance_ Critical distance to set */
+   void set_critical_distance(double critical_distance_);
+
+   //@}
+
    //-- DLMFD solver methods
    /** @name DLMFD solver methods */
    //@{
@@ -66,6 +76,10 @@ public: //-----------------------------------------------------------------
    /** @brief Initialization of the DLMFD problem to solve
    @param t_it Time iterator */
    void DLMFD_construction(FV_TimeIterator const *t_it);
+
+   /** @brief Solve the DLMFD problem
+   @param t_it Time iterator */
+   void DLMFD_solving(FV_TimeIterator const *t_it);
 
    //@}
 
@@ -110,6 +124,7 @@ private:   //----------------------------------------------------------------
 
    // Numerical parameters
    size_t sub_prob_number;
+   double critical_distance;
 
    // Grains3D variables
    string solidSolverType;

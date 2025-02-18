@@ -122,6 +122,15 @@ public: //-----------------------------------------------------------------
 
     //@}
 
+    //-- Boolean methods
+    /** @name Boolean methods */
+    //@{
+
+    /** @brief True if interior_points is empty */
+    bool is_interior_points_empty();
+
+    //@}
+
 protected: //--------------------------------------------------------------
     //-- Attributes
 

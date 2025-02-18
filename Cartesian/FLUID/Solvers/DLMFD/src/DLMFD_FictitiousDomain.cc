@@ -3,6 +3,7 @@
 #include <FV_Mesh.hh>
 #include <MAC_Exec.hh>
 #include <MAC.hh>
+#include <math.h>
 using namespace std;
 
 //---------------------------------------------------------------------------
@@ -22,6 +23,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    SolidSolverResultsDirectory = transfert.solid_resDir;
 
    // Instantiate discrete fields
+   dim = 3;
    UU = dom->discrete_field("velocity");
    PP = dom->discrete_field("pressure");
 
@@ -96,8 +98,9 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
    ofstream f((SolidSolverResultsDirectory + "/saveMultipliers.pvd").c_str(), ios::out);
 
    string str = Paraview_saveMultipliers_pvd.str();
-   for (string::iterator it = str.begin(); it != str.end(); ++it)
-      f << *it;
+   f << str;
+   // for (string::iterator it = str.begin(); it != str.end(); ++it)
+   //    f << *it;
 
    f << "</Collection>" << endl;
    f << "</VTKFile>" << endl;
@@ -108,7 +111,8 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
    allrigidbodies->output_DLMFDPoints_PARAVIEW(SolidSolverResultsDirectory + "/" + filename,
                                                &Paraview_translated_distance_vector,
                                                true, pelCOMM->rank());
-   
+
+   solidSolver->saveResults("", t_it->time(), cycleNumber);
 }
 
 //---------------------------------------------------------------------------
@@ -148,6 +152,15 @@ void DLMFD_FictitiousDomain::write_PVTU_multiplier_file(string const &filename) 
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::set_critical_distance(double critical_distance_)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: set_critical_distance");
+
+   critical_distance = critical_distance_;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
@@ -161,6 +174,7 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
 
    // Update the Rigid Bodies (Prediction problem)
    solidSolver->Simulation(t_it->time_step());
+
    MAC::out() << "Solid components written in stream by solid solver" << endl;
 }
 
@@ -180,17 +194,28 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
    DLMFD_construction(t_it);
 
    // Solve the DLMFD correction problem
-   cout << "SOLVING THE DLMFD PROLEM" << endl;
-   // allrigidbodies->update_RB_position_and_velocity()
+   DLMFD_solving(t_it);
+
+   MAC::out() << "UZAWA problem completed" << endl;
 }
 
 //---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL("DLMFD_FictitiousDomain:: initialize_DLMFD_problem");
+   MAC_LABEL("DLMFD_FictitiousDomain:: DLMFD_construction");
 
-   double critical_distance = 1.0e-3;
-   allrigidbodies->set_all_points(critical_distance);
-   cout << "INITIALIZING THE DLMFD PROLEM" << endl;
+   double grid_size = UU->primary_grid()->get_smallest_constant_grid_size();
+   set_critical_distance(sqrt(double(dim)) * grid_size);
+
+   allrigidbodies->update(critical_distance);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: DLMFD_solving");
+
+   cout << "SOLVING THE DLMFD PROLEM" << endl;
 }

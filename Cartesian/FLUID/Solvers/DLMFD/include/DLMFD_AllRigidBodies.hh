@@ -22,8 +22,8 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Constructor with arguments
-    @param dimens Number of space dimensions
-    @param in Input stream where features of rigid bodies are read
+    @param dim Number of space dimensions
+    @param solidFluid_transferStream Input stream where features of rigid bodies are read
     @param are_particles_fixed True if the all the particles are
     obstacles
     @param UF Pointer to flow field UF
@@ -44,10 +44,14 @@ public: //-----------------------------------------------------------------
 
     /** @brief Return the total number of rigid bodies
     @param critical_distance Critical distance */
-    void set_all_points(double critical_distance) const;
+    void set_all_points(double critical_distance);
 
     /** @brief Set the list of IDs of on proc */
     void set_listIdOnProc();
+
+    /** @brief Set constrained field
+    @param pField Constrained field */
+    void set_ptr_constrained_field(FV_DiscreteField const *pField_);
 
     //@}
 
@@ -65,8 +69,8 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Update method
-    @param solidFluid_transferStream */
-    void update(istringstream &solidFluid_transferStream);
+    @param critical_distance Critical distance */
+    void update(double critical_distance);
 
     /** @brief Update the RB position and velocity
     @param pos updated position

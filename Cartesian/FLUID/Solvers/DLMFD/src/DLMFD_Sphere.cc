@@ -25,7 +25,7 @@ DLMFD_Sphere::DLMFD_Sphere(FS_RigidBody *pgrb) : DLMFD_RigidBody(pgrb)
     gravity_center = *DLMFD_Sphere::get_ptr_to_gravity_centre();
     radius = DLMFD_Sphere::get_circumscribed_radius();
 
-    nIP = 0,
+    nIP = 0;
     nBP = 0;
 }
 
@@ -41,6 +41,9 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField const *pField, double critica
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: set_all_points");
+
+    nIP = 0;
+    nBP = 0;
 
     //-- Boundary points
     set_boundary_points(pField, critical_distance);
@@ -68,8 +71,8 @@ void DLMFD_Sphere::set_boundary_points(FV_DiscreteField const *pField, double cr
         allocate_default_boundary_points_sphere(nbBPdef);
 
     list<DLMFD_BoundaryMultiplierPoint *>::iterator bp = boundary_points.begin();
-    for (size_t i = 0; i < nBP; ++i)
-        bp++;
+    // for (size_t i = 0; i < nBP; ++i)
+    //     bp++;
 
     double spiral_spacing_correction = spacing / sqrt(3.);
     double gravityCenterX = gravity_center(0),
@@ -163,8 +166,8 @@ void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double cr
         allocate_default_interior_points_sphere(nbIPdef);
 
     list<DLMFD_InteriorMultiplierPoint *>::iterator ip = interior_points.begin();
-    for (size_t i = 0; i < nIP; ++i)
-        ip++;
+    // for (size_t i = 0; i < nIP; ++i)
+    //     ip++;
 
     size_t __nip = interior_points.size();
     for (size_t comp = 0; comp < ncomps; ++comp)

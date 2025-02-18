@@ -124,7 +124,7 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
 
     list<DLMFD_BoundaryMultiplierPoint *>::const_iterator bmp;
     list<DLMFD_InteriorMultiplierPoint *>::const_iterator imp;
-    size_t dim = translated_distance_vector->getVecSize();
+    size_t dim = 3;
 
     // Interior points
     imp = interior_points.begin();
@@ -133,7 +133,11 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
         {
             f << text2write_before;
             for (size_t index = 0; index < dim; index++)
-                f << (*imp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
+                f << (*imp)->get_oneCoordinate(index) << "\t";
+            // cout << (*imp)->get_oneCoordinate(dim - 3)
+            //      << " " << (*imp)->get_oneCoordinate(dim - 2)
+            //      << " " << (*imp)->get_oneCoordinate(dim - 1)
+            //      << endl;
             f << text2write_after << endl;
         }
 
@@ -143,7 +147,11 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
     {
         f << text2write_before;
         for (size_t index = 0; index < dim; index++)
-            f << (*bmp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
+            f << (*bmp)->get_oneCoordinate(index) << "\t";
+        // cout << (*bmp)->get_oneCoordinate(dim - 3)
+        //      << " " << (*bmp)->get_oneCoordinate(dim - 2)
+        //      << " " << (*bmp)->get_oneCoordinate(dim - 1)
+        //      << endl;
         f << text2write_after << endl;
     }
 }
@@ -162,4 +170,13 @@ void DLMFD_RigidBody::clear_listOfPointsAndVectors()
     for (ibp = boundary_points.begin(); ibp != boundary_points.end(); ibp++)
         delete *ibp;
     boundary_points.clear();
+}
+
+//---------------------------------------------------------------------------
+bool DLMFD_RigidBody::is_interior_points_empty()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: is_interior_points_empty");
+
+    return interior_points.empty();
 }
