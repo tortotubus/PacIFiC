@@ -30,18 +30,32 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::setBndPoint(double const &x, double const &y,
-                                  double const &z, FV_Mesh const *primary_grid,
-                                  list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
+void DLMFD_RigidBody::setBndPoint(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: setBndPoint");
 
-    (*bp)->set(0, x, y, z, gravity_center);
+    (*bp)->set(0, point, gravity_center);
     ++nBP;
     if (nBP == boundary_points.size())
-        extent_bp_list(nBP);
+        extend_bp_list(nBP);
     bp++;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::setIntPoint(const size_t &comp,
+                                  const geomVector &point,
+                                  size_t i, size_t j, size_t k,
+                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &ip)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: setBndPoint");
+
+    (*ip)->set(comp, point, i, j, k, gravity_center);
+    ++nIP;
+    if (nIP == interior_points.size())
+        extend_ip_list(nIP);
+    ip++;
 }
 
 //---------------------------------------------------------------------------
@@ -58,28 +72,35 @@ size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
     return output_npts;
 }
 
-// //---------------------------------------------------------------------------
-// void DLMFD_RigidBody::add_boundary_point(const geomVector &point, double critical_distance)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_RigidBody:: add_boundary_point");
+//---------------------------------------------------------------------------
+geomVector DLMFD_RigidBody::get_rigid_body_velocity(geomVector const &point) const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_rigid_body_velocity");
 
-//     DLMFD_BoundaryMultiplierPoint *bmp = new DLMFD_BoundaryMultiplierPoint(point, gravity_center);
-//     boundarypoints.push_back(bmp);
-// }
-
-// //---------------------------------------------------------------------------
-// void DLMFD_RigidBody::add_interior_point(const geomVector &point, double critical_distance)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_RigidBody:: add_interior_point");
-
-//     DLMFD_InteriorMultiplierPoint *imp = new DLMFD_InteriorMultiplierPoint(point, gravity_center);
-//     interiorpoints.push_back(imp);
-// }
+    return (ptr_FSrigidbody->rigid_body_velocity(point));
+}
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::extent_ip_list(size_t const &np)
+geomVector DLMFD_RigidBody::get_rigid_body_angular_velocity() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_rigid_body_angular_velocity");
+
+    return (ptr_FSrigidbody->rigid_body_angular_velocity());
+}
+
+//---------------------------------------------------------------------------
+tuple<double, double, double> DLMFD_RigidBody::get_mass_and_density_and_moi() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_mass_and_density_and_moi");
+
+    return (ptr_FSrigidbody->get_mass_and_density_and_moi());
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::extend_ip_list(size_t const &np)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: extent_ip_list");
@@ -96,7 +117,19 @@ void DLMFD_RigidBody::extent_ip_list(size_t const &np)
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::extent_bp_list(size_t const &np)
+void DLMFD_RigidBody::update_RB_position_and_velocity(geomVector const &pos,
+                                                      geomVector const &vel,
+                                                      geomVector const &ang_vel,
+                                                      vector<geomVector> const &periodic_directions, double const &time_step)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: update_RB_position_and_velocity");
+
+    return (ptr_FSrigidbody->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step));
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::extend_bp_list(size_t const &np)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: extent_bp_list");

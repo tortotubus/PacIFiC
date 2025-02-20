@@ -1,5 +1,6 @@
 #include <DLMFD_AllRigidBodies.hh>
 #include <DLMFD_RigidBody_BuilderFactory.hh>
+#include <doubleArray2D.hh>
 #include <fstream>
 using namespace std;
 
@@ -83,28 +84,19 @@ size_t DLMFD_AllRigidBodies::get_number_rigid_bodies() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::update(double critical_distance)
+void DLMFD_AllRigidBodies::update(double critical_distance, istringstream &solidFluid_transferStream)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: update");
 
-   set_all_points(critical_distance);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::update_RB_position_and_velocity(geomVector const &pos,
-                                                           geomVector const &vel,
-                                                           geomVector const &ang_vel,
-                                                           vector<geomVector> const &periodic_directions,
-                                                           double const &time_step)
-//---------------------------------------------------------------------------
-{
-   MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
+   ptr_FSallrigidbodies->update(solidFluid_transferStream);
 
    for (size_t i = 0; i < RBs_number; i++)
    {
-      vec_ptr_DLMFDallrigidbodies[i]->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step);
+      vec_ptr_DLMFDallrigidbodies[i]->update();
    }
+
+   set_all_points(critical_distance);
 }
 
 //---------------------------------------------------------------------------

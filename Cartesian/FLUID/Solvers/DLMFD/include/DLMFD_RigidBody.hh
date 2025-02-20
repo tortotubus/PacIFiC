@@ -43,9 +43,14 @@ public: //-----------------------------------------------------------------
 
     /** @brief Set DLMFD boundary point in the list
     @param TO Write */
-    void setBndPoint(double const &x, double const &y,
-                     double const &z, FV_Mesh const *primary_grid,
-                     list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp);
+    void setBndPoint(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp);
+
+    /** @brief Set DLMFD interior point in the list
+    @param TO Write */
+    void setIntPoint(const size_t &comp,
+                     const geomVector &point,
+                     size_t i, size_t j, size_t k,
+                     list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
 
     //@}
 
@@ -63,6 +68,16 @@ public: //-----------------------------------------------------------------
     @param withIntPts True if the interior points are taken into account */
     size_t get_npts_output(bool const &withIntPts);
 
+    /** @brief Get the rigid body velocity at the given point
+    @param point Point */
+    geomVector get_rigid_body_velocity(geomVector const &point) const;
+
+    /** @brief Get the rigid body angular velocity*/
+    geomVector get_rigid_body_angular_velocity() const;
+
+    /** @brief Get the rigid body mass, density and moi */
+    tuple<double, double, double> get_mass_and_density_and_moi() const;
+
     //@}
 
     //-- Add methods
@@ -71,11 +86,11 @@ public: //-----------------------------------------------------------------
 
     /** @brief Extend the list of boundary points
     @param np Number of points */
-    void extent_bp_list(size_t const &np);
+    void extend_bp_list(size_t const &np);
 
     /** @brief Extend the list of interior points
     @param np Number of points */
-    void extent_ip_list(size_t const &np);
+    void extend_ip_list(size_t const &np);
 
     //@}
 
@@ -83,14 +98,17 @@ public: //-----------------------------------------------------------------
     /** @name Update methods */
     //@{
 
+    /** @brief Update the RB */
+    virtual void update() = 0;
+
     /** @brief Update the RB position and velocity
     @param pos updated position
     @param vel updated translation velocity */
-    virtual void update_RB_position_and_velocity(geomVector const &pos,
-                                                 geomVector const &vel,
-                                                 geomVector const &ang_vel,
-                                                 vector<geomVector> const &periodic_directions,
-                                                 double const &time_step) = 0;
+    void update_RB_position_and_velocity(geomVector const &pos,
+                                         geomVector const &vel,
+                                         geomVector const &ang_vel,
+                                         vector<geomVector> const &periodic_directions,
+                                         double const &time_step);
 
     //@}
 
@@ -99,10 +117,8 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief isIn method
-    @param x x-component
-    @param y y-component
-    @param z z-component */
-    virtual bool isIn(double const &x, double const &y, double const &z) const = 0;
+    @param point Point */
+    virtual bool isIn(const geomVector &point) const = 0;
 
     /** @brief Print the particule points coordinates */
     void print_partPointsCoordinates(ofstream &f,

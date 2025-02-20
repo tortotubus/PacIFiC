@@ -70,16 +70,7 @@ public: //-----------------------------------------------------------------
 
     /** @brief Update method
     @param critical_distance Critical distance */
-    void update(double critical_distance);
-
-    /** @brief Update the RB position and velocity
-    @param pos updated position
-    @param vel updated translation velocity */
-    void update_RB_position_and_velocity(geomVector const &pos,
-                                         geomVector const &vel,
-                                         geomVector const &ang_vel,
-                                         vector<geomVector> const &periodic_directions,
-                                         double const &time_step);
+    void update(double critical_distance, istringstream &solidFluid_transferStream);
 
     //@}
 
@@ -103,6 +94,7 @@ private:   //----------------------------------------------------------------
     /** @name Parameters */
     //@{
 
+    size_t dim = 3;
     size_t RBs_number;                                     /**< Number of rigid bodies */
     FS_AllRigidBodies *ptr_FSallrigidbodies;               /**< Pointer to the geometric rigid bodies */
     vector<DLMFD_RigidBody *> vec_ptr_DLMFDallrigidbodies; /**<  Pointer to the vector of DLMFD rigid bodies */
@@ -111,7 +103,6 @@ private:   //----------------------------------------------------------------
     //@}
 
     // Pointers to the constant fields and primary grid
-
     FV_DiscreteField const *pField; /**< Pointer to constrained field*/
     FV_Mesh const *MESH;
 };

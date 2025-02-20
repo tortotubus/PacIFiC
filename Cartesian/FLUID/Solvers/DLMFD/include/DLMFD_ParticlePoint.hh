@@ -38,11 +38,9 @@ public: //----------------------------------------------------------------
 
     /** @brief Set
     @param comp Component number
-    @param x x-coordinate
-    @param y y-coordinate
-    @param z z-coordinate
+    @param point Point to set
     @param gravity_center Gravity center */
-    void set(const size_t &comp, double const &x, double const &y, double const &z,
+    void set(const size_t &comp, const geomVector &point,
              const geomVector &gravity_center);
 
     //@}

@@ -50,9 +50,6 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField const *pField, double critica
 
     //-- Interior points
     set_interior_points(pField, critical_distance);
-
-    cout << "number of IP: " << nIP << endl;
-    cout << "number of BP: " << nBP << endl;
 }
 
 //---------------------------------------------------------------------------
@@ -71,13 +68,11 @@ void DLMFD_Sphere::set_boundary_points(FV_DiscreteField const *pField, double cr
         allocate_default_boundary_points_sphere(nbBPdef);
 
     list<DLMFD_BoundaryMultiplierPoint *>::iterator bp = boundary_points.begin();
-    // for (size_t i = 0; i < nBP; ++i)
-    //     bp++;
 
     double spiral_spacing_correction = spacing / sqrt(3.);
-    double gravityCenterX = gravity_center(0),
-           gravityCenterY = gravity_center(1),
-           gravityCenterZ = gravity_center(2);
+
+    double x, y, z;
+    geomVector point;
 
     // Number of points
     size_t NSpiral = size_t(pow(3.809 * radius / spacing, 2.));
@@ -119,11 +114,13 @@ void DLMFD_Sphere::set_boundary_points(FV_DiscreteField const *pField, double cr
             thetak += 0.25 * spiral_spacing_correction / radius;
         }
 
-        double x = radius * cos(phik) * sin(thetak),
-               y = radius * sin(phik) * sin(thetak),
-               z = radius * cos(thetak);
+        x = radius * cos(phik) * sin(thetak);
+        y = radius * sin(phik) * sin(thetak);
+        z = radius * cos(thetak);
 
-        setBndPoint(gravityCenterX + x, gravityCenterY + y, gravityCenterZ + z, primary_grid, bp);
+        point = geomVector(x, y, z);
+
+        setBndPoint(gravity_center + point, bp);
     }
 }
 
@@ -140,7 +137,9 @@ void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double cr
     size_t ncomps = pField->nb_components();
     vector<doubleVector const *> work(dim, NULL);
     vector<vector<doubleVector const *>> field_mesh(ncomps, work);
+
     double x, y, z;
+    geomVector point;
 
     // Cubic sub-domain occupied by the component
     // Correction by 0.0001*critical_distance avoids rounding errors associated
@@ -166,8 +165,6 @@ void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double cr
         allocate_default_interior_points_sphere(nbIPdef);
 
     list<DLMFD_InteriorMultiplierPoint *>::iterator ip = interior_points.begin();
-    // for (size_t i = 0; i < nIP; ++i)
-    //     ip++;
 
     size_t __nip = interior_points.size();
     for (size_t comp = 0; comp < ncomps; ++comp)
@@ -181,16 +178,11 @@ void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double cr
                 {
                     z = (*field_mesh[comp][2])(k);
 
-                    if (isIn(x, y, z))
+                    point = geomVector(x, y, z);
+
+                    if (isIn(point))
                     {
-                        (*ip)->set(comp, x, y, z, i, j, k, gravity_center);
-                        ++nIP;
-                        if (nIP == __nip)
-                        {
-                            extent_ip_list(nIP);
-                            __nip = interior_points.size();
-                        }
-                        ip++;
+                        setIntPoint(comp, point, i, j, k, ip);
                     }
                 }
             }
@@ -216,38 +208,26 @@ geomVector const *DLMFD_Sphere::get_ptr_to_gravity_centre() const
 }
 
 //---------------------------------------------------------------------------
-geomVector DLMFD_Sphere::get_rigid_body_velocity(geomVector const &point) const
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_Sphere:: get_rigid_body_velocity");
-    return (ptr_FSrigidbody->rigid_body_velocity(point));
-}
-
-//---------------------------------------------------------------------------
 void DLMFD_Sphere::update()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: update");
+
+    gravity_center = *DLMFD_Sphere::get_ptr_to_gravity_centre();
+    radius = DLMFD_Sphere::get_circumscribed_radius();
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_Sphere::update_RB_position_and_velocity(geomVector const &pos,
-                                                   geomVector const &vel,
-                                                   geomVector const &ang_vel,
-                                                   vector<geomVector> const &periodic_directions, double const &time_step)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_Sphere:: update_RB_position_and_velocity");
-
-    return (ptr_FSrigidbody->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step));
-}
-
-//---------------------------------------------------------------------------
-bool DLMFD_Sphere::isIn(double const &x, double const &y,
-                        double const &z) const
+bool DLMFD_Sphere::isIn(const geomVector &point) const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: isIn");
+
+    double x = point(0), y = point(1), z;
+    if (point.getVecSize() == 3)
+        z = point(2);
+    else
+        z = 0.;
 
     return (gravity_center.calcDist(x, y, z) < radius);
 }

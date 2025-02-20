@@ -28,18 +28,13 @@ geomVector DLMFD_ParticlePoint::get_coordinates() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_ParticlePoint::set(const size_t &comp,
-                              double const &x, double const &y, double const &z,
-                              const geomVector &gravity_center)
+void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const geomVector &gravity_center)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_ParticlePoint:: set");
 
     component_number = comp;
-    pointCoordinates(0) = x;
-    pointCoordinates(1) = y;
-    if (gravity_center.getVecSize() == 3)
-        pointCoordinates(2) = z;
+    pointCoordinates = point;
     GCPointVector = pointCoordinates - gravity_center;
 }
 

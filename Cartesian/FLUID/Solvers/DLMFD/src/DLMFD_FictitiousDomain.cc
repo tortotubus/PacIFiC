@@ -36,7 +36,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    // Create the Solid/Fluid transfer stream
    solidSolver = FS_SolidPlugIn_BuilderFactory::create(solidSolverType,
-                                                       solidSolver_insertionFile, solidSolver_simulationFile, density, false,
+                                                       solidSolver_insertionFile, solidSolver_simulationFile, transfert.density, false,
                                                        b_restart, dom->primary_grid()->get_smallest_constant_grid_size(),
                                                        b_solidSolver_parallel, error);
 
@@ -74,15 +74,28 @@ void DLMFD_FictitiousDomain::do_one_inner_iteration(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: do_one_inner_iteration");
 
+   // Newtons's law -- Prediction step
    update_rigid_bodies(t_it);
+
+   // DLMFD process -- Correction step
    run_DLMFD_UzawaSolver(t_it);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: do_before_time_stepping");
+
+   Paraview_saveMultipliers_pvd << "<?xml version=\"1.0\"?>" << endl;
+   Paraview_saveMultipliers_pvd << "<VTKFile type=\"Collection\" version=\"0.1\""
+                                << " byte_order=\"LittleEndian\">" << endl;
+   Paraview_saveMultipliers_pvd << "<Collection>" << endl;
 }
 
 //---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
                                                    FV_TimeIterator const *t_it)
-// const double &translated_distance,
-// const size_t &translation_direction)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: do_additional_savings");
@@ -99,8 +112,6 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
 
    string str = Paraview_saveMultipliers_pvd.str();
    f << str;
-   // for (string::iterator it = str.begin(); it != str.end(); ++it)
-   //    f << *it;
 
    f << "</Collection>" << endl;
    f << "</VTKFile>" << endl;
@@ -169,11 +180,12 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
    sub_prob_number = 3;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
    MAC::out() << "Sub-problem " << sub_prob_number
-              << " : Rigid Bodies updating" << endl;
+              << " : Rigid Bodies updating -- Prediction" << endl;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
 
    // Update the Rigid Bodies (Prediction problem)
    solidSolver->Simulation(t_it->time_step());
+   solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
 
    MAC::out() << "Solid components written in stream by solid solver" << endl;
 }
@@ -187,7 +199,7 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
    sub_prob_number = 4;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
    MAC::out() << "Sub-problem " << sub_prob_number
-              << " : DLMFD solving" << endl;
+              << " : DLMFD solving -- Correction" << endl;
    MAC::out() << "-----------------------------------------" << "-------------" << endl;
 
    // Initialize the DLMFD correction problem
@@ -196,7 +208,7 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
    // Solve the DLMFD correction problem
    DLMFD_solving(t_it);
 
-   MAC::out() << "UZAWA problem completed" << endl;
+   MAC::out() << "Uzawa problem completed" << endl;
 }
 
 //---------------------------------------------------------------------------
@@ -208,7 +220,7 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
    double grid_size = UU->primary_grid()->get_smallest_constant_grid_size();
    set_critical_distance(sqrt(double(dim)) * grid_size);
 
-   allrigidbodies->update(critical_distance);
+   allrigidbodies->update(critical_distance, *solidFluid_transferStream);
 }
 
 //---------------------------------------------------------------------------

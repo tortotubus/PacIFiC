@@ -25,14 +25,14 @@ DLMFD_InteriorMultiplierPoint::~DLMFD_InteriorMultiplierPoint()
 
 //---------------------------------------------------------------------------
 void DLMFD_InteriorMultiplierPoint::set(const size_t &comp,
-                                        double const &x, double const &y, double const &z,
+                                        const geomVector &point,
                                         size_t i, size_t j, size_t k,
                                         const geomVector &gravity_center)
 //--------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_InteriorMultiplierPoint:: set");
 
-    DLMFD_ParticlePoint::set(comp, x, y, z, gravity_center);
+    DLMFD_ParticlePoint::set(comp, point, gravity_center);
     localNodeTriplet->i = i;
     localNodeTriplet->j = j;
     localNodeTriplet->k = k;

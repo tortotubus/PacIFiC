@@ -206,6 +206,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   // Create Fictitious Domain solver
   struct NavierStokes2FluidSolid transfert;
   transfert.solid_resDir = resultsDirectory;
+  transfert.density = density;
 
   dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 }
@@ -307,6 +308,9 @@ void DLMFD_ProjectionNavierStokes::do_before_time_stepping(
   if (my_rank == is_master)
     SCT_get_elapsed_time("Matrix_Assembly&Initialization");
 
+  // Do DLMFD paraview set-up
+  dlmfd_solver->do_before_time_stepping(t_it);
+
   stop_total_timer();
 }
 
@@ -346,9 +350,6 @@ void DLMFD_ProjectionNavierStokes::do_before_inner_iterations_stage(
   // Update pressure drop in case of periodic imposed flow rate
   if (UU->primary_grid()->is_periodic_flow_rate())
     update_pressure_drop_imposed_flow_rate(t_it);
-
-  // // Update the Rigid Bodies
-  // allrigidbodies->update(*solidFluid_transferStream);
 
   stop_total_timer();
 }
@@ -583,7 +584,7 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_VelocityPressure_CorrectionStep(
   if (my_rank == is_master)
   {
     MAC::out() << "----------------------------------------" << "------------" << endl;
-    MAC::out() << "Sub-problem " << sub_prob_number << " : velocity-pressure correction problem" << endl;
+    MAC::out() << "Sub-problem " << sub_prob_number << " : Velocity-pressure correction problem" << endl;
     MAC::out() << "----------------------------------------" << "------------" << endl;
     SCT_set_start("VelocityPressure_CorrectionStep");
   }
@@ -624,7 +625,7 @@ void DLMFD_ProjectionNavierStokes::assemble_pressure_DirichletBC_in_momentumEqua
     LA_Vector *VEC_rhs)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL("MAC_NavierStokes:: assemble_pressure_BC_in_momentumEquation");
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: assemble_pressure_BC_in_momentumEquation");
 
   if (my_rank == is_master)
     MAC::out() << "            Pressure BC momentum equation" << endl;

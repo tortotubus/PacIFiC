@@ -62,26 +62,14 @@ public: //------------------------------------------------------------------
     /** @brief Returns circumscribed radius */
     double get_circumscribed_radius() const;
 
-    /** @brief Get rigid body velocity
-    @param point Point at which the velocity is computed */
-    geomVector get_rigid_body_velocity(geomVector const &point) const;
-
     //@}
 
     //-- Updating methods
     /** @name Updating methods */
     //@{
 
-    /** @brief Updating method */
+    /** @brief Update the RB */
     void update();
-
-    /** @brief Updating method
-    @param pos updated position
-    @param vel updated translation velocity */
-    void update_RB_position_and_velocity(geomVector const &pos,
-                                         geomVector const &vel,
-                                         geomVector const &ang_vel,
-                                         vector<geomVector> const &periodic_directions, double const &time_step);
 
     //@}
 
@@ -93,7 +81,7 @@ public: //------------------------------------------------------------------
     @param x x-component
     @param y y-component
     @param z z-component */
-    bool isIn(double const &x, double const &y, double const &z) const;
+    bool isIn(const geomVector &point) const;
 
     //@}
 

@@ -8,6 +8,7 @@
 #include <MAC_ModuleExplorer.hh>
 #include <FV_TimeIterator.hh>
 #include <MAC_Communicator.hh>
+#include <MAC_DoubleVector.hh>
 using namespace std;
 
 /** @brief The Class DLMFD_FictitiousDomain.
@@ -20,6 +21,7 @@ Multiplier/Fictitious Domain method.
 struct NavierStokes2FluidSolid
 {
    string solid_resDir;
+   double density;
 };
 
 class DLMFD_FictitiousDomain : public MAC_Object
@@ -37,6 +39,10 @@ public: //-----------------------------------------------------------------
    /** @name Substeps of the step by step progression */
    //@{
 
+   /** @brief Tasks performed before the main loop
+   @param t_it Time iterator */
+   void do_before_time_stepping(FV_TimeIterator const *t_it);
+
    /** @brief Tasks performed at the main loop
    @param t_it Time iterator */
    void do_one_inner_iteration(FV_TimeIterator const *t_it);
@@ -45,8 +51,6 @@ public: //-----------------------------------------------------------------
    @param t_it Time iterator */
    void do_additional_savings(int const &cycleNumber,
                               FV_TimeIterator const *t_it);
-   // const double &translated_distance,
-   // const size_t &translation_direction);
 
    //@}
 
@@ -119,8 +123,6 @@ private:   //----------------------------------------------------------------
 
    // Physical Parameters
    size_t dim;
-   double density;
-   double viscosity;
 
    // Numerical parameters
    size_t sub_prob_number;
