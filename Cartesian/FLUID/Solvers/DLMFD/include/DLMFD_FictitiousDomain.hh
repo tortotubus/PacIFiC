@@ -4,6 +4,7 @@
 #include <MAC_DoubleVector.hh>
 #include <FS_SolidPlugIn.hh>
 #include <DLMFD_AllRigidBodies.hh>
+#include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <FV_DomainAndFields.hh>
 #include <MAC_ModuleExplorer.hh>
 #include <FV_TimeIterator.hh>
@@ -20,13 +21,25 @@ Multiplier/Fictitious Domain method.
 
 struct NavierStokes2FluidSolid
 {
+   // Output
    string solid_resDir;
-   double density;
+
+   // Parameters
+   double rho_f;
+   geomVector gravity_vector;
+   geomVector split_gravity_vector;
+
+   // Linear resolution
+   DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ;
 };
 
 class DLMFD_FictitiousDomain : public MAC_Object
 {
 public: //-----------------------------------------------------------------
+        //-- Public class attributes
+   static bool b_SecondOrderInterpol;
+   static bool b_LowerSetInterpol;
+
    //-- Substeps of the step by step progression
 
    /** @brief Create and initialize an instance of DLMFD_FictitiousDomain
@@ -85,6 +98,26 @@ public: //-----------------------------------------------------------------
    @param t_it Time iterator */
    void DLMFD_solving(FV_TimeIterator const *t_it);
 
+   /** @brief Compute sum of q_tran=-<lambda,V>_P and q_rot = -<lambda,xi^GM>_P
+   for shared solid components of each process on master process
+   @param t_it Time iterator */
+   void calculate_ReductionFor_qtranAndqrot(FV_TimeIterator const *t_it);
+
+   /** @brief Complete the initialization of DLM/FD-Uzawa solving algorithm
+   @param t_it Time iterator */
+   void velocity_broadcast_andUpdate_First(FV_TimeIterator const *t_it);
+
+   /** @brief Solve one DLM/FD-Uzawa iteration for the particles system on
+   master process, then for each particle, broadcast t_tran and t_rot
+   from master process on each process.
+   @param t_it Time iterator */
+   void velocity_broadcast_andUpdateInOneIt(FV_TimeIterator const *t_it);
+
+   /** @brief  Broadcast t_tran and t_rot of all particles shared by processes
+   from master to processes that own these particles
+   @param t_it Time iterator */
+   void Broadcast_tVectors_sharedParticles_MasterToAll(FV_TimeIterator const *t_it);
+
    //@}
 
    //-- Output methods
@@ -121,8 +154,13 @@ private:   //----------------------------------------------------------------
    FV_DiscreteField *UU;
    FV_DiscreteField *PP;
 
+   DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ;
+
    // Physical Parameters
    size_t dim;
+   double rho_f;
+   geomVector gravity_vector;
+   geomVector split_gravity_vector;
 
    // Numerical parameters
    size_t sub_prob_number;
@@ -131,20 +169,22 @@ private:   //----------------------------------------------------------------
    // Grains3D variables
    string solidSolverType;
    FS_SolidPlugIn *solidSolver;
-   bool b_solidSolver_parallel;
    string solidSolver_insertionFile;
    string solidSolver_simulationFile;
    istringstream *solidFluid_transferStream;
    DLMFD_AllRigidBodies *allrigidbodies;
-   bool are_particles_fixed;
 
-   // Restart
+   // Booleans
    bool b_restart;
+   bool b_explicit_added_mass;
+   bool are_particles_fixed;
+   bool b_solidSolver_parallel;
 
    // MPI data
    MAC_Communicator const *pelCOMM;
    size_t size_proc;
    size_t rank;
+   size_t master;
 
    // Output
    string SolidSolverResultsDirectory;

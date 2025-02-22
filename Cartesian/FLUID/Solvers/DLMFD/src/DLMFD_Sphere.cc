@@ -46,17 +46,17 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField const *pField, double critica
     nBP = 0;
 
     //-- Boundary points
-    set_boundary_points(pField, critical_distance);
+    set_boundary_points_list(pField, critical_distance);
 
     //-- Interior points
-    set_interior_points(pField, critical_distance);
+    set_interior_points_list(pField, critical_distance);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_Sphere::set_boundary_points(FV_DiscreteField const *pField, double critical_distance)
+void DLMFD_Sphere::set_boundary_points_list(FV_DiscreteField const *pField, double critical_distance)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_Sphere:: set_boundary_points");
+    MAC_LABEL("DLMFD_Sphere:: set_boundary_points_list");
 
     double pi = acos(-1.);
     double spacing = critical_distance;
@@ -120,15 +120,15 @@ void DLMFD_Sphere::set_boundary_points(FV_DiscreteField const *pField, double cr
 
         point = geomVector(x, y, z);
 
-        setBndPoint(gravity_center + point, bp);
+        set_boundary_point(gravity_center + point, bp);
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double critical_distance)
+void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField const *pField, double critical_distance)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_Sphere:: set_interior_points");
+    MAC_LABEL("DLMFD_Sphere:: set_interior_points_list");
 
     double pi = acos(-1);
 
@@ -182,7 +182,7 @@ void DLMFD_Sphere::set_interior_points(FV_DiscreteField const *pField, double cr
 
                     if (isIn(point))
                     {
-                        setIntPoint(comp, point, i, j, k, ip);
+                        set_interior_point(comp, point, i, j, k, ip);
                     }
                 }
             }
@@ -230,6 +230,15 @@ bool DLMFD_Sphere::isIn(const geomVector &point) const
         z = 0.;
 
     return (gravity_center.calcDist(x, y, z) < radius);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_Sphere::translateGeometricFeatures(geomVector const &newg)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_Sphere:: translateGeometricFeatures");
+
+    gravity_center = newg;
 }
 
 //---------------------------------------------------------------------------

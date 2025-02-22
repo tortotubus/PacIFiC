@@ -37,3 +37,12 @@ void DLMFD_InteriorMultiplierPoint::set(const size_t &comp,
     localNodeTriplet->j = j;
     localNodeTriplet->k = k;
 }
+
+//---------------------------------------------------------------------------
+FV_TRIPLET *DLMFD_InteriorMultiplierPoint::get_localNodeTriplet()
+//--------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_InteriorMultiplierPoint:: get_localNodeTriplet");
+
+    return localNodeTriplet;
+}

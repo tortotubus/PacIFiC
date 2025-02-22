@@ -223,6 +223,13 @@ public: //-----------------------------------------------------------
    // Add the vectors to be stored for restart
    void add_storable_objects(MAC_ListIdentity *list) const;
 
+   // --------------------------------------------------------------------------
+   // --------------------------------------------------------------------------
+   // --------------------------------------------------------------------------
+   // --------------------------- DLMFD FRAMEWORK ------------------------------
+
+   void updateFluid_DLMFD_rhs();
+
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
            //-- Initialize matrices & vectors
@@ -279,6 +286,7 @@ private:   //----------------------------------------------------------
    LA_Vector *VEC_rhs_VelocityAdvection;
    LA_Vector *VEC_rhs_VelocityAdvectionDiffusion;
    LA_Vector *VEC_rhs_VelocityAdvection_Nm2;
+   LA_Vector *VEC_rhs_VelocityDLMFD_Nm1;
 
    // Periodic pressure drop rhs for dp/dl = 1
    LA_Vector *VEC_rhs_A_UnitaryPeriodicPressureGradient;

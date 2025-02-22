@@ -191,6 +191,8 @@ private: //----------------------------------------------------------------
     size_t dim;
     double density;
     double viscosity;
+    geomVector gravity_vector;
+    geomVector split_gravity_vector;
 
     // Numerical parameters
     double imposed_CFL;

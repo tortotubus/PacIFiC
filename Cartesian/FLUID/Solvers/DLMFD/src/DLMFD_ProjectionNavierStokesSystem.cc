@@ -791,3 +791,18 @@ bool DLMFD_ProjectionNavierStokesSystem::VelocityAdvection_solver(void)
 
    return (true);
 }
+
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// --------------------------- DLMFD FRAMEWORK ------------------------------
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::updateFluid_DLMFD_rhs()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: updateFluid_DLMFD_rhs");
+
+   // Compute unsteady rhs
+   MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_U, VEC_rhs_A_Velocity);
+}

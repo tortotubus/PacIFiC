@@ -28,6 +28,42 @@ geomVector DLMFD_ParticlePoint::get_coordinates() const
 }
 
 //---------------------------------------------------------------------------
+double DLMFD_ParticlePoint::get_oneCoordinate(const size_t &dir) const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("ParticlePoint:: get_oneCoordinate");
+
+    return pointCoordinates(dir);
+}
+
+//---------------------------------------------------------------------------
+geomVector DLMFD_ParticlePoint::get_GCPointVector() const
+//--------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ParticlePoint::get_GCPointVector");
+
+    return GCPointVector;
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_ParticlePoint::get_oneCoordinate_GCPointVector(const size_t &dir) const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("ParticlePoint:: get_oneCoordinate_GCPointVector");
+
+    return GCPointVector(dir);
+}
+
+//---------------------------------------------------------------------------
+size_t DLMFD_ParticlePoint::get_compNumber() const
+//--------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ParticlePoint::get_compNumber");
+
+    return component_number;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const geomVector &gravity_center)
 //---------------------------------------------------------------------------
 {
@@ -36,13 +72,4 @@ void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const
     component_number = comp;
     pointCoordinates = point;
     GCPointVector = pointCoordinates - gravity_center;
-}
-
-//---------------------------------------------------------------------------
-double DLMFD_ParticlePoint::get_oneCoordinate(const size_t &dir) const
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("ParticlePoint:: get_oneCoordinate");
-
-    return pointCoordinates(dir);
 }

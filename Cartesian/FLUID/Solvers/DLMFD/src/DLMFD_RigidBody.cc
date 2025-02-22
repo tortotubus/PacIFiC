@@ -1,8 +1,13 @@
 #include <DLMFD_RigidBody.hh>
+#include <DLMFD_FictitiousDomain.hh>
+#include <FV_Mesh.hh>
 #include <FS_RigidBody.hh>
 #include <geomVector.hh>
+#include <math.h>
 #include <fstream>
 using namespace std;
+
+size_t_array3D *DLMFD_RigidBody::Q2numb = NULL;
 
 //---------------------------------------------------------------------------
 DLMFD_RigidBody::DLMFD_RigidBody()
@@ -17,9 +22,64 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb)
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
 
-    size_t dim = 3;
+    dim = 3;
     index_min = new size_t_array2D(dim, dim, 0);
     index_max = new size_t_array2D(dim, dim, 0);
+
+    // Set component type
+    component_type = "P";
+
+    // Resize vectors
+    translational_velocity.resize(3);
+    angular_velocity_3D.resize(3);
+
+    gravity_center.resize(3);
+
+    t_tran.resize(3);
+    q_tran.resize(3);
+    t_rot_3D.resize(3);
+    q_rot_3D.resize(3);
+
+    // Set the finite element counting
+    if (Q2numb == NULL)
+    {
+        Q2numb = new size_t_array3D(3, 3, 3);
+        (*Q2numb)(0, 0, 0) = 0;
+        (*Q2numb)(1, 0, 0) = 1;
+        (*Q2numb)(2, 0, 0) = 2;
+        (*Q2numb)(0, 1, 0) = 5;
+        (*Q2numb)(1, 1, 0) = 4;
+        (*Q2numb)(2, 1, 0) = 3;
+        (*Q2numb)(0, 2, 0) = 6;
+        (*Q2numb)(1, 2, 0) = 7;
+        (*Q2numb)(2, 2, 0) = 8;
+
+        (*Q2numb)(0, 0, 1) = 9;
+        (*Q2numb)(1, 0, 1) = 10;
+        (*Q2numb)(2, 0, 1) = 11;
+        (*Q2numb)(0, 1, 1) = 14;
+        (*Q2numb)(1, 1, 1) = 13;
+        (*Q2numb)(2, 1, 1) = 12;
+        (*Q2numb)(0, 2, 1) = 15;
+        (*Q2numb)(1, 2, 1) = 16;
+        (*Q2numb)(2, 2, 1) = 17;
+
+        (*Q2numb)(0, 0, 2) = 18;
+        (*Q2numb)(1, 0, 2) = 19;
+        (*Q2numb)(2, 0, 2) = 20;
+        (*Q2numb)(0, 1, 2) = 23;
+        (*Q2numb)(1, 1, 2) = 22;
+        (*Q2numb)(2, 1, 2) = 21;
+        (*Q2numb)(0, 2, 2) = 24;
+        (*Q2numb)(1, 2, 2) = 25;
+        (*Q2numb)(2, 2, 2) = 26;
+    }
+
+    // Set the translational velocity
+    set_translational_velocity();
+
+    // Set the angular velocity
+    set_angular_velocity();
 }
 
 //---------------------------------------------------------------------------
@@ -30,10 +90,10 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::setBndPoint(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
+void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody:: setBndPoint");
+    MAC_LABEL("DLMFD_RigidBody:: set_boundary_point");
 
     (*bp)->set(0, point, gravity_center);
     ++nBP;
@@ -43,19 +103,175 @@ void DLMFD_RigidBody::setBndPoint(const geomVector &point, list<DLMFD_BoundaryMu
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::setIntPoint(const size_t &comp,
-                                  const geomVector &point,
-                                  size_t i, size_t j, size_t k,
-                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &ip)
+void DLMFD_RigidBody::set_interior_point(const size_t &comp,
+                                         const geomVector &point,
+                                         size_t i, size_t j, size_t k,
+                                         list<DLMFD_InteriorMultiplierPoint *>::iterator &ip)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody:: setBndPoint");
+    MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
 
     (*ip)->set(comp, point, i, j, k, gravity_center);
     ++nIP;
     if (nIP == interior_points.size())
         extend_ip_list(nIP);
     ip++;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_points_infos");
+
+    list<struct ULBD_RHSInfos>::iterator pinfo = points_infos.begin();
+    size_t globalDOFNo, compIdx;
+    FV_TRIPLET const *ijk;
+    FV_TRIPLET ijk_init;
+    ijk_init.i = 0;
+    ijk_init.j = 0;
+    ijk_init.k = 0;
+    ndof = 0;
+    ntotal_fieldunk = 0;
+
+    // Interior points
+    if (nIP)
+    {
+        list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts =
+            interior_points.begin();
+        for (size_t i = 0; i < nIP; ++i, iterIntPnts++)
+        {
+            // Pointer of the internal point
+            pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterIntPnts);
+
+            // Set the field component
+            compIdx = (*iterIntPnts)->get_compNumber();
+            pinfo->compIdx = compIdx;
+
+            // Global DOF number
+            // A priori always >= 0 i.e. DOF is unknown because DOFs that are not
+            // unknowns have already been discarded in the set_all_points method
+            // of the component
+            ijk = (*iterIntPnts)->get_localNodeTriplet();
+            globalDOFNo = pField->DOF_global_number(ijk->i, ijk->j, ijk->k, compIdx);
+
+            // Set infos
+            if (pinfo->positionU.size() != 1)
+            {
+                pinfo->MacTripletU.clear();
+                pinfo->positionU.clear();
+                pinfo->omega_delta.clear();
+                pinfo->MacTripletU.push_back(ijk_init);
+                pinfo->positionU.push_back(0);
+                pinfo->omega_delta.push_back(0.);
+            }
+            pinfo->positionU.front() = globalDOFNo;
+            pinfo->MacTripletU.front() = *ijk;
+            pinfo->omega_delta.front() = 1.;
+
+            // Move the iterator and update ndof & ntotal_fieldunk
+            ++ndof;
+            ++ntotal_fieldunk;
+            pinfo++;
+        }
+    }
+
+    // Boundary points
+    list<DLMFD_BoundaryMultiplierPoint *>::const_iterator iterBndPnts =
+        boundary_points.begin();
+    size_t ncomps = pField->nb_components();
+
+    if (nBP)
+        for (size_t i = 0; i < nBP; ++i, iterBndPnts++)
+            // Loop on all components
+            for (compIdx = 0; compIdx < ncomps; ++compIdx)
+            {
+                // get the mesh ID of the element containing the boundary point
+                pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterBndPnts);
+
+                // Set the field component
+                pinfo->compIdx = compIdx;
+
+                // Clear the lists of OnePointInfos
+                pinfo->MacTripletU.clear();
+                pinfo->positionU.clear();
+                pinfo->omega_delta.clear();
+
+                // Get surrouding dofs
+                fill_DLMFD_pointInfos(pField, *pinfo, DLMFD_FictitiousDomain::b_SecondOrderInterpol);
+
+                // Move the iterator and update ndof & ntotal_fieldunk
+                ntotal_fieldunk += pinfo->positionU.size();
+
+                ++ndof;
+                pinfo++;
+            }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_coupling_factor(double const &rho_f, bool const &explicit_treatment)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_coupling_factor");
+
+    fluidsolid_coupling_factor = 1.;
+    if (!explicit_treatment)
+        fluidsolid_coupling_factor -= rho_f / rho_s;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_mass_and_density_and_inertia()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_mass_and_density_and_inertia");
+
+    mass, rho_s = get<0>(get_mass_and_density()), get<1>(get_mass_and_density());
+    inertia_3D = get_inertia();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_translational_velocity()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_translational_velocity");
+
+    translational_velocity = get_rigid_body_translational_velocity();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_angular_velocity()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_translational_velocity");
+
+    angular_velocity_3D = get_rigid_body_angular_velocity();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_Tu(const geomVector &ttran)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_Tu");
+
+    t_tran = ttran;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_Trot(const geomVector &trot)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_Trot");
+
+    t_rot_3D = trot;
+}
+
+//---------------------------------------------------------------------------
+string DLMFD_RigidBody::get_component_type() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_component_type");
+
+    return component_type;
 }
 
 //---------------------------------------------------------------------------
@@ -91,12 +307,68 @@ geomVector DLMFD_RigidBody::get_rigid_body_angular_velocity() const
 }
 
 //---------------------------------------------------------------------------
-tuple<double, double, double> DLMFD_RigidBody::get_mass_and_density_and_moi() const
+geomVector DLMFD_RigidBody::get_rigid_body_translational_velocity() const
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody:: get_mass_and_density_and_moi");
+    MAC_LABEL("DLMFD_RigidBody::get_rigid_body_translational_velocity");
 
-    return (ptr_FSrigidbody->get_mass_and_density_and_moi());
+    return (ptr_FSrigidbody->rigid_body_translational_velocity());
+}
+
+//---------------------------------------------------------------------------
+tuple<double, double> DLMFD_RigidBody::get_mass_and_density() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_mass_and_density_and_inertia");
+
+    double mass_double = get<0>(ptr_FSrigidbody->get_mass_and_density_and_moi());
+    double density_double = get<1>(ptr_FSrigidbody->get_mass_and_density_and_moi());
+    return (std::make_tuple(mass_double, density_double));
+}
+
+//---------------------------------------------------------------------------
+vector<vector<double>> DLMFD_RigidBody::get_inertia() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_mass_and_density_and_inertia");
+
+    return ptr_FSrigidbody->get_inertia();
+}
+
+//---------------------------------------------------------------------------
+geomVector const DLMFD_RigidBody::get_Qu() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_Qu");
+
+    return q_tran;
+}
+
+//---------------------------------------------------------------------------
+geomVector const DLMFD_RigidBody::get_Qrot() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_Qrot");
+
+    return q_rot_3D;
+}
+
+//---------------------------------------------------------------------------
+geomVector const DLMFD_RigidBody::get_Tu() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_Tu");
+
+    return t_tran;
+}
+
+//---------------------------------------------------------------------------
+geomVector const DLMFD_RigidBody::get_Trot() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_Trot");
+
+    return t_rot_3D;
 }
 
 //---------------------------------------------------------------------------
@@ -212,4 +484,543 @@ bool DLMFD_RigidBody::is_interior_points_empty()
     MAC_LABEL("DLMFD_RigidBody:: is_interior_points_empty");
 
     return interior_points.empty();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_Qu(bool init)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_Qu");
+
+    q_tran.setVecZero();
+
+    if (ndof)
+    {
+        list<struct ULBD_RHSInfos>::iterator il = points_infos.begin();
+        doubleVector const *work = &VEC_w;
+        if (init)
+            work = &VEC_lambda;
+        for (size_t i = 0; i < ndof; ++i, il++)
+            q_tran.addOneComp(il->compIdx, -(*work)(i));
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_Qrot(bool init)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_Qrot");
+
+    q_rot_3D.setVecZero();
+
+    if (ndof)
+    {
+        list<struct ULBD_RHSInfos>::iterator il = points_infos.begin();
+        doubleVector const *work = &VEC_w;
+        if (init)
+            work = &VEC_lambda;
+        double lambda_value = 0.;
+        size_t comp = 0;
+        for (size_t i = 0; i < ndof; ++i, il++)
+        {
+            comp = il->compIdx;
+            lambda_value = (*work)(i);
+            if (comp == 0)
+            {
+                q_rot_3D.addOneComp(1, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(2));
+                q_rot_3D.addOneComp(2, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(1));
+            }
+            else if (comp == 1)
+            {
+                q_rot_3D.addOneComp(0, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(2));
+                q_rot_3D.addOneComp(2, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(0));
+            }
+            else
+            {
+                q_rot_3D.addOneComp(0, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(1));
+                q_rot_3D.addOneComp(1, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(0));
+            }
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::add_to_Qu(const geomVector &qtran)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::add_to_Qu");
+
+    q_tran += qtran;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::add_to_Qrot(const geomVector &qrot)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::add_to_Qrot");
+
+    q_rot_3D += qrot;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
+                                                           const double &timestep,
+                                                           const geomVector &gravity_vector_split,
+                                                           const geomVector &gravity_vector)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity");
+
+    // inverse the inertia matrix
+    inversedInertia_3D = calcInvers3by3Matrix(inertia_3D);
+
+    double coeffF = 1. - rho_f / rho_s;
+
+    // correct Q vectors
+    q_tran = translational_velocity * (fluidsolid_coupling_factor * mass / timestep);
+    q_tran += gravity_vector_split * (coeffF * mass) - q_tran;
+
+    MAC_ASSERT(inversedInertia_3D.size() == dim);
+
+    geomVector Fomega(3);
+    for (size_t i = 0; i < dim; ++i)
+    {
+        double tempVal = 0.;
+        for (size_t j = 0; j < dim; ++j)
+            tempVal += inertia_3D[i][j] * angular_velocity_3D(j);
+        Fomega(i) = tempVal * fluidsolid_coupling_factor / timestep;
+    }
+
+    q_rot_3D = Fomega - q_rot_3D;
+}
+
+//---------------------------------------------------------------------------
+vector<vector<double>> DLMFD_RigidBody::calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::calcInvers3by3Matrix");
+
+    MAC_ASSERT(oldMatrix.size() == dim);
+
+    vector<vector<double>> inversedMatrix(dim, vector<double>(dim, 0.));
+
+    double block1 = oldMatrix[1][1] * oldMatrix[2][2] - oldMatrix[1][2] * oldMatrix[2][1];
+    double block2 = oldMatrix[1][2] * oldMatrix[2][0] - oldMatrix[1][0] * oldMatrix[2][2];
+    double block3 = oldMatrix[1][0] * oldMatrix[2][1] - oldMatrix[1][1] * oldMatrix[2][0];
+
+    double determinat = oldMatrix[0][0] * block1 +
+                        oldMatrix[0][1] * block2 +
+                        oldMatrix[0][2] * block3;
+
+    inversedMatrix[0][0] = block1 / determinat;
+    inversedMatrix[0][1] = (oldMatrix[0][2] * oldMatrix[2][1] - oldMatrix[0][1] * oldMatrix[2][2]) / determinat;
+    inversedMatrix[0][2] = (oldMatrix[0][1] * oldMatrix[1][2] - oldMatrix[0][2] * oldMatrix[1][1]) / determinat;
+    inversedMatrix[1][0] = block2 / determinat;
+    inversedMatrix[1][1] = (oldMatrix[0][0] * oldMatrix[2][2] - oldMatrix[0][2] * oldMatrix[2][0]) / determinat;
+    inversedMatrix[1][2] = (oldMatrix[0][2] * oldMatrix[1][0] - oldMatrix[0][0] * oldMatrix[1][2]) / determinat;
+    inversedMatrix[2][0] = block3 / determinat;
+    inversedMatrix[2][1] = (oldMatrix[0][1] * oldMatrix[2][0] - oldMatrix[0][0] * oldMatrix[2][1]) / determinat;
+    inversedMatrix[2][2] = (oldMatrix[0][0] * oldMatrix[1][1] - oldMatrix[0][1] * oldMatrix[1][0]) / determinat;
+
+    return inversedMatrix;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f, double const &timestep)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::calculateParticleVelocities");
+
+    double alpha = fluidsolid_coupling_factor;
+    double coeff = timestep / alpha;
+
+    if (component_type != "O")
+    {
+        t_tran = q_tran * (coeff / mass);
+
+        MAC_ASSERT(inversedInertia_3D.size() == dim);
+
+        t_rot_3D.setVecZero();
+        for (size_t i = 0; i < dim; ++i)
+        {
+            double tempVal = 0.;
+            for (size_t j = 0; j < dim; ++j)
+                tempVal += inversedInertia_3D[i][j] * q_rot_3D(j);
+
+            t_rot_3D(i) = tempVal * coeff;
+        }
+    }
+    else
+    {
+        t_tran.setVecZero();
+        t_rot_3D.setVecZero();
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::updateSolutionVectors_Velocity(const double &alpha, const double &beta)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::updateSolutionVectors_Velocity");
+
+    translational_velocity = t_tran * alpha + translational_velocity * beta;
+    angular_velocity_3D = t_rot_3D * alpha + angular_velocity_3D * beta;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::setTVectors_constant()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::updateSolutionVectors_Velocity");
+
+    t_tran = translational_velocity;
+    t_rot_3D = angular_velocity_3D;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField const *pField,
+                                            ULBD_RHSInfos &OnePointInfos,
+                                            bool const &SecondOrderBP)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::fill_DLMFD_pointInfos");
+
+    size_t i, j, k, globalDOFNo;
+    vector<doubleVector const *> mesh(dim, NULL);
+    doubleVector DOFcoor(dim, 0.), cellsize(dim, 0.);
+    geomVector point(dim);
+    size_t_vector indices(dim);
+    double weightFunct = 1.;
+    FV_TRIPLET ijk;
+    ijk.i = 0;
+    ijk.j = 0;
+    ijk.k = 0;
+
+    // Localize in structured mesh
+    for (i = 0; i < dim; ++i)
+    {
+        mesh[i] = pField->get_DOF_coordinates_vector(
+            OnePointInfos.compIdx, i);
+        point(i) = OnePointInfos.ptr_point->get_oneCoordinate(i);
+        if (component_type != "P")
+            FV_Mesh::between(mesh[i], point(i), indices(i));
+        else
+            FV_Mesh::between_subinterval(mesh[i], point(i), indices(i),
+                                         (*index_min)(OnePointInfos.compIdx, i),
+                                         (*index_max)(OnePointInfos.compIdx, i));
+        cellsize(i) = (*mesh[i])(indices(i) + 1) - (*mesh[i])(indices(i));
+    }
+
+    // If the particle is periodic, some boundary points correspond to the primary
+    // particle position and others to its periodic clones.
+    // Hence, it is mandatory to set the geometric features corresponding
+    // to this DLM/FD point using GC = point - point_to_GC
+    // where point_to_GC is ParticlePoint::GCPointVector
+    // and is available from OnePointInfos.ptr_point->get_GCPointVector()
+    // !!! The reason is: the method isIn(x,y,z) uses the gravity center
+    // position to function !!!
+    if (component_type == "PP" && SecondOrderBP)
+        translateGeometricFeatures(point - OnePointInfos.ptr_point->get_GCPointVector());
+
+    // Check if second order interpolation is available
+    size_t iref, jref, kref;
+    bool Q2_interpol = false;
+    // In case of Lower set interpolation if the excluding points
+    // are at the left or bottom or behind of stencil, we need
+    // to iterate inversely (reducing) in x, y or z directions
+    bool right = true;
+    bool top = true;
+    bool front = true;
+
+    geomVector correction_point;
+
+    if (SecondOrderBP)
+    {
+        correction_point = geomVector(0.01 * radius, 0., 0.);
+        if (isIn(point + correction_point))
+        {
+            if (indices(0) >= pField->get_min_index_unknown_on_proc(
+                                  OnePointInfos.compIdx, 0) +
+                                  1 &&
+                indices(0) + 1 <= pField->get_max_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 0))
+                Q2_interpol = true;
+            iref = indices(0) - 1;
+        }
+        else
+        {
+            if (indices(0) >= pField->get_min_index_unknown_on_proc(
+                                  OnePointInfos.compIdx, 0) &&
+                indices(0) + 2 <= pField->get_max_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 0))
+                Q2_interpol = true;
+            iref = indices(0);
+        }
+
+        if (Q2_interpol)
+        {
+            Q2_interpol = false;
+
+            correction_point = geomVector(0., 0.01 * radius, 0.);
+            if (isIn(point + correction_point))
+            {
+                if (indices(1) >= pField->get_min_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 1) +
+                                      1 &&
+                    indices(1) + 1 <= pField->get_max_index_unknown_on_proc(
+                                          OnePointInfos.compIdx, 1))
+                    Q2_interpol = true;
+                jref = indices(1) - 1;
+            }
+            else
+            {
+                if (indices(1) >= pField->get_min_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 1) &&
+                    indices(1) + 2 <= pField->get_max_index_unknown_on_proc(
+                                          OnePointInfos.compIdx, 1))
+                    Q2_interpol = true;
+                jref = indices(1);
+            }
+        }
+
+        if (Q2_interpol)
+        {
+            Q2_interpol = false;
+
+            correction_point = geomVector(0., 0., 0.01 * radius);
+            if (isIn(point + correction_point))
+            {
+                if (indices(2) >= pField->get_min_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 2) +
+                                      1 &&
+                    indices(2) + 1 <= pField->get_max_index_unknown_on_proc(
+                                          OnePointInfos.compIdx, 2))
+                    Q2_interpol = true;
+                kref = indices(2) - 1;
+            }
+            else
+            {
+                if (indices(2) >= pField->get_min_index_unknown_on_proc(
+                                      OnePointInfos.compIdx, 2) &&
+                    indices(2) + 2 <= pField->get_max_index_unknown_on_proc(
+                                          OnePointInfos.compIdx, 2))
+                    Q2_interpol = true;
+                kref = indices(2);
+            }
+        }
+    }
+
+    // // Computation of weight of nodes that contribute to the field constraint
+    // // * If Q2_interpol is true, use Q2 interpolation with 3 nodes in each
+    // // direction, i.e., a 27-nodes stencil,
+    // // * Otherwise, use a multi-linear interpolation
+    if (Q2_interpol && SecondOrderBP)
+    {
+        //    cout << "Q2 Interpolation" << endl;
+        size_t ii, jj, kk;
+        double xtransf, ytransf, ztransf, xref, yref, zref;
+        // Please refer to Dyn and Floater for definition of variables,
+        // and to MAC_solidcomponent2D for more detailed comments on the
+        // algorithm
+
+        xref = (*mesh[0])(iref);
+        xtransf = (point(0) - xref) / (2. * cellsize(0));
+
+        yref = (*mesh[1])(jref);
+        ytransf = (point(1) - yref) / (2. * cellsize(1));
+
+        zref = (*mesh[2])(kref);
+        ztransf = (point(2) - zref) / (2. * cellsize(2));
+
+        for (ii = 0; ii < 3; ++ii)
+        {
+            i = iref + ii;
+            for (jj = 0; jj < 3; ++jj)
+            {
+                j = jref + jj;
+                for (kk = 0; kk < 3; ++kk)
+                {
+                    k = kref + kk;
+                    globalDOFNo = pField->DOF_global_number(i, j, k,
+                                                            OnePointInfos.compIdx);
+                    OnePointInfos.positionU.push_back(globalDOFNo);
+                    ijk.i = i;
+                    ijk.j = j;
+                    ijk.k = k;
+                    OnePointInfos.MacTripletU.push_back(ijk);
+                    weightFunct = Q2weighting((*Q2numb)(ii, jj, kk), xtransf,
+                                              ytransf, ztransf);
+                    OnePointInfos.omega_delta.push_back(weightFunct);
+                }
+            }
+        }
+    }
+    else
+    {
+        //    cout << "Degenerate as Linear Interpolation" << endl;
+        for (i = indices(0); i < indices(0) + 2; ++i)
+        {
+            DOFcoor(0) = (*mesh[0])(i);
+            for (j = indices(1); j < indices(1) + 2; ++j)
+            {
+                DOFcoor(1) = (*mesh[1])(j);
+                for (k = indices(2); k < indices(2) + 2; ++k)
+                {
+                    DOFcoor(2) = (*mesh[2])(k);
+                    globalDOFNo = pField->DOF_global_number(i, j, k,
+                                                            OnePointInfos.compIdx);
+                    OnePointInfos.positionU.push_back(globalDOFNo);
+                    ijk.i = i;
+                    ijk.j = j;
+                    ijk.k = k;
+                    OnePointInfos.MacTripletU.push_back(ijk);
+                    weightFunct = (1. - fabs(point(0) - DOFcoor(0)) / cellsize(0)) * (1. - fabs(point(1) - DOFcoor(1)) / cellsize(1)) * (1. - fabs(point(2) - DOFcoor(2)) / cellsize(2));
+                    OnePointInfos.omega_delta.push_back(weightFunct);
+                }
+            }
+        }
+    }
+
+    // !!! IMPORTANT !!!
+    // Remark : In case of a periodic particle, there is no need to reset the
+    // gravity center to the primary particle position since the list of
+    // boundary points is constructed such that it ends with the primary
+    // particle position and this method
+    // DLMFD_RigidBody::fill_DLMFD_pointInfos is called when looping on the
+    // full list of boundary points
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::compute_weight_generic(double const &x,
+                                               size_t const &i, size_t const &order)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_weight_generic");
+
+    double result = 0.;
+    switch (order)
+    {
+    case 0:
+        if (i == 0)
+            result = 1.;
+        else
+            cout << "!!order 0 interpole i is 0!!" << endl;
+        break;
+    case 1:
+        if (i == 0)
+            result = 1. - 2. * x;
+        else if (i == 1)
+            result = 2. * x;
+        else
+            cout << "!!order 1 interpole i is 0 or 1!!" << endl;
+        break;
+    case 2:
+        if (i == 0)
+            result = (x - 0.5) * (x - 1.) / 0.5;
+        else if (i == 1)
+            result = x * (1. - x) / 0.25;
+        else if (i == 2)
+            result = x * (x - 0.5) / 0.5;
+        else
+            cout << "!!order 2 interpole i is 0, 1 or 2!!" << endl;
+        break;
+    }
+    return (result);
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
+                                    double const &y, double const &z)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::Q2weighting");
+
+    double result = 0.;
+
+    switch (i)
+    {
+    case 0:
+        result = 8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 1:
+        result = 16.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 2:
+        result = -8.0 * x * (0.5 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 3:
+        result = -16.0 * x * (0.5 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 4:
+        result = 32.0 * x * (1.0 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 5:
+        result = 16.0 * (1.0 - x) * (0.5 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 6:
+        result = -8.0 * (1.0 - x) * (0.5 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 7:
+        result = -16.0 * x * (1.0 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 8:
+        result = 8.0 * x * (0.5 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        break;
+    case 9:
+        result = 16.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 10:
+        result = 32.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 11:
+        result = -16.0 * x * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 12:
+        result = -32.0 * x * (0.5 - x) * y * (1.0 - y) * z * (1.0 - z);
+        break;
+    case 13:
+        result = 64.0 * x * (1.0 - x) * y * (1.0 - y) * z * (1.0 - z);
+        break;
+    case 14:
+        result = 32.0 * (1.0 - x) * (0.5 - x) * y * (1.0 - y) * z * (1.0 - z);
+        break;
+    case 15:
+        result = -16.0 * (1.0 - x) * (0.5 - x) * y * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 16:
+        result = -32.0 * x * (1.0 - x) * y * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 17:
+        result = 16.0 * x * (0.5 - x) * y * (0.5 - y) * z * (1.0 - z);
+        break;
+    case 18:
+        result = -8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (0.5 - z);
+        break;
+    case 19:
+        result = -16.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * z * (0.5 - z);
+        break;
+    case 20:
+        result = 8.0 * x * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (0.5 - z);
+        break;
+    case 21:
+        result = 16.0 * x * (0.5 - x) * y * (1.0 - y) * z * (0.5 - z);
+        break;
+    case 22:
+        result = -32.0 * x * (1.0 - x) * y * (1.0 - y) * z * (0.5 - z);
+        break;
+    case 23:
+        result = -16.0 * (1.0 - x) * (0.5 - x) * y * (1.0 - y) * z * (0.5 - z);
+        break;
+    case 24:
+        result = 8.0 * (1.0 - x) * (0.5 - x) * y * (0.5 - y) * z * (0.5 - z);
+        break;
+    case 25:
+        result = 16.0 * x * (1.0 - x) * y * (0.5 - y) * z * (0.5 - z);
+        break;
+    case 26:
+        result = -8.0 * x * (0.5 - x) * y * (0.5 - y) * z * (0.5 - z);
+        break;
+    }
+
+    return (result);
 }

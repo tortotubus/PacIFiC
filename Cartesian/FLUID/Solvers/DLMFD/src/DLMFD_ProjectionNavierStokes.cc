@@ -168,6 +168,30 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     b_HighOrderPressureCorrection = exp->bool_data(
         "HighOrderPressureCorrection");
 
+  // Set the split gravity vector
+  split_gravity_vector.resize(dim);
+  split_gravity_vector.setVecZero();
+  if (exp->has_entry("Split_gravity_vector"))
+  {
+    doubleVector *grav = new doubleVector(dim);
+    *grav = exp->doubleVector_data("Split_gravity_vector");
+    for (size_t idx = 0; idx < dim; ++idx)
+      split_gravity_vector(idx) = (*grav)(idx);
+    delete grav;
+  }
+
+  // Set the gravity vector
+  gravity_vector.resize(dim);
+  gravity_vector.setVecZero();
+  if (exp->has_entry("Gravity_vector"))
+  {
+    doubleVector *grav = new doubleVector(dim);
+    *grav = exp->doubleVector_data("Gravity_vector");
+    for (size_t idx = 0; idx < dim; ++idx)
+      gravity_vector(idx) = (*grav)(idx);
+    delete grav;
+  }
+
   // NS parameters
   if (my_rank == is_master)
   {
@@ -206,7 +230,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   // Create Fictitious Domain solver
   struct NavierStokes2FluidSolid transfert;
   transfert.solid_resDir = resultsDirectory;
-  transfert.density = density;
+  transfert.rho_f = density;
+  transfert.gravity_vector = gravity_vector;
+  transfert.split_gravity_vector = split_gravity_vector;
+  transfert.GLOBAL_EQ = GLOBAL_EQ;
 
   dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 }

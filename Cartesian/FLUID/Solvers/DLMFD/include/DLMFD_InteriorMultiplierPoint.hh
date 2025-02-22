@@ -49,6 +49,15 @@ public: //----------------------------------------------------------------
 
     //@}
 
+    //-- Get methods
+    /** @name Get methods */
+    //@{
+
+    /** @brief Get local Node Triplet */
+    FV_TRIPLET *get_localNodeTriplet();
+
+    //@}
+
 private:                          //----------------------------------------------------------------
 protected:                        //--------------------------------------------------------------
     FV_TRIPLET *localNodeTriplet; /**< local node MAC triplet */

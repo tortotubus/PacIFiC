@@ -56,6 +56,17 @@ public: //----------------------------------------------------------------
     @param dir Direction */
     double get_oneCoordinate(const size_t &dir) const;
 
+    /** @brief Get vector GCPoint */
+    geomVector get_GCPointVector() const;
+
+    /** @brief Get the coordinates of the GCPoint vector
+    @param dir Direction */
+    double get_oneCoordinate_GCPointVector(const size_t &dir) const;
+
+    /** @brief Get the component of the point */
+    size_t get_compNumber() const;
+
+
     //@}
 
 private: //----------------------------------------------------------------

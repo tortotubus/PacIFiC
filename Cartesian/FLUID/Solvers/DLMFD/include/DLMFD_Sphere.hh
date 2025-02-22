@@ -44,11 +44,11 @@ public: //------------------------------------------------------------------
     /** @brief Set DLMFD boundary points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
-    void set_boundary_points(FV_DiscreteField const *pField, double critical_distance);
+    void set_boundary_points_list(FV_DiscreteField const *pField, double critical_distance);
 
     /** @brief Set DLMFD interior points
     @param critical_distance Critical distance */
-    void set_interior_points(FV_DiscreteField const *pField, double critical_distance);
+    void set_interior_points_list(FV_DiscreteField const *pField, double critical_distance);
 
     //@}
 
@@ -82,6 +82,11 @@ public: //------------------------------------------------------------------
     @param y y-component
     @param z z-component */
     bool isIn(const geomVector &point) const;
+
+    /** @brief Translate the component from current gravity center to new
+    gravity center
+    @param newg new gravity center */
+    void translateGeometricFeatures(geomVector const &newg);
 
     //@}
 
