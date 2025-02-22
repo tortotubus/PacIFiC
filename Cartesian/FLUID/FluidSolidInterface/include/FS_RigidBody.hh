@@ -73,6 +73,9 @@ class FS_RigidBody
 
       /** @brief Returns a tuple of mass and density of RB */
       std::tuple<double,double,double> get_mass_and_density_and_moi() const;
+   
+      /** @brief Returns inertia matrix of RB */
+      vector<vector<double>> get_inertia() const;
       //@}
 
 
@@ -149,6 +152,9 @@ class FS_RigidBody
 
       /** @brief Returns rigid body angular velocity */
       geomVector rigid_body_angular_velocity( ) const;
+
+      /** @brief Returns rigid body translational velocity */
+      geomVector rigid_body_translational_velocity( ) const;
 
       /** @brief Returns whether a line originating from a point intersects the
       rigid body, and if it does the distance from the point to the rigid body
