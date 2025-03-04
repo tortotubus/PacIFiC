@@ -50,7 +50,7 @@ PAC_Misc:: clearAllFiles( string const& resultsDirectory,
      MAC::out() << "    CLEAR ALL FILES IN DIRECTORY " << resultsDirectory 
      	<< " AND " << savingsDirectory << endl << endl;
 
-     char* path = getenv("PACIFIC_HOME");
+     char* path = getenv("FLUID_MAC_HOME");
      string exe(path);
      exe = exe+"/ExeUtils/Pacific_clear_exec "+resultsDirectory+" "
      	+savingsDirectory;
