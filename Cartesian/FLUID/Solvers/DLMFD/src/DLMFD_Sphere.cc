@@ -272,3 +272,41 @@ void DLMFD_Sphere::allocate_default_interior_points_sphere(size_t const &nbIPdef
         interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
     }
 }
+
+//---------------------------------------------------------------------------
+void DLMFD_Sphere::erase_critical_interior_points_PerProc(double critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_Sphere:: erase_critical_interior_points_PerProc");
+
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp;
+    list<DLMFD_InteriorMultiplierPoint *>::iterator ivi;
+    double dist = 0., reduced_radius = radius - critical_distance;
+    bool erase = false;
+
+    if (nIP)
+    {
+        ivi = interior_points.begin();
+        for (size_t j = 0; j < nIP; ++j, ivi++)
+            if ((*ivi)->isValid())
+            {
+                erase = false;
+                dist = gravity_center.calcDist((*ivi)->get_coordinates());
+                if (dist > reduced_radius)
+                {
+                    // Compare to boundary points on this process
+                    if (!boundary_points.empty())
+                    {
+                        imp = boundary_points.begin();
+                        for (size_t i = 0; i < nBP && !erase; ++i, imp++)
+                            if ((*imp)->isValid())
+                                if (((*imp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                                    erase = true;
+                    }
+                }
+
+                if (erase)
+                    (*ivi)->set_validity(false);
+            }
+    }
+}

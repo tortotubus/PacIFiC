@@ -3,6 +3,7 @@
 #include <FV_Mesh.hh>
 #include <FS_RigidBody.hh>
 #include <geomVector.hh>
+#include <doubleVector.hh>
 #include <math.h>
 #include <fstream>
 using namespace std;
@@ -10,14 +11,21 @@ using namespace std;
 size_t_array3D *DLMFD_RigidBody::Q2numb = NULL;
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody::DLMFD_RigidBody()
+DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
+                                     VEC_x(*DLMFD_FictitiousDomain::dbnull),
+                                     VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+                                     VEC_w(*DLMFD_FictitiousDomain::dbnull)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
 }
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb)
+DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb),
+                                                       VEC_r(*DLMFD_FictitiousDomain::dbnull),
+                                                       VEC_x(*DLMFD_FictitiousDomain::dbnull),
+                                                       VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+                                                       VEC_w(*DLMFD_FictitiousDomain::dbnull)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -26,8 +34,12 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb)
     index_min = new size_t_array2D(dim, dim, 0);
     index_max = new size_t_array2D(dim, dim, 0);
 
+    NDOF_globalpos = NULL;
+    NDOF_nfieldUNK = NULL;
+    NDOF_deltaOmega = NULL;
+
     // Set component type
-    component_type = "P";
+    set_component_type();
 
     // Resize vectors
     translational_velocity.resize(3);
@@ -79,7 +91,7 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb)
     set_translational_velocity();
 
     // Set the angular velocity
-    set_angular_velocity();
+    set_angular_velocity_3D();
 }
 
 //---------------------------------------------------------------------------
@@ -87,6 +99,15 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: ~DLMFD_RigidBody");
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_component_type()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_component_type");
+
+    component_type = ptr_FSrigidbody->get_type();
 }
 
 //---------------------------------------------------------------------------
@@ -124,6 +145,14 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
 {
     MAC_LABEL("DLMFD_RigidBody::set_points_infos");
 
+    if (points_infos.empty())
+    {
+        size_t nbBPdef = boundary_points.size();
+        size_t nbIPdef = interior_points.size();
+
+        allocate_default_points_infos(nbBPdef, nbIPdef);
+    }
+
     list<struct ULBD_RHSInfos>::iterator pinfo = points_infos.begin();
     size_t globalDOFNo, compIdx;
     FV_TRIPLET const *ijk;
@@ -140,40 +169,41 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
         list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts =
             interior_points.begin();
         for (size_t i = 0; i < nIP; ++i, iterIntPnts++)
-        {
-            // Pointer of the internal point
-            pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterIntPnts);
-
-            // Set the field component
-            compIdx = (*iterIntPnts)->get_compNumber();
-            pinfo->compIdx = compIdx;
-
-            // Global DOF number
-            // A priori always >= 0 i.e. DOF is unknown because DOFs that are not
-            // unknowns have already been discarded in the set_all_points method
-            // of the component
-            ijk = (*iterIntPnts)->get_localNodeTriplet();
-            globalDOFNo = pField->DOF_global_number(ijk->i, ijk->j, ijk->k, compIdx);
-
-            // Set infos
-            if (pinfo->positionU.size() != 1)
+            if ((*iterIntPnts)->isValid())
             {
-                pinfo->MacTripletU.clear();
-                pinfo->positionU.clear();
-                pinfo->omega_delta.clear();
-                pinfo->MacTripletU.push_back(ijk_init);
-                pinfo->positionU.push_back(0);
-                pinfo->omega_delta.push_back(0.);
-            }
-            pinfo->positionU.front() = globalDOFNo;
-            pinfo->MacTripletU.front() = *ijk;
-            pinfo->omega_delta.front() = 1.;
+                // Pointer of the internal point
+                pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterIntPnts);
 
-            // Move the iterator and update ndof & ntotal_fieldunk
-            ++ndof;
-            ++ntotal_fieldunk;
-            pinfo++;
-        }
+                // Set the field component
+                compIdx = (*iterIntPnts)->get_compNumber();
+                pinfo->compIdx = compIdx;
+
+                // Global DOF number
+                // A priori always >= 0 i.e. DOF is unknown because DOFs that are not
+                // unknowns have already been discarded in the set_all_points method
+                // of the component
+                ijk = (*iterIntPnts)->get_localNodeTriplet();
+                globalDOFNo = pField->DOF_global_number(ijk->i, ijk->j, ijk->k, compIdx);
+
+                // Set infos
+                if (pinfo->positionU.size() != 1)
+                {
+                    pinfo->MacTripletU.clear();
+                    pinfo->positionU.clear();
+                    pinfo->omega_delta.clear();
+                    pinfo->MacTripletU.push_back(ijk_init);
+                    pinfo->positionU.push_back(0);
+                    pinfo->omega_delta.push_back(0.);
+                }
+                pinfo->positionU.front() = globalDOFNo;
+                pinfo->MacTripletU.front() = *ijk;
+                pinfo->omega_delta.front() = 1.;
+
+                // Move the iterator and update ndof & ntotal_fieldunk
+                ++ndof;
+                ++ntotal_fieldunk;
+                pinfo++;
+            }
     }
 
     // Boundary points
@@ -183,29 +213,126 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
 
     if (nBP)
         for (size_t i = 0; i < nBP; ++i, iterBndPnts++)
-            // Loop on all components
-            for (compIdx = 0; compIdx < ncomps; ++compIdx)
+            if ((*iterBndPnts)->isValid())
+                for (compIdx = 0; compIdx < ncomps; ++compIdx)
+                // Loop on all components
+                {
+                    // get the mesh ID of the element containing the boundary point
+                    pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterBndPnts);
+
+                    // Set the field component
+                    pinfo->compIdx = compIdx;
+
+                    // Clear the lists of OnePointInfos
+                    pinfo->MacTripletU.clear();
+                    pinfo->positionU.clear();
+                    pinfo->omega_delta.clear();
+
+                    // Get surrouding dofs
+                    fill_DLMFD_pointInfos(pField, *pinfo, DLMFD_FictitiousDomain::b_SecondOrderInterpol);
+
+                    // Move the iterator and update ndof & ntotal_fieldunk
+                    ntotal_fieldunk += pinfo->positionU.size();
+
+                    ++ndof;
+                    pinfo++;
+                }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::check_allocation_DLMFD_Cvectors");
+
+    if (ndof)
+    {
+        if (NDOF_comp)
+            delete[] NDOF_comp;
+        if (NDOF_leverage)
+            delete[] NDOF_leverage;
+        if (NDOF_nfieldUNK)
+            delete[] NDOF_nfieldUNK;
+
+        NDOF_comp = new size_t[ndof];
+        NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
+        NDOF_nfieldUNK = new size_t[ndof];
+
+        if (NDOF_globalpos)
+            delete[] NDOF_globalpos;
+        if (NDOF_deltaOmega)
+            delete[] NDOF_deltaOmega;
+        if (NDOF_FVTriplet)
+            delete[] NDOF_FVTriplet;
+
+        NDOF_globalpos = new size_t[ntotal_fieldunk];
+        NDOF_deltaOmega = new double[ntotal_fieldunk];
+        NDOF_FVTriplet = new size_t[3 * ntotal_fieldunk];
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::fill_DLMFD_Cvectors()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::fill_DLMFD_Cvectors");
+
+    if (ndof)
+    {
+        list<struct ULBD_RHSInfos>::iterator il = points_infos.begin();
+        size_t comp = 0;
+        for (size_t i = 0; i < ndof; ++i, il++)
+        {
+            comp = il->compIdx;
+            NDOF_comp[i] = comp;
+            switch (comp)
             {
-                // get the mesh ID of the element containing the boundary point
-                pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterBndPnts);
-
-                // Set the field component
-                pinfo->compIdx = compIdx;
-
-                // Clear the lists of OnePointInfos
-                pinfo->MacTripletU.clear();
-                pinfo->positionU.clear();
-                pinfo->omega_delta.clear();
-
-                // Get surrouding dofs
-                fill_DLMFD_pointInfos(pField, *pinfo, DLMFD_FictitiousDomain::b_SecondOrderInterpol);
-
-                // Move the iterator and update ndof & ntotal_fieldunk
-                ntotal_fieldunk += pinfo->positionU.size();
-
-                ++ndof;
-                pinfo++;
+            case 0:
+                NDOF_leverage[2 * i] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(2);
+                NDOF_leverage[2 * i + 1] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(1);
+                break;
+            case 1:
+                NDOF_leverage[2 * i] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(2);
+                NDOF_leverage[2 * i + 1] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(0);
+                break;
+            default:
+                NDOF_leverage[2 * i] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(1);
+                NDOF_leverage[2 * i + 1] =
+                    il->ptr_point->get_oneCoordinate_GCPointVector(0);
+                break;
             }
+
+            NDOF_nfieldUNK[i] = il->positionU.size();
+        }
+
+        // Same allocation strategy for ntotal_fieldunk
+        list<size_t>::const_iterator ilpositionU;
+        list<double>::const_iterator ildom;
+        list<FV_TRIPLET>::iterator ilFVTripletU;
+        il = points_infos.begin();
+        size_t l = 0, m = 0;
+        for (size_t i = 0; i < ndof; ++i, il++)
+        {
+            ildom = il->omega_delta.begin();
+            ilFVTripletU = il->MacTripletU.begin();
+            for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end();
+                 ilpositionU++, ildom++, ilFVTripletU++)
+            {
+                NDOF_globalpos[l] = *ilpositionU;
+                NDOF_deltaOmega[l] = *ildom;
+                NDOF_FVTriplet[m] = ilFVTripletU->i;
+                NDOF_FVTriplet[m + 1] = ilFVTripletU->j;
+                NDOF_FVTriplet[m + 2] = ilFVTripletU->k;
+                ++l;
+                m += 3;
+            }
+        }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -225,8 +352,18 @@ void DLMFD_RigidBody::set_mass_and_density_and_inertia()
 {
     MAC_LABEL("DLMFD_RigidBody:: set_mass_and_density_and_inertia");
 
-    mass, rho_s = get<0>(get_mass_and_density()), get<1>(get_mass_and_density());
-    inertia_3D = get_inertia();
+    mass = get_rigid_body_mass();
+    rho_s = get_rigid_body_density();
+    inertia_3D = get_rigid_body_inertia();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_volume()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_volume");
+
+    volume = mass / rho_s;
 }
 
 //---------------------------------------------------------------------------
@@ -239,12 +376,30 @@ void DLMFD_RigidBody::set_translational_velocity()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_angular_velocity()
+void DLMFD_RigidBody::set_translational_velocity(const geomVector &vtran)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_translational_velocity");
+
+    translational_velocity = vtran;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_angular_velocity_3D()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: set_translational_velocity");
 
     angular_velocity_3D = get_rigid_body_angular_velocity();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_angular_velocity_3D(const geomVector &vrot)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_translational_velocity");
+
+    angular_velocity_3D = vrot;
 }
 
 //---------------------------------------------------------------------------
@@ -280,10 +435,18 @@ size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
 {
     MAC_LABEL("DLMFD_RigidBody:: get_npts_output");
 
-    size_t output_npts = nBP;
+    list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = boundary_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = interior_points.begin();
+    size_t output_npts = 0;
+
+    for (size_t i = 0; i < nBP; ++i, imp++)
+        if ((*imp)->isValid())
+            ++output_npts;
 
     if (withIntPts)
-        output_npts += nIP;
+        for (size_t i = 0; i < nIP; ++i, ivi++)
+            if ((*ivi)->isValid())
+                ++output_npts;
 
     return output_npts;
 }
@@ -307,6 +470,15 @@ geomVector DLMFD_RigidBody::get_rigid_body_angular_velocity() const
 }
 
 //---------------------------------------------------------------------------
+geomVector DLMFD_RigidBody::get_angular_velocity_3D() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_angular_velocity_3D");
+
+    return angular_velocity_3D;
+}
+
+//---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::get_rigid_body_translational_velocity() const
 //---------------------------------------------------------------------------
 {
@@ -316,18 +488,47 @@ geomVector DLMFD_RigidBody::get_rigid_body_translational_velocity() const
 }
 
 //---------------------------------------------------------------------------
-tuple<double, double> DLMFD_RigidBody::get_mass_and_density() const
+geomVector DLMFD_RigidBody::get_translational_velocity() const
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody::get_mass_and_density_and_inertia");
+    MAC_LABEL("DLMFD_RigidBody::get_translational_velocity");
 
-    double mass_double = get<0>(ptr_FSrigidbody->get_mass_and_density_and_moi());
-    double density_double = get<1>(ptr_FSrigidbody->get_mass_and_density_and_moi());
-    return (std::make_tuple(mass_double, density_double));
+    return translational_velocity;
 }
 
 //---------------------------------------------------------------------------
-vector<vector<double>> DLMFD_RigidBody::get_inertia() const
+double DLMFD_RigidBody::get_rigid_body_mass() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_mass");
+
+    double mass_ = get<0>(ptr_FSrigidbody->get_mass_and_density_and_moi());
+
+    return mass_;
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::get_rigid_body_density() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_rigid_body_density");
+
+    double density_ = get<1>(ptr_FSrigidbody->get_mass_and_density_and_moi());
+
+    return density_;
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::get_density() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_density");
+
+    return rho_s;
+}
+
+//---------------------------------------------------------------------------
+vector<vector<double>> DLMFD_RigidBody::get_rigid_body_inertia() const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::get_mass_and_density_and_inertia");
@@ -372,6 +573,15 @@ geomVector const DLMFD_RigidBody::get_Trot() const
 }
 
 //---------------------------------------------------------------------------
+double DLMFD_RigidBody::get_volume() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_volume");
+
+    return volume;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_ip_list(size_t const &np)
 //---------------------------------------------------------------------------
 {
@@ -386,6 +596,20 @@ void DLMFD_RigidBody::extend_ip_list(size_t const &np)
         interior_points.back() =
             new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
     }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::allocate_default_points_infos(size_t const &nbBPdef, size_t const &nbIPdef)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_Sphere:: allocate_default_points_infos");
+
+    size_t ndofdef = nbIPdef + nbBPdef * gravity_center.getVecSize();
+    struct ULBD_RHSInfos OnePointInfos;
+    OnePointInfos.ptr_point = NULL;
+    OnePointInfos.compIdx = 0;
+    for (size_t i = 0; i < ndofdef; ++i)
+        points_infos.push_back(OnePointInfos);
 }
 
 //---------------------------------------------------------------------------
@@ -435,30 +659,24 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
     imp = interior_points.begin();
     if (withIntPts)
         for (size_t i = 0; i < nIP; ++i, imp++)
-        {
-            f << text2write_before;
-            for (size_t index = 0; index < dim; index++)
-                f << (*imp)->get_oneCoordinate(index) << "\t";
-            // cout << (*imp)->get_oneCoordinate(dim - 3)
-            //      << " " << (*imp)->get_oneCoordinate(dim - 2)
-            //      << " " << (*imp)->get_oneCoordinate(dim - 1)
-            //      << endl;
-            f << text2write_after << endl;
-        }
+            if ((*imp)->isValid())
+            {
+                f << text2write_before;
+                for (size_t index = 0; index < dim; index++)
+                    f << (*imp)->get_oneCoordinate(index) << "\t";
+                f << text2write_after << endl;
+            }
 
     // Boundary points in the contact region
     bmp = boundary_points.begin();
     for (size_t i = 0; i < nBP; ++i, bmp++)
-    {
-        f << text2write_before;
-        for (size_t index = 0; index < dim; index++)
-            f << (*bmp)->get_oneCoordinate(index) << "\t";
-        // cout << (*bmp)->get_oneCoordinate(dim - 3)
-        //      << " " << (*bmp)->get_oneCoordinate(dim - 2)
-        //      << " " << (*bmp)->get_oneCoordinate(dim - 1)
-        //      << endl;
-        f << text2write_after << endl;
-    }
+        if ((*bmp)->isValid())
+        {
+            f << text2write_before;
+            for (size_t index = 0; index < dim; index++)
+                f << (*bmp)->get_oneCoordinate(index) << "\t";
+            f << text2write_after << endl;
+        }
 }
 
 //---------------------------------------------------------------------------
@@ -475,6 +693,18 @@ void DLMFD_RigidBody::clear_listOfPointsAndVectors()
     for (ibp = boundary_points.begin(); ibp != boundary_points.end(); ibp++)
         delete *ibp;
     boundary_points.clear();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::nullify_Uzawa_vectors()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: nullify_Uzawa_vectors");
+
+    VEC_r.set(0.);
+    VEC_x.set(0.);
+    VEC_lambda.set(0.);
+    VEC_w.set(0.);
 }
 
 //---------------------------------------------------------------------------
@@ -498,10 +728,14 @@ void DLMFD_RigidBody::compute_Qu(bool init)
     {
         list<struct ULBD_RHSInfos>::iterator il = points_infos.begin();
         doubleVector const *work = &VEC_w;
+
         if (init)
             work = &VEC_lambda;
+
         for (size_t i = 0; i < ndof; ++i, il++)
+        {
             q_tran.addOneComp(il->compIdx, -(*work)(i));
+        }
     }
 }
 
@@ -675,6 +909,405 @@ void DLMFD_RigidBody::setTVectors_constant()
 
     t_tran = translational_velocity;
     t_rot_3D = angular_velocity_3D;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_fluid_rhs");
+
+    if (ndof)
+    {
+        doubleVector const *work = &VEC_w;
+        double lambda_value = 0., coef = 1.;
+        if (init)
+        {
+            work = &VEC_lambda;
+            coef = -1.;
+        }
+
+        // Optimized version for multi-core architecture using classical
+        // aligned-data C vectors
+
+        size_t j, start = 0;
+
+        for (size_t i = 0; i < ndof; ++i)
+        {
+            lambda_value = (*work)(i);
+            for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
+                GLOBAL_EQ->assemble_inQUvector(NDOF_deltaOmega[j + start] * lambda_value, NDOF_globalpos[j + start], coef);
+            start += NDOF_nfieldUNK[i];
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField const *pField)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_x_residuals_Velocity");
+
+    double solid_velocity_component = 0.;
+    size_t comp = 0, i;
+    size_t j, l = 0, m = 0;
+
+    for (i = 0; i < ndof; ++i)
+    {
+        // Solid part
+        comp = NDOF_comp[i];
+        solid_velocity_component = t_tran(comp);
+
+        switch (comp)
+        {
+        case 0:
+            solid_velocity_component += t_rot_3D(1) * NDOF_leverage[2 * i] - t_rot_3D(2) * NDOF_leverage[2 * i + 1];
+            break;
+        case 1:
+            solid_velocity_component += t_rot_3D(2) * NDOF_leverage[2 * i + 1] - t_rot_3D(0) * NDOF_leverage[2 * i];
+            break;
+        default:
+            solid_velocity_component += t_rot_3D(0) * NDOF_leverage[2 * i] - t_rot_3D(1) * NDOF_leverage[2 * i + 1];
+            break;
+        }
+
+        VEC_x(i) = -solid_velocity_component;
+
+        // Fluid part
+        for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
+        {
+            VEC_x(i) += NDOF_deltaOmega[l] * pField->DOF_value(
+                                                 NDOF_FVTriplet[m], NDOF_FVTriplet[m + 1],
+                                                 NDOF_FVTriplet[m + 2], comp, 0);
+
+            ++l;
+            m += 3;
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_r_and_w_FirstUzawaIteration()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_r_and_w_FirstUzawaIteration");
+
+    if (ndof)
+    {
+        for (size_t i = 0; i < ndof; ++i)
+        {
+            VEC_r(i) = -VEC_x(i);
+            VEC_w(i) = VEC_r(i);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::compute_r_dot_r() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_r_dot_r");
+
+    double rdotr = 0.;
+
+    if (ndof)
+        for (size_t i = 0; i < ndof; ++i)
+            rdotr += VEC_r(i) * VEC_r(i);
+
+    return rdotr;
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::compute_w_dot_x() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_w_dot_x");
+
+    double wdotx = 0.;
+
+    if (ndof)
+        for (size_t i = 0; i < ndof; ++i)
+            wdotx += VEC_w(i) * VEC_x(i);
+
+    return wdotx;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::update_lambda_and_r(const double &alpha)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::update_lambda_and_r");
+
+    if (ndof)
+    {
+        for (size_t i = 0; i < ndof; ++i)
+        {
+            VEC_lambda(i) -= alpha * VEC_w(i);
+            VEC_r(i) -= alpha * VEC_x(i);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::update_w(const double &beta)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::update_lambda_and_r");
+
+    if (ndof)
+        for (size_t i = 0; i < ndof; ++i)
+            VEC_w(i) = VEC_r(i) + beta * VEC_w(i);
+}
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+                                                   bool bulk,
+                                                   FV_DiscreteField const *pField)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::compute_fluid_DLMFD_explicit");
+
+    if (ndof)
+    {
+        list<struct ULBD_RHSInfos>::const_iterator il = points_infos.begin();
+        double lambda_value = 0;
+        pair<size_t, double> Onepair;
+        list<size_t>::const_iterator ilpositionU;
+        list<double>::const_iterator ildom;
+        doubleVector const *work = &VEC_lambda;
+        double coef = -1.;
+
+        for (size_t i = 0; i < ndof; ++i, il++)
+        {
+            lambda_value = (*work)(i);
+            ildom = il->omega_delta.begin();
+            if (il->omega_delta.size() != 1)
+                for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end();
+                     ilpositionU++, ildom++)
+                    GLOBAL_EQ->assemble_inQUvector(*ildom * lambda_value, *ilpositionU,
+                                                   coef);
+            else if (bulk)
+            {
+                // Coef 1 / 8
+                size_t globalDOFNo;
+                FV_TRIPLET ijk = il->MacTripletU.front();
+                globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k,
+                                                        il->compIdx);
+                GLOBAL_EQ->assemble_inQUvector(0.125 * lambda_value, globalDOFNo,
+                                               coef);
+
+                // Coef 1 / 16
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                // Coef 1 / 32
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                // Coef 1 / 64
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k - 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k - 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k + 1, il->compIdx))
+                {
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k + 1,
+                                                            il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
+                                                   coef);
+                }
+            }
+        }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -1023,4 +1656,19 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
     }
 
     return (result);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::allocate_initialize_Uzawa_vectors()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::allocate_initialize_Uzawa_vectors");
+
+    if (ndof)
+    {
+        VEC_r.re_initialize(ndof, 0.);
+        VEC_x.re_initialize(ndof, 0.);
+        VEC_lambda.re_initialize(ndof, 0.);
+        VEC_w.re_initialize(ndof, 0.);
+    }
 }

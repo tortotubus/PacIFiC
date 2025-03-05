@@ -23,6 +23,7 @@ struct NavierStokes2FluidSolid
 {
    // Output
    string solid_resDir;
+   size_t output_frequency;
 
    // Parameters
    double rho_f;
@@ -31,14 +32,23 @@ struct NavierStokes2FluidSolid
 
    // Linear resolution
    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ;
+   size_t velocitylevelDiscrField;
+
+   // Booleans
+   bool b_restart;
+
+   // Fields
+   FV_DiscreteField *UU;
+   FV_DiscreteField *PP;
+
 };
 
 class DLMFD_FictitiousDomain : public MAC_Object
 {
 public: //-----------------------------------------------------------------
-        //-- Public class attributes
+   //-- Public class attributes
    static bool b_SecondOrderInterpol;
-   static bool b_LowerSetInterpol;
+   static doubleVector *dbnull;
 
    //-- Substeps of the step by step progression
 
@@ -60,6 +70,10 @@ public: //-----------------------------------------------------------------
    @param t_it Time iterator */
    void do_one_inner_iteration(FV_TimeIterator const *t_it);
 
+   /** @brief Tasks performed just after the main loop
+   @param t_it Time iterator */
+   void do_after_inner_iterations_stage(FV_TimeIterator const *t_it);
+
    /** @brief Tasks performed for additional savings
    @param t_it Time iterator */
    void do_additional_savings(int const &cycleNumber,
@@ -74,6 +88,15 @@ public: //-----------------------------------------------------------------
    /** @brief Setting the critical distance attribute
    @param t_icritical_distance_ Critical distance to set */
    void set_critical_distance(double critical_distance_);
+
+   //@}
+
+   //-- Get methods
+   /** @name Get methods */
+   //@{
+
+   /** @brief Get DLMFD explicit boolean */
+   bool const get_explicit_DLMFD() const;
 
    //@}
 
@@ -118,6 +141,16 @@ public: //-----------------------------------------------------------------
    @param t_it Time iterator */
    void Broadcast_tVectors_sharedParticles_MasterToAll(FV_TimeIterator const *t_it);
 
+   /** @brief Compute the momentum equations right hand side
+   coef*<lambda,v>_P and set it in vector q of the matrix system
+   @param t_it time iterator
+   @param init true if initialization step of Uzawa algorithm */
+   void compute_fluid_LBD_rhs(FV_TimeIterator const *t_it, bool init);
+
+   /** @brief Set converged velocity of all particles on master process
+   @param t_it time iterator */
+   void Set_Velocity_AllParticles_Master(FV_TimeIterator const *t_it);
+
    //@}
 
    //-- Output methods
@@ -130,8 +163,11 @@ public: //-----------------------------------------------------------------
 
    //@}
 
-protected: //--------------------------------------------------------------
-private:   //----------------------------------------------------------------
+protected: //----------------------------------------------------------------
+   //-- Class attributes
+   size_t levelDiscrField;
+
+private: //----------------------------------------------------------------
    //-- Substeps of the step by step progression
 
    /** @name Constructors & Destructor */
@@ -165,6 +201,7 @@ private:   //----------------------------------------------------------------
    // Numerical parameters
    size_t sub_prob_number;
    double critical_distance;
+   string coupling_scheme;
 
    // Grains3D variables
    string solidSolverType;
@@ -174,11 +211,16 @@ private:   //----------------------------------------------------------------
    istringstream *solidFluid_transferStream;
    DLMFD_AllRigidBodies *allrigidbodies;
 
+   // Uzawa algorithm
+   double Uzawa_DLMFD_precision;
+   int Uzawa_DLMFD_maxiter;
+
    // Booleans
    bool b_restart;
    bool b_explicit_added_mass;
    bool are_particles_fixed;
    bool b_solidSolver_parallel;
+   bool b_ExplicitDLMFD;
 
    // MPI data
    MAC_Communicator const *pelCOMM;
@@ -190,6 +232,8 @@ private:   //----------------------------------------------------------------
    string SolidSolverResultsDirectory;
    ostringstream Paraview_saveMultipliers_pvd;
    geomVector Paraview_translated_distance_vector;
+   bool b_particles_verbose;
+   vector<vector<double>> const *Iw_Idw;
 };
 
 #endif

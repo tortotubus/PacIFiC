@@ -9,6 +9,7 @@ DLMFD_ParticlePoint::DLMFD_ParticlePoint(const geomVector &point, const geomVect
     component_number = 0;
     pointCoordinates = point;
     GCPointVector = point - gravity_center;
+    valid = true;
 }
 
 //---------------------------------------------------------------------------
@@ -64,6 +65,15 @@ size_t DLMFD_ParticlePoint::get_compNumber() const
 }
 
 //---------------------------------------------------------------------------
+bool DLMFD_ParticlePoint::isValid() const
+//--------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ParticlePoint::isValid");
+
+    return valid;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const geomVector &gravity_center)
 //---------------------------------------------------------------------------
 {
@@ -72,4 +82,13 @@ void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const
     component_number = comp;
     pointCoordinates = point;
     GCPointVector = pointCoordinates - gravity_center;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ParticlePoint::set_validity(bool const& valid_)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ParticlePoint::set_validity");
+
+    valid = valid_;
 }

@@ -228,7 +228,46 @@ public: //-----------------------------------------------------------
    // --------------------------------------------------------------------------
    // --------------------------- DLMFD FRAMEWORK ------------------------------
 
+   /** @brief Initialize the velocity right hand side of momentum equations
+   in the DLM/FD problem i.e. compute (ro/dt)*U(n-1) before the DLM/FD
+   solution */
    void updateFluid_DLMFD_rhs();
+
+   /** @brief Nullify q vector */
+   void nullify_QUvector();
+
+   /** @brief Add the contribution coef*<lambda,v> to the q
+   vector i.e. the DLM right hand side of momentum equations in the DLM/FD
+   problem
+   @param transferVec the entry
+   @param index the position in the vector
+   @param coef parameter */
+   void assemble_inQUvector(double transferVal, size_t index, double coef);
+
+   /** @brief Solve the fluid system at the matrix level */
+   void solve_FluidVel_DLMFD_Init(const double &time);
+
+   LA_SeqVector const *get_solution_U() const;
+
+   double const get_DLMFD_convergence_criterion() const;
+
+   int const get_DLMFD_maxiter() const;
+
+   /** @brief Initialize Qu vector as Bt*w, with w the pressure descent direction */
+   void initialize_QUvector_with_divv_rhs();
+
+   /** @brief solve A.tu = quf = <w,v> */
+   void solve_FluidVel_DLMFD_Iter(const double &time);
+
+   /** @brief Return the velocity solution vector t */
+   LA_SeqVector const *get_tVector_U() const;
+
+   /** @brief Update u+=alpha.t */
+   void update_FluidVel_OneUzawaIter(const double &alpha);
+
+   void store_DLMFD_rhs();
+
+   void re_initialize_explicit_DLMFD();
 
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
@@ -275,6 +314,7 @@ private:   //----------------------------------------------------------
    // Local vectors
    LA_SeqVector *U_LOC;
    LA_SeqVector *P_LOC;
+   LA_SeqVector *T_LOC;
 
    // Unknowns vectors
    LA_Vector *VEC_U;
@@ -292,6 +332,8 @@ private:   //----------------------------------------------------------
    LA_Vector *VEC_rhs_A_UnitaryPeriodicPressureGradient;
 
    // Work vectors
+   LA_Vector *VEC_q;
+   LA_Vector *VEC_t;
    LA_Vector *VEC_r;
    LA_Vector *VEC_w;
    LA_Vector *VEC_mean_pressure;
@@ -316,6 +358,10 @@ private:   //----------------------------------------------------------
    // Features of the fractional step projection algorithm
    bool b_ExplicitPressureGradient;
    bool b_HighOrderPressureCorrection;
+
+   // Uzawa algorithm
+   double Uzawa_DLMFD_precision;
+   int Uzawa_DLMFD_maxiter;
 };
 
 #endif

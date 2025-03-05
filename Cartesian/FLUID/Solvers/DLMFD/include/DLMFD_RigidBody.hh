@@ -5,16 +5,14 @@
 #include <geomVector.hh>
 #include <DLMFD_BoundaryMultiplierPoint.hh>
 #include <DLMFD_InteriorMultiplierPoint.hh>
+#include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <size_t_array3D.hh>
 #include <doubleVector.hh>
 using namespace std;
 
-/**
-  @brief The Structure ULBD_RHSInfos.
-  @details Information to compute vectors at both the particle and matrix
-    system levels in the Uzawa solving algorithm.
-  @author A. Wachs - Particulate flow project 2007-2009
-*/
+/** @brief The Structure ULBD_RHSInfos
+    @details Information to compute vectors at both the particle and matrix
+    system levels in the Uzawa solving algorithm. */
 struct ULBD_RHSInfos
 {
     size_t compIdx;                       /**< component number */
@@ -54,6 +52,9 @@ public: //-----------------------------------------------------------------
     /** @name Set methods */
     //@{
 
+    /** @brief Set component type */
+    void set_component_type();
+
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Constrained field */
@@ -70,9 +71,17 @@ public: //-----------------------------------------------------------------
                             size_t i, size_t j, size_t k,
                             list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
 
+    /** @brief Remove critical interior points
+    @param critical_distance Critical_distance */
+    virtual void erase_critical_interior_points_PerProc(double critical_distance) = 0;
+
     /** @brief Set points infos
     @param pField Constrained field */
     void set_points_infos(FV_DiscreteField const *pField);
+
+    void check_allocation_DLMFD_Cvectors();
+
+    void fill_DLMFD_Cvectors();
 
     /** @brief Set coupling factor
     @param rho_f Fluid density
@@ -82,11 +91,22 @@ public: //-----------------------------------------------------------------
     /** @brief Set mass, density and inertia of RB */
     void set_mass_and_density_and_inertia();
 
-    /** @brief Set translational velocity of RB */
+    /** @brief Set volume of RB */
+    void set_volume();
+
+    /** @brief Set translational velocity of RB from FS */
     void set_translational_velocity();
 
-    /** @brief Set angular velocity of RB */
-    void set_angular_velocity();
+    /** @brief Set translational velocity of RB
+    @param vtran Velocity to set */
+    void set_translational_velocity(const geomVector &vtran);
+
+    /** @brief Set angular velocity of RB from FS */
+    void set_angular_velocity_3D();
+
+    /** @brief Set angular velocity of RB
+    @param vtran Angular velocity to set */
+    void set_angular_velocity_3D(const geomVector &vrot);
 
     /** @brief Set t_tran of RB */
     void set_Tu(const geomVector &ttran);
@@ -117,17 +137,32 @@ public: //-----------------------------------------------------------------
     @param point Point */
     geomVector get_rigid_body_velocity(geomVector const &point) const;
 
-    /** @brief Get the rigid body angular velocity*/
+    /** @brief Get the rigid body angular velocity from FS */
     geomVector get_rigid_body_angular_velocity() const;
 
-    /** @brief Returns the translational velocity of the RB */
+    /** @brief Get the rigid body angular velocity object */
+    geomVector get_angular_velocity_3D() const;
+
+    /** @brief Get the rigid body translational velocity from FS */
     geomVector get_rigid_body_translational_velocity() const;
 
-    /** @brief Returns a tuple of mass and density of RB */
-    tuple<double, double> get_mass_and_density() const;
+    /** @brief Get the rigid body translational velocity object */
+    geomVector get_translational_velocity() const;
 
-    /** @brief Returns a tuple of mass and density of RB */
-    vector<vector<double>> get_inertia() const;
+    /** @brief Returns the mass of RB from FS */
+    double get_rigid_body_mass() const;
+
+    /** @brief Returns the density of RB from FS */
+    double get_rigid_body_density() const;
+
+    /** @brief Returns the density object of RB */
+    double get_density() const;
+
+    /** @brief Returns the volume object of RB */
+    double get_volume() const;
+
+    /** @brief Returns the inertia tensor of RB */
+    vector<vector<double>> get_rigid_body_inertia() const;
 
     /** @brief Get q_tran */
     geomVector const get_Qu() const;
@@ -154,6 +189,8 @@ public: //-----------------------------------------------------------------
     /** @brief Extend the list of interior points
     @param np Number of points */
     void extend_ip_list(size_t const &np);
+
+    void allocate_default_points_infos(size_t const &nbBPdef, size_t const &nbIPdef);
 
     //@}
 
@@ -219,6 +256,8 @@ public: //-----------------------------------------------------------------
     /** @name DLMFD computing methods */
     //@{
 
+    void nullify_Uzawa_vectors();
+
     /** @brief Compute the q_U quantities */
     void compute_Qu(bool init);
 
@@ -243,7 +282,7 @@ public: //-----------------------------------------------------------------
     vector<vector<double>> calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix);
 
     /** @brief (1-rho_f/rho_s)*M*t_tran = q_tran and
-   (1-rho_f/rho_s)*(I*t_rot+t_rot x I*t_rot) = q_rot
+    (1-rho_f/rho_s)*(I*t_rot+t_rot x I*t_rot) = q_rot
     @param rho_f Fluid density
     @param timestep Time step */
     void calculateParticleVelocities(double const &rho_f, double const &timestep);
@@ -252,9 +291,35 @@ public: //-----------------------------------------------------------------
     void updateSolutionVectors_Velocity(const double &alpha, const double &beta);
 
     /** @brief Set the translational t_tran and rotational t_rot vectors, in
-   case of constant velocity over the particle i.e. ttran and trot are
-   initialized with the velocity to be imposed  */
+    case of constant velocity over the particle i.e. ttran and trot are
+    initialized with the velocity to be imposed  */
     void setTVectors_constant();
+
+    void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init);
+
+    /** @brief Compute residuals x=<alpha,tu-(tU+tomega^GM)>_P */
+    void compute_x_residuals_Velocity(FV_DiscreteField const *pField);
+
+    /** @brief Set r = - x and w = r */
+    void compute_r_and_w_FirstUzawaIteration();
+
+    /** @brief Return the VEC_r.VEC_r scalar product */
+    double compute_r_dot_r() const;
+
+    /** @brief Return the VEC_r.VEC_r scalar product */
+    double compute_w_dot_x() const;
+
+    /** @brief Update lambda and r i.e. do: lambda -= alpha * w and r -= alpha * x */
+    void update_lambda_and_r(const double &alpha);
+
+    /** @brief Update w i.e. do: w = r + beta * w */
+    void update_w(const double &beta);
+
+    /** @brief Compute the explicit momentum equations right hand side
+    <lambda,v>_P */
+    void compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+                                      bool bulk,
+                                      FV_DiscreteField const *pField);
 
     //@}
 
@@ -272,6 +337,9 @@ public: //-----------------------------------------------------------------
 
     double Q2weighting(size_t const &i, double const &x,
                        double const &y, double const &z);
+
+    /** @brief Allocate Uzawa vectors */
+    void allocate_initialize_Uzawa_vectors();
 
     //@}
 
@@ -296,8 +364,10 @@ protected: //--------------------------------------------------------------
         compute vectors at both the particle and matrix system levels
         in the Uzawa solving algorithm */
 
-    doubleVector VEC_lambda = doubleVector(0, 0.); /**< DLM vector */
-    doubleVector VEC_w = doubleVector(0, 0.);      /**< DLM work vector for the Uzawa/DLMFD algorithm */
+    doubleVector VEC_r;      /**< residual vector for the Uzawa/DLMFD algorithm */
+    doubleVector VEC_x;      /**< work vector for the Uzawa/DLMFD algorithm */
+    doubleVector VEC_lambda; /**< DLM vector */
+    doubleVector VEC_w;      /**< DLM work vector for the Uzawa/DLMFD */
 
     geomVector t_tran;   /**< translational velocity unknown */
     geomVector q_tran;   /**< translational velocity right hand side */
@@ -305,9 +375,21 @@ protected: //--------------------------------------------------------------
     geomVector q_rot_3D; /**< rotational velocity right hand side */
 
     size_t_array2D *index_min; /**< lower bound index in the mesh related to the
- solid component circumscribing box */
+    solid component circumscribing box */
     size_t_array2D *index_max; /**< upper bound index in the mesh related to the
      solid component circumscribing box */
+
+    size_t *NDOF_comp;       /**< vector of component number of constrained DOF */
+    double *NDOF_leverage;   /**< vector of leverage of constrained velocity
+      DOF */
+    size_t *NDOF_globalpos;  /**< vector of global position in the linear system
+     of constrained DOF */
+    size_t *NDOF_nfieldUNK;  /**< vector of number of field unknowns associated
+         to a constrained DOF */
+    double *NDOF_deltaOmega; /**< vector of delta*omega weights for each field
+        unknown associated to a constrained DOF */
+    size_t *NDOF_FVTriplet;  /**< vector of MAC triplet (i,j,k) for each field
+     unknown associated to a constrained DOF */
 
     geomVector translational_velocity; /**< translational velocity */
     geomVector angular_velocity_3D;    /**< angular velocity */

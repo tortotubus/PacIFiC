@@ -103,8 +103,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
 
   // Clear results directory in case of a new run
   if (!b_restart)
-    PAC_Misc::clearAllFiles(resultsDirectory, "Savings",
-                            my_rank);
+    PAC_Misc::clearAllFiles(resultsDirectory, "Savings", my_rank);
 
   // Get space dimension
   dim = UU->primary_grid()->nb_space_dimensions();
@@ -192,6 +191,11 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     delete grav;
   }
 
+  // Set the output frequency
+  size_t output_frequency = 1;
+  if (exp->has_entry("Output_frequency"))
+    output_frequency = size_t(exp->int_data("Output_frequency"));
+
   // NS parameters
   if (my_rank == is_master)
   {
@@ -209,8 +213,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   }
 
   // Build the matrix system
-  MAC_ModuleExplorer *se =
-      exp->create_subexplorer(0, "DLMFD_ProjectionNavierStokesSystem");
+  MAC_ModuleExplorer *se = exp->create_subexplorer(0, "DLMFD_ProjectionNavierStokesSystem");
   GLOBAL_EQ = DLMFD_ProjectionNavierStokesSystem::create(this, se, UU, PP,
                                                          ViscousTimeAccuracy, AdvectionTimeAccuracy, b_pressure_rescaling,
                                                          b_ExplicitPressureGradient, b_HighOrderPressureCorrection);
@@ -234,8 +237,17 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   transfert.gravity_vector = gravity_vector;
   transfert.split_gravity_vector = split_gravity_vector;
   transfert.GLOBAL_EQ = GLOBAL_EQ;
+  transfert.velocitylevelDiscrField = 0;
+  transfert.b_restart = b_restart;
+  transfert.output_frequency = output_frequency;
+  transfert.UU = UU;
+  transfert.PP = PP;
 
   dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
+
+  // Use explicit DLMFD in N&S advection-diffusion equation
+  if (dlmfd_solver->get_explicit_DLMFD())
+    GLOBAL_EQ->re_initialize_explicit_DLMFD();
 }
 
 //---------------------------------------------------------------------------
@@ -405,6 +417,9 @@ void DLMFD_ProjectionNavierStokes::do_after_inner_iterations_stage(
     MAC::out() << "         L2 Norm of distribvec(div(u)) = " << MAC::doubleToString(ios::scientific, 14, normdivu) << endl;
   compute_and_print_divu_norm();
 
+  // DLMFD computation
+  dlmfd_solver->do_after_inner_iterations_stage(t_it);
+
   stop_total_timer();
 }
 
@@ -457,7 +472,7 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_Projection(
   NavierStokes_AdvectionDiffusion_PredictionStep(t_it);
 
   // Project velocity on a divergence free space by
-  // solving a pressure Poison problem, and update velocity and pressure
+  // solving a pressure Poisson problem, and update velocity and pressure
   NavierStokes_VelocityPressure_CorrectionStep(t_it);
 
   // Copy back velocity solution in field
@@ -502,8 +517,7 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionSte
     }
 
     // Compute velocity advection rhs
-    GLOBAL_EQ->assemble_velocity_advection(AdvectionScheme, 0, -density,
-                                           0);
+    GLOBAL_EQ->assemble_velocity_advection(AdvectionScheme, 0, -density, 0);
 
     // Compute the advection-diffusion rhs
     // The method adds the periodic pressure drop in case of periodic flow
@@ -549,12 +563,10 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionSte
       // Copy back velocity solution in field for i != 0 as for i = 0, the
       // field already has the right values of the velocity
       if (i)
-        UU->update_free_DOFs_value(0,
-                                   GLOBAL_EQ->get_solution_velocity());
+        UU->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_velocity());
 
       // Compute velocity advection rhs
-      GLOBAL_EQ->assemble_velocity_advection(AdvectionScheme, 0,
-                                             -density / double(n_advection_subtimesteps), 0);
+      GLOBAL_EQ->assemble_velocity_advection(AdvectionScheme, 0, -density / double(n_advection_subtimesteps), 0);
 
       // Solve advection problem
       GLOBAL_EQ->VelocityAdvection_solver();
@@ -923,8 +935,7 @@ void DLMFD_ProjectionNavierStokes::update_pressure_drop_imposed_flow_rate(
 void DLMFD_ProjectionNavierStokes::compute_and_print_divu_norm(void)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL(
-      "DLMFD_ProjectionNavierStokes:: compute_and_print_divu_norm");
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: compute_and_print_divu_norm");
 
   size_t i, j, k;
   size_t_vector min_unknown_index(dim, 0);

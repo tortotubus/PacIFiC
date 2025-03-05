@@ -104,6 +104,16 @@ public: //------------------------------------------------------------------
 
     //@}
 
+    //-- Add methods
+    /** @name Add methods */
+    //@{
+
+    /** @brief Remove critical interior points
+    @param critical_distance Critical_distance */
+    void erase_critical_interior_points_PerProc(double critical_distance);
+
+    //@}
+
 protected: //----------------------------------------------------------------
 private:   //----------------------------------------------------------------
 };

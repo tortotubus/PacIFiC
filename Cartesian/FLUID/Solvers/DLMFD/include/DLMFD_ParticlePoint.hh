@@ -16,6 +16,7 @@ protected:                       //---------------------------------------------
     geomVector pointCoordinates; /**< coordinates of the point */
     geomVector GCPointVector;    /**< vector from gravity center to the point */
     size_t component_number;     /**< the component number for MAC FVM */
+    bool valid;                  /**< validity of the point */
 
 public: //----------------------------------------------------------------
     //-- Constructors & Destructor
@@ -42,7 +43,8 @@ public: //----------------------------------------------------------------
     @param gravity_center Gravity center */
     void set(const size_t &comp, const geomVector &point,
              const geomVector &gravity_center);
-
+    /** @brief Set validity */
+    void set_validity(bool const& valid_);
     //@}
 
     //-- Get methods
@@ -66,6 +68,8 @@ public: //----------------------------------------------------------------
     /** @brief Get the component of the point */
     size_t get_compNumber() const;
 
+    /** @brief Is the point valid ? */
+    bool isValid() const;
 
     //@}
 
