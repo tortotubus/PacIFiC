@@ -186,7 +186,7 @@ void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it
                                 << " byte_order=\"LittleEndian\">" << endl;
    Paraview_saveMultipliers_pvd << "<Collection>" << endl;
 
-   // Hydrodynamic force and torque 
+   // Hydrodynamic force and torque
    allrigidbodies->sum_DLM_hydrodynamic_force_output(b_restart);
    allrigidbodies->particles_hydrodynamic_force_output(SolidSolverResultsDirectory + "/",
                                                        b_restart,
@@ -453,8 +453,8 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
       // a particle on every process has the same (and right) t_tran and t_rot.
       velocity_broadcast_andUpdateInOneIt(t_it);
 
-      // Initialize Qu vector as Bt*w, with w the pressure descent direction
-      GLOBAL_EQ->initialize_QUvector_with_divv_rhs();
+      // Nullify Qu vector
+      GLOBAL_EQ->nullify_QUvector();
 
       // Add the DLM right hand side of the momentum equations
       // <w,v> at the particles/field level to quf

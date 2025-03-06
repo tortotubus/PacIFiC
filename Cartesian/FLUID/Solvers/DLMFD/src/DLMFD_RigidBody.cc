@@ -1069,7 +1069,7 @@ void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesS
     if (ndof)
     {
         list<struct ULBD_RHSInfos>::const_iterator il = points_infos.begin();
-        double lambda_value = 0;
+        double lambda_value = 0.;
         pair<size_t, double> Onepair;
         list<size_t>::const_iterator ilpositionU;
         list<double>::const_iterator ildom;
@@ -1080,11 +1080,11 @@ void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesS
         {
             lambda_value = (*work)(i);
             ildom = il->omega_delta.begin();
+
             if (il->omega_delta.size() != 1)
-                for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end();
-                     ilpositionU++, ildom++)
-                    GLOBAL_EQ->assemble_inQUvector(*ildom * lambda_value, *ilpositionU,
-                                                   coef);
+                for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end(); ilpositionU++, ildom++)
+                    GLOBAL_EQ->assemble_inQUvector(*ildom * lambda_value, *ilpositionU, coef);
+
             else if (bulk)
             {
                 // Coef 1 / 8

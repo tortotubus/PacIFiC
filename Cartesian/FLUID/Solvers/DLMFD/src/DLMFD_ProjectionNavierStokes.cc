@@ -73,7 +73,9 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
       b_ExplicitPressureGradient(false),
       b_HighOrderPressureCorrection(false),
       b_restart(false),
-      b_pressure_rescaling(false)
+      b_pressure_rescaling(false),
+      b_ExplicitDLMFD(false),
+      explicitDLMFD_restartFilename_Prefix("DLM_")
 {
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes");
   MAC_ASSERT(PP->discretization_type() == "centered");
@@ -246,8 +248,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 
   // Use explicit DLMFD in N&S advection-diffusion equation
-  if (dlmfd_solver->get_explicit_DLMFD())
-    GLOBAL_EQ->re_initialize_explicit_DLMFD();
+  b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+  if (b_ExplicitDLMFD)
+    GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart, explicitDLMFD_restartFilename);
+
 }
 
 //---------------------------------------------------------------------------
@@ -375,11 +379,9 @@ void DLMFD_ProjectionNavierStokes::do_before_inner_iterations_stage(
     FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
-  MAC_LABEL(
-      "DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage");
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage");
 
-  start_total_timer(
-      "DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage");
+  start_total_timer("DLMFD_ProjectionNavierStokes:: do_before_inner_iterations_stage");
 
   FV_OneStepIteration::do_before_inner_iterations_stage(t_it);
 

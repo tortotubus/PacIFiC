@@ -107,7 +107,8 @@ DLMFD_ProjectionNavierStokesSystem::DLMFD_ProjectionNavierStokesSystem(
       NS_Advection_TimeAccuracy(NS_Advection_TimeAccuracy_),
       b_pressure_rescaling(b_pressure_rescaling_),
       b_ExplicitPressureGradient(b_ExplicitPressureGradient_),
-      b_HighOrderPressureCorrection(b_HighOrderPressureCorrection_)
+      b_HighOrderPressureCorrection(b_HighOrderPressureCorrection_),
+      b_NS_ExplicitDLMFD(false)
 {
    MAC_LABEL(
        "DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem");
@@ -366,7 +367,7 @@ LA_SeqVector const *
 DLMFD_ProjectionNavierStokesSystem::get_solution_pressure(void) const
 //----------------------------------------------------------------------
 {
-   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: get_solution_P");
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: get_solution_pressure");
 
    PP_NUM->scatter()->get(VEC_P, P_LOC);
 
@@ -500,6 +501,10 @@ void DLMFD_ProjectionNavierStokesSystem::compute_velocityAdvectionDiffusion_rhs(
    // Add periodic pressure gradient source term
    VEC_rhs_VelocityAdvectionDiffusion->sum(
        VEC_rhs_A_UnitaryPeriodicPressureGradient, dpdl);
+
+   // Add explicit DLMFD forcing term
+   if (b_NS_ExplicitDLMFD)
+      VEC_rhs_VelocityAdvectionDiffusion->sum(VEC_rhs_VelocityDLMFD_Nm1);
 }
 
 //----------------------------------------------------------------------
@@ -818,6 +823,10 @@ void DLMFD_ProjectionNavierStokesSystem::updateFluid_DLMFD_rhs()
 
    // Compute unsteady rhs
    MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_U, VEC_rhs_A_Velocity);
+
+   // Add explicit DLMFD forcing term
+   if (b_NS_ExplicitDLMFD)
+      VEC_rhs_A_Velocity->sum(VEC_rhs_VelocityDLMFD_Nm1, -1.);
 }
 
 //----------------------------------------------------------------------
@@ -846,6 +855,8 @@ void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Init(const double 
 
    VEC_q->synchronize();
    VEC_q->sum(VEC_rhs_A_Velocity);
+
+   SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_U);
 }
 
 //----------------------------------------------------------------------
@@ -895,7 +906,7 @@ void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Iter(const double 
 {
    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_divv_rhs");
 
-   // Has to be done before, for the sake of well understanding the code
+   // Has to be done before, for the sake of well understanding
    VEC_q->synchronize();
 
    // Solution of A.t=q
@@ -936,11 +947,96 @@ void DLMFD_ProjectionNavierStokesSystem::store_DLMFD_rhs()
 }
 
 //----------------------------------------------------------------------
-void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD()
+void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD(bool const &restart, string const &rootfilename_dlm)
 //----------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD");
 
+   b_NS_ExplicitDLMFD = true;
+
    VEC_rhs_VelocityDLMFD_Nm1 = MAT_A_VelocityUnsteady->create_vector(this);
    VEC_rhs_VelocityDLMFD_Nm1->re_initialize(UU->nb_global_unknowns());
+
+   // If DLM have been saved in a separate file
+   // Check that this file exists and read values from it in case of restart
+   if (restart)
+   {
+      MAC_Communicator const *pelCOMM = MAC_Exec::communicator();
+      size_t my_rank = pelCOMM->rank();
+
+      ostringstream oss;
+      oss << rootfilename_dlm;
+      if (pelCOMM->nb_ranks() > 1)
+         oss << "_" << my_rank;
+      oss << ".pel";
+
+      ifstream fileIN(oss.str().c_str(), ios::in);
+      if (fileIN.is_open())
+      {
+         double xx = 0.;
+         for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
+         {
+            fileIN >> xx;
+            U_LOC->set_item(i, xx);
+         }
+         fileIN.close();
+
+         UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
+         VEC_rhs_VelocityDLMFD_Nm1->synchronize();
+      }
+      else
+      {
+         oss << ".bin";
+
+         ifstream fileINbin(oss.str().c_str(), ios::in | ios::binary);
+         if (fileINbin.is_open())
+         {
+            double xx = 0.;
+            for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
+            {
+               fileINbin.read(reinterpret_cast<char *>(&xx), sizeof(double));
+               U_LOC->set_item(i, xx);
+            }
+            fileINbin.close();
+
+            UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
+            VEC_rhs_VelocityDLMFD_Nm1->synchronize();
+         }
+         else
+            MAC::out() << "Warning : explicit DLM restart file " << oss.str().c_str() << " does not exist on proc " << my_rank << endl;
+      }
+
+      pelCOMM->barrier();
+      if (my_rank == 0)
+         MAC::out() << endl;
+   }
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::do_additional_savings(string const &rootfilename_dlm)
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::do_additional_savings");
+
+   MAC_Communicator const *pelCOMM = MAC_Exec::communicator();
+   size_t my_rank = pelCOMM->rank();
+   double xx = 0.;
+
+   if (b_NS_ExplicitDLMFD)
+   {
+      ostringstream oss;
+      oss << rootfilename_dlm;
+      if (pelCOMM->nb_ranks() > 1)
+         oss << "_" << my_rank;
+      oss << ".pel.bin";
+      ofstream fileOUTbin(oss.str().c_str(), ios::out | ios::binary);
+
+      UU_NUM->scatter()->get(VEC_rhs_VelocityDLMFD_Nm1, U_LOC);
+      for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
+      {
+         xx = U_LOC->item(i);
+         fileOUTbin.write(reinterpret_cast<char *>(&xx), sizeof(double));
+      }
+      fileOUTbin << endl;
+   }
 }

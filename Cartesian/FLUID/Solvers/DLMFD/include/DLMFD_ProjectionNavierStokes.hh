@@ -155,7 +155,7 @@ private:   //----------------------------------------------------------------
 
     /** @name Utilities */
     //@{
-    /** @ brief Reload other data than FV fields for restart  */
+    /** @brief Reload other data than FV fields for restart  */
     void do_additional_reload(string const &basename);
 
     /** @ brief Update pressure drop in case of periodic imposed flow rate
@@ -165,10 +165,11 @@ private:   //----------------------------------------------------------------
 
     /** @ brief Compute and print L2 and Linf norms of div(u) */
     void compute_and_print_divu_norm(void);
+
     //@}
 
 private: //----------------------------------------------------------------
-         //-- Class attributes
+    //-- Class attributes
     static DLMFD_ProjectionNavierStokes const *PROTOTYPE;
 
     //-- Attributes
@@ -180,6 +181,7 @@ private: //----------------------------------------------------------------
 
     // Fictitious Domain instance
     DLMFD_FictitiousDomain *dlmfd_solver;
+    bool b_ExplicitDLMFD;
 
     // MPI parameters
     size_t nb_ranks;
@@ -216,6 +218,9 @@ private: //----------------------------------------------------------------
 
     // Restart
     bool b_restart;
+    string explicitDLMFD_restartFilename_Prefix;
+    string explicitDLMFD_restartFilename_Root;
+    string explicitDLMFD_restartFilename;
 
     // Pressure rescaling in case of all non-Dirichlet BCs
     bool b_pressure_rescaling;

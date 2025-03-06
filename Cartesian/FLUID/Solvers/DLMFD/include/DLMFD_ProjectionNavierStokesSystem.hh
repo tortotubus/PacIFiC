@@ -267,7 +267,10 @@ public: //-----------------------------------------------------------
 
    void store_DLMFD_rhs();
 
-   void re_initialize_explicit_DLMFD();
+   void re_initialize_explicit_DLMFD(bool const &restart, string const &rootfilename_dlm);
+
+   /** @brief Reload other data than FV fields for restart  */
+   void do_additional_savings(string const &rootfilename_dlm);
 
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
@@ -358,6 +361,7 @@ private:   //----------------------------------------------------------
    // Features of the fractional step projection algorithm
    bool b_ExplicitPressureGradient;
    bool b_HighOrderPressureCorrection;
+   bool b_NS_ExplicitDLMFD;
 
    // Uzawa algorithm
    double Uzawa_DLMFD_precision;
