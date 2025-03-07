@@ -186,6 +186,9 @@ void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it
                                 << " byte_order=\"LittleEndian\">" << endl;
    Paraview_saveMultipliers_pvd << "<Collection>" << endl;
 
+   // Set the first DLMFD utilities
+   allrigidbodies->update(t_it->time(), critical_distance, *solidFluid_transferStream);
+
    // Hydrodynamic force and torque
    allrigidbodies->sum_DLM_hydrodynamic_force_output(b_restart);
    allrigidbodies->particles_hydrodynamic_force_output(SolidSolverResultsDirectory + "/",
@@ -207,26 +210,29 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
 
    filename = "saveMultipliersT" + MAC::intToString(cycleNumber);
 
-   Paraview_saveMultipliers_pvd << "<DataSet timestep=\"" << t_it->time()
-                                << "\" " << "group=\"\" part=\"0\" file=\"" << filename << ".pvtu\"/>"
-                                << endl;
+   if (rank == master)
+   {
+      Paraview_saveMultipliers_pvd << "<DataSet timestep=\"" << t_it->time()
+                                   << "\" " << "group=\"\" part=\"0\" file=\"" << filename << ".pvtu\"/>"
+                                   << endl;
 
-   ofstream f((SolidSolverResultsDirectory + "/saveMultipliers.pvd").c_str(), ios::out);
+      ofstream f((SolidSolverResultsDirectory + "/saveMultipliers.pvd").c_str(), ios::out);
 
-   string str = Paraview_saveMultipliers_pvd.str();
-   f << str;
+      string str = Paraview_saveMultipliers_pvd.str();
+      f << str;
 
-   f << "</Collection>" << endl;
-   f << "</VTKFile>" << endl;
-   f.close();
+      f << "</Collection>" << endl;
+      f << "</VTKFile>" << endl;
+      f.close();
 
-   write_PVTU_multiplier_file(filename);
+      write_PVTU_multiplier_file(filename);
+   }
 
    allrigidbodies->output_DLMFDPoints_PARAVIEW(SolidSolverResultsDirectory + "/" + filename,
                                                &Paraview_translated_distance_vector,
-                                               true, pelCOMM->rank());
-
-   solidSolver->saveResults("", t_it->time(), cycleNumber);
+                                               true);
+   if (rank == master)
+      solidSolver->saveResults("", t_it->time(), cycleNumber);
 }
 
 //---------------------------------------------------------------------------
@@ -342,13 +348,12 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: DLMFD_construction");
 
-   // Set the constrained field: here velocity
-   if (!are_particles_fixed)
-      allrigidbodies->set_ptr_constrained_field(UU);
-
    // Update the rigid bodies features to prepare the algorithm
-   if (!are_particles_fixed || t_it->time() == t_it->time_step())
+   if (!are_particles_fixed)
+   {
+      allrigidbodies->set_ptr_constrained_field(UU);
       allrigidbodies->update(t_it->time(), critical_distance, *solidFluid_transferStream);
+   }
 
    // Nullify Uzawa vectors in particles
    allrigidbodies->nullify_all_Uzawa_vectors();

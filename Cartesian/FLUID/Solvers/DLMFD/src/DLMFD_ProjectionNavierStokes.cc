@@ -251,7 +251,6 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
   if (b_ExplicitDLMFD)
     GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart, explicitDLMFD_restartFilename);
-
 }
 
 //---------------------------------------------------------------------------
@@ -434,6 +433,8 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
 
   start_total_timer("DLMFD_ProjectionNavierStokes:: do_additional_savings");
 
+  dlmfd_solver->do_additional_savings(cycleNumber, t_it);
+
   // Elapsed time by sub-problems
   if (my_rank == is_master)
   {
@@ -442,8 +443,6 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
                << "Full problem" << endl;
     write_elapsed_time_smhd(MAC::out(), cputime, "Computation time");
     SCT_get_summary(MAC::out(), cputime);
-
-    dlmfd_solver->do_additional_savings(cycleNumber, t_it);
   }
 
   stop_total_timer();

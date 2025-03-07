@@ -81,7 +81,7 @@ public: //-----------------------------------------------------------------
     void set_coupling_factor(double const &rho_f, bool const &explicit_treatment);
 
     /** @brief Set mass, density and inertia of all RBs */
-    void set_mass_and_density_and_volume_and_inertia();
+    void set_mass_and_density_and_volume_and_inertia(istringstream &solidFluid_transferStream);
 
     /** @brief Set t_tran of RB i */
     void set_Tu(const size_t i, const geomVector &ttran);
@@ -166,8 +166,7 @@ public: //-----------------------------------------------------------------
     @param filename File name */
     void output_DLMFDPoints_PARAVIEW(const string &filename,
                                      geomVector const *translated_distance_vector,
-                                     const bool &withIntPts,
-                                     size_t rank) const;
+                                     const bool &withIntPts) const;
 
     /** @brief Output force and torque
     @param nothing File name */

@@ -43,14 +43,13 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    // Set the onProc IDs
    set_listIdOnProc();
 
-   // Set the points infos for all rigid bodies
+   // Set the points infos of each rigib body
    set_points_infos();
 
    // Set mass, density and inertia tensor of each rigid body
-   ptr_FSallrigidbodies->update(in);
-   set_mass_and_density_and_volume_and_inertia();
+   set_mass_and_density_and_volume_and_inertia(in);
 
-   // Set the force and torque boolean
+   // Set the force and torque output boolean
    b_output_hydro_forceTorque = false;
 }
 
@@ -243,22 +242,22 @@ void DLMFD_AllRigidBodies::set_coupling_factor(double const &rho_f, bool const &
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_coupling_factor");
 
-   list<int>::iterator il;
-   for (il = onProc.begin(); il != onProc.end(); il++)
-      vec_ptr_DLMFDallrigidbodies[*il]->set_coupling_factor(rho_f, explicit_treatment);
+   for (size_t i = 0; i < RBs_number; i++)
+      vec_ptr_DLMFDallrigidbodies[i]->set_coupling_factor(rho_f, explicit_treatment);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::set_mass_and_density_and_volume_and_inertia()
+void DLMFD_AllRigidBodies::set_mass_and_density_and_volume_and_inertia(istringstream &solidFluid_transferStream)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_mass_and_density_and_volume_and_inertia");
 
-   list<int>::iterator il;
-   for (il = onProc.begin(); il != onProc.end(); il++)
+   ptr_FSallrigidbodies->update(solidFluid_transferStream);
+
+   for (size_t i = 0; i < RBs_number; i++)
    {
-      vec_ptr_DLMFDallrigidbodies[*il]->set_mass_and_density_and_inertia();
-      vec_ptr_DLMFDallrigidbodies[*il]->set_volume();
+      vec_ptr_DLMFDallrigidbodies[i]->set_mass_and_density_and_inertia();
+      vec_ptr_DLMFDallrigidbodies[i]->set_volume();
    }
 }
 
@@ -462,8 +461,7 @@ void DLMFD_AllRigidBodies::update(double const &time, double critical_distance, 
 //---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::output_DLMFDPoints_PARAVIEW(const string &filename,
                                                        geomVector const *translated_distance_vector,
-                                                       const bool &withIntPts,
-                                                       size_t rank) const
+                                                       const bool &withIntPts) const
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: output_DLMFDPoints_PARAVIEW");
