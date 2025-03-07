@@ -34,6 +34,9 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb),
     index_min = new size_t_array2D(dim, dim, 0);
     index_max = new size_t_array2D(dim, dim, 0);
 
+    NDOF_comp = NULL;
+    NDOF_leverage = NULL;
+    NDOF_nfieldUNK = NULL;
     NDOF_globalpos = NULL;
     NDOF_nfieldUNK = NULL;
     NDOF_deltaOmega = NULL;
@@ -99,6 +102,42 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: ~DLMFD_RigidBody");
+
+    if (Q2numb)
+    {
+        delete Q2numb;
+        Q2numb = NULL;
+    }
+
+    list<DLMFD_InteriorMultiplierPoint *>::iterator iip;
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator ibp;
+
+    for (iip = interior_points.begin(); iip != interior_points.end(); iip++)
+        delete *iip;
+    interior_points.clear();
+
+    for (ibp = boundary_points.begin(); ibp != boundary_points.end(); ibp++)
+        delete *ibp;
+    boundary_points.clear();
+
+    list<struct ULBD_RHSInfos>::iterator il;
+    for (il = points_infos.begin(); il != points_infos.end(); il++)
+    {
+        il->NodeNoU.clear();
+        il->positionU.clear();
+        il->omega_delta.clear();
+    }
+    points_infos.clear();
+
+    for (iip = halozone_interior_points.begin(); iip != halozone_interior_points.end();
+         iip++)
+        delete *iip;
+    halozone_interior_points.clear();
+
+    for (ibp = halozone_boundary_points.begin(); ibp != halozone_boundary_points.end();
+         ibp++)
+        delete *ibp;
+    halozone_boundary_points.clear();
 }
 
 //---------------------------------------------------------------------------
@@ -124,6 +163,19 @@ void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_Bou
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_halozone_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_halozone_boundary_point");
+
+    (*bphz)->set(0, point, gravity_center);
+    ++nBPHZ;
+    if (nBPHZ == halozone_boundary_points.size())
+        extend_bphz_list(nBPHZ);
+    bphz++;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_interior_point(const size_t &comp,
                                          const geomVector &point,
                                          size_t i, size_t j, size_t k,
@@ -137,6 +189,22 @@ void DLMFD_RigidBody::set_interior_point(const size_t &comp,
     if (nIP == interior_points.size())
         extend_ip_list(nIP);
     ip++;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
+                                                  const geomVector &point,
+                                                  size_t i, size_t j, size_t k,
+                                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &iphz)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
+
+    (*iphz)->set(comp, point, i, j, k, gravity_center);
+    ++nIPHZ;
+    if (nIPHZ == halozone_interior_points.size())
+        extend_iphz_list(nIPHZ);
+    iphz++;
 }
 
 //---------------------------------------------------------------------------
@@ -166,8 +234,7 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
     // Interior points
     if (nIP)
     {
-        list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts =
-            interior_points.begin();
+        list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts = interior_points.begin();
         for (size_t i = 0; i < nIP; ++i, iterIntPnts++)
             if ((*iterIntPnts)->isValid())
             {
@@ -247,23 +314,23 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
 
     if (ndof)
     {
-        if (NDOF_comp)
-            delete[] NDOF_comp;
-        if (NDOF_leverage)
-            delete[] NDOF_leverage;
-        if (NDOF_nfieldUNK)
-            delete[] NDOF_nfieldUNK;
+        // if (NDOF_comp)
+        //     delete[] NDOF_comp;
+        // if (NDOF_leverage)
+        //     delete[] NDOF_leverage;
+        // if (NDOF_nfieldUNK)
+        //     delete[] NDOF_nfieldUNK;
 
         NDOF_comp = new size_t[ndof];
         NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
         NDOF_nfieldUNK = new size_t[ndof];
 
-        if (NDOF_globalpos)
-            delete[] NDOF_globalpos;
-        if (NDOF_deltaOmega)
-            delete[] NDOF_deltaOmega;
-        if (NDOF_FVTriplet)
-            delete[] NDOF_FVTriplet;
+        // if (NDOF_globalpos)
+        //     delete[] NDOF_globalpos;
+        // if (NDOF_deltaOmega)
+        //     delete[] NDOF_deltaOmega;
+        // if (NDOF_FVTriplet)
+        //     delete[] NDOF_FVTriplet;
 
         NDOF_globalpos = new size_t[ntotal_fieldunk];
         NDOF_deltaOmega = new double[ntotal_fieldunk];
@@ -582,10 +649,43 @@ double DLMFD_RigidBody::get_volume() const
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::extend_bp_list(size_t const &np)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::extent_bp_list");
+
+    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    for (size_t i = 0; i < np; ++i)
+    {
+        boundary_points.push_back(bmp);
+        boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::extend_bphz_list(size_t const &np)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::extend_bphz_list");
+
+    DLMFD_BoundaryMultiplierPoint *bmphz = NULL;
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    for (size_t i = 0; i < np; ++i)
+    {
+        halozone_boundary_points.push_back(bmphz);
+        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_ip_list(size_t const &np)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody:: extent_ip_list");
+    MAC_LABEL("DLMFD_RigidBody::extent_ip_list");
 
     DLMFD_InteriorMultiplierPoint *imp = NULL;
     geomVector virtual_point = geomVector(0., 0., 0.);
@@ -593,8 +693,23 @@ void DLMFD_RigidBody::extend_ip_list(size_t const &np)
     for (size_t i = 0; i < np; ++i)
     {
         interior_points.push_back(imp);
-        interior_points.back() =
-            new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::extend_iphz_list(size_t const &np)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::extend_iphz_list");
+
+    DLMFD_InteriorMultiplierPoint *imphz = NULL;
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    for (size_t i = 0; i < np; ++i)
+    {
+        halozone_interior_points.push_back(imphz);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
     }
 }
 
@@ -625,20 +740,59 @@ void DLMFD_RigidBody::update_RB_position_and_velocity(geomVector const &pos,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::extend_bp_list(size_t const &np)
+bool DLMFD_RigidBody::hasDLMFDPointsOnProc() const
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody:: extent_bp_list");
+    MAC_LABEL("DLMFD_RigidBody::hasDLMFDPointsOnProc");
 
-    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
-    geomVector virtual_point = geomVector(0., 0., 0.);
+    bool has_valid_point = false;
 
-    for (size_t i = 0; i < np; ++i)
+    // Interior points
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = interior_points.begin();
+
+    for (size_t i = 0; i < nIP && !has_valid_point; ++i, ivi++)
+        if ((*ivi)->isValid())
+            has_valid_point = true;
+
+    // Boundary points
+    if (!has_valid_point)
     {
-        boundary_points.push_back(bmp);
-        boundary_points.back() =
-            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = boundary_points.begin();
+
+        for (size_t i = 0; i < nBP && !has_valid_point; ++i, imp++)
+            if ((*imp)->isValid())
+                has_valid_point = true;
     }
+
+    return has_valid_point;
+}
+
+//---------------------------------------------------------------------------
+bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::hasDLMFDPointsOnProc");
+
+    bool has_halozone_point = false;
+
+    // Interior points
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = halozone_interior_points.begin();
+
+    for (size_t i = 0; i < nIPHZ && !has_halozone_point; ++i, ivi++)
+        if ((*ivi)->isValid())
+            has_halozone_point = true;
+
+    // Boundary points
+    if (!has_halozone_point)
+    {
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = halozone_boundary_points.begin();
+
+        for (size_t i = 0; i < nBPHZ && !has_halozone_point; ++i, imp++)
+            if ((*imp)->isValid())
+                has_halozone_point = true;
+    }
+
+    return has_halozone_point;
 }
 
 //---------------------------------------------------------------------------

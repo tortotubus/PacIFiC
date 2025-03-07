@@ -27,6 +27,8 @@ DLMFD_Sphere::DLMFD_Sphere(FS_RigidBody *pgrb) : DLMFD_RigidBody(pgrb)
 
     nIP = 0;
     nBP = 0;
+    nIPHZ = 0;
+    nBPHZ = 0;
 }
 
 //---------------------------------------------------------------------------
@@ -44,6 +46,8 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField const *pField, double critica
 
     nIP = 0;
     nBP = 0;
+    nIPHZ = 0;
+    nBPHZ = 0;
 
     //-- Boundary points
     set_boundary_points_list(pField, critical_distance);
@@ -64,10 +68,16 @@ void DLMFD_Sphere::set_boundary_points_list(FV_DiscreteField const *pField, doub
     FV_Mesh const *primary_grid = pField->primary_grid();
 
     size_t nbBPdef = pow(3.809 * radius / spacing, 2.);
+    size_t nbBPHZdef = size_t(0.25 * nbBPdef);
+
     if (boundary_points.empty())
         allocate_default_boundary_points_sphere(nbBPdef);
 
+    if (halozone_boundary_points.empty())
+        allocate_default_halozone_boundary_points_sphere(nbBPHZdef);
+
     list<DLMFD_BoundaryMultiplierPoint *>::iterator bp = boundary_points.begin();
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator bphz = halozone_boundary_points.begin();
 
     double spiral_spacing_correction = spacing / sqrt(3.);
 
@@ -119,8 +129,19 @@ void DLMFD_Sphere::set_boundary_points_list(FV_DiscreteField const *pField, doub
         z = radius * cos(thetak);
 
         point = geomVector(x, y, z);
+        geomVector GC_plus_point = gravity_center + point;
 
-        set_boundary_point(gravity_center + point, bp);
+        if (primary_grid->is_in_domain_with_halozone(GC_plus_point(0), GC_plus_point(1), GC_plus_point(2)))
+        {
+            if (primary_grid->is_in_domain_on_current_processor(GC_plus_point(0), GC_plus_point(1), GC_plus_point(2)))
+            {
+                set_boundary_point(GC_plus_point, bp);
+            }
+            else
+            {
+                set_halozone_boundary_point(GC_plus_point, bphz);
+            }
+        }
     }
 }
 
@@ -161,12 +182,18 @@ void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField const *pField, doub
     size_t n = size_t(2. * radius / mesh_size) + 1;
     size_t nbIPdef = size_t(3.2 * pi * n * n * n / 6.);
 
+    size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
+    size_t nbIPHZdef = security_bandwidth * n * n * 3 * 2;
+
     if (interior_points.empty())
         allocate_default_interior_points_sphere(nbIPdef);
 
-    list<DLMFD_InteriorMultiplierPoint *>::iterator ip = interior_points.begin();
+    if (halozone_interior_points.empty())
+        allocate_default_halozone_interior_points_sphere(nbIPHZdef);
 
-    size_t __nip = interior_points.size();
+    list<DLMFD_InteriorMultiplierPoint *>::iterator ip = interior_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::iterator iphz = halozone_interior_points.begin();
+
     for (size_t comp = 0; comp < ncomps; ++comp)
         for (size_t i = (*index_min)(comp, 0); i <= (*index_max)(comp, 0); ++i)
         {
@@ -182,7 +209,22 @@ void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField const *pField, doub
 
                     if (isIn(point))
                     {
-                        set_interior_point(comp, point, i, j, k, ip);
+                        // !! Add interior points that are unknowns only !!
+                        // NOTE : code DOF_is_constrained
+                        // if (pField->DOF_is_unknown(i, j, k, comp) && !pField->DOF_is_constrained(i, j, k, comp))
+                        if (pField->DOF_is_unknown(i, j, k, comp))
+                        {
+                            // Code the function bellow
+                            // pField->set_DOF_constrained(i, j, k, comp);
+                            if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
+                            {
+                                set_interior_point(comp, point, i, j, k, ip);
+                            }
+                            else
+                            {
+                                set_halozone_interior_point(comp, point, i, j, k, iphz);
+                            }
+                        }
                     }
                 }
             }
@@ -258,6 +300,22 @@ void DLMFD_Sphere::allocate_default_boundary_points_sphere(size_t const &nbBPdef
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_Sphere::allocate_default_halozone_boundary_points_sphere(size_t const &nbBPHZdef)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_Sphere:: allocate_default_halozone_interior_points_sphere");
+
+    DLMFD_BoundaryMultiplierPoint *bmphz = NULL;
+    for (size_t i = 0; i < nbBPHZdef; ++i)
+    {
+        halozone_boundary_points.push_back(bmphz);
+
+        geomVector virtual_point = geomVector(0., 0., 0.);
+        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_Sphere::allocate_default_interior_points_sphere(size_t const &nbIPdef)
 //---------------------------------------------------------------------------
 {
@@ -274,12 +332,28 @@ void DLMFD_Sphere::allocate_default_interior_points_sphere(size_t const &nbIPdef
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_Sphere::allocate_default_halozone_interior_points_sphere(size_t const &nbIPHZdef)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_Sphere:: allocate_default_halozone_interior_points_sphere");
+
+    DLMFD_InteriorMultiplierPoint *imphz = NULL;
+    for (size_t i = 0; i < nbIPHZdef; ++i)
+    {
+        halozone_interior_points.push_back(imphz);
+
+        geomVector virtual_point = geomVector(0., 0., 0.);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_Sphere::erase_critical_interior_points_PerProc(double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: erase_critical_interior_points_PerProc");
 
-    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp;
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp, ihp;
     list<DLMFD_InteriorMultiplierPoint *>::iterator ivi;
     double dist = 0., reduced_radius = radius - critical_distance;
     bool erase = false;
@@ -301,6 +375,16 @@ void DLMFD_Sphere::erase_critical_interior_points_PerProc(double critical_distan
                         for (size_t i = 0; i < nBP && !erase; ++i, imp++)
                             if ((*imp)->isValid())
                                 if (((*imp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                                    erase = true;
+                    }
+
+                    // Compare to boundary points in halo zone
+                    if (!halozone_boundary_points.empty())
+                    {
+                        ihp = halozone_boundary_points.begin();
+                        for (size_t i = 0; i < nBPHZ && !erase; ++i, ihp++)
+                            if ((*ihp)->isValid())
+                                if (((*ihp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
                                     erase = true;
                     }
                 }

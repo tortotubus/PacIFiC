@@ -283,13 +283,13 @@ private: //----------------------------------------------------------------
     list<int> entireOnProc;                                /**< list of ids of solid component entirely located
                                                             on this process */
 
-    list<int> SharedOnProc;                          /**< list of ids of solid component partially located on this process */
-    list<int> onProc;                                /**< list of ids of solid component located on this process */
-    vector<size_t_vector> const *v_AllSharedOnProcs; /**< vector of size nprocs stored on master process, element i is
+    list<int> SharedOnProc;                    /**< list of ids of solid component partially located on this process */
+    list<int> onProc;                          /**< list of ids of solid component located on this process */
+    vector<size_t_vector> *v_AllSharedOnProcs; /**< vector of size nprocs stored on master process, element i is
                                                 the list of ids of solid component partially located on process i */
-    list<int> *l_AllSharedOnProcs;                   /**< list, stored on master process, of ids
-                                                    of solid component shared on all processes, except those which are
-                                                    shared by master */
+    list<int> *l_AllSharedOnProcs;             /**< list, stored on master process, of ids
+                                              of solid component shared on all processes, except those which are
+                                              shared by master */
 
     doubleArray2D *translational_velocity_nm1; /**< array containing the
     translational velocity of all particules at previous time */

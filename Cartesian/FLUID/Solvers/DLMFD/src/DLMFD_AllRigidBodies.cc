@@ -11,7 +11,9 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
                                            istringstream &in,
                                            bool const &are_particles_fixed_,
                                            FV_DiscreteField *UU,
-                                           FV_DiscreteField *PP) : are_particles_fixed(are_particles_fixed_)
+                                           FV_DiscreteField *PP) : are_particles_fixed(are_particles_fixed_),
+                                                                   v_AllSharedOnProcs(NULL),
+                                                                   l_AllSharedOnProcs(NULL)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: DLMFD_AllRigidBodies");
@@ -57,6 +59,26 @@ DLMFD_AllRigidBodies::~DLMFD_AllRigidBodies()
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: ~DLMFD_AllRigidBodies");
+
+   for (size_t i = 0; i < vec_ptr_DLMFDallrigidbodies.size(); i++)
+      delete vec_ptr_DLMFDallrigidbodies[i];
+   vec_ptr_DLMFDallrigidbodies.clear();
+
+   entireOnProc.clear();
+   SharedOnProc.clear();
+   onProc.clear();
+   if (v_AllSharedOnProcs)
+   {
+      v_AllSharedOnProcs->clear();
+      delete v_AllSharedOnProcs;
+      v_AllSharedOnProcs = NULL;
+   }
+   if (l_AllSharedOnProcs)
+   {
+      l_AllSharedOnProcs->clear();
+      delete l_AllSharedOnProcs;
+      l_AllSharedOnProcs = NULL;
+   }
 }
 
 //---------------------------------------------------------------------------
@@ -108,10 +130,29 @@ void DLMFD_AllRigidBodies::set_listIdOnProc()
    SharedOnProc.clear();
    onProc.clear();
 
+   if (v_AllSharedOnProcs)
+   {
+      v_AllSharedOnProcs->clear();
+      delete v_AllSharedOnProcs;
+      v_AllSharedOnProcs = NULL;
+   }
+   if (l_AllSharedOnProcs)
+   {
+      l_AllSharedOnProcs->clear();
+      delete l_AllSharedOnProcs;
+      l_AllSharedOnProcs = NULL;
+   }
+
    for (size_t i = 0; i < RBs_number; i++)
    {
-      onProc.push_back(i);
-      entireOnProc.push_back(i);
+      if (vec_ptr_DLMFDallrigidbodies[i]->hasDLMFDPointsOnProc())
+      {
+         onProc.push_back(i);
+         if (vec_ptr_DLMFDallrigidbodies[i]->hasDLMFDPoints_inHalozone_OnProc())
+            SharedOnProc.push_back(i);
+         else
+            entireOnProc.push_back(i);
+      }
    }
 
    size_t j = 0, k;
@@ -126,12 +167,14 @@ void DLMFD_AllRigidBodies::set_listIdOnProc()
    else
    {
       v_AllSharedOnProcs = new vector<size_t_vector>(size_procs, v_SharedOnProc);
-      // for (size_t k = 1; k < size_procs; ++k)
-      //    pelCOMM->receive(k, (*v_AllSharedOnProcs)[k]);
+      for (size_t k = 1; k < size_procs; ++k)
+         pelCOMM->receive(k, (*v_AllSharedOnProcs)[k]);
+
       l_AllSharedOnProcs = new list<int>;
       for (k = 0; k < size_procs; ++k)
          for (j = 0; j < (*v_AllSharedOnProcs)[k].size(); ++j)
             l_AllSharedOnProcs->push_back((*v_AllSharedOnProcs)[k](j));
+
       l_AllSharedOnProcs->sort();
       l_AllSharedOnProcs->unique();
    }
@@ -401,6 +444,9 @@ void DLMFD_AllRigidBodies::update(double const &time, double critical_distance, 
    // Set valid points
    set_all_points(critical_distance);
    eraseCriticalDLMFDPoints(time, critical_distance);
+
+   // Set the onProc IDs
+   set_listIdOnProc();
 
    // Set points infos
    set_points_infos();

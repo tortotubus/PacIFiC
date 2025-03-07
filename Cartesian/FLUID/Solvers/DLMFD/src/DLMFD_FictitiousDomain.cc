@@ -289,11 +289,14 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: update_rigid_bodies");
 
-   sub_prob_number = 3;
-   MAC::out() << "-----------------------------------------" << "-------------" << endl;
-   MAC::out() << "Sub-problem " << sub_prob_number
-              << " : Rigid Bodies updating -- Prediction" << endl;
-   MAC::out() << "-----------------------------------------" << "-------------" << endl;
+   if (rank == master)
+   {
+      sub_prob_number = 3;
+      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "Sub-problem " << sub_prob_number
+                 << " : Rigid Bodies updating -- Prediction" << endl;
+      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+   }
 
    // Update the Rigid Bodies (Prediction problem)
    if (!are_particles_fixed)
@@ -304,7 +307,8 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
                               b_explicit_added_mass);
    solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
 
-   MAC::out() << "Solid components written in stream by solid solver" << endl;
+   if (rank == master)
+      MAC::out() << "Solid components written in stream by solid solver" << endl;
 }
 
 //---------------------------------------------------------------------------
@@ -313,11 +317,14 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: run_DLMFD_UzawaSolver");
 
-   sub_prob_number = 4;
-   MAC::out() << "-----------------------------------------" << "-------------" << endl;
-   MAC::out() << "Sub-problem " << sub_prob_number
-              << " : DLMFD solving -- Correction" << endl;
-   MAC::out() << "-----------------------------------------" << "-------------" << endl;
+   if (rank == master)
+   {
+      sub_prob_number = 4;
+      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "Sub-problem " << sub_prob_number
+                 << " : DLMFD solving -- Correction" << endl;
+      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+   }
 
    // Initialize the DLMFD correction problem
    DLMFD_construction(t_it);
@@ -325,7 +332,8 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
    // Solve the DLMFD correction problem
    DLMFD_solving(t_it);
 
-   MAC::out() << "Uzawa problem completed" << endl;
+   if (rank == master)
+      MAC::out() << "Uzawa problem completed" << endl;
 }
 
 //---------------------------------------------------------------------------

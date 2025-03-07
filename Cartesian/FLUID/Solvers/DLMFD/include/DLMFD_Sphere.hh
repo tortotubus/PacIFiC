@@ -98,9 +98,17 @@ public: //------------------------------------------------------------------
     @param nbBPdef Number of default boundary points */
     void allocate_default_boundary_points_sphere(size_t const &nbBPdef);
 
+    /** @brief Allocate default halozone boundary points
+    @param nbBPHZdef Number of default halozone boundary points */
+    void allocate_default_halozone_boundary_points_sphere(size_t const &nbBPHZdef);
+
     /** @brief Allocate default interior points
     @param nbIPdef Number of default interior points */
     void allocate_default_interior_points_sphere(size_t const &nbIPdef);
+
+    /** @brief Allocate default halozone interior points
+    @param nbIPHZdef Number of default halozone interior points */
+    void allocate_default_halozone_interior_points_sphere(size_t const &nbIPHZdef);
 
     //@}
 

@@ -64,12 +64,23 @@ public: //-----------------------------------------------------------------
     @param TO Write */
     void set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp);
 
+    /** @brief Set DLMFD halozone boundary point in the list
+    param TO Write */
+    void set_halozone_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp);
+
     /** @brief Set DLMFD interior point in the list
     @param TO Write */
     void set_interior_point(const size_t &comp,
                             const geomVector &point,
                             size_t i, size_t j, size_t k,
                             list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
+
+    /** @brief Set DLMFD halozone interior point in the list
+    @param TO Write */
+    void set_halozone_interior_point(const size_t &comp,
+                                     const geomVector &point,
+                                     size_t i, size_t j, size_t k,
+                                     list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
 
     /** @brief Remove critical interior points
     @param critical_distance Critical_distance */
@@ -186,9 +197,17 @@ public: //-----------------------------------------------------------------
     @param np Number of points */
     void extend_bp_list(size_t const &np);
 
+    /** @brief Extend the list of halozone boundary points
+    @param np Number of points */
+    void extend_bphz_list(size_t const &np);
+
     /** @brief Extend the list of interior points
     @param np Number of points */
     void extend_ip_list(size_t const &np);
+
+    /** @brief Extend the list of halozone interior points
+    @param np Number of points */
+    void extend_iphz_list(size_t const &np);
 
     void allocate_default_points_infos(size_t const &nbBPdef, size_t const &nbIPdef);
 
@@ -219,6 +238,12 @@ public: //-----------------------------------------------------------------
     /** @brief isIn method
     @param point Point */
     virtual bool isIn(const geomVector &point) const = 0;
+
+    /** @brief True if there is at least one valid point on proc */
+    bool hasDLMFDPointsOnProc() const;
+
+    /** @brief True if there is at least one halozone point on proc */
+    bool hasDLMFDPoints_inHalozone_OnProc() const;
 
     /** @brief Print the particule points coordinates */
     void print_partPointsCoordinates(ofstream &f,
@@ -353,10 +378,14 @@ protected: //--------------------------------------------------------------
     size_t ndof;            /**< number of degrees of freedom */
     size_t ntotal_fieldunk; /**< total number of field unknowns for this solid component on the proc */
 
-    list<DLMFD_BoundaryMultiplierPoint *> boundary_points; /* List of pointers to boundary points */
-    size_t nBP;                                            /**< number of boundary points on proc */
-    list<DLMFD_InteriorMultiplierPoint *> interior_points; /* List of pointers to interior points */
-    size_t nIP;                                            /**< number of interior points on proc */
+    list<DLMFD_BoundaryMultiplierPoint *> boundary_points;          /* List of pointers to boundary points */
+    size_t nBP;                                                     /**< number of boundary points on proc */
+    list<DLMFD_InteriorMultiplierPoint *> interior_points;          /* List of pointers to interior points */
+    size_t nIP;                                                     /**< number of interior points on proc */
+    list<DLMFD_BoundaryMultiplierPoint *> halozone_boundary_points; /**< list of boundary points in the halo zone of this process */
+    size_t nBPHZ;                                                   /**< number of boundary points in halozone */
+    list<DLMFD_InteriorMultiplierPoint *> halozone_interior_points; /**< list of interior points in the halo zone of this process */
+    size_t nIPHZ;                                                   /**< number of interior points in halozone */
 
     string component_type; /**< type of component : particle, obstacle, ... */
 
