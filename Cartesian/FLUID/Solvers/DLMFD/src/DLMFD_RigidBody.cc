@@ -38,8 +38,8 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb),
     NDOF_leverage = NULL;
     NDOF_nfieldUNK = NULL;
     NDOF_globalpos = NULL;
-    NDOF_nfieldUNK = NULL;
     NDOF_deltaOmega = NULL;
+    NDOF_FVTriplet = NULL;
 
     // Set component type
     set_component_type();
@@ -138,6 +138,20 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
          ibp++)
         delete *ibp;
     halozone_boundary_points.clear();
+
+    if (NDOF_comp)
+        delete[] NDOF_comp;
+    if (NDOF_leverage)
+        delete[] NDOF_leverage;
+    if (NDOF_nfieldUNK)
+        delete[] NDOF_nfieldUNK;
+
+    if (NDOF_globalpos)
+        delete[] NDOF_globalpos;
+    if (NDOF_deltaOmega)
+        delete[] NDOF_deltaOmega;
+    if (NDOF_FVTriplet)
+        delete[] NDOF_FVTriplet;
 }
 
 //---------------------------------------------------------------------------
@@ -314,23 +328,23 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
 
     if (ndof)
     {
-        // if (NDOF_comp)
-        //     delete[] NDOF_comp;
-        // if (NDOF_leverage)
-        //     delete[] NDOF_leverage;
-        // if (NDOF_nfieldUNK)
-        //     delete[] NDOF_nfieldUNK;
+        if (NDOF_comp)
+            delete[] NDOF_comp;
+        if (NDOF_leverage)
+            delete[] NDOF_leverage;
+        if (NDOF_nfieldUNK)
+            delete[] NDOF_nfieldUNK;
 
         NDOF_comp = new size_t[ndof];
         NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
         NDOF_nfieldUNK = new size_t[ndof];
 
-        // if (NDOF_globalpos)
-        //     delete[] NDOF_globalpos;
-        // if (NDOF_deltaOmega)
-        //     delete[] NDOF_deltaOmega;
-        // if (NDOF_FVTriplet)
-        //     delete[] NDOF_FVTriplet;
+        if (NDOF_globalpos)
+            delete[] NDOF_globalpos;
+        if (NDOF_deltaOmega)
+            delete[] NDOF_deltaOmega;
+        if (NDOF_FVTriplet)
+            delete[] NDOF_FVTriplet;
 
         NDOF_globalpos = new size_t[ntotal_fieldunk];
         NDOF_deltaOmega = new double[ntotal_fieldunk];
