@@ -124,6 +124,7 @@ FV_DiscreteField:: FV_DiscreteField( MAC_Object* a_owner,
    , local_cell_size( 0 )
    , DOFcolors( 0 )
    , DOFstatus( 0 )
+   , DLMFDconstrainedDOFs(0)
    , PERIODIC( 0 )
    , PERIODIC_SHIFT( 0 )
    , PARAVIEW_FNAME( "" )
@@ -206,6 +207,7 @@ FV_DiscreteField:: FV_DiscreteField(
    , local_cell_size( 0 )
    , DOFcolors( 0 )
    , DOFstatus( 0 )
+   , DLMFDconstrainedDOFs(0)
    , PERIODIC( 0 )
    , PERIODIC_SHIFT( 0 )
    , PARAVIEW_FNAME( "" )
@@ -268,6 +270,7 @@ FV_DiscreteField:: FV_DiscreteField( MAC_Object* a_owner,
    , local_cell_size( 0 )
    , DOFcolors( 0 )
    , DOFstatus( 0 )
+   , DLMFDconstrainedDOFs(0)
    , PERIODIC( 0 )
    , PERIODIC_SHIFT( 0 )
    , PARAVIEW_FNAME( "" )
@@ -393,6 +396,12 @@ FV_DiscreteField:: ~FV_DiscreteField( void )
      transproj_interpolation->clear();
      delete transproj_interpolation ;
    }
+
+   if ( DLMFDconstrainedDOFs )
+   {
+     DLMFDconstrainedDOFs->clear();
+     delete DLMFDconstrainedDOFs;
+   } 
 
    if ( synchronization_ready )
    {
@@ -627,6 +636,15 @@ FV_DiscreteField:: create_clone( MAC_Object* a_owner,
        (*result->transproj_interpolation)[comp] =
        		(*transproj_interpolation)[comp] ;
    }
+
+   if ( DLMFDconstrainedDOFs )
+   {
+     intArray3D work_int( 1, 1, 1, 0 ) ; 
+     result->DLMFDconstrainedDOFs = new vector< intArray3D >(
+   	 DLMFDconstrainedDOFs->size(), work_int ) ;
+     for (size_t i=0;i<DLMFDconstrainedDOFs->size();++i)
+       (*result->DLMFDconstrainedDOFs)[i] = (*DLMFDconstrainedDOFs)[i] ;
+   } 
 
    // Copy synchronization features
    if ( synchronization_ready )
@@ -4900,6 +4918,93 @@ FV_DiscreteField:: check_field_primary_meshes_coincide(
      else
        	FV_DiscreteField_ERROR:: n3( FNAME ) ;
    }
+}
+
+//----------------------------------------------------------------------
+void
+FV_DiscreteField:: allocate_DLMFDconstrainedDOFs( void )
+//----------------------------------------------------------------------
+{
+   MAC_LABEL( "FV_DiscreteField:: check_field_primary_meshes_coincide" ) ;
+
+   if ( !DLMFDconstrainedDOFs )
+   {
+     if ( ALL_COMPS_SAME_LOCATION )
+     {     
+       intArray3D work_int( (*DOFcolors)[0].index_bound(0), 
+     	(*DOFcolors)[0].index_bound(1), 
+	(*DOFcolors)[0].index_bound(2), 0 ) ;      
+       DLMFDconstrainedDOFs = new vector< intArray3D >( NB_COMPS, work_int ); 
+     }
+     else
+     {
+       intArray3D work_int( 1, 1, 1, 0 ) ; 
+       DLMFDconstrainedDOFs = new vector< intArray3D >( NB_COMPS, work_int ) ;
+       for (size_t i=0;i<NB_COMPS;++i)
+         (*DLMFDconstrainedDOFs)[i].re_initialize( 
+       		(*DOFcolors)[i].index_bound(0), 
+     		(*DOFcolors)[i].index_bound(1), 
+		(*DOFcolors)[i].index_bound(2), 0 ) ;  
+     }
+   }
+}
+
+
+
+//----------------------------------------------------------------------
+int
+FV_DiscreteField:: DOF_is_constrained( size_t i, size_t j, size_t k,
+  size_t component ) const
+//----------------------------------------------------------------------
+{
+   MAC_LABEL( "FV_DiscreteField:: DOF_is_constrained" ) ;
+   MAC_CHECK_PRE( component < NB_COMPS );     
+   MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+   	i < (*DLMFDconstrainedDOFs)[component].index_bound(0) ) );
+   MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+   	j < (*DLMFDconstrainedDOFs)[component].index_bound(1) ) );   
+   MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+   	k < (*DLMFDconstrainedDOFs)[component].index_bound(2) ) );
+
+   return (*DLMFDconstrainedDOFs)[component]( i, j, k );
+}
+
+
+
+//----------------------------------------------------------------------
+void
+FV_DiscreteField:: set_DOF_constrained( size_t i, size_t j, size_t k,
+  size_t component, bool b_has_extended_constrained )
+//----------------------------------------------------------------------
+{
+  MAC_LABEL( "FV_DiscreteField:: set_DOF_constrained" ) ;
+  MAC_CHECK_PRE( component < NB_COMPS ); 
+  MAC_CHECK_PRE( DLMFDconstrainedDOFs );    
+  MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+    i < (*DLMFDconstrainedDOFs)[component].index_bound(0) ) );
+  MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+    j < (*DLMFDconstrainedDOFs)[component].index_bound(1) ) );   
+  MAC_CHECK_PRE( IMPLIES( DLMFDconstrainedDOFs, 
+    k < (*DLMFDconstrainedDOFs)[component].index_bound(2) ) );
+
+  if( !b_has_extended_constrained )
+    (*DLMFDconstrainedDOFs)[component]( i, j, k ) = 1 ;//Next step Tag_particle
+  else
+    (*DLMFDconstrainedDOFs)[component]( i, j, k ) = -1 ;
+}
+
+
+
+//----------------------------------------------------------------------
+void
+FV_DiscreteField:: initialize_DLMFDconstrainedDOFs( void )
+//----------------------------------------------------------------------
+{
+  MAC_LABEL( "MAC_DiscreteField:: initialize_DLMFDconstrainedDOFs" ) ;
+  MAC_CHECK_PRE( DLMFDconstrainedDOFs );
+  
+  for (size_t i=0;i<NB_COMPS;++i)
+    (*DLMFDconstrainedDOFs)[i].set( 0 );
 }
 
 
