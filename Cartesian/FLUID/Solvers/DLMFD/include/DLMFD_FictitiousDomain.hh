@@ -40,7 +40,6 @@ struct NavierStokes2FluidSolid
    // Fields
    FV_DiscreteField *UU;
    FV_DiscreteField *PP;
-
 };
 
 class DLMFD_FictitiousDomain : public MAC_Object
@@ -104,6 +103,9 @@ public: //-----------------------------------------------------------------
    /** @name DLMFD solver methods */
    //@{
 
+   /** @brief Finalize construction */
+   void finalize_construction();
+
    /** @brief Prediction of the rigid body attributes (Newton's law)
    @param t_it Time iterator */
    void update_rigid_bodies(FV_TimeIterator const *t_it);
@@ -160,6 +162,8 @@ public: //-----------------------------------------------------------------
    /** @brief Writing PVTU
    @param filename File name */
    void write_PVTU_multiplier_file(string const &filename) const;
+
+   void SetstreamTo_allprocs();
 
    //@}
 
@@ -227,12 +231,16 @@ private: //----------------------------------------------------------------
    size_t size_proc;
    size_t rank;
    size_t master;
+   string *transferString;
 
    // Output
    string SolidSolverResultsDirectory;
    ostringstream Paraview_saveMultipliers_pvd;
    geomVector Paraview_translated_distance_vector;
    bool b_particles_verbose;
+
+   // Transfer of velocity between solid solver and fluid solver
+   vector<vector<double>> velocitiesVecGrains;
    vector<vector<double>> const *Iw_Idw;
 };
 

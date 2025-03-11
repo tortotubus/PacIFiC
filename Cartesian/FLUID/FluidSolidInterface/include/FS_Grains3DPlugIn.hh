@@ -99,6 +99,13 @@ class FS_Grains3DPlugIn : public FS_SolidPlugIn
       /** @brief Set the initial physical time
       @param time0 initial physical time */
       void setInitialTime( double const& time0 );	
+
+      /** @brief Updates particles velocity with data from the fluid solver
+      @param velocity_data_array velocity data array
+      @param b_set_velocity_nm1_and_diff updates the velocity at the previous time
+      and the explicit velocity difference */
+      void UpdateParticlesVelocities(const vector<vector<double> > &velocities,
+                                    const bool &b_update_velocity_nm1);
       //@}
     	  
   

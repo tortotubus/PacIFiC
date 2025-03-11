@@ -2,6 +2,7 @@
 #define _DLMFD_RIGIDBODY_BUILDERFACTORY__
 
 #include <iostream>
+#include <FV_DiscreteField.hh>
 using namespace std;
 class FS_RigidBody;
 class DLMFD_RigidBody;
@@ -23,7 +24,9 @@ public: //-----------------------------------------------------------------
     //@{
     /** @brief Creates a Fictitious Domain rigid body
     @param ptr_geom_rb pointer to the corresponding geometric rigid body */
-    static DLMFD_RigidBody *create(FS_RigidBody *ptr_geom_rb);
+    static DLMFD_RigidBody *create(FS_RigidBody *ptr_geom_rb,
+                                   FV_DiscreteField *pField_,
+                                   double const critical_distance_);
 
 protected: //--------------------------------------------------------------
 private:   //----------------------------------------------------------------

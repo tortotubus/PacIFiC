@@ -82,6 +82,7 @@ void DLMFD_ParticlePoint::set(const size_t &comp, const geomVector &point, const
     component_number = comp;
     pointCoordinates = point;
     GCPointVector = pointCoordinates - gravity_center;
+    valid = true;
 }
 
 //---------------------------------------------------------------------------

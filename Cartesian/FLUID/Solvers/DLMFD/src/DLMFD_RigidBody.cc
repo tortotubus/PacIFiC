@@ -21,11 +21,12 @@ DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
 }
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb),
-                                                       VEC_r(*DLMFD_FictitiousDomain::dbnull),
-                                                       VEC_x(*DLMFD_FictitiousDomain::dbnull),
-                                                       VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
-                                                       VEC_w(*DLMFD_FictitiousDomain::dbnull)
+DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
+                                                                                  pField_(pField_),
+                                                                                  VEC_r(*DLMFD_FictitiousDomain::dbnull),
+                                                                                  VEC_x(*DLMFD_FictitiousDomain::dbnull),
+                                                                                  VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+                                                                                  VEC_w(*DLMFD_FictitiousDomain::dbnull)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -40,6 +41,8 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb) : ptr_FSrigidbody(pgrb),
     NDOF_globalpos = NULL;
     NDOF_deltaOmega = NULL;
     NDOF_FVTriplet = NULL;
+
+    fluidsolid_coupling_factor = 1.;
 
     // Set component type
     set_component_type();
@@ -164,6 +167,15 @@ void DLMFD_RigidBody::set_component_type()
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_ptr_constrained_field(FV_DiscreteField *pField__)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_ptr_constrained_field");
+
+    pField_ = pField__;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
@@ -222,18 +234,10 @@ void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
+void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::set_points_infos");
-
-    if (points_infos.empty())
-    {
-        size_t nbBPdef = boundary_points.size();
-        size_t nbIPdef = interior_points.size();
-
-        allocate_default_points_infos(nbBPdef, nbIPdef);
-    }
 
     list<struct ULBD_RHSInfos>::iterator pinfo = points_infos.begin();
     size_t globalDOFNo, compIdx;
@@ -257,6 +261,7 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField const *pField)
 
                 // Set the field component
                 compIdx = (*iterIntPnts)->get_compNumber();
+
                 pinfo->compIdx = compIdx;
 
                 // Global DOF number
@@ -484,6 +489,24 @@ void DLMFD_RigidBody::set_angular_velocity_3D(const geomVector &vrot)
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_Qu(const geomVector &qtran)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_Qu");
+
+    q_tran = qtran;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_Qrot(const geomVector &qrot)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: set_Qrot");
+
+    q_rot_3D = qrot;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_Tu(const geomVector &ttran)
 //---------------------------------------------------------------------------
 {
@@ -499,6 +522,15 @@ void DLMFD_RigidBody::set_Trot(const geomVector &trot)
     MAC_LABEL("DLMFD_RigidBody:: set_Trot");
 
     t_rot_3D = trot;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_ttran_ncomp(const size_t &ncomp_)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_ttran_ncomp");
+
+    t_tran.resize(ncomp_);
 }
 
 //---------------------------------------------------------------------------
@@ -728,10 +760,42 @@ void DLMFD_RigidBody::extend_iphz_list(size_t const &np)
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::allocate_default_points_infos(size_t const &nbBPdef, size_t const &nbIPdef)
+void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(size_t const &nbIPdef,
+                                                              size_t const &nbBPdef,
+                                                              size_t const &nbIPHZdef,
+                                                              size_t const &nbBPHZdef)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_Sphere:: allocate_default_points_infos");
+    MAC_LABEL("DLMFD_Sphere:: allocate_default_listOfPointsAndVectors");
+
+    DLMFD_InteriorMultiplierPoint *imp = NULL;
+    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
+
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    for (size_t i = 0; i < nbIPdef; ++i)
+    {
+        interior_points.push_back(imp);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    for (size_t i = 0; i < nbIPHZdef; ++i)
+    {
+        halozone_interior_points.push_back(imp);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    for (size_t i = 0; i < nbBPdef; ++i)
+    {
+        boundary_points.push_back(bmp);
+        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+
+    for (size_t i = 0; i < nbBPHZdef; ++i)
+    {
+        halozone_boundary_points.push_back(bmp);
+        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
 
     size_t ndofdef = nbIPdef + nbBPdef * gravity_center.getVecSize();
     struct ULBD_RHSInfos OnePointInfos;
@@ -739,6 +803,11 @@ void DLMFD_RigidBody::allocate_default_points_infos(size_t const &nbBPdef, size_
     OnePointInfos.compIdx = 0;
     for (size_t i = 0; i < ndofdef; ++i)
         points_infos.push_back(OnePointInfos);
+
+    VEC_r.re_initialize(ndofdef, 0.);
+    VEC_x.re_initialize(ndofdef, 0.);
+    VEC_lambda.re_initialize(ndofdef, 0.);
+    VEC_w.re_initialize(ndofdef, 0.);
 }
 
 //---------------------------------------------------------------------------
@@ -902,7 +971,7 @@ void DLMFD_RigidBody::compute_Qu(bool init)
 
         for (size_t i = 0; i < ndof; ++i, il++)
         {
-            q_tran.addOneComp(il->compIdx, -(*work)(i));
+            q_tran.addOneComp(NDOF_comp[i], -(*work)(i));
         }
     }
 }
@@ -979,8 +1048,7 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
     double coeffF = 1. - rho_f / rho_s;
 
     // correct Q vectors
-    q_tran = translational_velocity * (fluidsolid_coupling_factor * mass / timestep);
-    q_tran += gravity_vector_split * (coeffF * mass) - q_tran;
+    q_tran = translational_velocity * (fluidsolid_coupling_factor * mass / timestep) + gravity_vector_split * (coeffF * mass) - q_tran;
 
     MAC_ASSERT(inversedInertia_3D.size() == dim);
 
@@ -1111,7 +1179,7 @@ void DLMFD_RigidBody::compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOB
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField const *pField)
+void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_x_residuals_Velocity");
@@ -1229,7 +1297,7 @@ void DLMFD_RigidBody::update_w(const double &beta)
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
                                                    bool bulk,
-                                                   FV_DiscreteField const *pField)
+                                                   FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_fluid_DLMFD_explicit");
@@ -1479,7 +1547,7 @@ void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesS
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField const *pField,
+void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                                             ULBD_RHSInfos &OnePointInfos,
                                             bool const &SecondOrderBP)
 //---------------------------------------------------------------------------
@@ -1617,7 +1685,6 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField const *pField,
     // // * Otherwise, use a multi-linear interpolation
     if (Q2_interpol && SecondOrderBP)
     {
-        //    cout << "Q2 Interpolation" << endl;
         size_t ii, jj, kk;
         double xtransf, ytransf, ztransf, xref, yref, zref;
         // Please refer to Dyn and Floater for definition of variables,
@@ -1824,19 +1891,4 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
     }
 
     return (result);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_RigidBody::allocate_initialize_Uzawa_vectors()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody::allocate_initialize_Uzawa_vectors");
-
-    if (ndof)
-    {
-        VEC_r.re_initialize(ndof, 0.);
-        VEC_x.re_initialize(ndof, 0.);
-        VEC_lambda.re_initialize(ndof, 0.);
-        VEC_w.re_initialize(ndof, 0.);
-    }
 }

@@ -25,7 +25,9 @@ public: //------------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_Sphere(FS_RigidBody *pgrb);
+    DLMFD_Sphere(FS_RigidBody *pgrb,
+                 FV_DiscreteField *pField_,
+                 double const critical_distance_);
 
     /** @brief Destructor */
     ~DLMFD_Sphere();
@@ -39,16 +41,16 @@ public: //------------------------------------------------------------------
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
-    void set_all_points(FV_DiscreteField const *pField, double critical_distance);
+    void set_all_points(FV_DiscreteField *pField, double critical_distance);
 
     /** @brief Set DLMFD boundary points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
-    void set_boundary_points_list(FV_DiscreteField const *pField, double critical_distance);
+    void set_boundary_points_list(FV_DiscreteField *pField, double critical_distance);
 
     /** @brief Set DLMFD interior points
     @param critical_distance Critical distance */
-    void set_interior_points_list(FV_DiscreteField const *pField, double critical_distance);
+    void set_interior_points_list(FV_DiscreteField *pField, double critical_distance);
 
     //@}
 
@@ -94,21 +96,7 @@ public: //------------------------------------------------------------------
     /** @name Add methods */
     //@{
 
-    /** @brief Allocate default boundary points
-    @param nbBPdef Number of default boundary points */
-    void allocate_default_boundary_points_sphere(size_t const &nbBPdef);
-
-    /** @brief Allocate default halozone boundary points
-    @param nbBPHZdef Number of default halozone boundary points */
-    void allocate_default_halozone_boundary_points_sphere(size_t const &nbBPHZdef);
-
-    /** @brief Allocate default interior points
-    @param nbIPdef Number of default interior points */
-    void allocate_default_interior_points_sphere(size_t const &nbIPdef);
-
-    /** @brief Allocate default halozone interior points
-    @param nbIPHZdef Number of default halozone interior points */
-    void allocate_default_halozone_interior_points_sphere(size_t const &nbIPHZdef);
+    void allocate_default_listOfPointsAndVectors_Sphere(const double &critical_distance, FV_DiscreteField *pField);
 
     //@}
 

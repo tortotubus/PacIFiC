@@ -33,11 +33,13 @@ public: //-----------------------------------------------------------------
     @param UU Pointer to flow field UF
     @param PP Pointer to flow field PF */
     DLMFD_AllRigidBodies(size_t &dim,
+                         double const &time,
                          MAC_Communicator const *pelCOMM_,
                          istringstream &solidFluid_transferStream,
                          bool const &are_particles_fixed_,
                          FV_DiscreteField *UU,
-                         FV_DiscreteField *PP);
+                         FV_DiscreteField *PP,
+                         double const critical_distance);
 
     /** @brief Destructor */
     ~DLMFD_AllRigidBodies();
@@ -63,6 +65,8 @@ public: //-----------------------------------------------------------------
     /** @brief Set constrained field
     @param pField Constrained field */
     void set_ptr_constrained_field(FV_DiscreteField *pField_);
+
+    void set_ptr_constrained_field_in_all_particles();
 
     /** @brief Set points infos for all rigid bodies */
     void set_points_infos();
@@ -100,6 +104,8 @@ public: //-----------------------------------------------------------------
 
     /** @brief Set output frequency */
     void set_output_frequency(size_t const output_frequency_);
+
+    void set_ttran_ncomp(const size_t &ncomp_);
 
     //@}
 
@@ -154,7 +160,9 @@ public: //-----------------------------------------------------------------
 
     /** @brief Update method
     @param critical_distance Critical distance */
-    void update(double const &time, double critical_distance, istringstream &solidFluid_transferStream);
+    void update(istringstream &solidFluid_transferStream);
+
+    void particles_velocities_output(vector<vector<double>> &vecVel) const;
 
     //@}
 
@@ -167,6 +175,8 @@ public: //-----------------------------------------------------------------
     void output_DLMFDPoints_PARAVIEW(const string &filename,
                                      geomVector const *translated_distance_vector,
                                      const bool &withIntPts) const;
+
+    bool is_hydro_forceTorque_postprocessed() const;
 
     /** @brief Output force and torque
     @param nothing File name */
@@ -188,9 +198,6 @@ public: //-----------------------------------------------------------------
     //@{
 
     void nullify_all_Uzawa_vectors();
-
-    /** @brief Allocate Uzawa vectors */
-    void allocate_initialize_Uzawa_vectors();
 
     /** @brief Compute the q_U quantities */
     void compute_all_Qu(bool init);

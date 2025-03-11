@@ -41,7 +41,7 @@ public: //-----------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_RigidBody(FS_RigidBody *pgrb);
+    DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_);
 
     /** @brief Destructor */
     ~DLMFD_RigidBody();
@@ -55,10 +55,12 @@ public: //-----------------------------------------------------------------
     /** @brief Set component type */
     void set_component_type();
 
+    void set_ptr_constrained_field(FV_DiscreteField *pField__);
+
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Constrained field */
-    virtual void set_all_points(FV_DiscreteField const *pField, double critical_distance) = 0;
+    virtual void set_all_points(FV_DiscreteField *pField, double critical_distance) = 0;
 
     /** @brief Set DLMFD boundary point in the list
     @param TO Write */
@@ -88,7 +90,7 @@ public: //-----------------------------------------------------------------
 
     /** @brief Set points infos
     @param pField Constrained field */
-    void set_points_infos(FV_DiscreteField const *pField);
+    void set_points_infos(FV_DiscreteField *pField);
 
     void check_allocation_DLMFD_Cvectors();
 
@@ -119,11 +121,19 @@ public: //-----------------------------------------------------------------
     @param vtran Angular velocity to set */
     void set_angular_velocity_3D(const geomVector &vrot);
 
+    /** @brief Set q_tran of RB */
+    void set_Qu(const geomVector &qtran);
+
+    /** @brief Set q_rot_3D of RB */
+    void set_Qrot(const geomVector &qrot);    
+
     /** @brief Set t_tran of RB */
     void set_Tu(const geomVector &ttran);
 
     /** @brief Set t_rot of RB */
     void set_Trot(const geomVector &trot);
+
+    void set_ttran_ncomp(const size_t &ncomp_);
 
     //@}
 
@@ -209,7 +219,10 @@ public: //-----------------------------------------------------------------
     @param np Number of points */
     void extend_iphz_list(size_t const &np);
 
-    void allocate_default_points_infos(size_t const &nbBPdef, size_t const &nbIPdef);
+    void allocate_default_listOfPointsAndVectors(size_t const &nbIPdef,
+                                                 size_t const &nbBPdef,
+                                                 size_t const &nbIPHZdef,
+                                                 size_t const &nbBPHZdef);
 
     //@}
 
@@ -323,7 +336,7 @@ public: //-----------------------------------------------------------------
     void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init);
 
     /** @brief Compute residuals x=<alpha,tu-(tU+tomega^GM)>_P */
-    void compute_x_residuals_Velocity(FV_DiscreteField const *pField);
+    void compute_x_residuals_Velocity(FV_DiscreteField *pField);
 
     /** @brief Set r = - x and w = r */
     void compute_r_and_w_FirstUzawaIteration();
@@ -344,7 +357,7 @@ public: //-----------------------------------------------------------------
     <lambda,v>_P */
     void compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
                                       bool bulk,
-                                      FV_DiscreteField const *pField);
+                                      FV_DiscreteField *pField);
 
     //@}
 
@@ -353,7 +366,7 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Fill the DLMFD points infos */
-    void fill_DLMFD_pointInfos(FV_DiscreteField const *pField,
+    void fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                                struct ULBD_RHSInfos &OnePointInfos,
                                bool const &SecondOrderBP);
 
@@ -363,15 +376,13 @@ public: //-----------------------------------------------------------------
     double Q2weighting(size_t const &i, double const &x,
                        double const &y, double const &z);
 
-    /** @brief Allocate Uzawa vectors */
-    void allocate_initialize_Uzawa_vectors();
-
     //@}
 
 protected: //--------------------------------------------------------------
     //-- Attributes
 
     FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */
+    FV_DiscreteField *pField_;
 
     // Geometric attributes
     size_t dim;

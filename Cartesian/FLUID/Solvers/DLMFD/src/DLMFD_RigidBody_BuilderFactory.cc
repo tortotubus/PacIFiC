@@ -6,7 +6,9 @@
 using namespace std;
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_rb)
+DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_rb,
+                                                        FV_DiscreteField *pField_,
+                                                        double const critical_distance_)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody_BuilderFactory:: create");
@@ -17,7 +19,7 @@ DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_r
     switch (ptr_geom_rb->get_shape_type())
     {
     case GEOM_SPHERE:
-        ptr_dlmfd_rb = new DLMFD_Sphere(ptr_geom_rb);
+        ptr_dlmfd_rb = new DLMFD_Sphere(ptr_geom_rb, pField_, critical_distance_);
         break;
 
     default:

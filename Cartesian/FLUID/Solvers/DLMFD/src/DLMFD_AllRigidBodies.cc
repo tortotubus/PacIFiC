@@ -7,16 +7,24 @@ using namespace std;
 
 //---------------------------------------------------------------------------
 DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
+                                           double const &time,
                                            MAC_Communicator const *pelCOMM_,
                                            istringstream &in,
                                            bool const &are_particles_fixed_,
                                            FV_DiscreteField *UU,
-                                           FV_DiscreteField *PP) : are_particles_fixed(are_particles_fixed_),
-                                                                   v_AllSharedOnProcs(NULL),
-                                                                   l_AllSharedOnProcs(NULL)
+                                           FV_DiscreteField *PP,
+                                           double const critical_distance) : are_particles_fixed(are_particles_fixed_),
+                                                                             v_AllSharedOnProcs(NULL),
+                                                                             l_AllSharedOnProcs(NULL)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: DLMFD_AllRigidBodies");
+
+   // Set MPI
+   set_MPI_data(pelCOMM_);
+
+   // Set the constrained field
+   set_ptr_constrained_field(UU);
 
    // Set the rigid bodies
    ptr_FSallrigidbodies = new FS_AllRigidBodies(dim, in, are_particles_fixed_);
@@ -28,20 +36,17 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    {
       vec_ptr_DLMFDallrigidbodies.push_back(ptr_dlmfd_rb);
       vec_ptr_DLMFDallrigidbodies[i] = DLMFD_RigidBody_BuilderFactory::create(
-          ptr_FSallrigidbodies->get_ptr_rigid_body(i));
+          ptr_FSallrigidbodies->get_ptr_rigid_body(i), pField, critical_distance);
    }
 
-   // Set the number of moving RBs
-   set_npart();
-
-   // Set MPI
-   set_MPI_data(pelCOMM_);
-
-   // Set the constrained field
-   set_ptr_constrained_field(UU);
+   // Erase critical DLMFD points
+   eraseCriticalDLMFDPoints(time, critical_distance);
 
    // Set the onProc IDs
    set_listIdOnProc();
+
+   // Set the number of moving RBs
+   set_npart();
 
    // Set the points infos of each rigib body
    set_points_infos();
@@ -116,7 +121,8 @@ void DLMFD_AllRigidBodies::eraseCriticalDLMFDPoints(const double &time, double c
    double coef_cd = 1. / sqrt(double(dim));
 
    for (size_t i = 0; i < RBs_number; i++)
-      vec_ptr_DLMFDallrigidbodies[i]->erase_critical_interior_points_PerProc(coef_cd * critical_distance);
+      if (vec_ptr_DLMFDallrigidbodies[i]->get_component_type() != "O" || time < 1.e-10)
+         vec_ptr_DLMFDallrigidbodies[i]->erase_critical_interior_points_PerProc(coef_cd * critical_distance);
 }
 
 //---------------------------------------------------------------------------
@@ -189,14 +195,30 @@ void DLMFD_AllRigidBodies::set_ptr_constrained_field(FV_DiscreteField *pField_)
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_ptr_constrained_field_in_all_particles()
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::set_ptr_constrained_field_in_all_particles");
+
+   list<int>::iterator il;
+   for (il = onProc.begin(); il != onProc.end(); il++)
+      vec_ptr_DLMFDallrigidbodies[*il]->set_ptr_constrained_field(pField);
+
+   if (l_AllSharedOnProcs)
+      for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+         vec_ptr_DLMFDallrigidbodies[*il]->set_ptr_constrained_field(pField);
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::set_points_infos()
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_ptr_constrained_field");
 
-   for (size_t i = 0; i < RBs_number; i++)
+   list<int>::iterator il;
+   for (il = onProc.begin(); il != onProc.end(); il++)
    {
-      vec_ptr_DLMFDallrigidbodies[i]->set_points_infos(pField);
+      vec_ptr_DLMFDallrigidbodies[*il]->set_points_infos(pField);
    }
 }
 
@@ -242,8 +264,13 @@ void DLMFD_AllRigidBodies::set_coupling_factor(double const &rho_f, bool const &
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_coupling_factor");
 
-   for (size_t i = 0; i < RBs_number; i++)
-      vec_ptr_DLMFDallrigidbodies[i]->set_coupling_factor(rho_f, explicit_treatment);
+   list<int>::iterator il;
+   for (il = onProc.begin(); il != onProc.end(); il++)
+      vec_ptr_DLMFDallrigidbodies[*il]->set_coupling_factor(rho_f, explicit_treatment);
+
+   if (l_AllSharedOnProcs)
+      for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+         vec_ptr_DLMFDallrigidbodies[*il]->set_coupling_factor(rho_f, explicit_treatment);
 }
 
 //---------------------------------------------------------------------------
@@ -317,6 +344,21 @@ void DLMFD_AllRigidBodies::set_output_frequency(size_t output_frequency_)
    MAC_LABEL("DLMFD_AllRigidBodies::set_output_frequency");
 
    output_frequency = output_frequency_;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_ttran_ncomp(const size_t &ncomp_)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::set_ttran_ncomp");
+
+   list<int>::iterator il;
+   for (il = onProc.begin(); il != onProc.end(); il++)
+      vec_ptr_DLMFDallrigidbodies[*il]->set_ttran_ncomp(ncomp_);
+
+   if (l_AllSharedOnProcs)
+      for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+         vec_ptr_DLMFDallrigidbodies[*il]->set_ttran_ncomp(ncomp_);
 }
 
 //---------------------------------------------------------------------------
@@ -428,7 +470,7 @@ double const DLMFD_AllRigidBodies::get_volume(const size_t i) const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::update(double const &time, double critical_distance, istringstream &solidFluid_transferStream)
+void DLMFD_AllRigidBodies::update(istringstream &solidFluid_transferStream)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: update");
@@ -439,23 +481,52 @@ void DLMFD_AllRigidBodies::update(double const &time, double critical_distance, 
    {
       vec_ptr_DLMFDallrigidbodies[i]->update();
    }
+   // list<int>::iterator il;
+   // for (il = onProc.begin(); il != onProc.end(); il++)
+   //    vec_ptr_DLMFDallrigidbodies[*il]->update();
 
-   // Set valid points
-   set_all_points(critical_distance);
-   eraseCriticalDLMFDPoints(time, critical_distance);
+   // if (l_AllSharedOnProcs)
+   //    for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+   //       vec_ptr_DLMFDallrigidbodies[*il]->update();
+}
 
-   // Set the onProc IDs
-   set_listIdOnProc();
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::particles_velocities_output(vector<vector<double>> &vecVel) const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::particles_velocities_output");
 
-   // Set points infos
-   set_points_infos();
+   geomVector vtrans;
+   geomVector vrot;
 
-   // Allocate Uzawa vectors
-   allocate_initialize_Uzawa_vectors();
+   // !!! POURQUOI ON RE-DIMENSIONNE !!!
+   // INUTILE A PRIORI, A VERIFIER
+   vector<vector<double>>::iterator itVec;
+   if (vecVel.size() > 0)
+   {
+      for (itVec = vecVel.begin(); itVec != vecVel.end(); ++itVec)
+         itVec->erase(itVec->begin(), itVec->end());
+      vecVel.clear();
+   }
 
-   // Fill DLMFD vectors
-   check_allocation_DLMFD_Cvectors();
-   fill_DLMFD_Cvectors();
+   vecVel.reserve(particles_number);
+
+   for (size_t i = 0; i < particles_number; i++)
+   {
+      vtrans = vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity();
+      vrot = vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D();
+      vector<double> tempVec(6, 0.);
+
+      tempVec[0] = vtrans(0);
+      tempVec[1] = vtrans(1);
+      tempVec[2] = vtrans(2);
+
+      tempVec[3] = vrot(0);
+      tempVec[4] = vrot(1);
+      tempVec[5] = vrot(2);
+
+      vecVel.push_back(tempVec);
+   }
 }
 
 //---------------------------------------------------------------------------
@@ -512,6 +583,15 @@ void DLMFD_AllRigidBodies::output_DLMFDPoints_PARAVIEW(const string &filename,
    f << "</UnstructuredGrid>" << endl;
    f << "</VTKFile>" << endl;
    f.close();
+}
+
+//---------------------------------------------------------------------------
+bool DLMFD_AllRigidBodies::is_hydro_forceTorque_postprocessed() const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::is_hydro_forceTorque_postprocessed");
+
+   return b_output_hydro_forceTorque;
 }
 
 //---------------------------------------------------------------------------
@@ -572,14 +652,7 @@ void DLMFD_AllRigidBodies::particles_hydrodynamic_force_output(const string &pat
             // -----------------------------------
 
             file_name = path_name + "x-hydroForce_time.res";
-            // Manually remove the content
             ofstream xhf(file_name.c_str(), ios::app);
-            if (time < 0.001 * timestep)
-            {
-               ofstream xhf(file_name.c_str(), ios::out | ios::trunc);
-               xhf.close();
-               xhf.open(file_name.c_str(), ios::app);
-            }
             xhf.setf(ios::scientific, ios::floatfield);
             xhf.precision(6);
             xhf << time;
@@ -631,7 +704,7 @@ void DLMFD_AllRigidBodies::particles_hydrodynamic_force_output(const string &pat
 
                   if (vec_ptr_DLMFDallrigidbodies[i]->get_component_type() != "O" && !are_particles_fixed)
                   {
-                     // hydro_force(indexcomp) += dlmfd_mass * (vtrans(indexcomp) - (*translational_velocity_nm1)(i, indexcomp)) / timestep;
+                     hydro_force(indexcomp) += dlmfd_mass * (vtrans(indexcomp) - (*translational_velocity_nm1)(i, indexcomp)) / timestep;
                      (*translational_velocity_nm1)(i, indexcomp) = vtrans(indexcomp);
                   }
                }
@@ -701,6 +774,7 @@ void DLMFD_AllRigidBodies::particles_hydrodynamic_force_output(const string &pat
          }
       }
    }
+
    ++counter;
    if (counter == output_frequency)
       counter = 0;
@@ -818,25 +892,22 @@ void DLMFD_AllRigidBodies::nullify_all_Uzawa_vectors()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::allocate_initialize_Uzawa_vectors()
-//---------------------------------------------------------------------------
-{
-   MAC_LABEL("DLMFD_AllRigidBodies::allocate_initialize_Uzawa_vectors");
-
-   list<int>::iterator il;
-
-   // Compute Qu for particles on this process
-   for (il = onProc.begin(); il != onProc.end(); il++)
-      vec_ptr_DLMFDallrigidbodies[*il]->allocate_initialize_Uzawa_vectors();
-}
-
-//---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::compute_all_Qu(bool init)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: compute_all_Qu");
 
    list<int>::iterator il;
+
+   // Initialize Qu for shared particles on master
+   if (l_AllSharedOnProcs)
+   {
+      geomVector qtranZero(pField->nb_components());
+      for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+      {
+         vec_ptr_DLMFDallrigidbodies[*il]->set_Qu(qtranZero);
+      }
+   }
 
    // Compute Qu for particles on this process
    for (il = onProc.begin(); il != onProc.end(); il++)
@@ -850,6 +921,16 @@ void DLMFD_AllRigidBodies::compute_all_Qrot(bool init)
    MAC_LABEL("DLMFD_AllRigidBodies:: compute_all_Qrot");
 
    list<int>::iterator il;
+
+   // Initialize Qrot for shared particles on master
+   if (l_AllSharedOnProcs)
+   {
+      geomVector qrotZero(pField->nb_components());
+      for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
+      {
+         vec_ptr_DLMFDallrigidbodies[*il]->set_Qrot(qrotZero);
+      }
+   }
 
    // Compute Qrot for particles on this process
    for (il = onProc.begin(); il != onProc.end(); il++)

@@ -15,7 +15,10 @@ doubleVector *DLMFD_FictitiousDomain::dbnull = new doubleVector(0, 0.);
 DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
                                                FV_DomainAndFields const *dom,
                                                MAC_ModuleExplorer const *exp,
-                                               NavierStokes2FluidSolid transfert) : MAC_Object(a_owner)
+                                               NavierStokes2FluidSolid transfert) : MAC_Object(a_owner),
+                                                                                    solidSolver(NULL),
+                                                                                    solidFluid_transferStream(NULL),
+                                                                                    transferString(NULL)
 //--------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: DLMFD_FictitiousDomain");
@@ -70,6 +73,9 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    UU = transfert.UU;
    PP = transfert.PP;
 
+   // Allocate constrained DOFs array in the constrained field
+   UU->allocate_DLMFDconstrainedDOFs();
+
    // Set physical parameters
    rho_f = transfert.rho_f;
    gravity_vector = transfert.gravity_vector;
@@ -85,18 +91,35 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    // Restart
    b_restart = transfert.b_restart;
 
-   // Create the Solid/Fluid transfer stream
+   // Initiate the GRAINS plugins
+   // if (rank == master)
    solidSolver = FS_SolidPlugIn_BuilderFactory::create(solidSolverType,
                                                        solidSolver_insertionFile, solidSolver_simulationFile, rho_f, false,
                                                        b_restart, dom->primary_grid()->get_smallest_constant_grid_size(),
                                                        b_solidSolver_parallel, error);
 
-   solidFluid_transferStream = NULL;
+   // // Create the Solid/Fluid transfer stream
+   solidFluid_transferStream = new istringstream;
+   // if (rank == master)
    solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
 
+   // Set the solid components stream on all processes
+   SetstreamTo_allprocs();
+
+   // Set critical distance
+   double grid_size = UU->primary_grid()->get_smallest_constant_grid_size();
+   set_critical_distance(sqrt(double(dim)) * grid_size);
+
    // Create the Rigid Bodies
-   allrigidbodies = new DLMFD_AllRigidBodies(dim, pelCOMM, *solidFluid_transferStream,
-                                             are_particles_fixed, UU, PP);
+   allrigidbodies = new DLMFD_AllRigidBodies(dim, 0., pelCOMM, *solidFluid_transferStream,
+                                             are_particles_fixed, UU, PP, critical_distance);
+
+   // // Set points infos
+   // allrigidbodies->set_points_infos();
+
+   // // Fill DLMFD vectors
+   // allrigidbodies->check_allocation_DLMFD_Cvectors();
+   // allrigidbodies->fill_DLMFD_Cvectors();
 
    if (exp->has_entry("Output_hydro_forceTorque"))
       allrigidbodies->set_b_output_hydro_forceTorque(exp->bool_data("Output_hydro_forceTorque"));
@@ -105,12 +128,9 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    allrigidbodies->allocate_translational_angular_velocity_array();
 
-   // Set Iw_Idw
-   vector<double> work(6, 0.);
-   Iw_Idw = new vector<vector<double>>(allrigidbodies->get_npart(), work);
-
    // Set the coupling factor for each rigid body
-   allrigidbodies->set_coupling_factor(transfert.rho_f, b_explicit_added_mass);
+   if (are_particles_fixed)
+      allrigidbodies->set_coupling_factor(transfert.rho_f, b_explicit_added_mass);
 
    // Create the instances of resolution stuff
    GLOBAL_EQ = transfert.GLOBAL_EQ;
@@ -120,9 +140,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    Uzawa_DLMFD_precision = GLOBAL_EQ->get_DLMFD_convergence_criterion();
    Uzawa_DLMFD_maxiter = GLOBAL_EQ->get_DLMFD_maxiter();
 
-   // Set critical distance
-   double grid_size = UU->primary_grid()->get_smallest_constant_grid_size();
-   set_critical_distance(sqrt(double(dim)) * grid_size);
+   finalize_construction();
 }
 
 //---------------------------------------------------------------------------
@@ -130,6 +148,9 @@ DLMFD_FictitiousDomain::~DLMFD_FictitiousDomain(void)
 //--------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: ~DLMFD_FictitiousDomain");
+
+   if (solidSolver)
+      delete solidSolver;
 }
 
 //---------------------------------------------------------------------------
@@ -167,6 +188,14 @@ void DLMFD_FictitiousDomain::do_after_inner_iterations_stage(FV_TimeIterator con
 {
    MAC_LABEL("DLMFD_FictitiousDomain::do_after_inner_iterations_stage");
 
+   if (!are_particles_fixed)
+      if (rank == master)
+      {
+         // Update velocity on the solid side
+         allrigidbodies->particles_velocities_output(velocitiesVecGrains);
+         solidSolver->UpdateParticlesVelocities(velocitiesVecGrains, b_explicit_added_mass);
+      }
+
    allrigidbodies->particles_hydrodynamic_force_output(SolidSolverResultsDirectory + "/",
                                                        b_restart,
                                                        t_it->time(),
@@ -186,8 +215,18 @@ void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it
                                 << " byte_order=\"LittleEndian\">" << endl;
    Paraview_saveMultipliers_pvd << "<Collection>" << endl;
 
-   // Set the first DLMFD utilities
-   allrigidbodies->update(t_it->time(), critical_distance, *solidFluid_transferStream);
+   // // Erase critical DLMFD points
+   // allrigidbodies->eraseCriticalDLMFDPoints(t_it->time(), critical_distance);
+
+   // Set the onProc IDs
+   allrigidbodies->set_listIdOnProc();
+
+   // Set points infos
+   allrigidbodies->set_points_infos();
+
+   // Fill DLMFD vectors
+   allrigidbodies->check_allocation_DLMFD_Cvectors();
+   allrigidbodies->fill_DLMFD_Cvectors();
 
    // Hydrodynamic force and torque
    allrigidbodies->sum_DLM_hydrodynamic_force_output(b_restart);
@@ -272,6 +311,21 @@ void DLMFD_FictitiousDomain::write_PVTU_multiplier_file(string const &filename) 
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::SetstreamTo_allprocs()
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain::SetstreamTo_allprocs");
+
+   transferString = new string;
+   if (rank == master)
+      *transferString = solidFluid_transferStream->str();
+
+   pelCOMM->broadcast(*transferString, master);
+   solidFluid_transferStream->str(*transferString);
+   delete transferString;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::set_critical_distance(double critical_distance_)
 //---------------------------------------------------------------------------
 {
@@ -290,31 +344,64 @@ bool const DLMFD_FictitiousDomain::get_explicit_DLMFD() const
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::finalize_construction()
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain::finalize_construction");
+
+   pelCOMM->barrier();
+
+   // Set Iw_Idw and velocitiesVecGrains
+   if (rank == master)
+   {
+      if (allrigidbodies->is_hydro_forceTorque_postprocessed())
+      {
+         vector<double> work(6, 0.);
+         Iw_Idw = new vector<vector<double>>(allrigidbodies->get_npart(), work);
+      }
+
+      velocitiesVecGrains.reserve(allrigidbodies->get_npart());
+      for (size_t i = 0; i < allrigidbodies->get_npart(); i++)
+         velocitiesVecGrains.push_back(vector<double>(6, 0.));
+   }
+
+   pelCOMM->barrier();
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: update_rigid_bodies");
 
+   sub_prob_number = 3;
+
    if (rank == master)
    {
-      sub_prob_number = 3;
       MAC::out() << "-----------------------------------------" << "-------------" << endl;
       MAC::out() << "Sub-problem " << sub_prob_number
                  << " : Rigid Bodies updating -- Prediction" << endl;
       MAC::out() << "-----------------------------------------" << "-------------" << endl;
    }
 
-   // Update the Rigid Bodies (Prediction problem)
    if (!are_particles_fixed)
-      solidSolver->Simulation(t_it->time_step(),
-                              true,
-                              coupling_scheme == "PredictorCorrector",
-                              1.,
-                              b_explicit_added_mass);
-   solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
+   {
+      solidFluid_transferStream = new istringstream;
+      if (rank == master)
+      {
+         // Update the Rigid Bodies (Prediction problem)
+         solidSolver->Simulation(t_it->time_step(),
+                                 true,
+                                 coupling_scheme == "PredictorCorrector",
+                                 1.,
+                                 b_explicit_added_mass);
+         solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
+      }
+      if (rank == master)
+         MAC::out() << "Solid components written in stream by solid solver" << endl;
 
-   if (rank == master)
-      MAC::out() << "Solid components written in stream by solid solver" << endl;
+      pelCOMM->barrier();
+   }
 }
 
 //---------------------------------------------------------------------------
@@ -351,12 +438,42 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
    // Update the rigid bodies features to prepare the algorithm
    if (!are_particles_fixed)
    {
+      SetstreamTo_allprocs();
+
+      // // Initialize the constrained DOFs array in the constrained field
+      UU->initialize_DLMFDconstrainedDOFs();
+
       allrigidbodies->set_ptr_constrained_field(UU);
-      allrigidbodies->update(t_it->time(), critical_distance, *solidFluid_transferStream);
+      allrigidbodies->set_ptr_constrained_field_in_all_particles();
+      allrigidbodies->set_ttran_ncomp(UU->nb_components());
+
+      // Update the rigid bodies
+      allrigidbodies->update(*solidFluid_transferStream);
+
+      // Set the fluid/solid coupling factor
+      allrigidbodies->set_coupling_factor(rho_f, b_explicit_added_mass);
+
+      // Set valid points
+      allrigidbodies->set_all_points(critical_distance);
+      allrigidbodies->eraseCriticalDLMFDPoints(t_it->time(), critical_distance);
+
+      // Set the onProc IDs
+      allrigidbodies->set_listIdOnProc();
+
+      // Set points infos
+      allrigidbodies->set_points_infos();
+
+      // Fill DLMFD vectors
+      allrigidbodies->check_allocation_DLMFD_Cvectors();
+      allrigidbodies->fill_DLMFD_Cvectors();
    }
 
    // Nullify Uzawa vectors in particles
    allrigidbodies->nullify_all_Uzawa_vectors();
+
+   pelCOMM->barrier();
+   if (rank == master)
+      MAC::out() << "Update of DLMFD_AllRigidBodies completed on all processes" << endl;
 }
 
 //---------------------------------------------------------------------------
