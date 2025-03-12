@@ -54,27 +54,6 @@ public: //------------------------------------------------------------------
 
     //@}
 
-    //-- Get methods
-    /** @name Get methods */
-    //@{
-
-    /** @brief Returns pointer to the rigid body gravity center */
-    geomVector const *get_ptr_to_gravity_centre() const;
-
-    /** @brief Returns circumscribed radius */
-    double get_circumscribed_radius() const;
-
-    //@}
-
-    //-- Updating methods
-    /** @name Updating methods */
-    //@{
-
-    /** @brief Update the RB */
-    void update();
-
-    //@}
-
     //-- Geometric methods
     /** @name Geometric methods */
     //@{

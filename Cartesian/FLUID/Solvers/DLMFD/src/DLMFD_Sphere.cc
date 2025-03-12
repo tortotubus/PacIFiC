@@ -248,36 +248,6 @@ void DLMFD_Sphere::allocate_default_listOfPointsAndVectors_Sphere(const double &
 }
 
 //---------------------------------------------------------------------------
-double DLMFD_Sphere::get_circumscribed_radius() const
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DS_Sphere:: get_circumscribed_radius()");
-
-    return (ptr_FSrigidbody->get_circumscribed_radius());
-}
-
-//---------------------------------------------------------------------------
-geomVector const *DLMFD_Sphere::get_ptr_to_gravity_centre() const
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DS_Sphere:: get_ptr_to_gravity_centre( )");
-
-    return (dynamic_cast<FS_RigidBody *>(ptr_FSrigidbody)->get_ptr_to_gravity_centre());
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_Sphere::update()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_Sphere:: update");
-
-    gravity_center = *get_ptr_to_gravity_centre();
-    radius = get_circumscribed_radius();
-    translational_velocity = get_rigid_body_translational_velocity();
-    angular_velocity_3D = get_rigid_body_angular_velocity();
-}
-
-//---------------------------------------------------------------------------
 bool DLMFD_Sphere::isIn(const geomVector &point) const
 //---------------------------------------------------------------------------
 {

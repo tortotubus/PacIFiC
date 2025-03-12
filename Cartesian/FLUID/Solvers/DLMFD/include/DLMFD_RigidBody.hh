@@ -145,10 +145,10 @@ public: //-----------------------------------------------------------------
     string get_component_type() const;
 
     /** @brief Returns pointer to the rigid body gravity center */
-    virtual geomVector const *get_ptr_to_gravity_centre() const = 0;
+    geomVector const *get_ptr_to_gravity_centre() const;
 
     /** @brief Returns circumscribed radius */
-    virtual double get_circumscribed_radius() const = 0;
+    double get_circumscribed_radius() const;
 
     /** @brief Returns the number of output points
     @param withIntPts True if the interior points are taken into account */
@@ -231,7 +231,7 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Update the RB */
-    virtual void update() = 0;
+    void update();
 
     /** @brief Update the RB position and velocity
     @param pos updated position

@@ -544,6 +544,24 @@ string DLMFD_RigidBody::get_component_type() const
 }
 
 //---------------------------------------------------------------------------
+double DLMFD_RigidBody::get_circumscribed_radius() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_circumscribed_radius");
+
+    return (ptr_FSrigidbody->get_circumscribed_radius());
+}
+
+//---------------------------------------------------------------------------
+geomVector const *DLMFD_RigidBody::get_ptr_to_gravity_centre() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_ptr_to_gravity_centre");
+
+    return (dynamic_cast<FS_RigidBody *>(ptr_FSrigidbody)->get_ptr_to_gravity_centre());
+}
+
+//---------------------------------------------------------------------------
 size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
 //---------------------------------------------------------------------------
 {
@@ -809,6 +827,18 @@ void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(size_t const &nbIP
     VEC_x.re_initialize(ndofdef, 0.);
     VEC_lambda.re_initialize(ndofdef, 0.);
     VEC_w.re_initialize(ndofdef, 0.);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::update()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: update");
+
+    gravity_center = *get_ptr_to_gravity_centre();
+    radius = get_circumscribed_radius();
+    translational_velocity = get_rigid_body_translational_velocity();
+    angular_velocity_3D = get_rigid_body_angular_velocity();
 }
 
 //---------------------------------------------------------------------------
