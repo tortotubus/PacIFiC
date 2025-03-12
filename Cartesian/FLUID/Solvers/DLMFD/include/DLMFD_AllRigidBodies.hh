@@ -26,7 +26,6 @@ public: //-----------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param dim Number of space dimensions
-    @param pelCOMM_ Communicator
     @param solidFluid_transferStream Input stream where features of rigid bodies are read
     @param are_particles_fixed_ True if the all the particles are
     obstacles
@@ -34,7 +33,6 @@ public: //-----------------------------------------------------------------
     @param PP Pointer to flow field PF */
     DLMFD_AllRigidBodies(size_t &dim,
                          double const &time,
-                         MAC_Communicator const *pelCOMM_,
                          istringstream &solidFluid_transferStream,
                          bool const &are_particles_fixed_,
                          FV_DiscreteField *UU,
@@ -75,9 +73,8 @@ public: //-----------------------------------------------------------------
 
     void fill_DLMFD_Cvectors();
 
-    /** @brief Set MPI data
-    @param pelCOMM_ Communicator */
-    void set_MPI_data(MAC_Communicator const *pelCOMM_);
+    /** @brief Set MPI data */
+    void set_MPI_data();
 
     /** @brief Set coupling factor of each rigid body
     @param rho_f Fluid density

@@ -3,12 +3,12 @@
 #include <doubleArray2D.hh>
 #include <fstream>
 #include <math.h>
+#include <MAC_Exec.hh>
 using namespace std;
 
 //---------------------------------------------------------------------------
 DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
                                            double const &time,
-                                           MAC_Communicator const *pelCOMM_,
                                            istringstream &in,
                                            bool const &are_particles_fixed_,
                                            FV_DiscreteField *UU,
@@ -21,7 +21,7 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    MAC_LABEL("DLMFD_AllRigidBodies:: DLMFD_AllRigidBodies");
 
    // Set MPI
-   set_MPI_data(pelCOMM_);
+   set_MPI_data();
 
    // Set the constrained field
    set_ptr_constrained_field(UU);
@@ -50,6 +50,10 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
 
    // Set the points infos of each rigib body
    set_points_infos();
+
+   // Fill DLMFD vectors
+   check_allocation_DLMFD_Cvectors();
+   fill_DLMFD_Cvectors();
 
    // Set mass, density and inertia tensor of each rigid body
    set_mass_and_density_and_volume_and_inertia(in);
@@ -247,12 +251,12 @@ void DLMFD_AllRigidBodies::fill_DLMFD_Cvectors()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_AllRigidBodies::set_MPI_data(MAC_Communicator const *pelCOMM_)
+void DLMFD_AllRigidBodies::set_MPI_data()
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_MPI");
 
-   pelCOMM = pelCOMM_;
+   pelCOMM = MAC_Exec::communicator();
    size_procs = pelCOMM->nb_ranks();
    rank = pelCOMM->rank();
    master = 0;

@@ -26,7 +26,8 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) 
                                                                                   VEC_r(*DLMFD_FictitiousDomain::dbnull),
                                                                                   VEC_x(*DLMFD_FictitiousDomain::dbnull),
                                                                                   VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
-                                                                                  VEC_w(*DLMFD_FictitiousDomain::dbnull)
+                                                                                  VEC_w(*DLMFD_FictitiousDomain::dbnull),
+                                                                                  ndof(0)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -293,11 +294,10 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
     }
 
     // Boundary points
-    list<DLMFD_BoundaryMultiplierPoint *>::const_iterator iterBndPnts =
-        boundary_points.begin();
-    size_t ncomps = pField->nb_components();
-
     if (nBP)
+    {
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator iterBndPnts = boundary_points.begin();
+        size_t ncomps = pField->nb_components();
         for (size_t i = 0; i < nBP; ++i, iterBndPnts++)
             if ((*iterBndPnts)->isValid())
                 for (compIdx = 0; compIdx < ncomps; ++compIdx)
@@ -323,6 +323,7 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
                     ++ndof;
                     pinfo++;
                 }
+    }
 }
 
 //---------------------------------------------------------------------------
