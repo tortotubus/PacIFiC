@@ -88,6 +88,16 @@ public: //-----------------------------------------------------------------
     @param critical_distance Critical_distance */
     virtual void erase_critical_interior_points_PerProc(double critical_distance) = 0;
 
+    /** @brief Remove critical boundary points too close from an other particle
+    @param second_component Other particle
+    @param critical_distance Critical_distance */
+    void erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody *second_component, const double &critical_distance);
+
+    /** @brief Remove critical boundary points too close from an other particle
+    @param second_component Other particle
+    @param critical_distance Critical_distance */
+    void erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_RigidBody *second_component, const double &critical_distance);
+
     /** @brief Set points infos
     @param pField Constrained field */
     void set_points_infos(FV_DiscreteField *pField);
@@ -125,7 +135,7 @@ public: //-----------------------------------------------------------------
     void set_Qu(const geomVector &qtran);
 
     /** @brief Set q_rot_3D of RB */
-    void set_Qrot(const geomVector &qrot);    
+    void set_Qrot(const geomVector &qrot);
 
     /** @brief Set t_tran of RB */
     void set_Tu(const geomVector &ttran);
@@ -141,8 +151,14 @@ public: //-----------------------------------------------------------------
     /** @name Get methods */
     //@{
 
+    int get_number_periodicClones() const;
+
+    vector<geomVector> *get_periodicClones_DirectionsVector() const;
+
     /** @brief Returns the component type of the RB */
     string get_component_type() const;
+
+    GEOMETRICSHAPE get_GeometricObjectType() const;
 
     /** @brief Returns pointer to the rigid body gravity center */
     geomVector const *get_ptr_to_gravity_centre() const;
@@ -252,8 +268,16 @@ public: //-----------------------------------------------------------------
     @param point Point */
     virtual bool isIn(const geomVector &point) const = 0;
 
-    /** @brief True if there is at least one valid point on proc */
-    bool hasDLMFDPointsOnProc() const;
+    bool proximityQuery(DLMFD_RigidBody const *second_component,
+                        const double &distance) const;
+
+    void DLMFDPoints_in_ContactRegion(list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
+                                      list<DLMFD_BoundaryMultiplierPoint *> &BPHZ_contactRegion,
+                                      geomVector const &refPoint,
+                                      double const &distance_contactRegion);
+
+        /** @brief True if there is at least one valid point on proc */
+        bool hasDLMFDPointsOnProc() const;
 
     /** @brief True if there is at least one halozone point on proc */
     bool hasDLMFDPoints_inHalozone_OnProc() const;
@@ -443,6 +467,8 @@ protected: //--------------------------------------------------------------
 
     vector<vector<double>> inertia_3D;         /**< inertia tensor */
     vector<vector<double>> inversedInertia_3D; /**< inverse of the inertia tensor */
+
+    vector<geomVector> *periodic_directions; /**< periodic clones whose position is gravity_center + (*periodic_directions)[i] */
 
 private: //----------------------------------------------------------------
     //-- Private attributes

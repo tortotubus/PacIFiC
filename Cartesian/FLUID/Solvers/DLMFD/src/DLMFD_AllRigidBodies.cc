@@ -120,7 +120,16 @@ void DLMFD_AllRigidBodies::eraseCriticalDLMFDPoints(const double &time, double c
    // The order in which operations on DLM/FD points are performed
    // is crucial, so do not play with it if it is not purposely
 
-   // TODO: erase critical boundary points
+   // TODO: erase critical boundary points close boundaries
+
+   // Erase boundary points at the contact between components
+   if (RBs_number > 1)
+   {
+      for (size_t i = 0; i < RBs_number; i++)
+         for (size_t j = i + 1; j < RBs_number; j++)
+            if (i != j)
+               vec_ptr_DLMFDallrigidbodies[i]->erase_critical_boundary_points_ptp_PerProc(vec_ptr_DLMFDallrigidbodies[j], critical_distance);
+   }
 
    double coef_cd = 1. / sqrt(double(dim));
 

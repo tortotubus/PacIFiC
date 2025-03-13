@@ -27,6 +27,7 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) 
                                                                                   VEC_x(*DLMFD_FictitiousDomain::dbnull),
                                                                                   VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
                                                                                   VEC_w(*DLMFD_FictitiousDomain::dbnull),
+                                                                                  periodic_directions(NULL),
                                                                                   ndof(0)
 //---------------------------------------------------------------------------
 {
@@ -156,6 +157,12 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
         delete[] NDOF_deltaOmega;
     if (NDOF_FVTriplet)
         delete[] NDOF_FVTriplet;
+
+    if (periodic_directions)
+    {
+        periodic_directions->clear();
+        delete periodic_directions;
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -232,6 +239,169 @@ void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
     if (nIPHZ == halozone_interior_points.size())
         extend_iphz_list(nIPHZ);
     iphz++;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody *second_component, const double &critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc");
+
+    size_t nclones2 = second_component->get_number_periodicClones();
+
+    erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+
+    if (periodic_directions)
+    {
+        geomVector gcref = gravity_center;
+        for (size_t i = 0; i < periodic_directions->size(); ++i)
+        {
+            // gravity_center = gcref + (*periodic_directions)[i];
+            translateGeometricFeatures(gcref + (*periodic_directions)[i]);
+            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+        }
+        //    gravity_center = gcref ;
+        translateGeometricFeatures(gcref);
+    }
+
+    if (nclones2)
+    {
+        geomVector gcref2 = *(second_component->get_ptr_to_gravity_centre());
+        vector<geomVector> *pd2 = second_component->get_periodicClones_DirectionsVector();
+        for (size_t j = 0; j < nclones2; ++j)
+        {
+            second_component->translateGeometricFeatures(gcref2 + (*pd2)[j]);
+            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+        }
+        second_component->translateGeometricFeatures(gcref2);
+
+        if (periodic_directions)
+        {
+            geomVector gcref = gravity_center;
+            for (size_t i = 0; i < periodic_directions->size(); ++i)
+            {
+                // gravity_center = gcref + (*periodic_directions)[i];
+                translateGeometricFeatures(gcref + (*periodic_directions)[i]);
+                for (size_t j = 0; j < nclones2; ++j)
+                {
+                    second_component->translateGeometricFeatures(gcref2 + (*pd2)[j]);
+                    erase_critical_boundary_points_ptp_PerProc_oneGC(second_component,
+                                                                     critical_distance);
+                    // second_component->set_gravityCenter( gcref2 ) ;
+                }
+            }
+            // gravity_center = gcref ;
+            translateGeometricFeatures(gcref);
+            second_component->translateGeometricFeatures(gcref2);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_RigidBody *second_component, const double &critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC");
+
+    // TO CLEAN : see the issue with pointer/object for isIn etc
+
+    if (proximityQuery(second_component, critical_distance))
+    {
+        // Determine points in contact region
+        list<DLMFD_BoundaryMultiplierPoint *> BP_contactRegion,
+            BPHZ_contactRegion,
+            C2_BP_contactRegion,
+            C2_BPHZ_contactRegion;
+
+        DLMFDPoints_in_ContactRegion(BP_contactRegion, BPHZ_contactRegion,
+                                     *second_component->get_ptr_to_gravity_centre(),
+                                     second_component->get_circumscribed_radius() + critical_distance);
+
+        second_component->DLMFDPoints_in_ContactRegion(C2_BP_contactRegion,
+                                                       C2_BPHZ_contactRegion,
+                                                       gravity_center,
+                                                       radius + critical_distance);
+
+        // Procedure to tag boundary points (BP)
+        // 1. find BP of the former component that lie inside the latter and
+        // vice-versa
+        // 2. compare BP & HP of the 2 particles
+        list<DLMFD_BoundaryMultiplierPoint *>::iterator imp, imp2, ihp, ihp2;
+        double dist = 0.;
+
+        // Find BP & HP of the former component that lie inside the latter and
+        // vice-versa
+        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+            if ((*imp)->isValid())
+                if (second_component->isIn((*imp)->get_coordinates()))
+                    (*imp)->set_validity(false);
+
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+            if ((*ihp)->isValid())
+                if (second_component->isIn((*ihp)->get_coordinates()))
+                    (*ihp)->set_validity(false);
+
+        for (imp2 = C2_BP_contactRegion.begin(); imp2 != C2_BP_contactRegion.end();
+             imp2++)
+            if ((*imp2)->isValid())
+                if (isIn((*imp2)->get_coordinates()))
+                    (*imp2)->set_validity(false);
+
+        for (ihp2 = C2_BPHZ_contactRegion.begin(); ihp2 != C2_BPHZ_contactRegion.end();
+             ihp2++)
+            if ((*ihp2)->isValid())
+                if (isIn((*ihp2)->get_coordinates()))
+                    (*ihp2)->set_validity(false);
+
+        // Compare BP & HP of the 2 particles
+        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+            for (imp2 = C2_BP_contactRegion.begin();
+                 imp2 != C2_BP_contactRegion.end(); imp2++)
+            {
+                dist = ((*imp2)->get_coordinates()).calcDist((*imp)->get_coordinates());
+                if (dist < critical_distance)
+                {
+                    (*imp)->set_validity(false);
+                    (*imp2)->set_validity(false);
+                }
+            }
+
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+            for (imp2 = C2_BP_contactRegion.begin();
+                 imp2 != C2_BP_contactRegion.end(); imp2++)
+            {
+                dist = ((*imp2)->get_coordinates()).calcDist((*ihp)->get_coordinates());
+                if (dist < critical_distance)
+                {
+                    (*ihp)->set_validity(false);
+                    (*imp2)->set_validity(false);
+                }
+            }
+
+        for (ihp2 = C2_BPHZ_contactRegion.begin(); ihp2 != C2_BPHZ_contactRegion.end();
+             ihp2++)
+            for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+            {
+                dist = ((*imp)->get_coordinates()).calcDist((*ihp2)->get_coordinates());
+                if (dist < critical_distance)
+                {
+                    (*ihp2)->set_validity(false);
+                    (*imp)->set_validity(false);
+                }
+            }
+
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+            for (ihp2 = C2_BPHZ_contactRegion.begin();
+                 ihp2 != C2_BPHZ_contactRegion.end(); ihp2++)
+            {
+                dist = ((*ihp)->get_coordinates()).calcDist((*ihp2)->get_coordinates());
+                if (dist < critical_distance)
+                {
+                    (*ihp)->set_validity(false);
+                    (*ihp2)->set_validity(false);
+                }
+            }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -535,12 +705,39 @@ void DLMFD_RigidBody::set_ttran_ncomp(const size_t &ncomp_)
 }
 
 //---------------------------------------------------------------------------
+int DLMFD_RigidBody::get_number_periodicClones() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_number_periodicClones");
+
+    return (periodic_directions ? periodic_directions->size() : 0);
+}
+
+//---------------------------------------------------------------------------
+vector<geomVector> *DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_periodicClones_DirectionsVector");
+
+    return periodic_directions;
+}
+
+//---------------------------------------------------------------------------
 string DLMFD_RigidBody::get_component_type() const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: get_component_type");
 
     return component_type;
+}
+
+//---------------------------------------------------------------------------
+GEOMETRICSHAPE DLMFD_RigidBody::get_GeometricObjectType() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::get_GeometricObjectType");
+
+    return (ptr_FSrigidbody->get_shape_type());
 }
 
 //---------------------------------------------------------------------------
@@ -851,6 +1048,53 @@ void DLMFD_RigidBody::update_RB_position_and_velocity(geomVector const &pos,
     MAC_LABEL("DLMFD_RigidBody:: update_RB_position_and_velocity");
 
     return (ptr_FSrigidbody->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step));
+}
+
+//---------------------------------------------------------------------------
+bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
+                                     const double &distance) const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::proximityQuery");
+
+    bool close = false;
+
+    switch (second_component->get_GeometricObjectType())
+    {
+    case GEOM_3DBOX:
+        close = second_component->proximityQuery(this, distance);
+        break;
+
+    default:
+        if (gravity_center.calcDist(*second_component->get_ptr_to_gravity_centre()) <= radius + second_component->get_circumscribed_radius() + distance)
+            close = true;
+    }
+
+    return close;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
+                                                   list<DLMFD_BoundaryMultiplierPoint *> &BPHZ_contactRegion,
+                                                   geomVector const &refPoint,
+                                                   double const &distance_contactRegion)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::DLMFDPoints_in_ContactRegion");
+
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp;
+
+    // Boundary points in the contact region
+    imp = boundary_points.begin();
+    for (size_t i = 0; i < nBP; ++i, imp++)
+        if (((*imp)->get_coordinates()).calcDist(refPoint) < distance_contactRegion)
+            BP_contactRegion.push_back(*imp);
+
+    // Boundary points in halo zone in the contact region
+    imp = halozone_boundary_points.begin();
+    for (size_t i = 0; i < nBPHZ; ++i, imp++)
+        if (((*imp)->get_coordinates()).calcDist(refPoint) < distance_contactRegion)
+            BPHZ_contactRegion.push_back(*imp);
 }
 
 //---------------------------------------------------------------------------

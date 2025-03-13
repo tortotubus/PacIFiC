@@ -29,6 +29,15 @@ geomVector DLMFD_ParticlePoint::get_coordinates() const
 }
 
 //---------------------------------------------------------------------------
+geomVector const *DLMFD_ParticlePoint::get_ptr_coordinates() const
+//--------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ParticlePoint::get_ptr_coordinates");
+
+    return &pointCoordinates;
+}
+
+//---------------------------------------------------------------------------
 double DLMFD_ParticlePoint::get_oneCoordinate(const size_t &dir) const
 //---------------------------------------------------------------------------
 {

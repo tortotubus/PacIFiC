@@ -62,6 +62,8 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField *pField, double critical_dist
 
     //-- Interior points
     set_interior_points_list(pField, critical_distance);
+
+    std::cout << "nBP    " << nBP << endl;
 }
 
 //---------------------------------------------------------------------------
@@ -253,13 +255,7 @@ bool DLMFD_Sphere::isIn(const geomVector &point) const
 {
     MAC_LABEL("DLMFD_Sphere:: isIn");
 
-    double x = point(0), y = point(1), z;
-    if (point.getVecSize() == 3)
-        z = point(2);
-    else
-        z = 0.;
-
-    return (gravity_center.calcDist(x, y, z) < radius);
+    return (ptr_FSrigidbody->isIn(point));
 }
 
 //---------------------------------------------------------------------------

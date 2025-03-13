@@ -44,7 +44,7 @@ public: //----------------------------------------------------------------
     void set(const size_t &comp, const geomVector &point,
              const geomVector &gravity_center);
     /** @brief Set validity */
-    void set_validity(bool const& valid_);
+    void set_validity(bool const &valid_);
     //@}
 
     //-- Get methods
@@ -53,6 +53,9 @@ public: //----------------------------------------------------------------
 
     /** @brief Get the coordinates of the point */
     geomVector get_coordinates() const;
+
+    /** @brief Get the pointer to coordinates of the point */
+    geomVector const *get_ptr_coordinates() const;
 
     /** @brief Get the coordinates of the point
     @param dir Direction */
