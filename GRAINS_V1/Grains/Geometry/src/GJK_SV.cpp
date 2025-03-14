@@ -45,7 +45,7 @@ static inline void s1d( Vector3 const y[4],
 	unsigned int I = 0;
 	double neg_tI = -t[0];
 
-	if ( fabs( t[1] ) > fabs(  neg_tI ) )
+	if ( fabs( t[1] ) > fabs( neg_tI ) )
 	{
 		I = 1;
 		neg_tI = -t[1];
@@ -83,8 +83,8 @@ static inline void s1d( Vector3 const y[4],
 		}
 		else
 		{
-		bits &= ~(1 << i1);
-		lambdas[i2] = 1.;
+			bits &= ~(1 << i1);
+			lambdas[i2] = 1.;
 		}
 	}
 }
@@ -251,30 +251,30 @@ static inline void s3d( Vector3 const y[4],
 	// computations are done directly rather than with a loop.
 	// C[0] and C[2] are negated due to the (-1)^(i+j+1) prefactor,
 	// where i is always 4 because we're expanding about the 4th row.
-	C[0] = ( y[3][0] * y[2][1] * y[1][2] + 
+	C[0] =  y[3][0] * y[2][1] * y[1][2] + 
 			y[2][0] * y[1][1] * y[3][2] + 
 			y[1][0] * y[3][1] * y[2][2] -
 			y[1][0] * y[2][1] * y[3][2] - 
 			y[2][0] * y[3][1] * y[1][2] -
-			y[3][0] * y[1][1] * y[2][2] );
-	C[1] = ( y[0][0] * y[2][1] * y[3][2] + 
+			y[3][0] * y[1][1] * y[2][2];
+	C[1] =  y[0][0] * y[2][1] * y[3][2] + 
 			y[2][0] * y[3][1] * y[0][2] + 
 			y[3][0] * y[0][1] * y[2][2] -
 			y[3][0] * y[2][1] * y[0][2] - 
 			y[2][0] * y[0][1] * y[3][2] -
-			y[0][0] * y[3][1] * y[2][2] );
-	C[2] = ( y[3][0] * y[1][1] * y[0][2] + 
+			y[0][0] * y[3][1] * y[2][2];
+	C[2] =  y[3][0] * y[1][1] * y[0][2] + 
 			y[1][0] * y[0][1] * y[3][2] + 
 			y[0][0] * y[3][1] * y[1][2] -
 			y[0][0] * y[1][1] * y[3][2] - 
 			y[1][0] * y[3][1] * y[0][2] -
-			y[3][0] * y[0][1] * y[1][2] );
-	C[3] = ( y[0][0] * y[1][1] * y[2][2] + 
+			y[3][0] * y[0][1] * y[1][2];
+	C[3] =  y[0][0] * y[1][1] * y[2][2] + 
 			y[1][0] * y[2][1] * y[0][2] + 
 			y[2][0] * y[0][1] * y[1][2] -
 			y[2][0] * y[1][1] * y[0][2] - 
 			y[1][0] * y[0][1] * y[2][2] -
-			y[0][0] * y[2][1] * y[1][2] );
+			y[0][0] * y[2][1] * y[1][2];
 	double dM = C[0] + C[1] + C[2] + C[3];
 
 	unsigned int sign_comparisons[4] = {0};
@@ -378,7 +378,7 @@ static inline void sv_subalgorithm( Vector3 const y[4],
 	// modified if necessary, and the lambdas will be updated.  All the other
 	// functions (if they need to make deeper calls e.g. s3d->s2d) will have to
 	// make copies of bits to avoid overwriting that data incorrectly.
-	unsigned int num_used = 0;  
+	unsigned int num_used = 0;
 	for ( unsigned int i = 0; i < 4; ++i )
 		num_used += (bits >> i) & 1;
 
@@ -441,7 +441,7 @@ double closest_points_GJK_SV( Convex const& a,
     Vector3 y[4];				     // support points of A-B in world
     double mu = 0.;                  // optimality gap
     int numIterations = 0;           // No. iterations
-    double lambdas[4];               // Weights
+    double lambdas[4] = { 0. };      // Weights
 
     // Misc variables, e.g. tolerance, ...
     double relError = GrainsExec::m_colDetTolerance;    // rel error for opt gap

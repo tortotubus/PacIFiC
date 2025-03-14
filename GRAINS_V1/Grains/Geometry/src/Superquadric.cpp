@@ -631,7 +631,7 @@ BVolume* Superquadric::computeBVolume( unsigned int type ) const
                            m_c * m_c -
                            h * h / 4. );
 
-          bvol = new OBC( r, h, e );  
+          bvol = new OBC( r, h, e );
       }
   }
 
