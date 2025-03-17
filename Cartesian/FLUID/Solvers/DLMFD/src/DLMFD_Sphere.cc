@@ -18,8 +18,9 @@ DLMFD_Sphere::DLMFD_Sphere() : DLMFD_RigidBody()
 
 //---------------------------------------------------------------------------
 DLMFD_Sphere::DLMFD_Sphere(FS_RigidBody *pgrb,
+                           const bool &are_particles_fixed,
                            FV_DiscreteField *pField_,
-                           double const critical_distance_) : DLMFD_RigidBody(pgrb, pField_)
+                           double const critical_distance_) : DLMFD_RigidBody(pgrb, are_particles_fixed, pField_)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: DLMFD_Sphere");
@@ -62,8 +63,6 @@ void DLMFD_Sphere::set_all_points(FV_DiscreteField *pField, double critical_dist
 
     //-- Interior points
     set_interior_points_list(pField, critical_distance);
-
-    std::cout << "nBP    " << nBP << endl;
 }
 
 //---------------------------------------------------------------------------

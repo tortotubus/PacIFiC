@@ -26,6 +26,7 @@ public: //------------------------------------------------------------------
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
     DLMFD_Sphere(FS_RigidBody *pgrb,
+                 const bool &are_particles_fixed,
                  FV_DiscreteField *pField_,
                  double const critical_distance_);
 

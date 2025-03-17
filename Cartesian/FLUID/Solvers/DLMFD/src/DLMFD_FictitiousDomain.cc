@@ -118,9 +118,9 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    // Set the coupling factor for each rigid body
    if (are_particles_fixed)
-      allrigidbodies->set_coupling_factor(transfert.rho_f, b_explicit_added_mass);
+      allrigidbodies->set_coupling_factor(rho_f, b_explicit_added_mass);
 
-   // Create the instances of resolution stuff
+   // Create the instances of resolution objects
    GLOBAL_EQ = transfert.GLOBAL_EQ;
    levelDiscrField = transfert.velocitylevelDiscrField;
 
@@ -155,16 +155,16 @@ DLMFD_FictitiousDomain *DLMFD_FictitiousDomain::create(MAC_Object *a_owner,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::do_one_inner_iteration(FV_TimeIterator const *t_it)
+void DLMFD_FictitiousDomain::do_one_inner_iteration(FV_TimeIterator const *t_it, size_t &sub_prob_number)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: do_one_inner_iteration");
 
    // Newtons's law -- Prediction step
-   update_rigid_bodies(t_it);
+   update_rigid_bodies(t_it, sub_prob_number);
 
    // DLMFD process -- Correction step
-   run_DLMFD_UzawaSolver(t_it);
+   run_DLMFD_UzawaSolver(t_it, sub_prob_number);
 
    // Sum DLM on master process for hydrodynamic force & torque output
    allrigidbodies->sum_DLM_hydrodynamic_force_output(b_restart);
@@ -202,19 +202,6 @@ void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it
    Paraview_saveMultipliers_pvd << "<VTKFile type=\"Collection\" version=\"0.1\""
                                 << " byte_order=\"LittleEndian\">" << endl;
    Paraview_saveMultipliers_pvd << "<Collection>" << endl;
-
-   // // Erase critical DLMFD points
-   // allrigidbodies->eraseCriticalDLMFDPoints(t_it->time(), critical_distance);
-
-   // Set the onProc IDs
-   allrigidbodies->set_listIdOnProc();
-
-   // // Set points infos
-   // allrigidbodies->set_points_infos();
-
-   // // Fill DLMFD vectors
-   // allrigidbodies->check_allocation_DLMFD_Cvectors();
-   // allrigidbodies->fill_DLMFD_Cvectors();
 
    // Hydrodynamic force and torque
    allrigidbodies->sum_DLM_hydrodynamic_force_output(b_restart);
@@ -299,23 +286,6 @@ void DLMFD_FictitiousDomain::write_PVTU_multiplier_file(string const &filename) 
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::SetstreamTo_allprocs()
-//---------------------------------------------------------------------------
-{
-   MAC_LABEL("DLMFD_FictitiousDomain::SetstreamTo_allprocs");
-
-   transferString = new string;
-   if (rank == master)
-      *transferString = solidFluid_transferStream->str();
-
-   pelCOMM->broadcast(*transferString, master);
-   solidFluid_transferStream->str(*transferString);
-   delete transferString;
-
-   cout << "test before crashing  " << endl;
-}
-
-//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::set_critical_distance(double critical_distance_)
 //---------------------------------------------------------------------------
 {
@@ -359,23 +329,21 @@ void DLMFD_FictitiousDomain::finalize_construction()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
+void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it, size_t &sub_prob_number)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: update_rigid_bodies");
 
-   sub_prob_number = 3;
-
-   if (rank == master)
-   {
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
-      MAC::out() << "Sub-problem " << sub_prob_number
-                 << " : Rigid Bodies updating -- Prediction" << endl;
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
-   }
-
    if (!are_particles_fixed)
    {
+      if (rank == master)
+      {
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "Sub-problem " << sub_prob_number
+                    << " : Solid problem -- Prediction" << endl;
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      }
+
       solidFluid_transferStream = new istringstream;
       if (rank == master)
       {
@@ -390,23 +358,34 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it)
       if (rank == master)
          MAC::out() << "Solid components written in stream by solid solver" << endl;
 
+      ++sub_prob_number;
+
       pelCOMM->barrier();
    }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
+void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it, size_t &sub_prob_number)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: run_DLMFD_UzawaSolver");
 
    if (rank == master)
    {
-      sub_prob_number = 4;
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
-      MAC::out() << "Sub-problem " << sub_prob_number
-                 << " : DLMFD solving -- Correction" << endl;
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      if (are_particles_fixed)
+      {
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "Sub-problem " << sub_prob_number
+                    << " : DLMFD problem" << endl;
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      }
+      else
+      {
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "Sub-problem " << sub_prob_number
+                    << " : DLMFD problem -- Correction" << endl;
+         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      }
    }
 
    // Initialize the DLMFD correction problem
@@ -414,6 +393,8 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it)
 
    // Solve the DLMFD correction problem
    DLMFD_solving(t_it);
+
+   ++sub_prob_number;
 
    if (rank == master)
       MAC::out() << "Uzawa problem completed" << endl;

@@ -21,14 +21,16 @@ DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
 }
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
-                                                                                  pField_(pField_),
-                                                                                  VEC_r(*DLMFD_FictitiousDomain::dbnull),
-                                                                                  VEC_x(*DLMFD_FictitiousDomain::dbnull),
-                                                                                  VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
-                                                                                  VEC_w(*DLMFD_FictitiousDomain::dbnull),
-                                                                                  periodic_directions(NULL),
-                                                                                  ndof(0)
+DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
+                                 const bool &are_particles_fixed,
+                                 FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
+                                                              pField_(pField_),
+                                                              VEC_r(*DLMFD_FictitiousDomain::dbnull),
+                                                              VEC_x(*DLMFD_FictitiousDomain::dbnull),
+                                                              VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+                                                              VEC_w(*DLMFD_FictitiousDomain::dbnull),
+                                                              periodic_directions(NULL),
+                                                              ndof(0)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -45,9 +47,6 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) 
     NDOF_FVTriplet = NULL;
 
     fluidsolid_coupling_factor = 1.;
-
-    // Set component type
-    set_component_type();
 
     // Resize vectors
     translational_velocity.resize(3);
@@ -94,6 +93,9 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_) 
         (*Q2numb)(1, 2, 2) = 25;
         (*Q2numb)(2, 2, 2) = 26;
     }
+
+    // Set component type
+    set_component_type();
 
     // Set the translational velocity
     set_translational_velocity();
@@ -184,6 +186,42 @@ void DLMFD_RigidBody::set_ptr_constrained_field(FV_DiscreteField *pField__)
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::initialize_listOfDLMFDPoints");
+
+    DLMFD_InteriorMultiplierPoint *imp = NULL;
+    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
+
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    if (interior_points.empty())
+    {
+        interior_points.push_back(imp);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    if (halozone_interior_points.empty())
+    {
+        halozone_interior_points.push_back(imp);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    if (boundary_points.empty())
+    {
+        boundary_points.push_back(bmp);
+        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+
+    if (halozone_boundary_points.empty())
+    {
+        halozone_boundary_points.push_back(bmp);
+        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
@@ -239,6 +277,112 @@ void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
     if (nIPHZ == halozone_interior_points.size())
         extend_iphz_list(nIPHZ);
     iphz++;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::setBndPoint(geomVector const &point,
+                                  FV_Mesh const *primary_grid,
+                                  list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+                                  list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::setBndPoint");
+
+    if (primary_grid->is_in_domain_with_halozone(point(0), point(1), point(2)))
+    {
+        if (primary_grid->is_in_domain_on_current_processor(point(0), point(1), point(2)))
+        {
+            set_boundary_point(point, bp);
+        }
+        else
+        {
+            set_halozone_boundary_point(point, bphz);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::setPtsOnEdge(const geomVector &firstPoint,
+                                   const geomVector &secondPoint,
+                                   const double &critical_distance, const bool &addBeginPnt,
+                                   FV_Mesh const *primary_grid,
+                                   list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+                                   list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::setPtsOnEdge");
+
+    double tol = 0.01;
+    size_t nbptsLocal = size_t(firstPoint.calcDist(secondPoint) / critical_distance + tol);
+
+    geomVector point;
+
+    if (nbptsLocal)
+    {
+        double dx = (firstPoint(0) - secondPoint(0)) / nbptsLocal,
+               dy = (firstPoint(1) - secondPoint(1)) / nbptsLocal,
+               dz = (firstPoint(2) - secondPoint(2)) / nbptsLocal, x, y, z;
+        size_t beginIdx = addBeginPnt ? 0 : 1;
+
+        for (size_t idxSub = beginIdx; idxSub <= nbptsLocal - 1; ++idxSub)
+        {
+            x = secondPoint(0) + idxSub * dx;
+            y = secondPoint(1) + idxSub * dy;
+            z = secondPoint(2) + idxSub * dz;
+            point = geomVector(x, y, z);
+
+            setBndPoint(point, primary_grid, bp, bphz);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::erase_critical_interior_points_PerProc");
+
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp, ihp;
+    list<DLMFD_InteriorMultiplierPoint *>::iterator ivi;
+
+    if (!interior_points.empty())
+    {
+        // Compare to boundary points on this process
+        if (!boundary_points.empty())
+        {
+            imp = boundary_points.begin();
+            for (size_t i = 0; i < nBP; ++i, imp++)
+            {
+                if ((*imp)->isValid())
+                {
+                    ivi = interior_points.begin();
+                    for (size_t j = 0; j < nIP; ++j, ivi++)
+                        if ((*ivi)->isValid())
+                        {
+                            if (((*imp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                            {
+                                (*ivi)->set_validity(false);
+                            }
+                        }
+                }
+            }
+        }
+
+        // Compare to boundary points in halo zone
+        if (!halozone_boundary_points.empty())
+        {
+            ihp = halozone_boundary_points.begin();
+            for (size_t i = 0; i < nBPHZ; ++i, ihp++)
+                if ((*ihp)->isValid())
+                {
+                    ivi = interior_points.begin();
+                    for (size_t j = 0; j < nIP; ++j, ivi++)
+                        if ((*ivi)->isValid())
+                            if (((*ihp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                                (*ivi)->set_validity(false);
+                }
+        }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -1248,6 +1392,7 @@ void DLMFD_RigidBody::compute_Qu(bool init)
         {
             q_tran.addOneComp(NDOF_comp[i], -(*work)(i));
         }
+
     }
 }
 
@@ -1487,9 +1632,11 @@ void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
         // Fluid part
         for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
         {
-            VEC_x(i) += NDOF_deltaOmega[l] * pField->DOF_value(
-                                                 NDOF_FVTriplet[m], NDOF_FVTriplet[m + 1],
-                                                 NDOF_FVTriplet[m + 2], comp, 0);
+            VEC_x(i) += NDOF_deltaOmega[l] * pField->DOF_value(NDOF_FVTriplet[m],
+                                                               NDOF_FVTriplet[m + 1],
+                                                               NDOF_FVTriplet[m + 2],
+                                                               comp,
+                                                               0);
 
             ++l;
             m += 3;
@@ -1843,15 +1990,18 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
     // Localize in structured mesh
     for (i = 0; i < dim; ++i)
     {
-        mesh[i] = pField->get_DOF_coordinates_vector(
-            OnePointInfos.compIdx, i);
+        mesh[i] = pField->get_DOF_coordinates_vector(OnePointInfos.compIdx, i);
         point(i) = OnePointInfos.ptr_point->get_oneCoordinate(i);
+
         if (component_type != "P")
             FV_Mesh::between(mesh[i], point(i), indices(i));
         else
-            FV_Mesh::between_subinterval(mesh[i], point(i), indices(i),
+            FV_Mesh::between_subinterval(mesh[i],
+                                         point(i),
+                                         indices(i),
                                          (*index_min)(OnePointInfos.compIdx, i),
                                          (*index_max)(OnePointInfos.compIdx, i));
+
         cellsize(i) = (*mesh[i])(indices(i) + 1) - (*mesh[i])(indices(i));
     }
 
@@ -1984,8 +2134,7 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                 for (kk = 0; kk < 3; ++kk)
                 {
                     k = kref + kk;
-                    globalDOFNo = pField->DOF_global_number(i, j, k,
-                                                            OnePointInfos.compIdx);
+                    globalDOFNo = pField->DOF_global_number(i, j, k, OnePointInfos.compIdx);
                     OnePointInfos.positionU.push_back(globalDOFNo);
                     ijk.i = i;
                     ijk.j = j;

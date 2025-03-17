@@ -25,6 +25,7 @@ public: //-----------------------------------------------------------------
     /** @brief Creates a Fictitious Domain rigid body
     @param ptr_geom_rb pointer to the corresponding geometric rigid body */
     static DLMFD_RigidBody *create(FS_RigidBody *ptr_geom_rb,
+                                   const bool &are_particles_fixed,
                                    FV_DiscreteField *pField_,
                                    double const critical_distance_);
 

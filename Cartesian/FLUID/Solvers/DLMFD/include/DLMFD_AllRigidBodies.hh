@@ -48,6 +48,8 @@ public: //-----------------------------------------------------------------
     /** @name Set methods */
     //@{
 
+    void set_components_type();
+
     void set_b_output_hydro_forceTorque(bool const &is_output);
 
     /** @brief Return the total number of rigid bodies
@@ -152,7 +154,7 @@ public: //-----------------------------------------------------------------
     //@}
 
     // -- Update methods
-    /** @name Get methods */
+    /** @name Update methods */
     //@{
 
     /** @brief Update method

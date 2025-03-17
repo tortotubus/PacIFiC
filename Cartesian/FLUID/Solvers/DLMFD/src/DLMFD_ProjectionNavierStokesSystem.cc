@@ -134,32 +134,23 @@ void DLMFD_ProjectionNavierStokesSystem::build_system(MAC_ModuleExplorer const *
    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: build_system");
 
    // Velocity unsteady matrix and rhs
-   MAT_A_VelocityUnsteady = LA_Matrix::make(this,
-                                            exp->create_subexplorer(this, "MAT_A_VelocityUnsteady"));
+   MAT_A_VelocityUnsteady = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_A_VelocityUnsteady"));
    VEC_rhs_A_Velocity = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Velocity unsteady + viscous matrix and rhs for the Stokes problem
-   MAT_A_VelocityUnsteadyPlusViscous = LA_Matrix::make(this,
-                                                       exp->create_subexplorer(this,
-                                                                               "MAT_A_VelocityUnsteadyPlusViscous"));
-   VEC_rhs_A_VelocityViscous =
-       MAT_A_VelocityUnsteady->create_vector(this);
+   MAT_A_VelocityUnsteadyPlusViscous = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_A_VelocityUnsteadyPlusViscous"));
+   VEC_rhs_A_VelocityViscous = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Velocity divergence p.Div(v) matrix and rhs
-   MAT_B_VelocityDivergence = LA_Matrix::make(this,
-                                              exp->create_subexplorer(this, "MAT_B_VelocityDivergence"));
-   VEC_rhs_B_VelocityDivergence = MAT_B_VelocityDivergence->create_vector(
-       this);
+   MAT_B_VelocityDivergence = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_B_VelocityDivergence"));
+   VEC_rhs_B_VelocityDivergence = MAT_B_VelocityDivergence->create_vector(this);
 
    // Pressure gradient rhs
-   VEC_rhs_Bt_PressureGradient = MAT_B_VelocityDivergence->create_vector(
-       this);
+   VEC_rhs_Bt_PressureGradient = MAT_B_VelocityDivergence->create_vector(this);
 
    // Pressure Laplacian matrix and rhs
-   MAT_D_PressureLaplacian = LA_Matrix::make(this,
-                                             exp->create_subexplorer(this, "MAT_D_PressureLaplacian"));
-   VEC_rhs_D_PressureLaplacian = MAT_D_PressureLaplacian->create_vector(
-       this);
+   MAT_D_PressureLaplacian = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_D_PressureLaplacian"));
+   VEC_rhs_D_PressureLaplacian = MAT_D_PressureLaplacian->create_vector(this);
 
    // Local vectors
    U_LOC = LA_SeqVector::create(this, 0);
@@ -174,14 +165,11 @@ void DLMFD_ProjectionNavierStokesSystem::build_system(MAC_ModuleExplorer const *
 
    // Velocity advection rhs
    VEC_rhs_VelocityAdvection = MAT_A_VelocityUnsteady->create_vector(this);
-   VEC_rhs_VelocityAdvectionDiffusion = MAT_A_VelocityUnsteady->create_vector(
-       this);
-   VEC_rhs_VelocityAdvection_Nm2 = MAT_A_VelocityUnsteady->create_vector(
-       this);
+   VEC_rhs_VelocityAdvectionDiffusion = MAT_A_VelocityUnsteady->create_vector(this);
+   VEC_rhs_VelocityAdvection_Nm2 = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Periodic pressure drop rhs
-   VEC_rhs_A_UnitaryPeriodicPressureGradient =
-       MAT_A_VelocityUnsteady->create_vector(this);
+   VEC_rhs_A_UnitaryPeriodicPressureGradient = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Work vectors
    // Unknown vectors
@@ -195,21 +183,11 @@ void DLMFD_ProjectionNavierStokesSystem::build_system(MAC_ModuleExplorer const *
    VEC_inverse_mean_pressure = MAT_D_PressureLaplacian->create_vector(this);
 
    // Solver
-   SOLVER_A_VelocityUnsteadyPlusViscous =
-       LA_Solver::make(this,
-                       exp->create_subexplorer(this,
-                                               "SOLVER_A_VelocityUnsteadyPlusViscous"));
-   SOLVER_A_VelocityUnsteadyPlusViscous
-       ->set_initial_guess_nonzero(true);
+   SOLVER_A_VelocityUnsteadyPlusViscous = LA_Solver::make(this, exp->create_subexplorer(this, "SOLVER_A_VelocityUnsteadyPlusViscous"));
+   SOLVER_A_VelocityUnsteadyPlusViscous->set_initial_guess_nonzero(true);
 
-   SOLVER_D_PressureLaplacian =
-       LA_Solver::make(this,
-                       exp->create_subexplorer(this,
-                                               "SOLVER_D_PressureLaplacian"));
-   SOLVER_A_VelocityUnsteady =
-       LA_Solver::make(this,
-                       exp->create_subexplorer(this,
-                                               "SOLVER_A_VelocityUnsteady"));
+   SOLVER_D_PressureLaplacian = LA_Solver::make(this, exp->create_subexplorer(this, "SOLVER_D_PressureLaplacian"));
+   SOLVER_A_VelocityUnsteady = LA_Solver::make(this, exp->create_subexplorer(this, "SOLVER_A_VelocityUnsteady"));
 
    // Velocity & pressure numbering
    UU_NUM = FV_SystemNumbering::create(this, UU);
@@ -706,13 +684,11 @@ DLMFD_ProjectionNavierStokesSystem::VelocityPressure_correction_solver(
    // Third step: update velocity
    // ---------------------------
    // Compute unsteady rhs = (ro/dt)*u^n-1
-   MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_U,
-                                                 VEC_rhs_A_Velocity);
+   MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_U, VEC_rhs_A_Velocity);
 
    // Add - grad(p) or - grad(pc)
    // rhs = - grad(p or pc) + (ro/dt)*u^n-1
-   MAT_B_VelocityDivergence->tr_multiply_vec_then_add(VEC_P,
-                                                      VEC_rhs_A_Velocity, -1., 1.);
+   MAT_B_VelocityDivergence->tr_multiply_vec_then_add(VEC_P, VEC_rhs_A_Velocity, -1., 1.);
 
    // Add pressure gradient boundary conditions if !b_ExplicitPressureGradient
    if (!b_ExplicitPressureGradient)
@@ -797,8 +773,7 @@ bool DLMFD_ProjectionNavierStokesSystem::VelocityAdvection_solver(void)
    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: VelocityAdvection_solver");
 
    // Compute velocity unsteady rhs
-   MAT_A_VelocityUnsteady->multiply_vec_then_add(
-       VEC_U, VEC_rhs_A_Velocity);
+   MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_U, VEC_rhs_A_Velocity);
 
    // Compute velocity unsteady + advection rhs
    VEC_rhs_A_Velocity->sum(VEC_rhs_VelocityAdvection);
@@ -854,6 +829,7 @@ void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Init(const double 
    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Init");
 
    VEC_q->synchronize();
+
    VEC_q->sum(VEC_rhs_A_Velocity);
 
    SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_U);

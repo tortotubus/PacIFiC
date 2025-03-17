@@ -41,7 +41,9 @@ public: //-----------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_RigidBody(FS_RigidBody *pgrb, FV_DiscreteField *pField_);
+    DLMFD_RigidBody(FS_RigidBody *pgrb,
+                    const bool &are_particles_fixed,
+                    FV_DiscreteField *pField_);
 
     /** @brief Destructor */
     ~DLMFD_RigidBody();
@@ -56,6 +58,8 @@ public: //-----------------------------------------------------------------
     void set_component_type();
 
     void set_ptr_constrained_field(FV_DiscreteField *pField__);
+
+    void initialize_listOfDLMFDPoints();
 
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
@@ -84,9 +88,22 @@ public: //-----------------------------------------------------------------
                                      size_t i, size_t j, size_t k,
                                      list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
 
+    void setBndPoint(geomVector const &point,
+                     FV_Mesh const *primary_grid,
+                     list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+                     list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz);
+
+    /** @brief Set boundary points located on a segment in the boundary_points list */
+    void setPtsOnEdge(const geomVector &firstPoint,
+                      const geomVector &secondPoint,
+                      const double &critical_distance, const bool &addBeginPnt,
+                      FV_Mesh const *primary_grid,
+                      list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+                      list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz);
+
     /** @brief Remove critical interior points
     @param critical_distance Critical_distance */
-    virtual void erase_critical_interior_points_PerProc(double critical_distance) = 0;
+    virtual void erase_critical_interior_points_PerProc(double critical_distance);
 
     /** @brief Remove critical boundary points too close from an other particle
     @param second_component Other particle
@@ -247,7 +264,7 @@ public: //-----------------------------------------------------------------
     //@{
 
     /** @brief Update the RB */
-    void update();
+    virtual void update();
 
     /** @brief Update the RB position and velocity
     @param pos updated position
@@ -268,16 +285,16 @@ public: //-----------------------------------------------------------------
     @param point Point */
     virtual bool isIn(const geomVector &point) const = 0;
 
-    bool proximityQuery(DLMFD_RigidBody const *second_component,
-                        const double &distance) const;
+    /** @brief Proximity query */
+    virtual bool proximityQuery(DLMFD_RigidBody const *second_component, const double &distance) const;
 
     void DLMFDPoints_in_ContactRegion(list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
                                       list<DLMFD_BoundaryMultiplierPoint *> &BPHZ_contactRegion,
                                       geomVector const &refPoint,
                                       double const &distance_contactRegion);
 
-        /** @brief True if there is at least one valid point on proc */
-        bool hasDLMFDPointsOnProc() const;
+    /** @brief True if there is at least one valid point on proc */
+    bool hasDLMFDPointsOnProc() const;
 
     /** @brief True if there is at least one halozone point on proc */
     bool hasDLMFDPoints_inHalozone_OnProc() const;
@@ -407,6 +424,8 @@ protected: //--------------------------------------------------------------
 
     FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */
     FV_DiscreteField *pField_;
+
+    bool is_particle_fixed; /**< is the solid component a particle treated as a fixed obstacle */
 
     // Geometric attributes
     size_t dim;

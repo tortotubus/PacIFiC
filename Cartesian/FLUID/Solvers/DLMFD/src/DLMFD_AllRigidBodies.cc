@@ -20,14 +20,14 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: DLMFD_AllRigidBodies");
 
-   // Set MPI
-   set_MPI_data();
-
    // Set the constrained field
    set_ptr_constrained_field(UU);
 
+   // Set MPI
+   set_MPI_data();
+
    // Set the rigid bodies
-   ptr_FSallrigidbodies = new FS_AllRigidBodies(dim, in, are_particles_fixed_);
+   ptr_FSallrigidbodies = new FS_AllRigidBodies(dim, in, are_particles_fixed);
    RBs_number = ptr_FSallrigidbodies->get_number_rigid_bodies();
 
    DLMFD_RigidBody *ptr_dlmfd_rb = NULL;
@@ -36,8 +36,11 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    {
       vec_ptr_DLMFDallrigidbodies.push_back(ptr_dlmfd_rb);
       vec_ptr_DLMFDallrigidbodies[i] = DLMFD_RigidBody_BuilderFactory::create(
-          ptr_FSallrigidbodies->get_ptr_rigid_body(i), pField, critical_distance);
+          ptr_FSallrigidbodies->get_ptr_rigid_body(i), are_particles_fixed, pField, critical_distance);
    }
+
+   // Set components type
+   set_components_type();
 
    // Erase critical DLMFD points
    eraseCriticalDLMFDPoints(time, critical_distance);
@@ -90,6 +93,18 @@ DLMFD_AllRigidBodies::~DLMFD_AllRigidBodies()
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_components_type()
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::set_components_type");
+
+   for (size_t i = 0; i < RBs_number; i++)
+   {
+      vec_ptr_DLMFDallrigidbodies[i]->set_component_type();
+   }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::set_b_output_hydro_forceTorque(bool const &is_output)
 //---------------------------------------------------------------------------
 {
@@ -114,7 +129,7 @@ void DLMFD_AllRigidBodies::set_all_points(double critical_distance)
 void DLMFD_AllRigidBodies::eraseCriticalDLMFDPoints(const double &time, double critical_distance)
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
+   MAC_LABEL("DLMFD_AllRigidBodies:: eraseCriticalDLMFDPoints");
 
    // !!! IMPORTANT REMARK !!!
    // The order in which operations on DLM/FD points are performed
@@ -142,7 +157,7 @@ void DLMFD_AllRigidBodies::eraseCriticalDLMFDPoints(const double &time, double c
 void DLMFD_AllRigidBodies::set_listIdOnProc()
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
+   MAC_LABEL("DLMFD_AllRigidBodies:: set_listIdOnProc");
 
    entireOnProc.clear();
    SharedOnProc.clear();
@@ -226,7 +241,7 @@ void DLMFD_AllRigidBodies::set_ptr_constrained_field_in_all_particles()
 void DLMFD_AllRigidBodies::set_points_infos()
 //---------------------------------------------------------------------------
 {
-   MAC_LABEL("DLMFD_AllRigidBodies:: set_ptr_constrained_field");
+   MAC_LABEL("DLMFD_AllRigidBodies:: set_points_infos");
 
    list<int>::iterator il;
    for (il = onProc.begin(); il != onProc.end(); il++)
@@ -292,7 +307,7 @@ void DLMFD_AllRigidBodies::set_mass_and_density_and_volume_and_inertia(istringst
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_mass_and_density_and_volume_and_inertia");
 
-   ptr_FSallrigidbodies->update(solidFluid_transferStream);
+   // ptr_FSallrigidbodies->update(solidFluid_transferStream);
 
    for (size_t i = 0; i < RBs_number; i++)
    {
@@ -494,13 +509,6 @@ void DLMFD_AllRigidBodies::update(istringstream &solidFluid_transferStream)
    {
       vec_ptr_DLMFDallrigidbodies[i]->update();
    }
-   // list<int>::iterator il;
-   // for (il = onProc.begin(); il != onProc.end(); il++)
-   //    vec_ptr_DLMFDallrigidbodies[*il]->update();
-
-   // if (l_AllSharedOnProcs)
-   //    for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
-   //       vec_ptr_DLMFDallrigidbodies[*il]->update();
 }
 
 //---------------------------------------------------------------------------

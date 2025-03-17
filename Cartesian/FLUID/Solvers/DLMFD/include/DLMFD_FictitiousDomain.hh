@@ -66,8 +66,9 @@ public: //-----------------------------------------------------------------
    void do_before_time_stepping(FV_TimeIterator const *t_it);
 
    /** @brief Tasks performed at the main loop
-   @param t_it Time iterator */
-   void do_one_inner_iteration(FV_TimeIterator const *t_it);
+   @param t_it Time iterator
+   @param sub_prob_number Sub problem number */
+   void do_one_inner_iteration(FV_TimeIterator const *t_it, size_t &sub_prob_number);
 
    /** @brief Tasks performed just after the main loop
    @param t_it Time iterator */
@@ -108,12 +109,12 @@ public: //-----------------------------------------------------------------
 
    /** @brief Prediction of the rigid body attributes (Newton's law)
    @param t_it Time iterator */
-   void update_rigid_bodies(FV_TimeIterator const *t_it);
+   void update_rigid_bodies(FV_TimeIterator const *t_it, size_t &sub_prob_number);
 
    /** @brief Correction of the rigid body attributes with the Fictitious Domain
    method
    @param t_it Time iterator */
-   void run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it);
+   void run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it, size_t &sub_prob_number);
 
    /** @brief Initialization of the DLMFD problem to solve
    @param t_it Time iterator */
@@ -162,8 +163,6 @@ public: //-----------------------------------------------------------------
    /** @brief Writing PVTU
    @param filename File name */
    void write_PVTU_multiplier_file(string const &filename) const;
-
-   void SetstreamTo_allprocs();
 
    //@}
 

@@ -3,10 +3,12 @@
 #include <DLMFD_RigidBody.hh>
 #include <FS_RigidBody.hh>
 #include <DLMFD_Sphere.hh>
+#include <DLMFD_3Dbox.hh>
 using namespace std;
 
 //---------------------------------------------------------------------------
 DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_rb,
+                                                        const bool &are_particles_fixed,
                                                         FV_DiscreteField *pField_,
                                                         double const critical_distance_)
 //---------------------------------------------------------------------------
@@ -19,7 +21,11 @@ DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_r
     switch (ptr_geom_rb->get_shape_type())
     {
     case GEOM_SPHERE:
-        ptr_dlmfd_rb = new DLMFD_Sphere(ptr_geom_rb, pField_, critical_distance_);
+        ptr_dlmfd_rb = new DLMFD_Sphere(ptr_geom_rb, are_particles_fixed, pField_, critical_distance_);
+        break;
+
+    case GEOM_3DBOX:
+        ptr_dlmfd_rb = new DLMFD_3Dbox(ptr_geom_rb, are_particles_fixed, pField_, critical_distance_);
         break;
 
     default:

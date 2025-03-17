@@ -278,7 +278,7 @@ void DLMFD_ProjectionNavierStokes::do_one_inner_iteration(
 
   // Use the Fictitious Domain method to solve the coupling
   // between the fluid and the solid
-  dlmfd_solver->do_one_inner_iteration(t_it);
+  dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
 
   stop_solving_timer();
   stop_total_timer();
