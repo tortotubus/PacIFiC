@@ -162,7 +162,8 @@ void Obstacle::resetKinematics()
   m_kinematics.reset();
   m_confinement.reset();
   m_translationalVelocity = 0.;
-  m_angularVelocity = 0.;  
+  m_angularVelocity = 0.;
+  m_ismoving = false;  
 }
 
 
@@ -208,6 +209,14 @@ void Obstacle::writeStatic( ostream& fileOut ) const
   Component::writeStatic( fileOut );
   fileOut << "*EndObstacle\n\n";
 }
+
+
+
+
+// ----------------------------------------------------------------------------
+// Updates indicator for Paraview post-processing
+void Obstacle::updateIndicator( double time, double dt ) 
+{}
 
 
 

@@ -7,6 +7,7 @@
 #include "Matrix.hh"
 #include "VertexBase.hh"
 #include "IndexArray.hh"
+#include "Window.hh"
 #include <string>
 #include <fstream>
 #include <list>
@@ -23,37 +24,34 @@ class GrainsMPIWrapper;
 class App;
 
 
-/** @brief Insertion window type */
-enum WindowType
+/** @brief Array of positions */
+struct InsertionLattice
 {
-  WINDOW_BOX, /**< Box */
-  WINDOW_CYLINDER, /**< Cylinder */
-  WINDOW_ANNULUS, /**< Annulus */
-  WINDOW_LINE, /**< Line */
-  WINDOW_NONE /**< unknown */
-};
-
-
-/** @brief Insertion window feature */
-struct Window
-{
-  WindowType ftype; /**< Window type */
-  Point3 ptA; /**< Box 1st corner or center of lower disk of the cylinder */
-  Point3 ptB; /**< Box 2nd corner */
-  double radius; /**< Cylinder radius */
-  double radius_int; /**< Inner cylinder radius in case of annulus */
-  double height; /**< Cylinder height */
-  Direction axisdir; /**< Cylinder axis direction */
-};
-
-
-/** @brief Structured array of positions */
-struct StructArrayInsertion
-{
-  struct Window box; /**< Window */
+  Window box; /**< Window */
   size_t NX; /**< Number of positions in x */
   size_t NY; /**< Number of positions in y */
   size_t NZ; /**< Number of positions in z */
+  size_t NN; /**< Total number of positions */
+  Direction FillingDir; /**< cylinder disk filling direction */  
+};
+
+
+/** @brief Larger or lower operator */
+enum LargerLowerOp 
+{
+  LLO_LARGER, /**< larger */    
+  LLO_LOWER, /**< lower */    
+  LLO_UNDEF /**< undefined */
+};
+
+
+/** @brief Partial periodicity */
+struct PartialPeriodicity
+{
+  LargerLowerOp comp; /**< comparison operator */
+  Direction dir; /**< Cartesian coordinate direction */
+  double limit; /**< coordinate in direction dir above/below which periodicity
+  	applies */
 };
 
 
@@ -67,7 +65,7 @@ struct StructArrayInsertion
 class GrainsExec
 {
   public:
-    /** @name Get methods */
+    /** @name Accessors */
     //@{
     /** @brief Returns a pointer to the MPI wrapper */
     static GrainsMPIWrapper* getComm();
@@ -81,7 +79,10 @@ class GrainsExec
     static size_t getTotalNumberPhysicalParticles();
     
     /** @brief Returns the minimum crust thickness */
-    static double getMinCrustThickness();    
+    static double getMinCrustThickness();
+    
+    /** @brief Returns a pointer to the partial periodicity features */
+    static PartialPeriodicity const* getPartialPeriodicity();        
     //@}
 
 
@@ -103,7 +104,18 @@ class GrainsExec
     
     /** @brief Sets the minimum crust thickness
     @param ct new crust thickness */
-    static void setMinCrustThickness( double const& ct );    
+    static void setMinCrustThickness( double const& ct );
+    
+    /** @brief Initializes partial periodicity */
+    static void initializePartialPeriodicity();
+    
+    /** @brief Sets partial periodicity 
+    @param comp_ comparison operator 
+    @param dir_ Cartesian coordinate direction 
+    @param limit_ coordinate in direction dir_ above/below which periodicity
+	applies */
+    static void setPartialPeriodicity( LargerLowerOp comp_, Direction dir_,
+  	double const& limit_ );            
     //@}
 
 
@@ -225,9 +237,21 @@ class GrainsExec
     this face, to the inertia and volume of a polyhedron
     @param A2 center of mass of the face (or a point of the face)
     @param A3 a point of the face 
-    @param A4 the next point neighbor of A3 of the face */
+    @param A4 the next point neighbor of A3 of the face 
+    @param vol volume of the polyhedron 
+    @param inertia inertia tensor of the polyhedron */
     static void computeVolumeInertiaContrib( Point3 const& A2, 
     	Point3 const& A3, Point3 const& A4, double &vol, double* inertia );
+	
+    /** @brief Returns whether "(*P)[dir] comp limit" where comp is either < 
+    or > is true or false using the PartialPeriodicity structure data 
+    @param P pointer to a Point3 */    
+    static bool partialPeriodicityCompTest( Point3 const* P );
+    
+    /** @brief Returns whether "coord comp limit" where comp is either < 
+    or > is true or false using the PartialPeriodicity structure data 
+    @param coord coordinate */    
+    static bool partialPeriodicityCompTest( double const& coord );    	
     //@}
 
 
@@ -339,6 +363,10 @@ class GrainsExec
     static int m_ReferenceParticleDefaultID; /**< Default ID number of reference
     	particle */
     static size_t m_time_counter; /**< Discrete time counter */
+    static bool m_partialPer_is_active; /**< true is partial periodicity is
+    	active */ 
+    static unsigned long long int m_nb_GJK_narrow_collision_detections;
+    static unsigned long long int m_nb_GJK_calls;       
     //@}
 
 
@@ -363,7 +391,8 @@ class GrainsExec
     static list<vector< vector<int> >*> m_allPolyhedronFacesConnectivity; /**<
   	list of face connectivity in the polyhedrons */
     static double m_minCrustThickness; /**< minimum crust thickness over all 
-    	rigid bodies in the simulation */	
+    	rigid bodies in the simulation */
+    static PartialPeriodicity m_partialPer; /**< partial periodicity */		
     //@}
 
 

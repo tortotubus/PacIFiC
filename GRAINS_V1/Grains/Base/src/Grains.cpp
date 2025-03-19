@@ -8,7 +8,10 @@
 #include "PostProcessingWriter.hh"
 #include "PostProcessingWriterBuilderFactory.hh"
 #include "RawDataPostProcessingWriter.hh"
-#include "stdlib.h"
+#include "SpheroCylinder.hh"
+#include "TrilobeCylinder.hh"
+#include "QuadrilobeCylinder.hh"
+#include <stdlib.h>
 
 
 // Initialisation des attributs static
@@ -36,7 +39,7 @@ Grains::Grains()
   , m_initvit_mode( IV_ZERO )
   , m_init_angpos( IAP_FIXED )
   , m_randomseed( RGS_DEFAULT )
-  , m_InsertionArray( NULL )
+  , m_InsertionLattice( NULL )
   , m_insertion_position( NULL )
   , m_insertion_angular_position( NULL )  
   , m_insertion_frequency( 1 )
@@ -52,6 +55,7 @@ Grains::Grains()
   if ( GrainsBuilderFactory::getContext() == DIM_2 ) m_dimension = 2;
   m_insertion_position = new list<Point3>;
   m_insertion_angular_position = new list<Matrix>;
+  GrainsExec::initializePartialPeriodicity();
 }
 
 
@@ -61,7 +65,7 @@ Grains::Grains()
 // Destructor
 Grains::~Grains()
 {
-  if ( m_InsertionArray ) delete m_InsertionArray;
+  if ( m_InsertionLattice ) delete m_InsertionLattice;
   list<App*>::iterator app;
   for (app=m_allApp.begin(); app!=m_allApp.end(); app++) delete *app;
   m_newParticles.clear();
@@ -236,8 +240,21 @@ void Grains::do_after_time_stepping()
       cout << GrainsExec::m_shift3 << "Average overlap = " << omean << endl;
       cout << GrainsExec::m_shift3 << "Time of maximum overlap = " <<
 	timemax << endl;
-      cout << GrainsExec::m_shift3 << "Average number of iterations of GJK = " <<
-    	ngjk << endl << endl;
+      cout << GrainsExec::m_shift3 << "Average number of iterations of GJK = " 
+      	<< ngjk << endl;
+      if ( GrainsExec::m_nb_GJK_narrow_collision_detections )
+      {
+	cout << GrainsExec::m_shift3 << "Number of "
+		"narrow collision detection tests = " <<
+    		GrainsExec::m_nb_GJK_narrow_collision_detections << endl;
+	cout << GrainsExec::m_shift3 << "Number of "
+		"GJK calls = " << GrainsExec::m_nb_GJK_calls << endl;
+	cout << GrainsExec::m_shift3 << "Percentage of GJK calls avoided by "
+		"bounding volume pre-collision detection test = " <<
+    		100. * ( 1. - double( GrainsExec::m_nb_GJK_calls )
+		/ double( GrainsExec::m_nb_GJK_narrow_collision_detections ) )
+			 << endl << endl;
+      }
     }
 
     // Timer outcome
@@ -293,12 +310,20 @@ void Grains::Simulation( double time_interval )
         GrainsExec::m_postprocess_forces_at_this_time = true;
 	m_collision->resetPPForceIndex();
       }
+
+
+      // In case of partial periodicity, sets the position of all particles
+      // in direction dir at previous time
+      if ( GrainsExec::m_partialPer_is_active )
+        m_allcomponents.setPositionDir_nm1( 
+	  	GrainsExec::getPartialPeriodicity()->dir );
 	
 
       // Insertion of particles
       SCT_set_start( "ParticlesInsertion" );      
-      m_npwait_nm1 = m_allcomponents.getNumberPhysicalParticlesToInsert();      
-      if ( m_insertion_mode == IM_OVERTIME )
+      m_npwait_nm1 = m_allcomponents.getNumberPhysicalParticlesToInsert();
+      m_insertion_windows.Move( m_time, m_dt );     
+      if ( m_insertion_mode == IM_OVERTIME ) 
         insertParticle( m_insertion_order );      
       m_allcomponents.computeNumberParticles( m_wrapper );
       if ( m_npwait_nm1 
@@ -366,6 +391,12 @@ void Grains::Simulation( double time_interval )
       {
 	SCT_set_start( "OutputResults" );
 
+	// Update clone particle velocity
+	if ( m_periodic && GrainsExec::m_TIScheme == "SecondOrderLeapFrog" )
+          m_collision->updateDestroyPeriodicClones(
+		m_allcomponents.getActiveParticles(),
+		m_allcomponents.getPeriodicCloneParticles() );
+
 	// Track component max and mean velocity
 	m_allcomponents.ComputeMaxMeanVelocity( vmax, vmean );
         cout << endl << "Component velocity : max = " << vmax
@@ -382,7 +413,8 @@ void Grains::Simulation( double time_interval )
 	saveReload( m_time );
 
 	// Write postprocessing files
-        m_allcomponents.PostProcessing( m_time, m_dt, m_collision );
+        m_allcomponents.PostProcessing( m_time, m_dt, m_collision, 
+		m_insertion_windows );
 
 	SCT_get_elapsed_time( "OutputResults" );
       }
@@ -546,6 +578,44 @@ void Grains::Construction( DOMElement* rootElement )
   App::set_periodicity( m_periodicity );
 
 
+  // Partial periodicity
+  DOMNode* nPartialPeriodicity = ReaderXML::getNode( root, 
+  	"PartialPeriodicity" );
+  if ( nPartialPeriodicity )
+  {
+    LargerLowerOp comp = LLO_UNDEF;
+    Direction dir = NONE;
+    double limit;
+    
+    string scompop = ReaderXML::getNodeAttr_String( nPartialPeriodicity, 
+    	"Comp" );
+    if ( scompop == "Lower" ) comp = LLO_LOWER;
+    else if ( scompop == "Larger" ) comp = LLO_LARGER;
+    else if ( m_rank == 0 )
+    {
+      cout << GrainsExec::m_shift6 <<
+              "Comparison operator " << scompop 
+	      << " unknown in PartialPeriodicity!" << endl;
+      grainsAbort();
+    }
+    string sdir = ReaderXML::getNodeAttr_String( nPartialPeriodicity, "Dir" );
+    if ( sdir == "X" ) dir = X;
+    else if ( sdir == "Y" ) dir = Y;
+    else if ( sdir == "Z" ) dir = Z;    
+    else if ( m_rank == 0 )
+    {
+      cout << GrainsExec::m_shift6 <<
+              "Direction " << sdir 
+	      << " unknown in PartialPeriodicity!" << endl;
+      grainsAbort();
+    }
+    
+    limit = ReaderXML::getNodeAttr_Double( nPartialPeriodicity, "Limit" );
+    GrainsExec::setPartialPeriodicity( comp, dir, limit );
+    GrainsExec::m_partialPer_is_active = true;                    
+  }	   
+
+
   // Domain decomposition
   readDomainDecomposition( root, mx - ox, my - oy, mz - oz );
 
@@ -563,77 +633,6 @@ void Grains::Construction( DOMElement* rootElement )
   {
     // Output message
     if ( m_rank == 0 ) cout << GrainsExec::m_shift3 << "Construction" << endl;
-
-
-    // Create the LinkedCell collision detection app
-    m_collision = new LinkedCell();
-    m_collision->setName( "LinkedCell" );
-    m_allApp.push_back( m_collision );
-
-
-    // Reload
-    DOMNode* reload = ReaderXML::getNode( root, "Reload" );
-    if ( reload )
-    {
-      m_restart = true;
-      GrainsExec::m_isReloaded = m_restart;
-
-      // Restart mode
-      string reload_type = ReaderXML::getNodeAttr_String( reload, "Type" );
-      if ( reload_type == "new" || reload_type == "same" )
-        GrainsExec::m_ReloadType = reload_type ;
-
-
-      // Reload file name depending on the restart mode
-      // If the mode is "same", the restart file is the same as the output file
-      // and is determined by searching the RFTable file
-      if ( GrainsExec::m_ReloadType == "new" )
-        restart  = ReaderXML::getNodeAttr_String( reload, "Filename" );
-      else
-      {
-        DOMNode* rootSimu = ReaderXML::getNode( rootElement, "Simulation" );
-        DOMNode* fileRestartOutput = ReaderXML::getNode( rootSimu,
-		"RestartFile" );
-        restart = ReaderXML::getNodeAttr_String( fileRestartOutput, "Name" );
-        restart = GrainsExec::restartFileName_AorB( restart, "_RFTable.txt" );
-        GrainsExec::m_reloadFile_suffix =
-            restart.substr( restart.size()-1, 1 );
-      }
-      restart = GrainsExec::fullResultFileName( restart, false );
-      if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
-      	"Simulation reloaded from " << restart << endl;      
-
-      // Extract the reload directory from the reload file
-      GrainsExec::m_ReloadDirectory = GrainsExec::extractRoot( restart );
-
-      // Read the reload file and check the restart format
-      string cle;
-      ifstream simulLoad( restart.c_str() );
-      simulLoad >> cle; 
-      if ( cle == "__Format2024__" ) 
-      { 
-        b2024 = true;
-        simulLoad >> cle >> m_time;
-      }
-      else simulLoad >> m_time;
-      ContactBuilderFactory::reload( simulLoad );
-      if ( !b2024 )
-      {
-        m_allcomponents.read_pre2024( simulLoad, restart, m_wrapper );
-        ContactBuilderFactory::set_materialsForObstaclesOnly_reload(
-          m_allcomponents.getReferenceParticles() );
-      }
-      else
-        npart = m_allcomponents.read( simulLoad, m_insertion_position, 
-		m_rank, m_nprocs );      
-      simulLoad >> cle;
-      assert( cle == "#EndTime" );
-      simulLoad.close();      
-
-      // Whether to reset velocity to 0
-      string reset = ReaderXML::getNodeAttr_String( reload, "Velocity" );
-      m_allcomponents.resetKinematics( reset );
-    }
 
 
     // Collision detection
@@ -767,6 +766,77 @@ void Grains::Construction( DOMElement* rootElement )
     }
 
 
+    // Create the LinkedCell collision detection app
+    m_collision = new LinkedCell();
+    m_collision->setName( "LinkedCell" );
+    m_allApp.push_back( m_collision );
+
+
+    // Reload
+    DOMNode* reload = ReaderXML::getNode( root, "Reload" );
+    if ( reload )
+    {
+      m_restart = true;
+      GrainsExec::m_isReloaded = m_restart;
+
+      // Restart mode
+      string reload_type = ReaderXML::getNodeAttr_String( reload, "Type" );
+      if ( reload_type == "new" || reload_type == "same" )
+        GrainsExec::m_ReloadType = reload_type ;
+
+
+      // Reload file name depending on the restart mode
+      // If the mode is "same", the restart file is the same as the output file
+      // and is determined by searching the RFTable file
+      if ( GrainsExec::m_ReloadType == "new" )
+        restart  = ReaderXML::getNodeAttr_String( reload, "Filename" );
+      else
+      {
+        DOMNode* rootSimu = ReaderXML::getNode( rootElement, "Simulation" );
+        DOMNode* fileRestartOutput = ReaderXML::getNode( rootSimu,
+		"RestartFile" );
+        restart = ReaderXML::getNodeAttr_String( fileRestartOutput, "Name" );
+        restart = GrainsExec::restartFileName_AorB( restart, "_RFTable.txt" );
+        GrainsExec::m_reloadFile_suffix =
+            restart.substr( restart.size()-1, 1 );
+      }
+      restart = GrainsExec::fullResultFileName( restart, false );
+      if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
+      	"Simulation reloaded from " << restart << endl;      
+
+      // Extract the reload directory from the reload file
+      GrainsExec::m_ReloadDirectory = GrainsExec::extractRoot( restart );
+
+      // Read the reload file and check the restart format
+      string cle;
+      ifstream simulLoad( restart.c_str() );
+      simulLoad >> cle; 
+      if ( cle == "__Format2024__" ) 
+      { 
+        b2024 = true;
+        simulLoad >> cle >> m_time;
+      }
+      else simulLoad >> m_time;
+      ContactBuilderFactory::reload( simulLoad );
+      if ( !b2024 )
+      {
+        m_allcomponents.read_pre2024( simulLoad, restart, m_wrapper );
+        ContactBuilderFactory::set_materialsForObstaclesOnly_reload(
+          m_allcomponents.getReferenceParticles() );
+      }
+      else
+        npart = m_allcomponents.read( simulLoad, m_insertion_position, 
+		m_rank, m_nprocs );      
+      simulLoad >> cle;
+      assert( cle == "#EndTime" );
+      simulLoad.close();      
+
+      // Whether to reset velocity to 0
+      string reset = ReaderXML::getNodeAttr_String( reload, "Velocity" );
+      m_allcomponents.resetKinematics( reset );
+    }
+
+
     // Particles
     DOMNode* particles = ReaderXML::getNode( root, "Particles" );
     if ( particles )
@@ -831,6 +901,10 @@ void Grains::Construction( DOMElement* rootElement )
 	  	"SpecificShape" );
 	if ( sshape == "SpheroCylinder" )
 	  particleRef = new SpheroCylinder( nCompParticle, nbPC+int(i) );
+	else if ( sshape == "TrilobeCylinder" )
+	  particleRef = new TrilobeCylinder( nCompParticle, nbPC+int(i) );
+	else if ( sshape == "QuadrilobeCylinder" )
+	  particleRef = new QuadrilobeCylinder( nCompParticle, nbPC+int(i) );
 	else 	
 	  particleRef = new CompositeParticle( nCompParticle, nbPC+int(i) );
         m_allcomponents.AddReferenceParticle( particleRef, nb );
@@ -1320,10 +1394,8 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	  DOMNode* nStruct = ReaderXML::getNode( nPosition, "StructuredArray" );
 	  if ( nStruct )
 	  {
-	    m_InsertionArray = new struct StructArrayInsertion;
-            m_InsertionArray->box.ftype = WINDOW_BOX;
-            m_InsertionArray->box.radius = m_InsertionArray->box.height = 0. ;
-            m_InsertionArray->box.axisdir = NONE ;
+	    m_InsertionLattice = new struct InsertionLattice;
+	    Point3 ptA, ptB;
 
             DOMNode* nBox = ReaderXML::getNode( nStruct, "Box" );
             if ( nBox )
@@ -1331,18 +1403,13 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
               DOMNodeList* points = ReaderXML::getNodes( nBox );
               DOMNode* pointA = points->item( 0 );
               DOMNode* pointB = points->item( 1 );
-              m_InsertionArray->box.ptA[X] =
-            	ReaderXML::getNodeAttr_Double( pointA, "X" );
-              m_InsertionArray->box.ptA[Y] =
-            	ReaderXML::getNodeAttr_Double( pointA, "Y" );
-              m_InsertionArray->box.ptA[Z] =
-            	ReaderXML::getNodeAttr_Double( pointA, "Z" );
-              m_InsertionArray->box.ptB[X] =
-            	ReaderXML::getNodeAttr_Double( pointB, "X" );
-              m_InsertionArray->box.ptB[Y] =
-            	ReaderXML::getNodeAttr_Double( pointB, "Y" );
-              m_InsertionArray->box.ptB[Z] =
-            	ReaderXML::getNodeAttr_Double( pointB, "Z" );
+              ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
+              ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
+              ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
+              ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
+              ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
+              ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+	      m_InsertionLattice->box.setAsBox( ptA, ptB );
             }
 	    else
 	    {
@@ -1354,11 +1421,11 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
             DOMNode* nNumber = ReaderXML::getNode( nStruct, "Number" );
 	    if ( nNumber )
 	    {
-              m_InsertionArray->NX = ReaderXML::getNodeAttr_Int( nNumber,
+              m_InsertionLattice->NX = ReaderXML::getNodeAttr_Int( nNumber,
 	      	"NX" );
-              m_InsertionArray->NY = ReaderXML::getNodeAttr_Int( nNumber,
+              m_InsertionLattice->NY = ReaderXML::getNodeAttr_Int( nNumber,
 	      	"NY" );
-              m_InsertionArray->NZ = ReaderXML::getNodeAttr_Int( nNumber,
+              m_InsertionLattice->NZ = ReaderXML::getNodeAttr_Int( nNumber,
 	      	"NZ" );
 	    }
 	    else
@@ -1369,51 +1436,124 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	    }
 
             m_position = "STRUCTURED";
+	    m_InsertionLattice->NN = m_InsertionLattice->NX * 
+	    	m_InsertionLattice->NY * m_InsertionLattice->NZ;
 	    if ( m_rank == 0 )
 	    {
 	      cout << GrainsExec::m_shift9 << "Structured array" << endl;
               cout << GrainsExec::m_shift12 << "Point3 min = " <<
-	    	m_InsertionArray->box.ptA[X] << " " <<
-		m_InsertionArray->box.ptA[Y] << " " <<
-                m_InsertionArray->box.ptA[Z] << endl;
+	    	ptA[X] << " " << ptA[Y] << " " << ptA[Z] << endl;
               cout << GrainsExec::m_shift12 << "Point3 max = " <<
-	    	m_InsertionArray->box.ptB[X] << " " <<
-		m_InsertionArray->box.ptB[Y] << " " <<
-                m_InsertionArray->box.ptB[Z] << endl;
+	    	ptB[X] << " " << ptB[Y] << " " << ptB[Z] << endl;
               cout << GrainsExec::m_shift12 << "Array = " <<
-	    	m_InsertionArray->NX << " x " <<
-		m_InsertionArray->NY << " x " <<
-            	m_InsertionArray->NZ << endl;
+	    	m_InsertionLattice->NX << " x " <<
+		m_InsertionLattice->NY << " x " <<
+            	m_InsertionLattice->NZ << " = " << 
+		m_InsertionLattice->NN << endl;
 	    }
 	  }
 	  else
 	  {
-	    // Random particle positions from a collection of insertion windows
-	    DOMNode* nWindows = ReaderXML::getNode( nPosition, "Windows" );
-            if ( nWindows )
+	    DOMNode* nCyl = ReaderXML::getNode( nPosition, "CylinderArray" );
+	    if ( nCyl )
 	    {
-	      if ( m_rank == 0 )
-	        cout << GrainsExec::m_shift9 << "Insertion windows" << endl;
-	      DOMNodeList* allWindows = ReaderXML::getNodes( nWindows );
-              for (XMLSize_t i=0; i<allWindows->getLength(); i++)
+	      m_InsertionLattice = new struct InsertionLattice;
+	      Point3 ptBC;
+	      double radius, height;
+	      string axisdir_str, fill_dir;
+	      
+	      DOMNode* nbc = ReaderXML::getNode( nCyl, "BottomCentre" );
+	      if ( nbc )
 	      {
-	        DOMNode* nWindow = allWindows->item( i );
-                Window iwindow;
-		      readWindow( nWindow, iwindow, GrainsExec::m_shift12 );
-	        m_insertion_windows.insert( m_insertion_windows.begin(), 
-			iwindow );
-              }
-	    }
-            else
-	    {
-              if ( m_insertion_mode != IM_NOINSERT )
-              {
-                if ( m_rank == 0 )
-                  cout << GrainsExec::m_shift6 <<
-            "Insertion positions or windows are mandatory !!" << endl;
+                ptBC[X] = ReaderXML::getNodeAttr_Double( nbc, "X" );
+                ptBC[Y] = ReaderXML::getNodeAttr_Double( nbc, "Y" );
+                ptBC[Z] = ReaderXML::getNodeAttr_Double( nbc, "Z" );
+	      }
+	      else
+	      {
+                if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
+		"Node BottomCentre is required in <CylinderArray> !!" << endl;
                 grainsAbort();
-              }
+	      }
+	            
+              DOMNode* cylGeom = ReaderXML::getNode( nCyl, "Cylinder" );
+	      if ( cylGeom )
+	      {
+                radius = ReaderXML::getNodeAttr_Double( cylGeom, 
+	      		"Radius" );
+                height = ReaderXML::getNodeAttr_Double( cylGeom, 
+	      		"Height" );
+                axisdir_str = ReaderXML::getNodeAttr_String( cylGeom, 
+	      		"Direction" );
+		fill_dir = ReaderXML::getNodeAttr_String( cylGeom, 
+	      		"Filling" );	
+	      }
+	      else
+	      {
+                if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
+		"Node Cylinder is required in <CylinderArray> !!" << endl;
+                grainsAbort();
+	      }
+	      
+              if ( fill_dir == "X" ) m_InsertionLattice->FillingDir = X;
+	      else if ( fill_dir == "Y" ) m_InsertionLattice->FillingDir = Y;
+	      else if ( fill_dir == "Z" ) m_InsertionLattice->FillingDir = Z;
+	      
+	      if ( axisdir_str == fill_dir )
+	      {
+                if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
+		"Axis direction and filling direction must be different"
+		" in <CylinderArray> !!" << endl;
+                grainsAbort();	      
+	      }
+	       
+	      m_InsertionLattice->box.setAsCylinder( ptBC, radius, height, 
+	      	axisdir_str );
+		
+              m_position = "CYLINDER";
+	      if ( m_rank == 0 )
+	      {
+	        cout << GrainsExec::m_shift9 << "Cylinder array" << endl;
+                cout << GrainsExec::m_shift12 << "Bottom centre = " <<
+			ptBC[X] << " " << ptBC[Y] << " " << ptBC[Z] << endl;
+                cout << GrainsExec::m_shift12 << "Radius = " <<
+	    		radius << " Height = " << height << " Direction = " << 
+			axisdir_str << " Filling direction = " <<
+	    		fill_dir << endl;			
+	      }	      		
 	    }
+	    else
+	    {
+	      // Random particle positions from a collection of insertion 
+	      // windows
+	      DOMNode* nWindows = ReaderXML::getNode( nPosition, "Windows" );
+              if ( nWindows )
+	      {
+	        if ( m_rank == 0 )
+	          cout << GrainsExec::m_shift9 << "Insertion windows" << endl;
+	        DOMNodeList* allWindows = ReaderXML::getNodes( nWindows );
+                for (XMLSize_t i=0; i<allWindows->getLength(); i++)
+	        {
+	          DOMNode* nWindow = allWindows->item( i );
+                  Window iwindow;
+		  bool ok = iwindow.readWindow( nWindow, 
+			GrainsExec::m_shift12, m_rank );
+		  if ( !ok ) grainsAbort();	
+	          m_insertion_windows.addWindow( iwindow );
+                }
+	      }
+              else
+	      {
+                if ( m_insertion_mode != IM_NOINSERT )
+                {
+                  if ( m_rank == 0 )
+                    cout << GrainsExec::m_shift6 <<
+            		"Insertion positions or windows are mandatory !!" 
+			<< endl;
+                  grainsAbort();
+                }
+	      }
+	    }  
 	  }
         }
       }
@@ -1561,6 +1701,32 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	}
       }
     }
+    
+    
+    // Insertion windows motion
+    DOMNode* nIWMotion = ReaderXML::getNode( root,
+    	"InsertionWindowMotion" );
+    if ( nIWMotion )
+    {
+      if ( m_rank == 0 )
+        cout << GrainsExec::m_shift6 << "Insertion Window Motion" << endl;
+
+      DOMNodeList* allIWMs = ReaderXML::getNodes( nIWMotion );
+      for (XMLSize_t i=0; i<allIWMs->getLength(); i++)
+      {
+        DOMNode* nIWM = allIWMs->item( i );
+	ObstacleImposedVelocity* motion = new ObstacleImposedVelocity(
+	  	nIWM, m_dt, m_rank, error );
+	if ( error != 0 || motion->getType() == "ConstantRotation" ) 
+	{
+          if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
+		"Problem in insertion window motion (note that rotational"
+		<< " motion is not allowed)" << endl;	  
+	  grainsAbort();
+	}
+	else m_insertion_windows.LinkImposedMotion( motion );
+      }
+    }    
 
 
     // Post-processing writers
@@ -1583,37 +1749,36 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
  	DOMNode* pointA = nWindowPoints->item( 0 );
  	DOMNode* pointB = nWindowPoints->item( 1 );
+	Point3 ptA, ptB;
 
  	Window PPWindow;
-	PPWindow.ftype = WINDOW_BOX;
-	PPWindow.radius = PPWindow.radius_int = PPWindow.height = 0. ;
-	PPWindow.axisdir = NONE ;
- 	PPWindow.ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-	PPWindow.ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-	PPWindow.ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-	PPWindow.ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-	PPWindow.ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-	PPWindow.ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+ 	ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
+	ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
+	ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
+	ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
+	ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
+	ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+	PPWindow.setAsBox( ptA, ptB );
 
 	double Ox, Oy, Oz, lx, ly, lz;
 	bool b_X = false, b_Y = false, b_Z = false, b_PPWindow = false;
 	App::get_local_domain_origin( Ox, Oy, Oz );
 	App::get_local_domain_size( lx, ly, lz );
 
-	if ( ( PPWindow.ptA[X] >= Ox && PPWindow.ptA[X] < Ox + lx )
-		|| ( PPWindow.ptB[X] >= Ox && PPWindow.ptB[X] < Ox + lx )
-		|| ( Ox > PPWindow.ptA[X] && Ox < PPWindow.ptB[X] )
-		|| ( Ox > PPWindow.ptB[X] && Ox < PPWindow.ptA[X] ) )
+	if ( ( ptA[X] >= Ox && ptA[X] < Ox + lx )
+		|| ( ptB[X] >= Ox && ptB[X] < Ox + lx )
+		|| ( Ox > ptA[X] && Ox < ptB[X] )
+		|| ( Ox > ptB[X] && Ox < ptA[X] ) )
 	  b_X = true;
-	if ( ( PPWindow.ptA[Y] >= Oy && PPWindow.ptA[Y] < Oy + ly )
-		|| ( PPWindow.ptB[Y] >= Oy && PPWindow.ptB[Y] < Oy + ly )
-		|| ( Oy > PPWindow.ptA[Y] && Oy < PPWindow.ptB[Y] )
-		|| ( Oy > PPWindow.ptB[Y] && Oy < PPWindow.ptA[Y] ) )
+	if ( ( ptA[Y] >= Oy && ptA[Y] < Oy + ly )
+		|| ( ptB[Y] >= Oy && ptB[Y] < Oy + ly )
+		|| ( Oy > ptA[Y] && Oy < ptB[Y] )
+		|| ( Oy > ptB[Y] && Oy < ptA[Y] ) )
 	  b_Y = true;
-	if ( ( PPWindow.ptA[Z] >= Oz && PPWindow.ptA[Z] < Oz + lz )
-		|| ( PPWindow.ptB[Z] >= Oz && PPWindow.ptB[Z] < Oz + lz )
-		|| ( Oz > PPWindow.ptA[Z] && Oz < PPWindow.ptB[Z] )
-		|| ( Oz > PPWindow.ptB[Z] && Oz < PPWindow.ptA[Z] ) )
+	if ( ( ptA[Z] >= Oz && ptA[Z] < Oz + lz )
+		|| ( ptB[Z] >= Oz && ptB[Z] < Oz + lz )
+		|| ( Oz > ptA[Z] && Oz < ptB[Z] )
+		|| ( Oz > ptB[Z] && Oz < ptA[Z] ) )
 	  b_Z = true;
 
 	if ( b_X && b_Y && b_Z ) b_PPWindow = true;
@@ -1626,11 +1791,11 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	{
 	  cout << GrainsExec::m_shift9 << "Domain" << endl;
           cout << GrainsExec::m_shift12 << "Point3 A = " <<
-		PPWindow.ptA[X] << " " << PPWindow.ptA[Y] << " " <<
-		PPWindow.ptA[Z] << endl;
+		ptA[X] << " " << ptA[Y] << " " <<
+		ptA[Z] << endl;
           cout << GrainsExec::m_shift12 << "Point3 B = " <<
-		PPWindow.ptB[X] << " " << PPWindow.ptB[Y] << " " <<
-		PPWindow.ptB[Z] << endl;
+		ptB[X] << " " << ptB[Y] << " " <<
+		ptB[Z] << endl;
 	}
       }
       else
@@ -1750,7 +1915,8 @@ void Grains::InsertCreateNewParticles()
   m_allcomponents.Link( *m_collision );
 
   // In case of a restarted simulation, if the linked cell changed from the 
-  // previous simulation, we need to check that all periodic clones are there
+  // previous simulation or periodic clones were not saved in the restart file,
+  // we need to check that all periodic clones are there
   if ( m_restart && m_periodic ) checkClonesReload();
 
   // Set particle positions from file or from a structured array
@@ -1758,7 +1924,11 @@ void Grains::InsertCreateNewParticles()
   if ( m_position != "" )
   {
     // From a structured array
-    if ( m_position == "STRUCTURED" ) error = setPositionParticlesArray();
+    if ( m_position == "STRUCTURED" ) 
+      error = setPositionParticlesStructuredArray();
+    // From a cylinder array
+    else if ( m_position == "CYLINDER" ) 
+      error = setPositionParticlesCyl();
     // From a file
     else error = setPositionParticlesFromFile();
   }
@@ -1821,104 +1991,11 @@ Point3 Grains::getInsertionPoint()
   // Insertion windows
   else
   {
-    int nWindow = 0;
-    int nbreWindows = int( m_insertion_windows.size() );
-
-    // Random selection of an insertion window
-    if ( nbreWindows != 1 )
-    {
-      double n = double(random()) / double(INT_MAX);
-      nWindow = int( n * nbreWindows );
-      if ( nWindow == nbreWindows ) nWindow--;
-    }
+    // Random selection of the window
+    Window const* pw = m_insertion_windows.getRandomWindow();
 
     // Random position in the selected insertion window
-    double r = 0., theta = 0., axiscoor = 0.;
-    switch( m_insertion_windows[nWindow].ftype )
-    {
-      case WINDOW_BOX:
-        P[X] = m_insertion_windows[nWindow].ptA[X]
-      		+ ( double(random()) / double(INT_MAX) )
-		* ( m_insertion_windows[nWindow].ptB[X]
-			- m_insertion_windows[nWindow].ptA[X] );
-        P[Y] = m_insertion_windows[nWindow].ptA[Y]
-      		+ ( double(random()) / double(INT_MAX) )
-		* ( m_insertion_windows[nWindow].ptB[Y]
-			- m_insertion_windows[nWindow].ptA[Y] );
-      	P[Z] = m_insertion_windows[nWindow].ptA[Z]
-      		+ ( double(random()) / double(INT_MAX) )
-		* ( m_insertion_windows[nWindow].ptB[Z]
-			- m_insertion_windows[nWindow].ptA[Z] );
-        break;
-
-      case WINDOW_CYLINDER:
-        r = ( double(random()) / double(INT_MAX) )
-      		* m_insertion_windows[nWindow].radius;
-        theta = ( double(random()) / double(INT_MAX) ) * 2. * PI;
-        axiscoor = ( double(random()) / double(INT_MAX) )
-      		* m_insertion_windows[nWindow].height;
-        switch ( m_insertion_windows[nWindow].axisdir )
-        {
-          case X:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + axiscoor;
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + r * cos( theta );
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + r * sin( theta );
-	    break;
-
-          case Y:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + r * sin( theta );
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + axiscoor;
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + r * cos( theta );
-	    break;
-
-          default:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + r * cos( theta );
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + r * sin( theta );
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + axiscoor;
-	    break;
-        }
-        break;
-
-      case WINDOW_ANNULUS:
-        r = m_insertion_windows[nWindow].radius_int
-      		+ ( double(random()) / double(INT_MAX) )
-      		* ( m_insertion_windows[nWindow].radius
-			- m_insertion_windows[nWindow].radius_int );
-        theta = ( double(random()) / double(INT_MAX) ) * 2. * PI;
-        axiscoor = ( double(random()) / double(INT_MAX) )
-      		* m_insertion_windows[nWindow].height;
-        switch ( m_insertion_windows[nWindow].axisdir )
-        {
-          case X:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + axiscoor;
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + r * cos( theta );
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + r * sin( theta );
-	    break;
-
-          case Y:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + r * sin( theta );
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + axiscoor;
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + r * cos( theta );
-	    break;
-
-          default:
-	    P[X] = m_insertion_windows[nWindow].ptA[X] + r * cos( theta );
-	    P[Y] = m_insertion_windows[nWindow].ptA[Y] + r * sin( theta );
-	    P[Z] = m_insertion_windows[nWindow].ptA[Z] + axiscoor;
-	    break;
-        }
-        break;
-
-      case WINDOW_LINE:
-        P = m_insertion_windows[nWindow].ptA
-      		+ ( double(random()) / double(INT_MAX) )
-      		* ( m_insertion_windows[nWindow].ptB
-			- m_insertion_windows[nWindow].ptA );
-        break;
-
-      default:
-        break;
-    }
+    P = pw->getInsertionPoint();
   }
 
   return ( P );
@@ -2151,49 +2228,157 @@ size_t Grains::setAngularPositionParticlesFromFile()
 
 // ----------------------------------------------------------------------------
 // Sets particle initial position with a structured array
-size_t Grains::setPositionParticlesArray()
+size_t Grains::setPositionParticlesStructuredArray()
 {
   size_t k, l, m, nnewpart = 0, error = 0;
   list< pair<Particle*,size_t> >::const_iterator il;
   Point3 position;
-  double deltax = ( m_InsertionArray->box.ptB[X]
-  	- m_InsertionArray->box.ptA[X] ) / double(m_InsertionArray->NX) ;
-  double deltay = ( m_InsertionArray->box.ptB[Y]
-  	- m_InsertionArray->box.ptA[Y] ) / double(m_InsertionArray->NY) ;
-  double deltaz = ( m_InsertionArray->box.ptB[Z]
-  	- m_InsertionArray->box.ptA[Z] ) / double(m_InsertionArray->NZ) ;
+  Point3 ptA = *(m_InsertionLattice->box.getPointA());
+  Point3 ptB = *(m_InsertionLattice->box.getPointB());  
+  double deltax = ( ptB[X] - ptA[X] ) / double(m_InsertionLattice->NX) ;
+  double deltay = ( ptB[Y] - ptA[Y] ) / double(m_InsertionLattice->NY) ;
+  double deltaz = ( ptB[Z] - ptA[Z] ) / double(m_InsertionLattice->NZ) ;
 
   // Checks that number of positions equals the number of new particles 
   // to insert
   for (il=m_newParticles.cbegin();il!=m_newParticles.cend();il++)
     nnewpart += il->second;
-  if ( nnewpart != m_InsertionArray->NX * m_InsertionArray->NY
-  	* m_InsertionArray->NZ )
+  if ( nnewpart != m_InsertionLattice->NX * m_InsertionLattice->NY
+  	* m_InsertionLattice->NZ )
   {
     cout << "ERR: number of new particles to insert is different from the"
     	<< " number of positions in the structured array: " << nnewpart << 
-	" != " << m_InsertionArray->NX * m_InsertionArray->NY 
-	* m_InsertionArray->NZ << endl;
+	" != " << m_InsertionLattice->NX * m_InsertionLattice->NY 
+	* m_InsertionLattice->NZ << endl;
     error = 1;
   }
   else
   {
     // Compute positions and add them to the list
-    for (k=0;k<m_InsertionArray->NX;++k)
-      for (l=0;l<m_InsertionArray->NY;++l)
-        for (m=0;m<m_InsertionArray->NZ;++m)
+    for (k=0;k<m_InsertionLattice->NX;++k)
+      for (l=0;l<m_InsertionLattice->NY;++l)
+        for (m=0;m<m_InsertionLattice->NZ;++m)
         {
-          position[X] = m_InsertionArray->box.ptA[X]
-		+ ( double(k) + 0.5 ) * deltax;
-          position[Y] = m_InsertionArray->box.ptA[Y]
-		+ ( double(l) + 0.5 ) * deltay;
-          position[Z] = m_InsertionArray->box.ptA[Z]
-		+ ( double(m) + 0.5 ) * deltaz;
+          position[X] = ptA[X] + ( double(k) + 0.5 ) * deltax;
+          position[Y] = ptA[Y] + ( double(l) + 0.5 ) * deltay;
+          position[Z] = ptA[Z] + ( double(m) + 0.5 ) * deltaz;
           m_insertion_position->push_back( position );
         }
   }
   
   return ( error );  
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets particle initial position through filling a cylinder with a regular 
+// array
+size_t Grains::setPositionParticlesCyl()
+{
+  // Note: we simply perturn positions to avoid positions matching exactly
+  // the limits of the linked cell grid that would be problematic in parallel
+
+  size_t i, j, k, error = 0, nnewpart = 0, maxnpos = 0;
+  list< pair<Particle*,size_t> >::const_iterator il;  
+  vector<bool> directions( 3, false );
+  Direction A = m_InsertionLattice->box.getAxisDirection(),
+  	F = m_InsertionLattice->FillingDir, T;
+  directions[A] = true;
+  directions[F] = true;
+  if ( !directions[0] ) T = X;
+  else if ( !directions[1] ) T = Y;
+  else T = Z; 
+  double cylRadius = m_InsertionLattice->box.getRadius(), 
+  	cylHeight = m_InsertionLattice->box.getHeight(),
+	factor = 1.e6;
+  Point3 position, bottomCentre = *(m_InsertionLattice->box.getPointA());
+  
+  // Compute mesh features 
+  double l = 2. * m_allcomponents.getCircumscribedRadiusMax();
+  double Lfill = sqrt( pow( cylRadius, 2. ) - pow( l / 2., 2. ) );
+  size_t nf = size_t( Lfill / l );
+  double deltaf = Lfill / double(nf);
+  size_t na = size_t( cylHeight / l );
+  double deltaa = cylHeight / double(na);
+  vector<double> posF( nf, 0. ), Lt( nf, 0. ), deltat( nf, 0. );
+  vector<size_t> nt( nf, 0 );
+  
+  // Compute max number of positions
+  posF[0] = - Lfill + deltaf * 0.5 + 
+    	( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor;
+  Lt[0] = sqrt( pow( cylRadius, 2. ) - pow( posF[0] - 0.5 * deltaf, 2. ) );
+  nt[0] = 1;
+  deltat[0] = 2. * Lt[0];   
+  for (j=1;j<nf;++j)
+  {
+    posF[j] = - Lfill + deltaf * ( double(j) + 0.5 ) + 
+    	( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor;
+    Lt[j] = sqrt( pow( cylRadius, 2. ) - pow( posF[j] - 0.5 * deltaf, 2. ) );
+    nt[j] = size_t( 2. * Lt[j] / l );
+    deltat[j] = 2. * Lt[j] / double(nt[j]);
+    maxnpos += nf * nt[j];    
+  }
+  maxnpos *= 2;
+
+  // Checks that number of positions is larger or equal to the number of new 
+  // particles to insert
+  for (il=m_newParticles.cbegin();il!=m_newParticles.cend();il++)
+    nnewpart += il->second;
+  if ( nnewpart > maxnpos )
+  {
+    cout << "ERR: number of new particles to insert " << nnewpart << 
+    	" is larger than number of positions in the cylindrical array " 
+	<< maxnpos << endl;
+    error = 1;
+  }
+  else
+  {
+    // Compute positions and add them to the list
+    // Bottom half of the cylinder in the filling direction
+    size_t counter = 0;
+    for (j=0;j<nf && counter<nnewpart;++j)
+    {
+      position[F] = posF[j] + bottomCentre[F];  
+      for (i=0;i<nt[j] && counter<nnewpart;++i)
+      {
+        position[T] = - Lt[j] + deltat[j] * ( double(i) + 0.5 ) + 
+    		( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor
+		+ bottomCentre[T];
+	for (k=0;k<na && counter<nnewpart;++k)
+	{
+	  position[A] = - 0.5 * cylHeight + deltaa * ( double(k) + 0.5 ) + 
+    		( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor
+		+ bottomCentre[A] + 0.5 * cylHeight;
+          m_insertion_position->push_back( position );
+	  ++counter;
+        }
+      }
+    }
+    
+    // Top half of the cylinder in the filling direction
+    for (j=0;j<nf && counter<nnewpart;++j)
+    {
+      position[F] = - posF[nf-1-j] + bottomCentre[F]; 
+      for (i=0;i<nt[nf-1-j] && counter<nnewpart;++i)
+      {
+        position[T] = - Lt[nf-1-j] + deltat[nf-1-j] * ( double(i) + 0.5 ) + 
+    		( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor
+		+ bottomCentre[T];
+	for (k=0;k<na && counter<nnewpart;++k)
+	{
+	  position[A] = - 0.5 * cylHeight + deltaa * ( double(k) + 0.5 ) + 
+    		( 2. * (double)rand() / RAND_MAX - 1. ) * l / factor
+		+ bottomCentre[A] + 0.5 * cylHeight;
+          m_insertion_position->push_back( position );
+	  ++counter;	  
+        }
+      }
+    }    
+  }  
+  
+  return ( error );
 }
 
 
@@ -2339,180 +2524,6 @@ void Grains::display_used_memory() const
 // Synchronizes the PPWindow boolean relative to each sub-domain
 void Grains::synchronize_PPWindow()
 {}
-
-
-
-
-// ----------------------------------------------------------------------------
-// Reads a window
-void Grains::readWindow( DOMNode* nWindow, Window& iwindow,
-	string const& oshift )
-{
-  // Insertion window type
-  string iwindow_type = "Box";
-  if ( ReaderXML::hasNodeAttr( nWindow, "Type" ) )
-    iwindow_type = ReaderXML::getNodeAttr_String( nWindow,
-		  	"Type" );
-
-  if ( iwindow_type == "Cylinder" )
-    iwindow.ftype = WINDOW_CYLINDER;
-  else if ( iwindow_type == "Annulus" )
-    iwindow.ftype = WINDOW_ANNULUS;
-  else if ( iwindow_type == "Line" )
-    iwindow.ftype = WINDOW_LINE;
-  else if ( iwindow_type == "Box" )
-    iwindow.ftype = WINDOW_BOX;
-  else iwindow.ftype = WINDOW_NONE;
-
-  DOMNodeList* points = NULL;
-  DOMNode* pointA = NULL;
-  DOMNode* pointB = NULL;
-  DOMNode* cylGeom = NULL;
-  DOMNode* annGeom = NULL;
-  string axisdir_str = "W";
-
-  // Read features depending on the type
-  switch( iwindow.ftype )
-  {
-    case WINDOW_BOX:
-      points = ReaderXML::getNodes( nWindow );
-      pointA = points->item( 0 );
-      pointB = points->item( 1 );
-
-      iwindow.radius = iwindow.radius_int = iwindow.height = 0. ;
-      iwindow.axisdir = NONE ;
-      iwindow.ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      iwindow.ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      iwindow.ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      iwindow.ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-      iwindow.ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-      iwindow.ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
-
-      if ( m_rank == 0 )
-      {
-        cout << oshift << "Type = " << iwindow_type << endl;
-	cout << oshift << GrainsExec::m_shift3 << "Point3 min = " <<
-		iwindow.ptA[X] << " " << iwindow.ptA[Y] << " " <<
-		iwindow.ptA[Z] << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Point3 max = " <<
-		iwindow.ptB[X] << " " << iwindow.ptB[Y] << " " <<
-		iwindow.ptB[Z] << endl;
-      }
-      break;
-
-    case WINDOW_CYLINDER:
-      pointA = ReaderXML::getNode( nWindow, "BottomCentre" );
-      iwindow.ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      iwindow.ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      iwindow.ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      iwindow.ptB[X] = iwindow.ptB[Y] = iwindow.ptB[Z] = 0.;
-      cylGeom = ReaderXML::getNode( nWindow, "Cylinder" );
-      iwindow.radius = ReaderXML::getNodeAttr_Double( cylGeom, "Radius" );
-      iwindow.radius_int = 0.;
-      iwindow.height = ReaderXML::getNodeAttr_Double( cylGeom, "Height" );
-      axisdir_str = ReaderXML::getNodeAttr_String( cylGeom, "Direction" );
-      if ( axisdir_str == "X" ) iwindow.axisdir = X;
-      else if ( axisdir_str == "Y" ) iwindow.axisdir = Y;
-      else if ( axisdir_str == "Z" ) iwindow.axisdir = Z;
-      else
-      {
-	if ( m_rank == 0 )
-          cout << "Wrong axis direction in cylindrical "
-		<< "insertion window; values: X, Y or Z" << endl;
-        grainsAbort();
-      }
-
-      if ( m_rank == 0 )
-      {
-	cout << oshift << "Type = " << iwindow_type << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Bottom centre = " <<
-		iwindow.ptA[X] << " " << iwindow.ptA[Y] << " " <<
-		iwindow.ptA[Z] << endl;
-	cout << oshift << GrainsExec::m_shift3 << "Radius = " <<
-	  	iwindow.radius << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Height = " <<
-		iwindow.height << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Direction = " <<
-		axisdir_str << endl;
-      }
-      break;
-
-    case WINDOW_ANNULUS:
-      pointA = ReaderXML::getNode( nWindow, "BottomCentre" );
-      iwindow.ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      iwindow.ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      iwindow.ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      iwindow.ptB[X] = iwindow.ptB[Y] = iwindow.ptB[Z] = 0.;
-      annGeom = ReaderXML::getNode( nWindow, "Annulus" );
-      iwindow.radius = ReaderXML::getNodeAttr_Double( annGeom,
-	  	"RadiusExt" );
-      iwindow.radius_int = ReaderXML::getNodeAttr_Double( annGeom,
-		"RadiusInt" );
-      iwindow.height = ReaderXML::getNodeAttr_Double( annGeom,
-		"Height" );
-      axisdir_str = ReaderXML::getNodeAttr_String( annGeom,
-		"Direction" );
-      if ( axisdir_str == "X" ) iwindow.axisdir = X;
-      else if ( axisdir_str == "Y" ) iwindow.axisdir = Y;
-      else if ( axisdir_str == "Z" ) iwindow.axisdir = Z;
-      else
-      {
-        if ( m_rank == 0 )
-          cout << "Wrong axis direction in cylindrical "
-		<< "insertion window; values: X, Y or Z" << endl;
-        grainsAbort();
-      }
-
-      if ( m_rank == 0 )
-      {
-	cout << oshift << "Type = " << iwindow_type << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Bottom centre = " <<
-		iwindow.ptA[X] << " " << iwindow.ptA[Y] << " " <<
-		iwindow.ptA[Z] << endl;
-	cout << oshift << GrainsExec::m_shift3 << "External radius = " <<
-		iwindow.radius << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Internal radius = " <<
-		iwindow.radius_int << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Height = " <<
-		iwindow.height << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Direction = " <<
-		axisdir_str << endl;
-      }
-      break;
-
-    case WINDOW_LINE:
-      points = ReaderXML::getNodes( nWindow );
-      pointA = points->item( 0 );
-      pointB = points->item( 1 );
-
-      iwindow.radius = iwindow.radius_int = iwindow.height = 0. ;
-      iwindow.axisdir = NONE ;
-      iwindow.ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      iwindow.ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      iwindow.ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      iwindow.ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-      iwindow.ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-      iwindow.ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
-
-      if ( m_rank == 0 )
-      {
-        cout << oshift << "Type = " << iwindow_type << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Point3 A = " <<
-		iwindow.ptA[X] << " " << iwindow.ptA[Y] << " " <<
-		iwindow.ptA[Z] << endl;
-        cout << oshift << GrainsExec::m_shift3 << "Point3 B = " <<
-		iwindow.ptB[X] << " " << iwindow.ptB[Y] << " " <<
-		iwindow.ptB[Z] << endl;
-      }
-      break;
-
-    default:
-      if ( m_rank == 0 ) cout << "Unknown insertion window "
-		"type" << endl;
-      grainsAbort();
-      break;
-  }
-}
 
 
 

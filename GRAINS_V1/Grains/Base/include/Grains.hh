@@ -5,6 +5,7 @@
 #include "GrainsMPIWrapper.hh"
 #include "GrainsExec.hh"
 #include "AllComponents.hh"
+#include "AllInsertionWindows.hh"
 #include "App.hh"
 #include "solvercomputingtime.hh"
 #include "computingtime.hh"
@@ -157,11 +158,11 @@ class Grains : public ComputingTime, public SolverComputingTime
     InitialAngularPosition m_init_angpos; /**< Initial angular position of 
     	inserted particles */
     RandomGeneratorSeed m_randomseed; /**< Random generator seed */
-    vector<Window> m_insertion_windows; /**< Insertion windows */  
-    string m_position; /**< External position file name or structured array */
+    AllInsertionWindows m_insertion_windows; /**< Insertion windows */  
+    string m_position; /**< External position file name or lattice type */
     string m_angular_position; /**< External angular position file name */    
-    struct StructArrayInsertion* m_InsertionArray; /**< Structured array 
-    	insertion features */   
+    struct InsertionLattice* m_InsertionLattice; /**< Insertion lattice 
+	features */   
     list< pair<Particle*,size_t> > m_newParticles; /**< types of new particles 
     	to be inserted */
     list<Point3>* m_insertion_position; /**< list of insertion positions */
@@ -235,9 +236,12 @@ class Grains : public ComputingTime, public SolverComputingTime
     /** @brief Sets angular particle initial positions from a file */
     virtual size_t setAngularPositionParticlesFromFile();    
   
-    /** @brief Sets particle initial position with a structured array
-    @param mode insertion order */
-    virtual size_t setPositionParticlesArray();
+    /** @brief Sets particle initial position with a structured array */
+    virtual size_t setPositionParticlesStructuredArray();
+    
+    /** @brief Sets particle initial position through filling a cylinder with a
+    regular array */
+    virtual size_t setPositionParticlesCyl();    
   
     /** @brief Reads data for MPI simulations and creates and sets the MPI
     wrapper
@@ -279,12 +283,6 @@ class Grains : public ComputingTime, public SolverComputingTime
     @param vtrans particle translational velocity
     @param vrot particle rotational velocity */
     void computeInitVit( Vector3& vtrans, Vector3& vrot ) const;
-    
-    /** @brief Reads a window 
-    @param nWindow root XML node of the window 
-    @param iwindow the window 
-    @param oshift empty string to shift the output */
-    void readWindow( DOMNode* nWindow, Window& iwindow, string const& oshift );
     
     /** @brief Computes particle forces and torques */
     void computeParticlesForceAndTorque();

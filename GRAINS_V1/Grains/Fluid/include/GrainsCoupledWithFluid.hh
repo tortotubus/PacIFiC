@@ -72,23 +72,28 @@ class GrainsCoupledWithFluid : virtual public Grains
 
     /** @name Methods */
     //@{
+    /** @brief Number of rigid bodies to be sent to the fluid flow solver 
+    @param nparticles number of particles 
+    @param nobstacles number of obstacles */
+    void numberOfRBToFluid( size_t* nparticles, size_t* nobstacles ) const;
+
     /** @brief Writes features of moving rigid bodies in a stream to be used
     by the fluid flow solver
     @param is output stream */
-    virtual void GrainsToFluid( istringstream &is ) const;
+    void GrainsToFluid( istringstream &is );
     
     /** @brief Updates particles velocity with data from the fluid solver
     @param velocity_data_array velocity data array
     @param b_set_velocity_nm1_and_diff updates the velocity at the previous time
     and the explicit velocity difference */
-    virtual void updateParticlesVelocity( 
+    void updateParticlesVelocity( 
   	vector< vector<double> > const& velocity_data_array,
   	bool const& b_set_velocity_nm1_and_diff );
 	
     /** @brief Updates particles hydro force and torque with data from the 
     fluid solver
     @param hydroft_data_array hydro force and torque data array */
-    virtual void updateParticlesHydroFT( 
+    void updateParticlesHydroFT( 
   	vector< vector<double> > const* hydroft_data_array );	   
     //@}
     
@@ -139,7 +144,9 @@ class GrainsCoupledWithFluid : virtual public Grains
     size_t m_ndt; /**< number of granular simulation time steps over 
     	a fluid flow simulation time step */ 
     AppPRSHydroFT* m_PRSHydroFT; /**< explicit pointer to the PRS hydro force
-    	and torque application */	       	       
+    	and torque application */
+    vector<Particle*> m_orderedParticles; /**< vector of particles ordered by 
+    	their ID number from 1 to total number of particles */
     //@}
 
 

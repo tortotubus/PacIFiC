@@ -63,6 +63,10 @@ class LinkedCell : public AppCollision
     using the method Component::isCloseWithCrust
     @param particle particle */
     bool isCloseWithCrust( Particle const* particle ) const;
+    
+    /** @brief Returns whether a point lies inside any particle in the domain
+    @param pt point */
+    bool isInParticle( Point3 const& pt ) const;
 
     /** @brief Links a particle with the linked cell grid without checking if
     the particle overlaps with another rigid body
@@ -198,12 +202,23 @@ class LinkedCell : public AppCollision
     at a limit of the linked cell grid, otherwise shift by 1e-12 
     @param InsertionArray structured array positions 
     @param wrapper MPI wrapper */
-    void checkStructuredArrayPositionsMPI( struct StructArrayInsertion* 
-    	InsertionArray, GrainsMPIWrapper const* wrapper ) const;  		
+    void checkStructuredArrayPositionsMPI( struct InsertionLattice* 
+    	InsertionArray, GrainsMPIWrapper const* wrapper ) const;
+	
+    /** @brief Removes periodic clones that do not belong to the periodic 
+    subdomain
+    @param time physical time    
+    @param particles list of active particles
+    @param particlesClones list of active clone particles 
+    @param wrapper MPI wrapper */    
+    void managePartialPeriodicity( double time,
+	list<Particle*>* particles,
+	list<Particle*>* particlesClones,
+	GrainsMPIWrapper const* wrapper = NULL );    	  		
     //@}
 
 
-    /**@name Methods Get */
+    /**@name Accessors */
     //@{
     /** @brief Returns a pointer to the cell that contains a point
     @param position the point coordinates */
@@ -224,7 +239,7 @@ class LinkedCell : public AppCollision
     //@}
 
 
-    /**@name Methods Set */
+    /**@name Set methods */
     //@{
     /** @brief Sets the linked cell grid in serial mode
     @param cellsize_ minimum cell edge length in each direction

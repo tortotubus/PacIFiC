@@ -450,7 +450,10 @@ void CompositeObstacle::resetKinematics()
 {
   m_kinematics.reset();
   m_confinement.reset();
-
+  m_translationalVelocity = 0.;
+  m_angularVelocity = 0.;
+  m_ismoving = false; 
+  
   list<Obstacle*>::iterator obstacle;
   for (obstacle=m_obstacles.begin(); obstacle!=m_obstacles.end(); obstacle++)
     (*obstacle)->resetKinematics();
@@ -579,7 +582,7 @@ void CompositeObstacle::updateIndicator( double time, double dt )
   list<Obstacle*>::iterator obstacle;
   
   if ( m_kinematics.activeAngularMotion( time, dt ) )
-      getObstacles().front()->setIndicator( 1. );  
+     getObstacles().front()->setIndicator( 1. );  
   
   for (obstacle=m_obstacles.begin(); obstacle!=m_obstacles.end(); obstacle++)   
     (*obstacle)->updateIndicator( time, dt );

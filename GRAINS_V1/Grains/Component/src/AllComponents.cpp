@@ -1,6 +1,7 @@
 #include "GrainsMPIWrapper.hh"
 #include "GrainsExec.hh"
 #include "AllComponents.hh"
+#include "AllInsertionWindows.hh"
 #include "App.hh"
 #include "AppCollision.hh"
 #include "RigidBodyWithCrust.hh"
@@ -9,6 +10,9 @@
 #include "PostProcessingWriter.hh"
 #include "ParaviewPostProcessingWriter.hh"
 #include "GrainsBuilderFactory.hh"
+#include "SpheroCylinder.hh"
+#include "TrilobeCylinder.hh"
+#include "QuadrilobeCylinder.hh"
 #include <math.h>
 #include <stdlib.h>
 
@@ -168,7 +172,7 @@ void AllComponents::LinkImposedMotion( ObstacleImposedVelocity* impvel )
 
 
 // ----------------------------------------------------------------------------
-// Associates the imposed velocity to the obstacle
+// Associates the imposed force to the obstacle
 void AllComponents::LinkImposedMotion( ObstacleImposedForce* load )
 {
   m_obstacle->LinkImposedMotion( load );
@@ -225,7 +229,8 @@ list<SimpleObstacle*> AllComponents::Move( double time,
 	  anyactive = true;        
     	           
       // Move obstacles
-      if ( anyactive || anyactive_previousdt ) m_obstacle->resetKinematics();
+      if ( anyactive || anyactive_previousdt ) m_obstacle->resetKinematics();   
+      anyactive_previousdt = anyactive;
       if ( anyactive ) displacedObstacles = 
     	m_obstacle->Move( time, dt_obstacle, false, false );
 
@@ -782,6 +787,7 @@ void AllComponents::WaitToActive( bool const& parallel )
     if ( m_wait->getTag() == 1 ) m_ParticlesInBufferzone.push_back( m_wait );
     else if ( m_wait->getTag() == 2 ) m_CloneParticles.push_back( m_wait );
   }
+  m_wait->setPositionDir_nm1( Z ); 
   m_wait = NULL;
 }
 
@@ -895,6 +901,10 @@ void AllComponents::read_pre2024( istream& fileSave, string const& filename,
       fileSave >> buffer >> buffer;
       if ( buffer == "SpheroCylinder" )
         particle = new SpheroCylinder( false );
+      else if ( buffer == "TrilobeCylinder" )
+        particle = new TrilobeCylinder( false );  
+      else if ( buffer == "QuadrilobeCylinder" )
+        particle = new QuadrilobeCylinder( false );        	
       else        
         particle = new CompositeParticle( false );
     }
@@ -935,6 +945,12 @@ void AllComponents::read_pre2024( istream& fileSave, string const& filename,
       if ( m_ReferenceParticles[ParticleGeomType]
       		->getSpecificCompositeShapeName() == "SpheroCylinder" )
         particle = new SpheroCylinder( false );
+      else if ( m_ReferenceParticles[ParticleGeomType]
+      		->getSpecificCompositeShapeName() == "TrilobeCylinder" )
+        particle = new TrilobeCylinder( false );
+      else if ( m_ReferenceParticles[ParticleGeomType]
+      		->getSpecificCompositeShapeName() == "QuadrilobeCylinder" )
+        particle = new QuadrilobeCylinder( false );	
       else   
         particle = new CompositeParticle( false );
     }
@@ -1036,6 +1052,10 @@ size_t AllComponents::read( istream& fileSave, list<Point3>* known_positions,
       fileSave >> buffer >> buffer;
       if ( buffer == "SpheroCylinder" )
         particle = new SpheroCylinder( false );
+      else if ( buffer == "TrilobeCylinder" )
+        particle = new TrilobeCylinder( false ); 
+      else if ( buffer == "QuadrilobeCylinder" )
+        particle = new QuadrilobeCylinder( false ); 
       else        
         particle = new CompositeParticle( false );
     }
@@ -1079,7 +1099,7 @@ size_t AllComponents::read( istream& fileSave, list<Point3>* known_positions,
   // Reload the obstacle tree
   // The highest level composite obstacle is a default composite obstacle that 
   // is created as the root of the obstacle tree, its torsor is physically 
-  // meaning less and is not written, therefore not read here
+  // meaningless and is not written, therefore not read here
   string name;
   fileSave >> buffer;
   fileSave >> buffer >> buffer;
@@ -1225,6 +1245,12 @@ void AllComponents::read_particles( string const& filename, size_t const& npart,
         if ( m_ReferenceParticles[ParticleGeomType]
       		->getSpecificCompositeShapeName() == "SpheroCylinder" )
           particle = new SpheroCylinder( false );
+        else if ( m_ReferenceParticles[ParticleGeomType]
+      		->getSpecificCompositeShapeName() == "TrilobeCylinder" )
+          particle = new TrilobeCylinder( false );
+        else if ( m_ReferenceParticles[ParticleGeomType]
+      		->getSpecificCompositeShapeName() == "QuadrilobeCylinder" )
+          particle = new QuadrilobeCylinder( false );	  
         else   
           particle = new CompositeParticle( false );
       }
@@ -1597,7 +1623,7 @@ ostream& operator << ( ostream& f, AllComponents const& EC )
 // ----------------------------------------------------------------------------
 // Writes components for Post-Processing at the start of the simulation
 void AllComponents::PostProcessing_start( double time, double dt,
-	LinkedCell const* LC, vector<Window> const& insert_windows,
+	LinkedCell const* LC, AllInsertionWindows const& insert_windows,
 	int rank, int nprocs,
 	GrainsMPIWrapper const* wrapper )
 {
@@ -1667,8 +1693,8 @@ void AllComponents::PostProcessing_start( double time, double dt,
 // ----------------------------------------------------------------------------
 // Writes components for Post-Processing over the simulation
 void AllComponents::PostProcessing( double time, double dt,
-	LinkedCell const* LC, int rank,
-	int nprocs, GrainsMPIWrapper const* wrapper )
+	LinkedCell const* LC, AllInsertionWindows const& insert_windows,
+	int rank, int nprocs, GrainsMPIWrapper const* wrapper )
 {
   list<Particle*>* postProcessingPeriodic = NULL;
   list<PostProcessingWriter*>::iterator pp;
@@ -1708,7 +1734,7 @@ void AllComponents::PostProcessing( double time, double dt,
   for (pp=m_postProcessors.begin();pp!=m_postProcessors.end();pp++)
     (*pp)->PostProcessing( time, dt, &m_ActiveParticles,
 	&m_RemovedParticles, postProcessingPeriodic,
-	&m_ReferenceParticles, m_obstacle, LC );
+	&m_ReferenceParticles, m_obstacle, LC, insert_windows );
 
   // Destruction of local containers
   if ( GrainsExec::m_periodic )
@@ -2271,12 +2297,13 @@ void AllComponents::computeNumberParticles( GrainsMPIWrapper const* wrapper )
 // ----------------------------------------------------------------------------
 // Updates list of particles in parallel
 void AllComponents::updateParticleLists( double time, 
-	list<Particle*>* newBufPart )
+	list<Particle*>* newBufPart, GrainsMPIWrapper const* wrapper )
 {
   newBufPart->clear();
   
   list<Particle*>::iterator particle;
   int tag = 0, tagnm1 = 0;
+  
   for (particle=m_ActiveParticles.begin();particle!=m_ActiveParticles.end(); 
   	particle++)
   { 
@@ -2290,11 +2317,12 @@ void AllComponents::updateParticleLists( double time,
 	if ( tag == 1 ) 
 	{
 	  m_ParticlesInBufferzone.push_back( *particle);
-	  newBufPart->push_back( *particle);
+	  newBufPart->push_back( *particle );
           if ( GrainsExec::m_MPI_verbose )
 	  {
 	    ostringstream oss;
-	    oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
+	    oss << "   t=" << GrainsExec::doubleToString( time, 
+	    		FORMAT10DIGITS ) <<
 		" Interior to Buffer (0 -> 1) Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2312,7 +2340,8 @@ void AllComponents::updateParticleLists( double time,
             if ( GrainsExec::m_MPI_verbose )
 	    {
               ostringstream oss;
-              oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
+              oss << "   t=" << GrainsExec::doubleToString( time, 
+	      		FORMAT10DIGITS )
       		<< " Buffer to Interior (1 -> 0) Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2325,11 +2354,12 @@ void AllComponents::updateParticleLists( double time,
 	    if ( (*particle)->getGeoPosition() 
 	    	!= (*particle)->getGeoPositionNm1() )
 	    {
-	      newBufPart->push_back( *particle);
+	      newBufPart->push_back( *particle );
               if ( GrainsExec::m_MPI_verbose )
 	      {
                 ostringstream oss;
-                oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
+                oss << "   t=" << GrainsExec::doubleToString( time, 
+			FORMAT10DIGITS )
       		<< " Buffer to Buffer (1 -> 1)   Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2339,17 +2369,42 @@ void AllComponents::updateParticleLists( double time,
 			(*particle)->getGeoPosition()) << endl;
                 GrainsMPIWrapper::addToMPIString( oss.str() );
 	      } 
-	    }	      	  
+	    }
+	    else if ( GrainsExec::m_partialPer_is_active )
+	    { 
+	      if ( wrapper->isGeoPositionPeriodic( 
+	      	(*particle)->getCell()->getGeoPosition() ) )
+	        if ( GrainsExec::partialPeriodicityCompTest( 
+			(*particle)->getPosition() ) &&
+		!GrainsExec::partialPeriodicityCompTest(
+			(*particle)->getPositionDir_nm1() ) )
+	        {
+	          newBufPart->push_back( *particle );
+                  if ( GrainsExec::m_MPI_verbose )
+	          {
+                    ostringstream oss;
+                    oss << "   t=" << GrainsExec::doubleToString( time, 
+			FORMAT10DIGITS )
+      		  	<< " Buffer to Buffer (1 -> 1)   Id = " <<
+      			(*particle)->getID() << " " << 
+			*(*particle)->getPosition() << endl;
+		    oss << "                Periodic transition zone" << endl;
+                    GrainsMPIWrapper::addToMPIString( oss.str() );
+	          } 
+	        }
+	    }	    
+	    	      	  
 	    break;
 	    
 	  // Buffer to clone (1 -> 2)
 	  case 2:
             removeParticleFromList( m_ParticlesInBufferzone, *particle );
-	    m_CloneParticles.push_back( *particle);
+	    m_CloneParticles.push_back( *particle );
 	    if ( GrainsExec::m_MPI_verbose )
             {
               ostringstream oss;
-              oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS )
+              oss << "   t=" << GrainsExec::doubleToString( time, 
+	      		FORMAT10DIGITS )
       		<< " Buffer to Clone (1 -> 2)    Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2364,11 +2419,13 @@ void AllComponents::updateParticleLists( double time,
 	if ( tag == 1 ) 
 	{
           removeParticleFromList( m_CloneParticles, *particle );
-	  m_ParticlesInBufferzone.push_back( *particle);          
+	  m_ParticlesInBufferzone.push_back( *particle );
+	  newBufPart->push_back( *particle );          
           if ( GrainsExec::m_MPI_verbose )
 	  {
             ostringstream oss;
-            oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
+            oss << "   t=" << GrainsExec::doubleToString( time, 
+	    		FORMAT10DIGITS ) <<
       		" Clone to Buffer (2 -> 1)    Id = " <<
       		(*particle)->getID() << " " << *(*particle)->getPosition()
 		<< endl;
@@ -2421,4 +2478,18 @@ void AllComponents::setTimeIntegrationScheme()
   for (particle=m_ActiveParticles.begin();
   	particle!=m_ActiveParticles.end(); particle++)
     (*particle)->setTimeIntegrationScheme(); 
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets the center of mass coordinate in a given direction at the previous time 
+// of all particles to the current value (generally called at the start of a 
+// time step)
+void AllComponents::setPositionDir_nm1( Direction dir )
+{
+  for (list<Particle*>::iterator particle=m_ActiveParticles.begin();
+  	particle!=m_ActiveParticles.end();particle++) 
+    (*particle)->setPositionDir_nm1( dir ); 
 }

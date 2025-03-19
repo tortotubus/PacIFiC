@@ -10,6 +10,13 @@
 #include "Segment.hh"
 #include "Cell.hh"
 #include "Vector3.hh"
+#include "Sphere.hh"
+#include "Disc.hh"
+#include "Cylinder.hh"
+#include "Cone.hh"
+#include "Superquadric.hh"
+#include "SpheroCyl.hh"
+#include "SpheroCylindricalPrism.hh"
 #include <zlib.h>
 using namespace solid;
 
@@ -28,7 +35,7 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter()
 // ----------------------------------------------------------------------------
 // Constructor with XML node, rank and number of processes as input parameters
 ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
-    int const& rank_, int const& nbranks_, bool const& verbose )
+	int const& rank_, int const& nbranks_, bool const& verbose )
   : PostProcessingWriter( dn, rank_, nbranks_ )
   , m_ParaviewCycleNumber( 0 )
   , m_binary( false )
@@ -41,6 +48,7 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
   , ALLOCATED( 0 )
   , OFFSET( 0 )
 {
+  // General parameters
   m_ParaviewFilename = ReaderXML::getNodeAttr_String( dn, "RootName" );
   m_ParaviewFilename_dir = ReaderXML::getNodeAttr_String( dn, "Directory" );
   if ( ReaderXML::hasNodeAttr( dn, "InitialCycleNumber" ) )
@@ -67,8 +75,46 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
   { 
     string sm_pertype = ReaderXML::getNodeAttr_String( dn, "PerType" );
     if ( sm_pertype == "False" ) m_pertype = false; 
-  }    
-  
+  }
+      
+  // Parameters specific to polyhedral reconstruction
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSphereQuarter" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSphereQuarter" );
+    Sphere::SetvisuNodeNbPerQar( nnn );
+  }  
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerDiscPer" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerDiscPer" );
+    Disc::SetvisuNodeNbOverPer( nnn );
+  }
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerCylPer" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerCylPer" );
+    Cylinder::SetvisuNodeNbOverPer( nnn );
+  }
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerConePer" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerConePer" );
+    Cone::SetvisuNodeNbOverPer( nnn );
+  } 
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSQQuarter" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSQQuarter" );
+    Superquadric::SetvisuNodeNbPerQar( nnn );
+  }
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSCQuarter" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSCQuarter" );
+    SpheroCyl::SetvisuNodeNbPerQar( nnn );
+  }
+  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSCPHalf" ) )
+  { 
+    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSCPHalf" );
+    SpheroCylindricalPrism::SetvisuNodeNbOverHalfPer( nnn );
+  }          
+    
+  // Output to screen
   if ( m_rank == 0 && verbose )
   {
     cout << GrainsExec::m_shift9 << "Type = Paraview" << endl;
@@ -95,12 +141,8 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
 // ----------------------------------------------------------------------------
 // Constructor with input parameters 
 ParaviewPostProcessingWriter::ParaviewPostProcessingWriter(
-    int const& rank_,
-    int const& nbranks_,
-    const string &name_,
-    const string &root_,
-    const bool &isBinary,
-    bool const& verbose )
+	int const& rank_, int const& nbranks_, const string &name_, 
+	const string &root_, const bool &isBinary, bool const& verbose )
   : PostProcessingWriter( rank_, nbranks_ )
   , m_ParaviewFilename_dir( root_ )
   , m_ParaviewFilename( name_ )
@@ -154,15 +196,13 @@ ParaviewPostProcessingWriter::~ParaviewPostProcessingWriter()
 // ----------------------------------------------------------------------------
 // Initializes the post-processing writer
 void ParaviewPostProcessingWriter::PostProcessing_start(
-    double const& time, 
-    double const& dt,
-    list<Particle*> const* particles,
-    list<Particle*> const* inactiveparticles,
-    list<Particle*> const* periodic_clones,
-    vector<Particle*> const* referenceParticles,
-    Obstacle *obstacle,
-    LinkedCell const* LC,
-    vector<Window> const& insert_windows )
+	double const& time, double const& dt,
+	list<Particle*> const* particles,
+	list<Particle*> const* inactiveparticles,
+	list<Particle*> const* periodic_clones,
+	vector<Particle*> const* referenceParticles,
+	Obstacle *obstacle, LinkedCell const* LC,
+	AllInsertionWindows const& insert_windows )
 {
   size_t nbParticleTypes = referenceParticles->size() ;
   size_t nbPPTypes = m_pertype ? nbParticleTypes : 1;  
@@ -227,7 +267,20 @@ void ParaviewPostProcessingWriter::PostProcessing_start(
 			
         m_Paraview_savePeriodicCloneParticles_pvd << ">" << endl;	
         m_Paraview_savePeriodicCloneParticles_pvd << "<Collection>" << endl; 
-      }             
+      }
+      
+      // Insertion windows
+      m_Paraview_saveInsertionWindow_pvd << "<?xml version=\"1.0\"?>" << endl;
+      m_Paraview_saveInsertionWindow_pvd << 
+	"<VTKFile type=\"Collection\" version=\"0.1\""
+	<< " byte_order=\"LittleEndian\"";
+	      
+      if ( m_binary ) 
+	m_Paraview_saveInsertionWindow_pvd 
+		<< " compressor=\"vtkZLibDataCompressor\"";
+		
+      m_Paraview_saveInsertionWindow_pvd<< ">" << endl; 
+      m_Paraview_saveInsertionWindow_pvd << "<Collection>" << endl;                   
 
       if ( LC )
       {
@@ -275,7 +328,7 @@ void ParaviewPostProcessingWriter::PostProcessing_start(
 		
 	  m_Paraview_saveContactForceChains_pvd<< ">" << endl; 
 	  m_Paraview_saveContactForceChains_pvd << "<Collection>" << endl; 
-	}
+	} 	
 	
         // Linked cell grid 
 	if ( m_nprocs > 1 && !m_mpiio_singlefile )
@@ -296,7 +349,7 @@ void ParaviewPostProcessingWriter::PostProcessing_start(
     } 
            
     one_output( time, dt, particles, periodic_clones, referenceParticles,
-  	obstacle, LC );
+  	obstacle, LC, insert_windows );
   }
   else
   {
@@ -337,6 +390,11 @@ void ParaviewPostProcessingWriter::PostProcessing_start(
        	+ "_PeriodicCloneParticles.pvd", 
 	m_Paraview_savePeriodicCloneParticles_pvd );
 
+      // Insertion windows
+      readPVDFile( m_ParaviewFilename_dir + "/" + m_ParaviewFilename
+	+ "_InsertionWindows.pvd", 
+	m_Paraview_saveInsertionWindow_pvd );            
+
       if ( LC )
       {
         // Particle translational and angular velocity vectors
@@ -364,16 +422,11 @@ void ParaviewPostProcessingWriter::PostProcessing_start(
     ++m_ParaviewCycleNumber;                
   }
   
-  // Windows d'insertion
-  if ( m_rank == 0 ) 
-  {
-    writeInsertion_Paraview( insert_windows, 
-    	m_ParaviewFilename + "_InsertionWindows" );
-	
+  // Periodic boundaries
+  if ( m_rank == 0 ) 	
     if ( GrainsExec::m_periodic == true && LC )
       writePeriodicBoundary_Paraview(
-  	LC, m_ParaviewFilename + "_PeriodicBoundaries" );
-  }	
+  	LC, m_ParaviewFilename + "_PeriodicBoundaries" );	
 }
 
 
@@ -458,17 +511,16 @@ int ParaviewPostProcessingWriter::getPreviousCycleNumber() const
 // ----------------------------------------------------------------------------
 // Writes data
 void ParaviewPostProcessingWriter::PostProcessing(
-    double const& time, 
-    double const& dt,
-    list<Particle*> const* particles,
-    list<Particle*> const* inactiveparticles,
-    list<Particle*> const* periodic_clones,
-    vector<Particle*> const* referenceParticles,
-    Obstacle* obstacle,
-    LinkedCell const* LC )
+	double const& time, double const& dt,
+	list<Particle*> const* particles,
+	list<Particle*> const* inactiveparticles,
+	list<Particle*> const* periodic_clones,
+	vector<Particle*> const* referenceParticles,
+	Obstacle* obstacle, LinkedCell const* LC,
+	AllInsertionWindows const& insert_windows )
 {
   one_output( time, dt, particles, periodic_clones, referenceParticles,
-  	obstacle, LC );
+  	obstacle, LC, insert_windows );
 }
 
 
@@ -485,13 +537,12 @@ void ParaviewPostProcessingWriter::PostProcessing_end()
 // ----------------------------------------------------------------------------
 // Writes data at one physical time
 void ParaviewPostProcessingWriter::one_output(
-    double const& time,
-    double const& dt,
-    list<Particle*> const* particles,
-    list<Particle*> const* periodic_clones,
-    vector<Particle*> const* referenceParticles,
-    Obstacle* obstacle,
-    LinkedCell const* LC )
+	double const& time, double const& dt,
+	list<Particle*> const* particles,
+	list<Particle*> const* periodic_clones,
+	vector<Particle*> const* referenceParticles,
+	Obstacle* obstacle, LinkedCell const* LC,
+	AllInsertionWindows const& insert_windows )
 {
   size_t nbParticleTypes = referenceParticles->size() ;
   size_t nbPPTypes = m_pertype ? nbParticleTypes : 1;  
@@ -769,6 +820,24 @@ void ParaviewPostProcessingWriter::one_output(
 	  PostProcessingWriter::m_bPPWindow[m_rank] );
     }
   }
+  
+  // Insertion windows
+  if ( m_rank == 0 ) 
+  {       
+    string IWFilename = m_ParaviewFilename + "_InsertionWindows_T" 
+    	+ ossCN.str() + ".vtu";
+    m_Paraview_saveInsertionWindow_pvd << "<DataSet timestep=\"" << time 
+      	<< "\" " << "group=\"\" part=\"0\" file=\"" << IWFilename << "\"/>\n"; 
+	              
+    ofstream f( ( m_ParaviewFilename_dir + "/" + m_ParaviewFilename
+       	+ "_InsertionWindows.pvd" ).c_str(), ios::out );	 
+    f << m_Paraview_saveInsertionWindow_pvd.str();
+    f << "</Collection>" << endl;
+    f << "</VTKFile>" << endl;
+    f.close();      
+            
+    writeInsertion_Paraview( insert_windows, IWFilename );       
+  }  
    
   if ( LC )
   {
@@ -1272,147 +1341,15 @@ void ParaviewPostProcessingWriter::writeLinked_Paraview(
 // ----------------------------------------------------------------------------
 // Writes insertion windows data
 void ParaviewPostProcessingWriter::writeInsertion_Paraview(
-   	vector<Window> const& insert_windows,
-  	string const& partFilename )
+   	AllInsertionWindows const& insert_windows,
+  	string const& IWFilename )
 {
-  vector<Window>::const_iterator iv;
   list<RigidBody*> iwlist;
-  list<RigidBody*>::iterator il = iwlist.begin(); 
-  Transform gcwindow; 
-  Convex* ccw = NULL;
-  RigidBody* ffw = NULL;
-  Vector3 v_axis;
-  Matrix mrot;
-  double Le = 0., Lh = 0., Lt = 0., angle = 0., 
-  	mean_radius = 0., thickness = 0. ;
-  Point3 panelCenter, center;
-  size_t nbPanels = 32;
-  double polygonAngle = 2. * PI / double(nbPanels);
+  list<RigidBody*>::iterator il; 
   
-  for (iv=insert_windows.begin();iv!=insert_windows.end();iv++)
-  {
-    switch( iv->ftype )
-    {
-      case WINDOW_BOX:
-        gcwindow.setOrigin( 0.5 * ( iv->ptA + iv->ptB ) );
-        ccw = new Box( 0.5 * ( iv->ptB - iv->ptA ) );
-        ffw = new RigidBody( ccw, gcwindow );
-        iwlist.push_back( ffw );
-        break;
-      
-      case WINDOW_CYLINDER:
-        switch ( iv->axisdir )
-        {
-          case X: 
-            v_axis[X] = iv->height; 
-            mrot.setValue( cos( 0.5 * PI ), -sin( 0.5 * PI ), 0.,
-                sin( 0.5 * PI ), cos( 0.5 * PI ), 0.,
-                0., 0., 1. );
-            break;
+  insert_windows.convertToRigidBodies( iwlist );
 
-          case Y: 
-            v_axis[Y] = iv->height; 
-            break;
-  
-          default: 
-            v_axis[Z] = iv->height; 
-            mrot.setValue( 1., 0., 0.,
-                0., cos( 0.5 * PI ), -sin( 0.5 * PI ),
-                0., sin( 0.5 * PI ), cos( 0.5 * PI ) );
-            break;
-        }
-        gcwindow.setOrigin( iv->ptA + 0.5 * v_axis );
-        ccw = new Cylinder( iv->radius, iv->height );
-        ffw = new RigidBody( ccw, gcwindow );
-        ffw->getTransform()->setBasis( mrot );
-        iwlist.push_back( ffw );
-        break;	
-
-      case WINDOW_ANNULUS:
-        mean_radius = iv->radius_int + 0.5 * ( iv->radius - iv->radius_int ) ;
-        thickness = iv->radius - iv->radius_int	;
-        center = iv->ptA;
-        Le = thickness;       
-        Lt = iv->radius * tan( polygonAngle ); 
-        Lh = iv->height;
-        switch ( iv->axisdir )
-        {
-          case X: 
-            center[X] += 0.5 * iv->height;
-            for (size_t iNb=0; iNb!=nbPanels; iNb++)
-            {
-              angle = 2. * PI * double(iNb) / double(nbPanels);
-              panelCenter[X] = center[X];
-              panelCenter[Y] = center[Y] + mean_radius * cos(angle);
-              panelCenter[Z] = center[Z] + mean_radius * sin(angle);
-              gcwindow.setOrigin( panelCenter );
- 
-              mrot.setValue( 1., 0., 0.,
-                  0., cos(angle), -sin(angle),
-                  0., sin(angle), cos(angle) );
-              gcwindow.setBasis( mrot );
-              ccw = new Box( Lh, Le, Lt );
-              ffw = new RigidBody( ccw, gcwindow );
-              iwlist.push_back( ffw );
-            }
-            break;
-
-          case Y: 
-            center[Y] += 0.5 * iv->height;
-            for (size_t iNb=0; iNb!=nbPanels; iNb++)
-            {
-              angle = 2. * PI * double(iNb) / double(nbPanels);
-              panelCenter[X] = center[X] + mean_radius * sin(angle);
-              panelCenter[Y] = center[Y];
-              panelCenter[Z] = center[Z] + mean_radius * cos(angle);
-              gcwindow.setOrigin( panelCenter );
-
-              mrot.setValue( cos(angle), 0., sin(angle),
-                  0., 1., 0.,
-                  -sin(angle), 0., cos(angle) );
-              gcwindow.setBasis( mrot );
-              ccw = new Box( Lt, Lh, Le );
-              ffw = new RigidBody( ccw, gcwindow );
-              iwlist.push_back( ffw );
-            }
-            break;
-
-          default:
-            center[Z] += 0.5 * iv->height;
-            for (size_t iNb=0; iNb!=nbPanels; iNb++)
-            {
-              angle = 2. * PI * double(iNb) / double(nbPanels);
-              panelCenter[X] = center[X] + mean_radius * cos(angle);
-              panelCenter[Y] = center[Y] + mean_radius * sin(angle);
-              panelCenter[Z] = center[Z];
-              gcwindow.setOrigin( panelCenter );
-
-              mrot.setValue( cos(angle), -sin(angle), 0.,
-                  sin(angle), cos(angle), 0.,
-                  0., 0., 1. );
-              gcwindow.setBasis( mrot );
-              ccw = new Box( Le, Lt, Lh );
-              ffw = new RigidBody( ccw, gcwindow );
-              iwlist.push_back( ffw );
-            }
-            break;
-        }
-        break;
-
-      case WINDOW_LINE:
-        gcwindow = Segment::computeTransform( 
-            0.5 * ( iv->ptB - iv->ptA ), 0.5 * ( iv->ptA + iv->ptB ) );
-        ccw = new Segment( Norm( iv->ptB - iv->ptA ) );
-        ffw = new RigidBody( ccw, gcwindow );
-        iwlist.push_back( ffw );
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  ofstream f( ( m_ParaviewFilename_dir + "/" + partFilename + ".vtu" ).c_str(),
+  ofstream f( ( m_ParaviewFilename_dir + "/" + IWFilename ).c_str(),
       ios::out );
   
   f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" "

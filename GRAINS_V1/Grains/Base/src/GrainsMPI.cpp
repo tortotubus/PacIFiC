@@ -49,7 +49,7 @@ void GrainsMPI::Simulation( double time_interval )
   if ( m_processorIsActive )
   {
     double vmax = 0., vmean = 0. ;
-    list<Particle*>* newBufPart = new list<Particle*>;
+    list<Particle*>* newBufPart = new list<Particle*>;  
     bool forcestats = false;    
 
     // Timers
@@ -67,6 +67,12 @@ void GrainsMPI::Simulation( double time_interval )
       {
         m_time += m_dt;
 	GrainsExec::m_time_counter++;
+	
+	// In case of partial periodicity, sets the position of all particles
+	// in direction dir at previous time
+	if ( GrainsExec::m_partialPer_is_active )
+	  m_allcomponents.setPositionDir_nm1( 
+	  	GrainsExec::getPartialPeriodicity()->dir );
 	
 
         // Check whether data are output at this time
@@ -99,6 +105,7 @@ void GrainsMPI::Simulation( double time_interval )
         if ( m_insertion_mode == IM_OVERTIME )
           insertParticle( m_insertion_order );	
         m_allcomponents.computeNumberParticles( m_wrapper );
+	m_insertion_windows.Move( m_time, m_dt );  
 	if ( GrainsExec::m_output_data_at_this_time )
           if ( m_rank == 0 )
 	  {
@@ -121,7 +128,7 @@ void GrainsMPI::Simulation( double time_interval )
         // x_i+1 = x_i + v_i+1/2 * dt
         // Solve Newton's law and move particles
         SCT_set_start( "Move" );
-        m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision );
+        m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision ); 
 
    
         // Update clone particle position and velocity
@@ -151,7 +158,7 @@ void GrainsMPI::Simulation( double time_interval )
         SCT_set_start( "LinkUpdate" );
         m_collision->LinkUpdate( m_time, m_dt, 
       		m_allcomponents.getActiveParticles() );  
-        m_allcomponents.updateParticleLists( m_time, newBufPart ); 
+        m_allcomponents.updateParticleLists( m_time, newBufPart, m_wrapper ); 
 
 
         // Create new clones
@@ -162,7 +169,15 @@ void GrainsMPI::Simulation( double time_interval )
 		m_allcomponents.getReferenceParticles(),
 		m_collision, false, false );
         SCT_get_elapsed_time( "LinkUpdate" );
-      
+
+
+        // Remove periodic clones that do not belong to the periodic subdomain
+	if ( GrainsExec::m_partialPer_is_active )
+	  m_collision->managePartialPeriodicity( m_time,
+		m_allcomponents.getActiveParticles(),
+		m_allcomponents.getCloneParticles(),
+		m_wrapper );      
+
       
         // Compute particle forces and torque
         // Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)
@@ -223,7 +238,7 @@ void GrainsMPI::Simulation( double time_interval )
 
 	  // Write postprocessing files
           m_allcomponents.PostProcessing( m_time, m_dt, m_collision,
-		m_rank, m_nprocs, m_wrapper );
+		m_insertion_windows, m_rank, m_nprocs, m_wrapper );
 
 	  // Write reload files
 	  saveReload( m_time );
@@ -259,7 +274,9 @@ void GrainsMPI::Simulation( double time_interval )
         m_error_occured = true;
         break;
       }
-    }  
+    } 
+    
+    delete newBufPart; 
   }
 }
 
@@ -432,14 +449,19 @@ void GrainsMPI::InsertCreateNewParticles()
 
   // In case of a restarted simulation, if the linked cell changed from the 
   // previous simulation, we need to check that all clones are there
-  if ( m_restart && m_periodic ) checkClonesReload();  
+  if ( m_restart && ( m_periodic || !GrainsExec::m_ReadMPIInASingleFile ) ) 
+    checkClonesReload();  
 
   // Set particle positions from file or from a structured array
   size_t error = 0;
   if ( m_position != "" )
   {
     // From a structured array
-    if ( m_position == "STRUCTURED" ) error = setPositionParticlesArray();
+    if ( m_position == "STRUCTURED" ) 
+      error = setPositionParticlesStructuredArray();
+    // From a cylinder array
+    else if ( m_position == "CYLINDER" ) 
+      error = setPositionParticlesCyl();
     // From a file
     else error = setPositionParticlesFromFile();
   }
@@ -516,16 +538,33 @@ size_t GrainsMPI::setAngularPositionParticlesFromFile()
 
 // ----------------------------------------------------------------------------
 // Sets particle initial position with a structured array
-size_t GrainsMPI::setPositionParticlesArray()
+size_t GrainsMPI::setPositionParticlesStructuredArray()
 {
   size_t error = 0;
   
   // Checks that none of the structured array positions is exactly 
   // at a limit of the linked cell grid, otherwise shift by 1e-12
-  m_collision->checkStructuredArrayPositionsMPI( m_InsertionArray, m_wrapper );
+  m_collision->checkStructuredArrayPositionsMPI( m_InsertionLattice, m_wrapper );
   
   // Note: only the master proc computes and stores positions  
-  if ( m_rank == 0 ) error = Grains::setPositionParticlesArray();
+  if ( m_rank == 0 ) error = Grains::setPositionParticlesStructuredArray();
+  error = m_wrapper->Broadcast_UNSIGNED_INT( error );
+
+  return ( error );    
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Sets particle initial position through filling a cylinder with a regular 
+// array
+size_t GrainsMPI::setPositionParticlesCyl()
+{
+  size_t error = 0;
+  
+  // Note: only the master proc computes and stores positions  
+  if ( m_rank == 0 ) error = Grains::setPositionParticlesCyl();
   error = m_wrapper->Broadcast_UNSIGNED_INT( error );
 
   return ( error );    

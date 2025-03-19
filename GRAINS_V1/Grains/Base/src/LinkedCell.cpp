@@ -482,11 +482,11 @@ size_t LinkedCell::set( double cellsize_, int const* nprocsdir,
   if ( MPIcoords[0] != nprocsdir[0] - 1 ||  m_domain_global_periodicity[0] ) 
     suppX++;
   m_nbi += suppX;
-  if ( MPIcoords[1] != 0 ||  m_domain_global_periodicity[1] ) suppY++;
+  if ( MPIcoords[1] != 0 || m_domain_global_periodicity[1] ) suppY++;
   if ( MPIcoords[1] != nprocsdir[1] - 1 ||  m_domain_global_periodicity[1] ) 
     suppY++;
   m_nbj += suppY;
-  if ( MPIcoords[2] != 0 ||  m_domain_global_periodicity[2] ) suppZ++;
+  if ( MPIcoords[2] != 0 || m_domain_global_periodicity[2] ) suppZ++;
   if ( MPIcoords[2] != nprocsdir[2] - 1 ||  m_domain_global_periodicity[2] ) 
     suppZ++;
   m_nbk += suppZ;
@@ -1299,6 +1299,39 @@ bool LinkedCell::isCloseWithCrust( Particle const* particle ) const
 
 
 // ----------------------------------------------------------------------------
+// Returns whether a point lies inside any particle in the domain
+bool LinkedCell::isInParticle( Point3 const& pt ) const
+{
+  bool isIn = false;
+
+  int id[3];
+  Cell::GetCell( pt, id );
+  Cell* cell_ = getCell( id[X], id[Y], id[Z] );
+  Cell* neighborc = NULL ;
+
+  if ( cell_ )
+  {
+    // In the local cell
+    isIn = cell_->isInParticle( pt );
+
+    // In the neighboring cells
+    for (int k=-1;k<2 && !isIn;++k)
+      for (int l=-1;l<2 && !isIn;++l)
+        for (int m=-1;m<2 && !isIn;++m)
+          if ( k || l || m )
+	  {
+	    neighborc = getCell( id[X]+k, id[Y]+l, id[Z]+m );
+            if ( neighborc ) isIn = neighborc->isInParticle( pt );
+	  }
+  }
+  
+  return ( isIn );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
 // Links a particle with the linked cell grid without checking if the particle
 // overlaps with another rigid body
 void LinkedCell::Link( Particle* particle )
@@ -1384,9 +1417,9 @@ void LinkedCell::Link( Obstacle* root_obstacle )
 	    for (j=0;j<2 && !add;++j) 
 	    {
 	      angy = j == 0 ? - LOWEPS : LOWEPS;
-	      mrotY.setValue( cos( angy ), 0., - sin( angy ), 
+	      mrotY.setValue( cos( angy ), 0., sin( angy ), 
     		0., 1., 0.,
-		sin( angy ), 0., cos( angy ) );
+		- sin( angy ), 0., cos( angy ) );
 	      for (k=0;k<2 && !add;++k) 
 	      {
 	        angz = k == 0 ? - LOWEPS : LOWEPS;
@@ -1695,7 +1728,6 @@ void LinkedCell::DestroyOutOfDomainClones( double time,
     }
     else particle++;
   }
-
 }
 
 
@@ -1861,7 +1893,14 @@ pair<bool,bool> LinkedCell::insertParticleParallel( double time,
   }
   
   // Periodic clones
-  if ( !insert.second && periodic ) 
+  bool testperclones = false;
+  if ( GrainsExec::m_partialPer_is_active )
+    testperclones = !insert.second && periodic && 
+    	GrainsExec::partialPeriodicityCompTest( particle->getPosition() );
+  else 
+    testperclones = !insert.second && periodic;
+
+  if ( testperclones ) 
   {
     // The particle is only in the local domain of a single proc
     if ( insert.first && isInLocalDomain( particle->getPosition() ) )
@@ -1882,23 +1921,23 @@ pair<bool,bool> LinkedCell::insertParticleParallel( double time,
     // Loop over the domain periodic vectors for this geographic position
     if ( !force_insertion )
     {
-    for ( size_t i=0;i<m_periodic_vector_indices[geoloc].size() &&
+      for ( size_t i=0;i<m_periodic_vector_indices[geoloc].size() &&
 	!contact;++i)
-    {
-      // Translate particle by periodic vector i
-      particle->Translate( m_domain_global_periodic_vectors[
+      {
+        // Translate particle by periodic vector i
+        particle->Translate( m_domain_global_periodic_vectors[
 	m_periodic_vector_indices[geoloc][i]] );
 
-      // Check contact of the periodic clone
-      if ( isInLinkedCell( *(particle->getPosition()) ) )
-        contact = isContactWithCrust( particle );
+        // Check contact of the periodic clone
+        if ( isInLinkedCell( *(particle->getPosition()) ) )
+          contact = isContactWithCrust( particle );
 
-      // If no contact, translate back to original position
-      if ( !contact )
-	particle->Translate( - m_domain_global_periodic_vectors[
+        // If no contact, translate back to original position
+        if ( !contact )
+	  particle->Translate( - m_domain_global_periodic_vectors[
 		m_periodic_vector_indices[geoloc][i]] );
-    }    
-    contact = wrapper->max_INT( contact ); 
+      }    
+      contact = wrapper->max_INT( contact ); 
     }
     if ( contact ) insert.second = true;
     
@@ -2016,7 +2055,7 @@ void LinkedCell::updateDestroyPeriodicClones( list<Particle*>* particles,
 	  	*((*particle)->getAngularVelocity()) );
 	  imm->second->setContactMap( *((*particle)->getContactMap()) ); 
         }
-        else
+        else if ( ncid > 1 )
         // Case 2: multiple periodic clones
         {
           crange = particlesPeriodicClones->equal_range( particleID );
@@ -2102,7 +2141,7 @@ void LinkedCell::createDestroyPeriodicClones( list<Particle*>* particles,
   pair < multimap<int,Particle*>::iterator,
   	multimap<int,Particle*>::iterator > crange;
   int particleID = 0;
-  bool found = false;
+  bool found = false, create = false;
   Particle* periodic_clone = NULL;
 
   for (list<Particle*>::iterator particle=particles->begin();
@@ -2164,11 +2203,20 @@ void LinkedCell::createDestroyPeriodicClones( list<Particle*>* particles,
 	{
 	  geoloc = (*particle)->getGeoPosition();
 	  geoloc_nm1 = (*particle)->getGeoPositionNm1();
+	  create = false;
 
-	  // If change of geographic position, search in periodic clone multimap
-	  // that all periodic clones exist and if a periodic clone does not
-	  // exist, create it
-	  if ( geoloc != geoloc_nm1 )
+	  // If change of geographic position or if particle enters the periodic
+	  // subdomain, search in periodic clone multimap that all periodic 
+	  // clones exist and if a periodic clone does not exist, create it
+	  if ( geoloc != geoloc_nm1 ) create = true;
+	  if ( !create )
+	    if ( GrainsExec::m_partialPer_is_active )
+              if ( GrainsExec::partialPeriodicityCompTest( 
+			(*particle)->getPosition() ) &&
+		!GrainsExec::partialPeriodicityCompTest(
+			(*particle)->getPositionDir_nm1() ) ) create = true;
+	  
+	  if ( create )
 	  {
             particleID = (*particle)->getID();
 	    crange = particlesPeriodicClones->equal_range( particleID );
@@ -2243,7 +2291,7 @@ void LinkedCell::createDestroyPeriodicClones( list<Particle*>* particles,
     }
   }
 
-  // Special of periodicity with a single cell in the main domain in that 
+  // Special case of periodicity with a single cell in the main domain in that 
   // direction
   // Some particles that moved from tag 2 to tag 1 may not have all their
   // periodic clones in the system depending on the order of particles
@@ -2313,6 +2361,37 @@ void LinkedCell::createDestroyPeriodicClones( list<Particle*>* particles,
       }
     }
   }
+  
+  // In case of partial periodicity, remove and destroy periodic clones that
+  // do not belong to the periodic subdomain
+  if ( GrainsExec::m_partialPer_is_active )
+  {
+    Particle *pdestroy = NULL;
+    for (imm=particlesPeriodicClones->begin();
+  	imm!=particlesPeriodicClones->end();)
+      if ( GrainsExec::partialPeriodicityCompTest( 
+      	imm->second->getPosition() ) ) imm++;
+      else
+      {
+        pdestroy = imm->second;
+
+        // Suppress the periodic clone from the cell it belonged to before 
+	// exiting the periodic subdomain
+        // Note: at that point, we have not done LinkUpdate yet, so the the cell
+        // it belonged to before exiting the periodic subdomain is getCell(), 
+	// not getCellNm1()
+        pdestroy->getCell()->remove( pdestroy );
+
+        // Remove the periodic particle from the list of active particles
+        removeParticleFromList( *particles, pdestroy );
+
+        // Destroy the clone particle
+        delete pdestroy;
+
+        // Removes the periodic clone particle from the map of periodic clones
+        imm = particlesPeriodicClones->erase( imm );
+      }
+  }  
 }
 
 
@@ -2335,7 +2414,8 @@ void LinkedCell::checkPeriodicClonesReload( list<Particle*>* particles,
   bool found = false;
   Particle* periodic_clone = NULL;
   size_t counter = 0;
-  Point3 gc;  
+  Point3 gc; 
+  bool create = true; 
 
   // Destroy periodic clones that are out of the linked cell grid
   updateDestroyPeriodicClones( particles, particlesPeriodicClones, true );
@@ -2352,28 +2432,34 @@ void LinkedCell::checkPeriodicClonesReload( list<Particle*>* particles,
     {
       particleID = (*particle)->getID();
       crange = particlesPeriodicClones->equal_range( particleID );
+      create = true;
+      
+      if ( GrainsExec::m_partialPer_is_active )
+        if ( !GrainsExec::partialPeriodicityCompTest( 
+			(*particle)->getPosition() ) ) create = false;
 
-      // Loop over the domain periodic vectors for this geographic position
-      for ( size_t i=0;i<m_periodic_vector_indices[geoloc].size();++i)
-      {
-        found = false;
+      if ( create )
+        // Loop over the domain periodic vectors for this geographic position
+        for ( size_t i=0;i<m_periodic_vector_indices[geoloc].size();++i)
+        {
+          found = false;
 
-	// Try to find the periodic clone
-	for (imm=crange.first; imm!=crange.second && !found; )
-          if ( imm->second->getPosition()->DistanceTo(
+	  // Try to find the periodic clone
+	  for (imm=crange.first; imm!=crange.second && !found; )
+            if ( imm->second->getPosition()->DistanceTo(
 	    	*((*particle)->getPosition())
 		+ m_domain_global_periodic_vectors[
 			m_periodic_vector_indices[geoloc][i]] ) <
 		2. * (*particle)->getCrustThickness() ) found = true;
-	  else imm++; 
+	    else imm++; 
 	  
-	// Create the periodic clone if it was not found
-	if ( !found )
-	{
-          ++counter;
+	  // Create the periodic clone if it was not found
+	  if ( !found )
+	  {
+            ++counter;
 	  
-	  // Create periodic clone
-	  periodic_clone = (*particle)->createCloneCopy(
+	    // Create periodic clone
+	    periodic_clone = (*particle)->createCloneCopy(
 		(*particle)->getID(),
 		(*ReferenceParticles)[(*particle)->getGeometricType()],
 		*((*particle)->getTranslationalVelocity()),
@@ -2382,21 +2468,21 @@ void LinkedCell::checkPeriodicClonesReload( list<Particle*>* particles,
 		*((*particle)->getRigidBody()->getTransform()),
 		COMPUTE, (*particle)->getContactMap() );
 
-	  // Translate to its periodic position
-	  periodic_clone->Translate( m_domain_global_periodic_vectors[
+	    // Translate to its periodic position
+	    periodic_clone->Translate( m_domain_global_periodic_vectors[
 		m_periodic_vector_indices[geoloc][i]] );
 
-          // Link periodic clone
-          Link( periodic_clone );
+            // Link periodic clone
+            Link( periodic_clone );
 
-	  // Insert into periodic clone map
-	  particlesPeriodicClones->insert(
+	    // Insert into periodic clone map
+	    particlesPeriodicClones->insert(
 		pair<int,Particle*>( (*particle)->getID(), periodic_clone ) );
 
-	  // Insert into active particle list
-	  particles->push_back( periodic_clone );
-	}
-      }
+	    // Insert into active particle list
+	    particles->push_back( periodic_clone );
+	  }
+        }
     }
   }
   
@@ -2455,23 +2541,22 @@ vector<double> LinkedCell::global_coordinates( size_t const& dir ) const
 // Checks that none of the structured array positions is exactly 
 // at a limit of the linked cell grid or of the domain, otherwise shift 
 // by 1e-12 
-void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion* 
+void LinkedCell::checkStructuredArrayPositionsMPI( struct InsertionLattice* 
     	InsertionArray, GrainsMPIWrapper const* wrapper ) const
 {
   Point3 position;
+  Point3 ptA = *(InsertionArray->box.getPointA());
+  Point3 ptB = *(InsertionArray->box.getPointB());  
   double geoshift = 1.e-12;      
-  double deltax = ( InsertionArray->box.ptB[X]
-  	- InsertionArray->box.ptA[X] ) / double(InsertionArray->NX) ;
-  double deltay = ( InsertionArray->box.ptB[Y]
-  	- InsertionArray->box.ptA[Y] ) / double(InsertionArray->NY) ;
-  double deltaz = ( InsertionArray->box.ptB[Z]
-  	- InsertionArray->box.ptA[Z] ) / double(InsertionArray->NZ) ;
+  double deltax = ( ptB[X] - ptA[X] ) / double(InsertionArray->NX) ;
+  double deltay = ( ptB[Y] - ptA[Y] ) / double(InsertionArray->NY) ;
+  double deltaz = ( ptB[Z] - ptA[Z] ) / double(InsertionArray->NZ) ;
   vector<size_t> coorMatchLocLim( 3, 0 );
   size_t k, l, m;
   
   for (k=0;k<InsertionArray->NX && !coorMatchLocLim[X];++k)
   {
-    position[X] = InsertionArray->box.ptA[X] + ( double(k) + 0.5 ) * deltax;
+    position[X] = ptA[X] + ( double(k) + 0.5 ) * deltax;
     if ( fabs( position[X] - m_LC_local_origin[X] ) < geoshift
     	|| fabs( position[X] - m_LC_local_max[X] ) < geoshift 
 	|| fabs( position[X] - m_domain_local_origin[X] ) < geoshift
@@ -2481,7 +2566,7 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   
   for (l=0;l<InsertionArray->NY && !coorMatchLocLim[Y];++l)
   {
-    position[Y] = InsertionArray->box.ptA[Y] + ( double(l) + 0.5 ) * deltay;
+    position[Y] = ptA[Y] + ( double(l) + 0.5 ) * deltay;
     if ( fabs( position[Y] - m_LC_local_origin[Y] ) < geoshift
     	|| fabs( position[Y] - m_LC_local_max[Y] ) < geoshift 
 	|| fabs( position[Y] - m_domain_local_origin[Y] ) < geoshift
@@ -2491,7 +2576,7 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
 
   for (m=0;m<InsertionArray->NZ && !coorMatchLocLim[Z];++m)
   {
-    position[Z] = InsertionArray->box.ptA[Z] + ( double(m) + 0.5 ) * deltaz;
+    position[Z] = ptA[Z] + ( double(m) + 0.5 ) * deltaz;
     if ( fabs( position[Z] - m_LC_local_origin[Z] ) < geoshift
     	|| fabs( position[Z] - m_LC_local_max[Z] ) < geoshift 
 	|| fabs( position[Z] - m_domain_local_origin[Z] ) < geoshift
@@ -2500,11 +2585,11 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
   }
   
   coorMatchLocLim[X] = wrapper->max_UNSIGNED_INT( coorMatchLocLim[X] );
-  if ( coorMatchLocLim[X] ) InsertionArray->box.ptA[X] += geoshift;
+  if ( coorMatchLocLim[X] ) InsertionArray->box.shiftWindow( geoshift, X );
   coorMatchLocLim[Y] = wrapper->max_UNSIGNED_INT( coorMatchLocLim[Y] );
-  if ( coorMatchLocLim[Y] ) InsertionArray->box.ptA[Y] += geoshift;  
+  if ( coorMatchLocLim[Y] ) InsertionArray->box.shiftWindow( geoshift, Y );
   coorMatchLocLim[Z] = wrapper->max_UNSIGNED_INT( coorMatchLocLim[Z] );
-  if ( coorMatchLocLim[Z] ) InsertionArray->box.ptA[Z] += geoshift;
+  if ( coorMatchLocLim[Z] ) InsertionArray->box.shiftWindow( geoshift, Z );
   
   if ( ( coorMatchLocLim[X] || coorMatchLocLim[Y] || coorMatchLocLim[Z] )
   	&& wrapper->get_rank() == 0 )
@@ -2518,3 +2603,52 @@ void LinkedCell::checkStructuredArrayPositionsMPI( struct StructArrayInsertion*
       	" automatic translation of " << geoshift << endl;	
   }
 }
+
+
+
+
+// ----------------------------------------------------------------------------
+// Removes periodic clones that do not belong to the periodic subdomain
+void LinkedCell::managePartialPeriodicity( double time,
+	list<Particle*>* particles,
+	list<Particle*>* particlesClones,
+	GrainsMPIWrapper const* wrapper )
+{
+  list<Particle*>::iterator particle;
+  Particle *pdestroy=NULL;        
+
+  for (particle=particlesClones->begin(); particle!=particlesClones->end();)
+  {
+    if ( !isInDomain( (*particle)->getPosition() ) 
+    	&& !GrainsExec::partialPeriodicityCompTest( 
+		(*particle)->getPosition() ) )
+    {
+      if ( GrainsExec::m_MPI_verbose )
+      {
+        ostringstream oss;
+        oss << "   t=" << GrainsExec::doubleToString( time, FORMAT10DIGITS ) <<
+      		" Destroy periodic clone      Id = " <<
+      		(*particle)->getID() << " " << *(*particle)->getPosition()
+		<< endl;
+        GrainsMPIWrapper::addToMPIString( oss.str() );
+      }
+      pdestroy = *particle;
+
+      // Removes the clone particle from the last cell it belonged to
+      // Note: we user getCell because we have moved the particle already
+      // but did not execute LinkUpdate yet (see the sequence of steps in 
+      // GrainsMPI::Simulation) 
+      pdestroy->getCell()->remove( pdestroy );
+
+      // Removes the clone particle from the list of active particles
+      removeParticleFromList( *particles, pdestroy );
+
+      // Destroy the clone particle
+      delete pdestroy;
+
+      // Removes the clone particle from the list of active clone particles
+      particle = particlesClones->erase( particle );
+    }
+    else particle++;
+  }
+}	
