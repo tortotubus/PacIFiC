@@ -8,7 +8,7 @@
 using namespace std;
 
 bool DLMFD_FictitiousDomain::b_SecondOrderInterpol = false;
-
+double DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef = 1.;
 doubleVector *DLMFD_FictitiousDomain::dbnull = new doubleVector(0, 0.);
 
 //---------------------------------------------------------------------------
@@ -59,6 +59,9 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    are_particles_fixed = false;
    if (exp->has_entry("Particles_as_FixedObstacles"))
       are_particles_fixed = exp->bool_data("Particles_as_FixedObstacles");
+
+   if (exp->has_entry("BPSpacingCoef"))
+      DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef = exp->double_data("BPSpacingCoef");
 
    // MPI data
    pelCOMM = MAC_Exec::communicator();

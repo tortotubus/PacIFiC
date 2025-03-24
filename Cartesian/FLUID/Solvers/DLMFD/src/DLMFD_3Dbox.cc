@@ -301,6 +301,7 @@ void DLMFD_3Dbox::update()
     radius = get_circumscribed_radius();
     translational_velocity = get_rigid_body_translational_velocity();
     angular_velocity_3D = get_rigid_body_angular_velocity();
+    inertia_3D = get_rigid_body_inertia();
 
     corners = pagp->corners;
     facesVec = pagp->facesVec;
@@ -429,7 +430,6 @@ bool DLMFD_3Dbox::isIn(const geomVector &point) const
     // return (ptr_FSrigidbody->isIn(point));
 
     // TODO: there is something to do with this function, see constructor.
-    // Grains should write O if it's an obstale, it would easier  
 
     bool b_isIn = false;
 

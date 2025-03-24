@@ -1180,6 +1180,7 @@ void DLMFD_RigidBody::update()
     radius = get_circumscribed_radius();
     translational_velocity = get_rigid_body_translational_velocity();
     angular_velocity_3D = get_rigid_body_angular_velocity();
+    inertia_3D = get_rigid_body_inertia();
 }
 
 //---------------------------------------------------------------------------
@@ -1392,7 +1393,6 @@ void DLMFD_RigidBody::compute_Qu(bool init)
         {
             q_tran.addOneComp(NDOF_comp[i], -(*work)(i));
         }
-
     }
 }
 
@@ -1406,30 +1406,29 @@ void DLMFD_RigidBody::compute_Qrot(bool init)
 
     if (ndof)
     {
-        list<struct ULBD_RHSInfos>::iterator il = points_infos.begin();
         doubleVector const *work = &VEC_w;
         if (init)
             work = &VEC_lambda;
         double lambda_value = 0.;
         size_t comp = 0;
-        for (size_t i = 0; i < ndof; ++i, il++)
+        for (size_t i = 0; i < ndof; ++i)
         {
-            comp = il->compIdx;
+            comp = NDOF_comp[i];
             lambda_value = (*work)(i);
-            if (comp == 0)
+            switch (comp)
             {
-                q_rot_3D.addOneComp(1, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(2));
-                q_rot_3D.addOneComp(2, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(1));
-            }
-            else if (comp == 1)
-            {
-                q_rot_3D.addOneComp(0, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(2));
-                q_rot_3D.addOneComp(2, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(0));
-            }
-            else
-            {
-                q_rot_3D.addOneComp(0, -lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(1));
-                q_rot_3D.addOneComp(1, lambda_value * il->ptr_point->get_oneCoordinate_GCPointVector(0));
+            case 0:
+                q_rot_3D.addOneComp(1, -lambda_value * NDOF_leverage[2 * i]);
+                q_rot_3D.addOneComp(2, lambda_value * NDOF_leverage[2 * i + 1]);
+                break;
+            case 1:
+                q_rot_3D.addOneComp(0, lambda_value * NDOF_leverage[2 * i]);
+                q_rot_3D.addOneComp(2, -lambda_value * NDOF_leverage[2 * i + 1]);
+                break;
+            default:
+                q_rot_3D.addOneComp(0, -lambda_value * NDOF_leverage[2 * i]);
+                q_rot_3D.addOneComp(1, lambda_value * NDOF_leverage[2 * i + 1]);
+                break;
             }
         }
     }
@@ -1478,6 +1477,7 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
         double tempVal = 0.;
         for (size_t j = 0; j < dim; ++j)
             tempVal += inertia_3D[i][j] * angular_velocity_3D(j);
+        
         Fomega(i) = tempVal * fluidsolid_coupling_factor / timestep;
     }
 
@@ -2136,12 +2136,13 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                     k = kref + kk;
                     globalDOFNo = pField->DOF_global_number(i, j, k, OnePointInfos.compIdx);
                     OnePointInfos.positionU.push_back(globalDOFNo);
+
                     ijk.i = i;
                     ijk.j = j;
                     ijk.k = k;
                     OnePointInfos.MacTripletU.push_back(ijk);
-                    weightFunct = Q2weighting((*Q2numb)(ii, jj, kk), xtransf,
-                                              ytransf, ztransf);
+
+                    weightFunct = Q2weighting((*Q2numb)(ii, jj, kk), xtransf, ytransf, ztransf);
                     OnePointInfos.omega_delta.push_back(weightFunct);
                 }
             }

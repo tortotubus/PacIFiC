@@ -541,7 +541,7 @@ void DLMFD_AllRigidBodies::particles_velocities_output(vector<vector<double>> &v
       tempVec[0] = vtrans(0);
       tempVec[1] = vtrans(1);
       tempVec[2] = vtrans(2);
-
+      
       tempVec[3] = vrot(0);
       tempVec[4] = vrot(1);
       tempVec[5] = vrot(2);

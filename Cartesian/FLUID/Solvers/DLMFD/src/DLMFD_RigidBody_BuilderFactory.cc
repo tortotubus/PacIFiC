@@ -4,6 +4,7 @@
 #include <FS_RigidBody.hh>
 #include <DLMFD_Sphere.hh>
 #include <DLMFD_3Dbox.hh>
+#include <DLMFD_3Dcylinder.hh>
 using namespace std;
 
 //---------------------------------------------------------------------------
@@ -26,6 +27,10 @@ DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_r
 
     case GEOM_3DBOX:
         ptr_dlmfd_rb = new DLMFD_3Dbox(ptr_geom_rb, are_particles_fixed, pField_, critical_distance_);
+        break;
+
+    case GEOM_3DCYLINDER:
+        ptr_dlmfd_rb = new DLMFD_3Dcylinder(ptr_geom_rb, are_particles_fixed, pField_, critical_distance_);
         break;
 
     default:

@@ -48,6 +48,7 @@ public: //-----------------------------------------------------------------
    //-- Public class attributes
    static bool b_SecondOrderInterpol;
    static doubleVector *dbnull;
+   static double BoundaryPointsSpacing_coef;
 
    //-- Substeps of the step by step progression
 
