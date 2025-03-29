@@ -341,10 +341,10 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it, si
    {
       if (rank == master)
       {
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
          MAC::out() << "Sub-problem " << sub_prob_number
                     << " : Solid problem -- Prediction" << endl;
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
       }
 
       solidFluid_transferStream = new istringstream;
@@ -377,17 +377,17 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it, 
    {
       if (are_particles_fixed)
       {
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
          MAC::out() << "Sub-problem " << sub_prob_number
                     << " : DLMFD problem" << endl;
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
       }
       else
       {
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
          MAC::out() << "Sub-problem " << sub_prob_number
                     << " : DLMFD problem -- Correction" << endl;
-         MAC::out() << "-----------------------------------------" << "-------------" << endl;
+         MAC::out() << "------------------------------------------------------" << endl;
       }
    }
 

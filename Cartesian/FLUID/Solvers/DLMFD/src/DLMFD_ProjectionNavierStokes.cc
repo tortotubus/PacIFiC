@@ -229,6 +229,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     SCT_insert_app("AdvectionDiffusion_PredictionStep");
     SCT_insert_app("Advection_PredictionStep");
     SCT_insert_app("Diffusion_PredictionStep");
+    SCT_insert_app("FluidSolid_CorrectionStep");
     SCT_get_elapsed_time("Objects_Creation");
   }
 
@@ -278,7 +279,13 @@ void DLMFD_ProjectionNavierStokes::do_one_inner_iteration(
 
   // Use the Fictitious Domain method to solve the coupling
   // between the fluid and the solid
+  if (my_rank == is_master)
+    SCT_set_start("FluidSolid_CorrectionStep");
+
   dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+
+  if (my_rank == is_master)
+    SCT_get_elapsed_time("FluidSolid_CorrectionStep");
 
   stop_solving_timer();
   stop_total_timer();
@@ -508,10 +515,10 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionSte
   {
     if (my_rank == is_master)
     {
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
       MAC::out() << "Sub-problem " << sub_prob_number
                  << " : Advection-diffusion prediction problem" << endl;
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
       MAC::out() << "CFL : imposed = " << imposed_CFL << " computed = "
                  << computed_CFL << "  Nb of sub time steps = " << n_advection_subtimesteps << endl;
       SCT_set_start("AdvectionDiffusion_PredictionStep");
@@ -546,10 +553,10 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionSte
     // Sub-problem: Advection problem
     if (my_rank == is_master)
     {
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
       MAC::out() << "Sub-problem " << sub_prob_number
                  << " : Advection prediction problem" << endl;
-      MAC::out() << "-----------------------------------------" << "-------------" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
       MAC::out() << "CFL : imposed = " << imposed_CFL << " computed = "
                  << computed_CFL << "  Nb of sub time steps = " << n_advection_subtimesteps << endl;
       if (AdvectionTimeAccuracy == 2)
@@ -600,10 +607,9 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_AdvectionDiffusion_PredictionSte
     // Solve the diffusion (viscous) problem
     if (my_rank == is_master)
     {
-      MAC::out() << "-------------------------------" << endl;
-      MAC::out() << "Sub-problem " << sub_prob_number
-                 << " : Viscous problem" << endl;
-      MAC::out() << "-------------------------------" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
+      MAC::out() << "Sub-problem " << sub_prob_number << " : Viscous problem" << endl;
+      MAC::out() << "------------------------------------------------------" << endl;
       SCT_set_start("Diffusion_PredictionStep");
     }
     GLOBAL_EQ->VelocityDiffusion_solver();

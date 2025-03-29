@@ -35,8 +35,10 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    for (size_t i = 0; i < RBs_number; ++i)
    {
       vec_ptr_DLMFDallrigidbodies.push_back(ptr_dlmfd_rb);
-      vec_ptr_DLMFDallrigidbodies[i] = DLMFD_RigidBody_BuilderFactory::create(
-          ptr_FSallrigidbodies->get_ptr_rigid_body(i), are_particles_fixed, pField, critical_distance);
+      vec_ptr_DLMFDallrigidbodies[i] = DLMFD_RigidBody_BuilderFactory::create(ptr_FSallrigidbodies->get_ptr_rigid_body(i),
+                                                                              are_particles_fixed,
+                                                                              pField,
+                                                                              critical_distance);
    }
 
    // Set components type
@@ -541,7 +543,7 @@ void DLMFD_AllRigidBodies::particles_velocities_output(vector<vector<double>> &v
       tempVec[0] = vtrans(0);
       tempVec[1] = vtrans(1);
       tempVec[2] = vtrans(2);
-      
+
       tempVec[3] = vrot(0);
       tempVec[4] = vrot(1);
       tempVec[5] = vrot(2);
