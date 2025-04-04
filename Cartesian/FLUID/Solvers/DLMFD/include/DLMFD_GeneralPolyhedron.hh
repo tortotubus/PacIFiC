@@ -42,6 +42,8 @@ public: //------------------------------------------------------------------
 
     void set_ptr_FS_GeneralPolyhedron_Additional_Param();
 
+    void set_all_MAC(FV_DiscreteField *pField, double critical_distance);
+
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */

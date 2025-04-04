@@ -37,30 +37,10 @@ DLMFD_3Dbox::DLMFD_3Dbox(FS_RigidBody *pgrb,
     corners = pagp->corners;
     facesVec = pagp->facesVec;
 
-    // TODO: this has to be done in FS. The solidfluid stream should be sufficient regarding component type
-
-    if (component_type == "O")
-    {
-        if (g2 == NULL)
-            g2 = new geomVector(3);
-        (*g2)(0) = gravity_center(0) + 1e-4 * radius * random() / double(INT_MAX);
-        (*g2)(1) = gravity_center(1) + 1e-4 * radius * random() / double(INT_MAX);
-        (*g2)(2) = gravity_center(2) + 1e-4 * radius * random() / double(INT_MAX);
-    }
-
     coor_min.resize(3);
     coor_max.resize(3);
 
-    nIP = 0;
-    nBP = 0;
-    nIPHZ = 0;
-    nBPHZ = 0;
-
-    // Allocate default DLMFD points and DLMFD vectors
-    allocate_default_listOfPointsAndVectors_3Dbox(critical_distance_, pField_);
-
-    // Set DLMFD points
-    set_all_points(pField_, critical_distance_);
+    set_all_MAC(pField_, critical_distance_);
 }
 
 //---------------------------------------------------------------------------
@@ -89,15 +69,49 @@ void DLMFD_3Dbox::set_ptr_FS_3Dbox_Additional_Param()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_3Dbox::set_all_points(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dbox::set_all_MAC(FV_DiscreteField *pField, double critical_distance)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_3Dbox:: set_all_points");
+    MAC_LABEL("DLMFD_3Dbox::set_all_MAC");
 
+    FV_Mesh const *primary_grid = pField->primary_grid();
+
+    size_t i, nper = periodic_directions ? periodic_directions->size() : 0;
+
+    if (component_type == "O")
+    {
+        if (g2 == NULL)
+            g2 = new geomVector(3);
+        (*g2)(0) = gravity_center(0) + 1e-4 * radius * random() / double(INT_MAX);
+        (*g2)(1) = gravity_center(1) + 1e-4 * radius * random() / double(INT_MAX);
+        (*g2)(2) = gravity_center(2) + 1e-4 * radius * random() / double(INT_MAX);
+    }
+
+    ndof = 0;
     nIP = 0;
     nBP = 0;
     nIPHZ = 0;
     nBPHZ = 0;
+
+    bool in = false;
+    if (primary_grid->is_in_domain_with_halozone_plus_ext(gravity_center(0),
+                                                          gravity_center(1),
+                                                          gravity_center(2),
+                                                          radius))
+    {
+        in = true;
+        if (interior_points.empty())
+            allocate_default_listOfPointsAndVectors_3Dbox(critical_distance, pField);
+
+        set_all_points(pField, critical_distance);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_3Dbox::set_all_points(FV_DiscreteField *pField, double critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_3Dbox:: set_all_points");
 
     //-- Boundary points
     set_boundary_points_list(pField, critical_distance);
@@ -302,6 +316,9 @@ void DLMFD_3Dbox::update()
     translational_velocity = get_rigid_body_translational_velocity();
     angular_velocity_3D = get_rigid_body_angular_velocity();
     inertia_3D = get_rigid_body_inertia();
+
+    if (periodic_directions)
+        periodic_directions = get_ptr_to_periodic_directions();
 
     corners = pagp->corners;
     facesVec = pagp->facesVec;

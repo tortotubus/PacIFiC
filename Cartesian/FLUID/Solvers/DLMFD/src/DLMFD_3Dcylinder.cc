@@ -43,16 +43,7 @@ DLMFD_3Dcylinder::DLMFD_3Dcylinder(FS_RigidBody *pgrb,
     cylinder_radius = pagp->cylinder_radius;
     cylinder_height = pagp->cylinder_height;
 
-    nIP = 0;
-    nBP = 0;
-    nIPHZ = 0;
-    nBPHZ = 0;
-
-    // Allocate default DLMFD points and DLMFD vectors
-    allocate_default_listOfPointsAndVectors_3Dcylinder(critical_distance_, pField_);
-
-    // Set DLMFD points
-    set_all_points(pField_, critical_distance_);
+    set_all_MAC(pField_, critical_distance_);
 }
 
 //---------------------------------------------------------------------------
@@ -72,15 +63,71 @@ void DLMFD_3Dcylinder::set_ptr_FS_3Dcylinder_Additional_Param()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::set_all_points(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField, double critical_distance)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_3Dcylinder:: set_all_points");
+    MAC_LABEL("DLMFD_3Dcylinder::set_all_MAC");
 
+    FV_Mesh const *primary_grid = pField->primary_grid();
+
+    ndof = 0;
     nIP = 0;
     nBP = 0;
     nIPHZ = 0;
     nBPHZ = 0;
+
+    bool in = false;
+    if (periodic_directions)
+    {
+        size_t i, nper = periodic_directions->size();
+
+        geomVector gvref(gravity_center);
+        geomVector BottomCenterRef(BottomCenter);
+        geomVector TopCenterRef(TopCenter);
+        for (i = 0; i < nper; ++i)
+        {
+            gravity_center = gvref + (*periodic_directions)[i];
+            if (primary_grid->is_in_domain_with_halozone_plus_ext(gravity_center(0),
+                                                                  gravity_center(1),
+                                                                  gravity_center(2),
+                                                                  radius))
+            {
+                in = true;
+                BottomCenter = BottomCenterRef + (*periodic_directions)[i];
+                TopCenter = TopCenterRef + (*periodic_directions)[i];
+
+                if (interior_points.empty())
+                    allocate_default_listOfPointsAndVectors_3Dcylinder(critical_distance, pField);
+
+                set_all_points(pField, critical_distance);
+            }
+        }
+        gravity_center = gvref;
+        BottomCenter = BottomCenterRef;
+        TopCenter = TopCenterRef;
+    }
+
+    // !!! IMPORTANT !!!
+    // DLM/FD points for the primary particle position must always be constructed
+    // AFTER those for its periodic clones in case of a periodic particle
+    if (primary_grid->is_in_domain_with_halozone_plus_ext(gravity_center(0),
+                                                          gravity_center(1),
+                                                          gravity_center(2),
+                                                          radius))
+    {
+        in = true;
+        if (interior_points.empty())
+            allocate_default_listOfPointsAndVectors_3Dcylinder(critical_distance, pField);
+
+        set_all_points(pField, critical_distance);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_3Dcylinder::set_all_points(FV_DiscreteField *pField, double critical_distance)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_3Dcylinder:: set_all_points");
 
     //-- Boundary points
     set_boundary_points_list(pField, critical_distance);
@@ -261,6 +308,9 @@ void DLMFD_3Dcylinder::update()
     translational_velocity = get_rigid_body_translational_velocity();
     angular_velocity_3D = get_rigid_body_angular_velocity();
     inertia_3D = get_rigid_body_inertia();
+
+    if (periodic_directions)
+        periodic_directions = get_ptr_to_periodic_directions();
 
     BottomCenter = pagp->BottomCenter;
     TopCenter = pagp->TopCenter;

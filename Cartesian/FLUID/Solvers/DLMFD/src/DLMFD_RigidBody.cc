@@ -25,12 +25,16 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
                                  const bool &are_particles_fixed,
                                  FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
                                                               pField_(pField_),
+                                                              is_particle_fixed(are_particles_fixed),
                                                               VEC_r(*DLMFD_FictitiousDomain::dbnull),
                                                               VEC_x(*DLMFD_FictitiousDomain::dbnull),
                                                               VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
                                                               VEC_w(*DLMFD_FictitiousDomain::dbnull),
                                                               periodic_directions(NULL),
-                                                              ndof(0)
+                                                              ndof(0),
+                                                              ndof_previous(0),
+                                                              ntotal_fieldunk(0),
+                                                              ntotal_fieldunk_previous(0)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -102,6 +106,9 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
 
     // Set the angular velocity
     set_angular_velocity_3D();
+
+    // Set periodic directions
+    set_ptr_periodic_directions();
 }
 
 //---------------------------------------------------------------------------
@@ -183,6 +190,15 @@ void DLMFD_RigidBody::set_ptr_constrained_field(FV_DiscreteField *pField__)
     MAC_LABEL("DLMFD_RigidBody::set_ptr_constrained_field");
 
     pField_ = pField__;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::set_ptr_periodic_directions()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::set_ptr_constrained_field");
+
+    periodic_directions = get_ptr_to_periodic_directions();
 }
 
 //---------------------------------------------------------------------------
@@ -386,6 +402,62 @@ void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_dis
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_RigidBody::erase_critical_boundary_points_ptb(const double &critical_distance,
+                                                         const DLMFD_AllGeomBoundaries *GeoBoundaries)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::erase_critical_interior_points_PerProc");
+
+    list<DLMFD_GeomBoundary *> const *lb = GeoBoundaries->get_ptr_list_geomboundaries();
+    erase_critical_boundary_points_ptb_oneGC(critical_distance, lb);
+
+    if (periodic_directions)
+    {
+        geomVector gcref = gravity_center;
+        for (size_t i = 0; i < periodic_directions->size(); ++i)
+        {
+            translateGeometricFeatures(gcref + (*periodic_directions)[i]);
+            erase_critical_boundary_points_ptb_oneGC(critical_distance, lb);
+        }
+        translateGeometricFeatures(gcref);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(const double &critical_distance,
+                                                               list<DLMFD_GeomBoundary *> const *lb)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC");
+
+    pair<bool, geomVector> inter, inter_gc;
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator imp;
+    list<DLMFD_GeomBoundary *>::const_iterator il;
+    double dist_gc = 0, distP = 0;
+
+    for (il = lb->begin(); il != lb->end(); il++)
+    {
+        inter_gc = (*il)->intersection_normal(gravity_center);
+        dist_gc = gravity_center.calcDist(inter_gc.second);
+        int nbnpoints = boundary_points.size();
+        if (dist_gc <= radius + critical_distance)
+            if (nbnpoints > 0)
+            {
+                imp = boundary_points.begin();
+                for (size_t i = 0; i < nBP; ++i, imp++)
+                    if ((*imp)->isValid())
+                    {
+                        inter = (*il)->intersection_normal((*imp)->get_coordinates());
+                        distP = (*imp)->get_coordinates().calcDist(inter.second);
+
+                        if (inter.first && distP < critical_distance)
+                            (*imp)->set_validity(false);
+                    }
+            }
+    }
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody *second_component, const double &critical_distance)
 //---------------------------------------------------------------------------
 {
@@ -411,7 +483,7 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody
     if (nclones2)
     {
         geomVector gcref2 = *(second_component->get_ptr_to_gravity_centre());
-        vector<geomVector> *pd2 = second_component->get_periodicClones_DirectionsVector();
+        vector<geomVector> const *pd2 = second_component->get_periodicClones_DirectionsVector();
         for (size_t j = 0; j < nclones2; ++j)
         {
             second_component->translateGeometricFeatures(gcref2 + (*pd2)[j]);
@@ -569,6 +641,7 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
     {
         list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts = interior_points.begin();
         for (size_t i = 0; i < nIP; ++i, iterIntPnts++)
+        {
             if ((*iterIntPnts)->isValid())
             {
                 // Pointer of the internal point
@@ -605,6 +678,7 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
                 ++ntotal_fieldunk;
                 pinfo++;
             }
+        }
     }
 
     // Boundary points
@@ -646,29 +720,93 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
 {
     MAC_LABEL("DLMFD_RigidBody::check_allocation_DLMFD_Cvectors");
 
+    // if (ndof)
+    // {
+    //     if (NDOF_comp)
+    //         delete[] NDOF_comp;
+    //     if (NDOF_leverage)
+    //         delete[] NDOF_leverage;
+    //     if (NDOF_nfieldUNK)
+    //         delete[] NDOF_nfieldUNK;
+
+    //     NDOF_comp = new size_t[ndof];
+    //     NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
+    //     NDOF_nfieldUNK = new size_t[ndof];
+
+    //     if (NDOF_globalpos)
+    //         delete[] NDOF_globalpos;
+    //     if (NDOF_deltaOmega)
+    //         delete[] NDOF_deltaOmega;
+    //     if (NDOF_FVTriplet)
+    //         delete[] NDOF_FVTriplet;
+
+    //     NDOF_globalpos = new size_t[ntotal_fieldunk];
+    //     NDOF_deltaOmega = new double[ntotal_fieldunk];
+    //     NDOF_FVTriplet = new size_t[3 * ntotal_fieldunk];
+
+    //     cout << "ntotal_fieldunk print    " << ntotal_fieldunk << endl;
+    // }
+
+    // Filomène
+
     if (ndof)
     {
-        if (NDOF_comp)
-            delete[] NDOF_comp;
-        if (NDOF_leverage)
-            delete[] NDOF_leverage;
-        if (NDOF_nfieldUNK)
-            delete[] NDOF_nfieldUNK;
+        // If vectors are too small or over-sized -> re-allocate
+        if (ndof > ndof_previous || ndof < size_t(0.78 * ndof_previous))
+        {
+            if (NDOF_comp)
+                delete[] NDOF_comp;
+            if (NDOF_leverage)
+                delete[] NDOF_leverage;
+            if (NDOF_nfieldUNK)
+                delete[] NDOF_nfieldUNK;
 
-        NDOF_comp = new size_t[ndof];
-        NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
-        NDOF_nfieldUNK = new size_t[ndof];
+            if (ndof > ndof_previous)
+                ndof_previous = is_particle_fixed ? ndof : size_t(1.2 * ndof);
+            else
+                ndof_previous = size_t(0.8 * ndof_previous);
 
-        if (NDOF_globalpos)
-            delete[] NDOF_globalpos;
-        if (NDOF_deltaOmega)
-            delete[] NDOF_deltaOmega;
-        if (NDOF_FVTriplet)
-            delete[] NDOF_FVTriplet;
+            NDOF_comp = new size_t[ndof_previous];
+            NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof_previous];
+            NDOF_nfieldUNK = new size_t[ndof_previous];
+        }
 
-        NDOF_globalpos = new size_t[ntotal_fieldunk];
-        NDOF_deltaOmega = new double[ntotal_fieldunk];
-        NDOF_FVTriplet = new size_t[3 * ntotal_fieldunk];
+        // Same allocation strategy for ntotal_fieldunk
+        if (ntotal_fieldunk > ntotal_fieldunk_previous || ntotal_fieldunk < size_t(0.78 * ntotal_fieldunk_previous))
+        {
+            if (NDOF_globalpos)
+                delete[] NDOF_globalpos;
+            if (NDOF_deltaOmega)
+                delete[] NDOF_deltaOmega;
+            if (NDOF_FVTriplet)
+                delete[] NDOF_FVTriplet;
+
+            if (ntotal_fieldunk > ntotal_fieldunk_previous)
+                ntotal_fieldunk_previous = is_particle_fixed ? ntotal_fieldunk : size_t(1.2 * ntotal_fieldunk);
+            else
+                ntotal_fieldunk_previous = size_t(0.8 * ntotal_fieldunk_previous);
+
+            NDOF_globalpos = new size_t[ntotal_fieldunk_previous];
+            NDOF_deltaOmega = new double[ntotal_fieldunk_previous];
+            NDOF_FVTriplet = new size_t[3 * ntotal_fieldunk_previous];
+        }
+    }
+    else if (ndof_previous)
+    {
+        delete[] NDOF_comp;
+        NDOF_comp = NULL;
+        delete[] NDOF_leverage;
+        NDOF_leverage = NULL;
+        delete[] NDOF_nfieldUNK;
+        NDOF_nfieldUNK = NULL;
+        ndof_previous = 0;
+        delete[] NDOF_globalpos;
+        NDOF_globalpos = NULL;
+        delete[] NDOF_deltaOmega;
+        NDOF_deltaOmega = NULL;
+        delete[] NDOF_FVTriplet;
+        NDOF_FVTriplet = NULL;
+        ntotal_fieldunk_previous = 0;
     }
 }
 
@@ -858,7 +996,7 @@ int DLMFD_RigidBody::get_number_periodicClones() const
 }
 
 //---------------------------------------------------------------------------
-vector<geomVector> *DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
+vector<geomVector> const *DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::get_periodicClones_DirectionsVector");
@@ -922,6 +1060,15 @@ size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
                 ++output_npts;
 
     return output_npts;
+}
+
+//---------------------------------------------------------------------------
+vector<geomVector> *DLMFD_RigidBody::get_ptr_to_periodic_directions() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: get_rigid_body_periodic_directions");
+
+    return (ptr_FSrigidbody->get_ptr_to_periodic_directions());
 }
 
 //---------------------------------------------------------------------------
@@ -1181,6 +1328,9 @@ void DLMFD_RigidBody::update()
     translational_velocity = get_rigid_body_translational_velocity();
     angular_velocity_3D = get_rigid_body_angular_velocity();
     inertia_3D = get_rigid_body_inertia();
+
+    if (periodic_directions)
+        periodic_directions = get_ptr_to_periodic_directions();
 }
 
 //---------------------------------------------------------------------------
@@ -1477,7 +1627,7 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
         double tempVal = 0.;
         for (size_t j = 0; j < dim; ++j)
             tempVal += inertia_3D[i][j] * angular_velocity_3D(j);
-        
+
         Fomega(i) = tempVal * fluidsolid_coupling_factor / timestep;
     }
 
@@ -1592,7 +1742,9 @@ void DLMFD_RigidBody::compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOB
         {
             lambda_value = (*work)(i);
             for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
+            {
                 GLOBAL_EQ->assemble_inQUvector(NDOF_deltaOmega[j + start] * lambda_value, NDOF_globalpos[j + start], coef);
+            }
             start += NDOF_nfieldUNK[i];
         }
     }

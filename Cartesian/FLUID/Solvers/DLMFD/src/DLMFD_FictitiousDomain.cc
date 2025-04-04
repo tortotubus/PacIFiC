@@ -426,7 +426,7 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
       allrigidbodies->set_coupling_factor(rho_f, b_explicit_added_mass);
 
       // Set valid points
-      allrigidbodies->set_all_points(critical_distance);
+      allrigidbodies->set_all_MAC(critical_distance);
       allrigidbodies->eraseCriticalDLMFDPoints(t_it->time(), critical_distance);
 
       // Set the onProc IDs

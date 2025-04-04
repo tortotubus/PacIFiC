@@ -6,6 +6,8 @@
 #include <DLMFD_BoundaryMultiplierPoint.hh>
 #include <DLMFD_InteriorMultiplierPoint.hh>
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_GeomBoundary.hh>
+#include <DLMFD_AllGeomBoundaries.hh>
 #include <size_t_array3D.hh>
 #include <doubleVector.hh>
 using namespace std;
@@ -59,7 +61,14 @@ public: //-----------------------------------------------------------------
 
     void set_ptr_constrained_field(FV_DiscreteField *pField__);
 
+    void set_ptr_periodic_directions();
+
     void initialize_listOfDLMFDPoints();
+
+    /** @brief Set MAC
+    @param critical_distance Critical distance
+    @param pField Constrained field */
+    virtual void set_all_MAC(FV_DiscreteField *pField, double critical_distance) = 0;
 
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
@@ -104,6 +113,12 @@ public: //-----------------------------------------------------------------
     /** @brief Remove critical interior points
     @param critical_distance Critical_distance */
     virtual void erase_critical_interior_points_PerProc(double critical_distance);
+
+    void erase_critical_boundary_points_ptb(const double &critical_distance,
+                                            const DLMFD_AllGeomBoundaries *GeoBoundaries);
+
+    void erase_critical_boundary_points_ptb_oneGC(const double &critical_distance,
+                                                  list<DLMFD_GeomBoundary *> const *lb);
 
     /** @brief Remove critical boundary points too close from an other particle
     @param second_component Other particle
@@ -170,7 +185,7 @@ public: //-----------------------------------------------------------------
 
     int get_number_periodicClones() const;
 
-    vector<geomVector> *get_periodicClones_DirectionsVector() const;
+    vector<geomVector> const *get_periodicClones_DirectionsVector() const;
 
     /** @brief Returns the component type of the RB */
     string get_component_type() const;
@@ -186,6 +201,9 @@ public: //-----------------------------------------------------------------
     /** @brief Returns the number of output points
     @param withIntPts True if the interior points are taken into account */
     size_t get_npts_output(bool const &withIntPts);
+
+    /** @brief Get the rigid body periodic directions from FS */
+    vector<geomVector> *get_ptr_to_periodic_directions() const;
 
     /** @brief Get the rigid body velocity at the given point
     @param point Point */
@@ -429,8 +447,12 @@ protected: //--------------------------------------------------------------
 
     // Geometric attributes
     size_t dim;
-    size_t ndof;            /**< number of degrees of freedom */
-    size_t ntotal_fieldunk; /**< total number of field unknowns for this solid component on the proc */
+    size_t ndof;                     /**< number of degrees of freedom */
+    size_t ndof_previous;            /**< total number of allocated DOF at previous time
+                                     for this solid component on the proc */
+    size_t ntotal_fieldunk;          /**< total number of field unknowns for this solid component on the proc */
+    size_t ntotal_fieldunk_previous; /**< total number of allocated field
+                                    unknowns at previous time for this solid component on the proc */
 
     list<DLMFD_BoundaryMultiplierPoint *> boundary_points;          /* List of pointers to boundary points */
     size_t nBP;                                                     /**< number of boundary points on proc */

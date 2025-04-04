@@ -26,6 +26,9 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
    // Set MPI
    set_MPI_data();
 
+   // Set geometric boundaries
+   set_geometric_boundaries();
+
    // Set the rigid bodies
    ptr_FSallrigidbodies = new FS_AllRigidBodies(dim, in, are_particles_fixed);
    RBs_number = ptr_FSallrigidbodies->get_number_rigid_bodies();
@@ -116,15 +119,23 @@ void DLMFD_AllRigidBodies::set_b_output_hydro_forceTorque(bool const &is_output)
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_all_MAC(double critical_distance)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::set_all_MAC");
+
+   for (size_t i = 0; i < RBs_number; i++)
+      vec_ptr_DLMFDallrigidbodies[i]->set_all_MAC(pField, critical_distance);
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::set_all_points(double critical_distance)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: set_all_points");
 
    for (size_t i = 0; i < RBs_number; i++)
-   {
       vec_ptr_DLMFDallrigidbodies[i]->set_all_points(pField, critical_distance);
-   }
 }
 
 //---------------------------------------------------------------------------
@@ -137,7 +148,11 @@ void DLMFD_AllRigidBodies::eraseCriticalDLMFDPoints(const double &time, double c
    // The order in which operations on DLM/FD points are performed
    // is crucial, so do not play with it if it is not purposely
 
-   // TODO: erase critical boundary points close boundaries
+   // Erase boundary points in contact with domain boundaries
+   // Factor 1.0001 avoids rounding errors associated to comparison of doubles
+   for (size_t i = 0; i < RBs_number; i++)
+      vec_ptr_DLMFDallrigidbodies[i]->erase_critical_boundary_points_ptb(1.0001 * critical_distance / sqrt(double(dim)),
+                                                                         GeoBoundaries);
 
    // Erase boundary points at the contact between components
    if (RBs_number > 1)
@@ -237,6 +252,27 @@ void DLMFD_AllRigidBodies::set_ptr_constrained_field_in_all_particles()
    if (l_AllSharedOnProcs)
       for (il = l_AllSharedOnProcs->begin(); il != l_AllSharedOnProcs->end(); il++)
          vec_ptr_DLMFDallrigidbodies[*il]->set_ptr_constrained_field(pField);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::set_geometric_boundaries()
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::set_geometric_boundaries");
+
+   GeoBoundaries = new DLMFD_AllGeomBoundaries(pField);
+   pelCOMM->barrier();
+   for (size_t j = 0; j < size_procs; ++j)
+   {
+      if (j == rank)
+      {
+         MAC::out() << "Local domain geometric boundaries " << "on process " << rank << endl;
+         MAC::out() << "----------------------------------" << "----------------" << endl;
+         GeoBoundaries->display(MAC::out());
+         MAC::out() << endl;
+      }
+      pelCOMM->barrier();
+   }
 }
 
 //---------------------------------------------------------------------------

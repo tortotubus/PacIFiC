@@ -42,6 +42,11 @@ public: //------------------------------------------------------------------
     /** @brief Set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
+    void set_all_MAC(FV_DiscreteField *pField, double critical_distance);
+
+    /** @brief Set DLMFD boundary and interior points
+    @param critical_distance Critical distance
+    @param pField Pointer to constrained field */
     void set_all_points(FV_DiscreteField *pField, double critical_distance);
 
     /** @brief Set DLMFD boundary points

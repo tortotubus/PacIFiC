@@ -7,6 +7,7 @@
 #include <FS_AllRigidBodies.hh>
 #include <DLMFD_RigidBody.hh>
 #include <FV_DiscreteField.hh>
+#include <DLMFD_AllGeomBoundaries.hh>
 #include <MAC_Communicator.hh>
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
 using namespace std;
@@ -52,7 +53,11 @@ public: //-----------------------------------------------------------------
 
     void set_b_output_hydro_forceTorque(bool const &is_output);
 
-    /** @brief Return the total number of rigid bodies
+    /** @brief TODO
+    @param critical_distance Critical distance */
+    void set_all_MAC(double critical_distance);
+
+    /** @brief TODO
     @param critical_distance Critical distance */
     void set_all_points(double critical_distance);
 
@@ -67,6 +72,8 @@ public: //-----------------------------------------------------------------
     void set_ptr_constrained_field(FV_DiscreteField *pField_);
 
     void set_ptr_constrained_field_in_all_particles();
+
+    void set_geometric_boundaries();
 
     /** @brief Set points infos for all rigid bodies */
     void set_points_infos();
@@ -304,6 +311,8 @@ private: //----------------------------------------------------------------
     // Pointers to the constant fields and primary grid
     FV_DiscreteField *pField; /**< Pointer to constrained field*/
     FV_Mesh const *MESH;
+
+    DLMFD_AllGeomBoundaries *GeoBoundaries; /**< geometric boundaries of the domain */
 
     // Output
     size_t output_frequency;

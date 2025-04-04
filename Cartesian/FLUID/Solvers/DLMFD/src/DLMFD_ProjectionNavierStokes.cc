@@ -629,9 +629,9 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_VelocityPressure_CorrectionStep(
 
   if (my_rank == is_master)
   {
-    MAC::out() << "----------------------------------------" << "------------" << endl;
+    MAC::out() << "------------------------------------------------------" << endl;
     MAC::out() << "Sub-problem " << sub_prob_number << " : Velocity-pressure correction problem" << endl;
-    MAC::out() << "----------------------------------------" << "------------" << endl;
+    MAC::out() << "------------------------------------------------------" << endl;
     SCT_set_start("VelocityPressure_CorrectionStep");
   }
 
