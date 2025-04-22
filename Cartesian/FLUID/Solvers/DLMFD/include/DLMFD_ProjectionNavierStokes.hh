@@ -32,7 +32,10 @@ class DLMFD_ProjectionNavierStokes : public FV_OneStepIteration,
                                      public PAC_SolverComputingTime
 {
 public: //-----------------------------------------------------------------
-        //-- Substeps of the step by step progression
+    // Public static attributes
+    static bool b_pressure_drop_each_time;
+
+    //-- Substeps of the step by step progression
     /** @name Substeps of the step by step progression */
     //@{
     /** @brief Tasks performed at initialization of the algorithm, before
@@ -69,6 +72,23 @@ public: //-----------------------------------------------------------------
         FV_TimeIterator const *t_it,
         size_t const &restartCycleNumber, string const &basename);
     //@}
+
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Setting the translation vector */
+    void set_translation_vector();
+
+    //@}
+
+    void fields_projection();
+
+    void synchronize_velocity_field(size_t level);
+
+    void synchronize_pressure_field(size_t level);
+
+    void synchronize_DLMFD_Nm1_rhs(size_t level);
 
     //-- Persistence
 
@@ -129,6 +149,10 @@ private:   //----------------------------------------------------------------
     @param VEC_rhs distributed vector */
     void assemble_unitary_periodic_pressure_gradient_rhs(
         LA_Vector *VEC_rhs);
+
+    /** @brief Assemble periodic pressure gradient in Navier-Stokes momentum
+    equation vector */
+    void assemble_periodic_pressure_rhs();
     //@}
 
     //-- Solvers
@@ -163,8 +187,19 @@ private:   //----------------------------------------------------------------
     void update_pressure_drop_imposed_flow_rate(
         FV_TimeIterator const *t_it);
 
+    /** @brief Periodic flow rate update
+    @param t_it time iterator */
+    void periodic_flow_rate_update(FV_TimeIterator const *t_it);
+
     /** @ brief Compute and print L2 and Linf norms of div(u) */
     void compute_and_print_divu_norm(void);
+
+    /** @brief Compute flow rate at a main boundary
+    @param t_it time iterator
+    @param check_restart check for time consistency at restart */
+    void compute_flow_rate(FV_TimeIterator const *t_it, bool check_restart);
+
+    void build_links_translation();
 
     //@}
 
@@ -216,6 +251,15 @@ private: //----------------------------------------------------------------
     DLMFD_AllRigidBodies *allrigidbodies;
     bool are_particles_fixed;
 
+    // Grid motion
+    bool b_projection_translation;
+    FV_Mesh const *primary_grid;
+    double critical_distance_translation;
+    geomVector MVQ_translation_vector;
+    size_t translation_direction;
+    double bottom_coordinate;
+    double translated_distance;
+
     // Restart
     bool b_restart;
     string explicitDLMFD_restartFilename_Prefix;
@@ -224,6 +268,11 @@ private: //----------------------------------------------------------------
 
     // Pressure rescaling in case of all non-Dirichlet BCs
     bool b_pressure_rescaling;
+
+    // Post processing
+    string compute_flow_rate_on;
+    double flow_rate;
+    size_t flow_rate_frequency;
 };
 
 #endif

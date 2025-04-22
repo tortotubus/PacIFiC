@@ -87,6 +87,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    // Create solid readable files
    solidSolverType = "Grains3D";
    b_solidSolver_parallel = false;
+   b_correct_particle_acceleration = true;
    solidSolver_insertionFile = "Grains/Init/insert.xml";
    solidSolver_simulationFile = "Grains/Res/simul.xml";
    int error = 0;
@@ -96,9 +97,14 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    // Initiate the GRAINS plugins
    solidSolver = FS_SolidPlugIn_BuilderFactory::create(solidSolverType,
-                                                       solidSolver_insertionFile, solidSolver_simulationFile, rho_f, false,
-                                                       b_restart, dom->primary_grid()->get_smallest_constant_grid_size(),
-                                                       b_solidSolver_parallel, error);
+                                                       solidSolver_insertionFile,
+                                                       solidSolver_simulationFile,
+                                                       rho_f,
+                                                       b_correct_particle_acceleration,
+                                                       b_restart,
+                                                       dom->primary_grid()->get_smallest_constant_grid_size(),
+                                                       b_solidSolver_parallel,
+                                                       error);
 
    // Create the Solid/Fluid transfer stream
    solidFluid_transferStream = new istringstream;
@@ -131,7 +137,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    Uzawa_DLMFD_precision = GLOBAL_EQ->get_DLMFD_convergence_criterion();
    Uzawa_DLMFD_maxiter = GLOBAL_EQ->get_DLMFD_maxiter();
 
-   finalize_construction();
+   finalize_construction(exp);
 }
 
 //---------------------------------------------------------------------------
@@ -187,6 +193,10 @@ void DLMFD_FictitiousDomain::do_after_inner_iterations_stage(FV_TimeIterator con
          solidSolver->UpdateParticlesVelocities(velocitiesVecGrains, b_explicit_added_mass);
       }
 
+   // Write output files
+   if (rank == master && !are_particles_fixed)
+      allrigidbodies->particles_features_output(SolidSolverResultsDirectory + "/", b_restart, t_it->time());
+
    allrigidbodies->particles_hydrodynamic_force_output(SolidSolverResultsDirectory + "/",
                                                        b_restart,
                                                        t_it->time(),
@@ -214,14 +224,21 @@ void DLMFD_FictitiousDomain::do_before_time_stepping(FV_TimeIterator const *t_it
                                                        t_it->time_step(),
                                                        rho_f,
                                                        Iw_Idw);
+
+   // Check that corresponding post-processing writer exists in Grains3D
+   solidSolver->checkParaviewPostProcessing(SolidSolverResultsDirectory);
 }
 
 //---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
-                                                   FV_TimeIterator const *t_it)
+                                                   FV_TimeIterator const *t_it,
+                                                   const double &translated_distance,
+                                                   const size_t &translation_direction)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: do_additional_savings");
+
+   set_Paraview_translated_distance_vector(translated_distance, translation_direction);
 
    string filename;
 
@@ -289,12 +306,58 @@ void DLMFD_FictitiousDomain::write_PVTU_multiplier_file(string const &filename) 
 }
 
 //---------------------------------------------------------------------------
+double DLMFD_FictitiousDomain::Compute_distance_to_bottom(const double &coordinate, const size_t &direction) const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: Compute_distance_to_bottom");
+
+   return (allrigidbodies->compute_minimum_distance_to_bottom(coordinate, direction));
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::translate_all(const geomVector &translation_vector,
+                                           const size_t &translation_direction)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: translate_all");
+
+   allrigidbodies->translate_geometricBoundaries(translation_vector, translation_direction);
+
+   double trans_dist = UU->primary_grid()->get_translation_distance();
+   if (rank == master)
+      solidSolver->setParaviewPostProcessingTranslationVector(translation_direction == 0 ? -trans_dist : 0.,
+                                                              translation_direction == 1 ? -trans_dist : 0.,
+                                                              translation_direction == 2 ? -trans_dist : 0.);
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::set_critical_distance(double critical_distance_)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: set_critical_distance");
 
    critical_distance = critical_distance_;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::set_Paraview_translated_distance_vector(const double &translated_distance,
+                                                                     const size_t &translation_direction)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: set_Paraview_translated_distance_vector");
+
+   Paraview_translated_distance_vector(translation_direction) = translated_distance;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_FictitiousDomain::setParaviewPostProcessingTranslationVector(const double &tvx,
+                                                                        const double &tvy,
+                                                                        const double &tvz)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_FictitiousDomain:: setParaviewPostProcessingTranslationVector");
+
+   solidSolver->setParaviewPostProcessingTranslationVector(tvx, tvy, tvz);
 }
 
 //---------------------------------------------------------------------------
@@ -307,12 +370,17 @@ bool const DLMFD_FictitiousDomain::get_explicit_DLMFD() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::finalize_construction()
+void DLMFD_FictitiousDomain::finalize_construction(MAC_ModuleExplorer const *exp)
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain::finalize_construction");
 
    pelCOMM->barrier();
+
+   allrigidbodies->read_particles_outputs(exp);
+
+   // Resize the Paraview translated distance vector
+   Paraview_translated_distance_vector.resize(dim);
 
    // Set Iw_Idw and velocitiesVecGrains
    if (rank == master)
@@ -422,15 +490,15 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
       // Update the rigid bodies
       allrigidbodies->update(*solidFluid_transferStream);
 
-      // Set the fluid/solid coupling factor
-      allrigidbodies->set_coupling_factor(rho_f, b_explicit_added_mass);
-
       // Set valid points
       allrigidbodies->set_all_MAC(critical_distance);
       allrigidbodies->eraseCriticalDLMFDPoints(t_it->time(), critical_distance);
 
       // Set the onProc IDs
       allrigidbodies->set_listIdOnProc();
+
+      // Set the fluid/solid coupling factor
+      allrigidbodies->set_coupling_factor(rho_f, b_explicit_added_mass);
 
       // Set points infos
       allrigidbodies->set_points_infos();

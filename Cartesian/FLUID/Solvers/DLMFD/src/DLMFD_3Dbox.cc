@@ -78,7 +78,7 @@ void DLMFD_3Dbox::set_all_MAC(FV_DiscreteField *pField, double critical_distance
 
     size_t i, nper = periodic_directions ? periodic_directions->size() : 0;
 
-    if (component_type == "O")
+    if (component_type == "O" || component_type == "PO")
     {
         if (g2 == NULL)
             g2 = new geomVector(3);
@@ -450,6 +450,8 @@ bool DLMFD_3Dbox::isIn(const geomVector &point) const
 
     bool b_isIn = false;
 
+    bool is_an_obstacle = component_type == "O" || component_type == "PO";
+
     for (vector<vector<size_t>>::const_iterator faceIter = facesVec.begin();
          faceIter != facesVec.end() && !b_isIn;
          ++faceIter)
@@ -457,7 +459,7 @@ bool DLMFD_3Dbox::isIn(const geomVector &point) const
             if (checkPointInTetrahedron(corners[(*faceIter)[0]],
                                         corners[(*faceIter)[idxPts - 1]],
                                         corners[(*faceIter)[idxPts]],
-                                        component_type == "O" ? *g2 : gravity_center,
+                                        is_an_obstacle ? *g2 : gravity_center,
                                         point))
 
                 b_isIn = true;

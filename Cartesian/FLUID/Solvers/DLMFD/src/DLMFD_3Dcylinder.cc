@@ -428,3 +428,12 @@ void DLMFD_3Dcylinder::translateGeometricFeatures(geomVector const &newg)
         TopCenter += translation_vec;
     }
 }
+
+//---------------------------------------------------------------------------
+geomVector DLMFD_3Dcylinder::particle_orientation_vector() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_3Dcylinder:: particle_orientation_vector");
+
+    return (BottomToTopVec * (1. / BottomToTopVec.calcNorm()));
+}

@@ -78,7 +78,9 @@ public: //-----------------------------------------------------------------
    /** @brief Tasks performed for additional savings
    @param t_it Time iterator */
    void do_additional_savings(int const &cycleNumber,
-                              FV_TimeIterator const *t_it);
+                              FV_TimeIterator const *t_it,
+                              const double &translated_distance,
+                              const size_t &translation_direction);
 
    //@}
 
@@ -87,8 +89,20 @@ public: //-----------------------------------------------------------------
    //@{
 
    /** @brief Setting the critical distance attribute
-   @param t_icritical_distance_ Critical distance to set */
+   @param critical_distance_ Critical distance to set */
    void set_critical_distance(double critical_distance_);
+
+   /** @brief Set the Paraview translated distance vector
+   @param translated_distance translated distance magnitude
+   @param translation_direction translation direction */
+   void set_Paraview_translated_distance_vector(const double &translated_distance,
+                                                const size_t &translation_direction);
+
+   /** @brief Sets the Paraview post-processing translation vector in case of
+   projection-translation */
+   void setParaviewPostProcessingTranslationVector(const double &tvx,
+                                                   const double &tvy,
+                                                   const double &tvz);
 
    //@}
 
@@ -106,7 +120,7 @@ public: //-----------------------------------------------------------------
    //@{
 
    /** @brief Finalize construction */
-   void finalize_construction();
+   void finalize_construction(MAC_ModuleExplorer const *exp);
 
    /** @brief Prediction of the rigid body attributes (Newton's law)
    @param t_it Time iterator */
@@ -167,6 +181,17 @@ public: //-----------------------------------------------------------------
 
    //@}
 
+   // -- Geometric methods
+   /** @name Geometric methods */
+   //@{
+
+   double Compute_distance_to_bottom(const double &coordinate, const size_t &direction) const;
+
+   void translate_all(const geomVector &translation_vector,
+                      const size_t &translation_direction);
+
+   //@}
+
 protected: //----------------------------------------------------------------
    //-- Class attributes
    size_t levelDiscrField;
@@ -224,6 +249,7 @@ private: //----------------------------------------------------------------
    bool b_explicit_added_mass;
    bool are_particles_fixed;
    bool b_solidSolver_parallel;
+   bool b_correct_particle_acceleration;
    bool b_ExplicitDLMFD;
 
    // MPI data

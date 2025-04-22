@@ -1,4 +1,5 @@
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_ProjectionNavierStokes.hh>
 #include <LA_Matrix.hh>
 #include <LA_Vector.hh>
 #include <LA_Scatter.hh>
@@ -92,6 +93,7 @@ DLMFD_ProjectionNavierStokesSystem::DLMFD_ProjectionNavierStokesSystem(
       VEC_rhs_VelocityAdvectionDiffusion(0),
       VEC_rhs_VelocityAdvection_Nm2(0),
       VEC_rhs_A_UnitaryPeriodicPressureGradient(0),
+      VEC_rhs_A_PeriodicPressure(0),
       VEC_t(0),
       VEC_q(0),
       VEC_r(0),
@@ -108,10 +110,13 @@ DLMFD_ProjectionNavierStokesSystem::DLMFD_ProjectionNavierStokesSystem(
       b_pressure_rescaling(b_pressure_rescaling_),
       b_ExplicitPressureGradient(b_ExplicitPressureGradient_),
       b_HighOrderPressureCorrection(b_HighOrderPressureCorrection_),
-      b_NS_ExplicitDLMFD(false)
+      b_NS_ExplicitDLMFD(false),
+      b_NS_pressure_drop_each_time(false)
 {
-   MAC_LABEL(
-       "DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem");
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem:: DLMFD_ProjectionNavierStokesSystem");
+
+   // Pressure drop handled at each time step
+   b_NS_pressure_drop_each_time = DLMFD_ProjectionNavierStokes::b_pressure_drop_each_time;
 
    // Build the matrices & vectors
    build_system(exp);
@@ -169,7 +174,12 @@ void DLMFD_ProjectionNavierStokesSystem::build_system(MAC_ModuleExplorer const *
    VEC_rhs_VelocityAdvection_Nm2 = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Periodic pressure drop rhs
-   VEC_rhs_A_UnitaryPeriodicPressureGradient = MAT_A_VelocityUnsteady->create_vector(this);
+   if (b_NS_pressure_drop_each_time)
+      VEC_rhs_A_UnitaryPeriodicPressureGradient = MAT_A_VelocityUnsteady->create_vector(this);
+
+   // Periodic pressure rhs
+   if (!b_NS_pressure_drop_each_time)
+      VEC_rhs_A_PeriodicPressure = MAT_A_VelocityUnsteady->create_vector(this);
 
    // Work vectors
    // Unknown vectors
@@ -244,8 +254,13 @@ void DLMFD_ProjectionNavierStokesSystem::re_initialize(void)
    VEC_rhs_VelocityAdvectionDiffusion->re_initialize(u_glob);
    VEC_rhs_VelocityAdvection_Nm2->re_initialize(u_glob);
 
-   // Periodic pressure drop rhs
-   VEC_rhs_A_UnitaryPeriodicPressureGradient->re_initialize(u_glob);
+   if (b_NS_pressure_drop_each_time)
+      // Periodic pressure drop rhs
+      VEC_rhs_A_UnitaryPeriodicPressureGradient->re_initialize(u_glob);
+
+   if (!b_NS_pressure_drop_each_time)
+      // Periodic pressure rhs
+      VEC_rhs_A_PeriodicPressure->re_initialize(u_glob);
 
    // Work vectors
    // Unknown vectors
@@ -476,9 +491,14 @@ void DLMFD_ProjectionNavierStokesSystem::compute_velocityAdvectionDiffusion_rhs(
          VEC_rhs_VelocityAdvection_Nm2->set(VEC_rhs_VelocityAdvection);
    }
 
-   // Add periodic pressure gradient source term
-   VEC_rhs_VelocityAdvectionDiffusion->sum(
-       VEC_rhs_A_UnitaryPeriodicPressureGradient, dpdl);
+   if (b_NS_pressure_drop_each_time)
+      // Add periodic pressure gradient source term
+      VEC_rhs_VelocityAdvectionDiffusion->sum(
+          VEC_rhs_A_UnitaryPeriodicPressureGradient, dpdl);
+
+   if (!b_NS_pressure_drop_each_time)
+      // Add periodic pressure source term
+      VEC_rhs_VelocityAdvectionDiffusion->sum(VEC_rhs_A_PeriodicPressure);
 
    // Add explicit DLMFD forcing term
    if (b_NS_ExplicitDLMFD)
@@ -753,6 +773,100 @@ DLMFD_ProjectionNavierStokesSystem::get_unitary_periodic_pressure_drop_vector(
              "get_unitary_periodic_pressure_drop_vector");
 
    return (VEC_rhs_A_UnitaryPeriodicPressureGradient);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::set_velocity_unknown(size_t i_row, double xx)
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::set_velocity_unknown");
+
+   VEC_U->set_item(i_row, xx);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::set_pressure_unknown(size_t i_row, double xx)
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::set_pressure_unknown");
+
+   VEC_P->set_item(i_row, xx);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::synchronize_velocity_unknown_vector()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::synchronize_velocity_unknown_vector");
+
+   VEC_U->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::synchronize_pressure_unknown_vector()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::synchronize_pressure_unknown_vector");
+
+   VEC_P->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::nullify_DLMFD_Nm1_rhs()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::nullify_DLMFD_Nm1_rhs");
+
+   VEC_rhs_VelocityDLMFD_Nm1->nullify();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::set_rhs_DLMFD_Nm1(size_t i_row, double xx)
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::set_rhs_DLMFD_Nm1");
+
+   VEC_rhs_VelocityDLMFD_Nm1->set_item(i_row, xx);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_rhs_DLMFD_Nm1()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::get_rhs_DLMFD_Nm1");
+
+   UU_NUM->scatter()->get(VEC_rhs_VelocityDLMFD_Nm1, U_LOC);
+
+   LA_SeqVector const *result = U_LOC;
+
+   return (result);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_DLMFD_Nm1_vector()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_DLMFD_Nm1_vector");
+
+   VEC_rhs_VelocityDLMFD_Nm1->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_periodic_pressure_vector()
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_periodic_pressure_vector");
+
+   VEC_rhs_A_PeriodicPressure->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokesSystem::set_periodic_pressure_rhs_item(size_t i_row, double xx)
+//----------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::set_periodic_pressure_rhs_item");
+
+   VEC_rhs_A_PeriodicPressure->set_item(i_row, xx);
 }
 
 //----------------------------------------------------------------------

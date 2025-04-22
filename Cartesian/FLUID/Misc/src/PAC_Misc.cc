@@ -1,6 +1,8 @@
 #include <PAC_Misc.hh>
 #include <FV_DiscreteField.hh>
+#include <FV_DomainBuilder.hh>
 #include <MAC.hh>
+#include <MAC_Error.hh>
 #include <cstdlib>
 
 
@@ -28,9 +30,45 @@ PAC_Misc::compute_flow_rate( FV_DiscreteField const* FF,
    
    double flow_rate = coef * FF->compute_boundary_cell_centered_DOF_integral( 
       	component, level, boundary_name ) ;
-   
+
    return flow_rate ; 
    
+}	
+
+
+
+
+//---------------------------------------------------------------------------
+bool 
+PAC_Misc::is_main_boundary( string const& boundary_name, 
+                            const size_t& dim, string const& message,
+                            MAC_ModuleExplorer const* exp )
+//--------------------------------------------------------------------------- 
+{
+   MAC_LABEL( "PAC_Misc:: is_main_boundary" ) ;
+
+   bool result = false ;
+
+   if( FV_DomainBuilder:: does_primary_color_exist( boundary_name ) )
+     if( FV_DomainBuilder:: is_main_color( FV_DomainBuilder:: get_color_number( boundary_name ) ) )
+     {
+       if( dim == 3 ) result = true ;
+       else if( boundary_name != "front" && boundary_name != "behind" )
+         result = true ;
+     }
+
+   if ( exp )
+     if ( !result )
+     {
+       string error_message = "   - left\n   - right\n   - bottom\n   - top\n";
+       if ( dim == 3 )
+         error_message += "   - behind\n   - front\n";
+       MAC_Error::object()->raise_bad_data_value( exp, 
+		message, error_message );     
+     }
+   
+   return result ;
+
 }	
 
 

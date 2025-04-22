@@ -25,8 +25,10 @@
 #include <cstdlib>
 #include <FS_SolidPlugIn_BuilderFactory.hh>
 #include <FS_SolidPlugIn.hh>
+#include <GrainsExec.hh>
 
 DLMFD_ProjectionNavierStokes const *DLMFD_ProjectionNavierStokes::PROTOTYPE = new DLMFD_ProjectionNavierStokes();
+bool DLMFD_ProjectionNavierStokes::b_pressure_drop_each_time = false;
 
 //---------------------------------------------------------------------------
 DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(void)
@@ -75,7 +77,14 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
       b_restart(false),
       b_pressure_rescaling(false),
       b_ExplicitDLMFD(false),
-      explicitDLMFD_restartFilename_Prefix("DLM_")
+      explicitDLMFD_restartFilename_Prefix("DLM_"),
+      b_projection_translation(dom->primary_grid()->is_translation_active()),
+      primary_grid(dom->primary_grid()),
+      critical_distance_translation(0.),
+      translation_direction(0),
+      bottom_coordinate(0.),
+      translated_distance(0.),
+      compute_flow_rate_on("none")
 {
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: DLMFD_ProjectionNavierStokes");
   MAC_ASSERT(PP->discretization_type() == "centered");
@@ -169,6 +178,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     b_HighOrderPressureCorrection = exp->bool_data(
         "HighOrderPressureCorrection");
 
+  // Pressure drop handled each time step
+  if (exp->has_entry("Pressure_drop_handled_each_time_step"))
+    b_pressure_drop_each_time = exp->bool_data("Pressure_drop_handled_each_time_step");
+
   // Set the split gravity vector
   split_gravity_vector.resize(dim);
   split_gravity_vector.setVecZero();
@@ -198,6 +211,19 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
   if (exp->has_entry("Output_frequency"))
     output_frequency = size_t(exp->int_data("Output_frequency"));
 
+  // Critical distance
+  if (b_projection_translation)
+  {
+    if (exp->has_entry("Critical_Distance_Translation"))
+      critical_distance_translation = exp->double_data("Critical_Distance_Translation");
+    else
+    {
+      string error_message = " Projection-Translation is active but ";
+      error_message += "Critical_Distance_Translation is NOT defined.";
+      MAC_Error::object()->raise_bad_data_value(exp, "Projection_Translation", error_message);
+    }
+  }
+
   // NS parameters
   if (my_rank == is_master)
   {
@@ -212,6 +238,19 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
     MAC::out() << "   High Order Pressure Correction = " << (b_HighOrderPressureCorrection ? "true" : "false") << endl;
     MAC::out() << endl
                << endl;
+  }
+
+  // Flow rate
+  if (exp->has_entry("Flow_rate"))
+  {
+    compute_flow_rate_on = exp->string_data("Flow_rate");
+    if (compute_flow_rate_on != "none")
+      PAC_Misc::is_main_boundary(compute_flow_rate_on, dim, "Flow_rate", exp);
+
+    if (exp->has_entry("Flow_rate_Frequency"))
+      flow_rate_frequency = exp->int_data("Flow_rate_Frequency");
+    else
+      flow_rate_frequency = 1;
   }
 
   // Build the matrix system
@@ -292,9 +331,8 @@ void DLMFD_ProjectionNavierStokes::do_one_inner_iteration(
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_ProjectionNavierStokes::do_before_time_stepping(
-    FV_TimeIterator const *t_it,
-    std::string const &basename)
+void DLMFD_ProjectionNavierStokes::do_before_time_stepping(FV_TimeIterator const *t_it,
+                                                           std::string const &basename)
 //---------------------------------------------------------------------------
 {
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: do_before_time_stepping");
@@ -302,6 +340,30 @@ void DLMFD_ProjectionNavierStokes::do_before_time_stepping(
   start_total_timer("DLMFD_ProjectionNavierStokes:: do_before_time_stepping");
 
   FV_OneStepIteration::do_before_time_stepping(t_it, basename);
+
+  if (!b_pressure_drop_each_time)
+    // Assemble constant matrix of periodic pressure drop
+    if (UU->primary_grid()->is_periodic_pressure_drop())
+      assemble_periodic_pressure_rhs();
+
+  // Projection-Translation
+  if (b_projection_translation)
+  {
+    set_translation_vector();
+
+    if (MVQ_translation_vector(translation_direction) < 0.)
+      bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+          [translation_direction](0);
+    else
+      bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+          [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+
+    geomVector vt(dim);
+    vt(translation_direction) = primary_grid->get_translation_distance();
+    dlmfd_solver->setParaviewPostProcessingTranslationVector(-vt(0), -vt(1), -vt(2));
+
+    build_links_translation();
+  }
 
   if (my_rank == is_master)
     SCT_set_start("Matrix_Assembly&Initialization");
@@ -339,10 +401,11 @@ void DLMFD_ProjectionNavierStokes::do_before_time_stepping(
   assemble_pressure_DirichletBC_in_momentumEquation(
       GLOBAL_EQ->get_pressure_DirichletBC_vector());
 
-  // Unitary periodic pressure gradient rhs
-  if (UU->primary_grid()->is_periodic_flow())
-    assemble_unitary_periodic_pressure_gradient_rhs(
-        GLOBAL_EQ->get_unitary_periodic_pressure_drop_vector());
+  if (b_pressure_drop_each_time)
+    // Unitary periodic pressure gradient rhs
+    if (UU->primary_grid()->is_periodic_flow())
+      assemble_unitary_periodic_pressure_gradient_rhs(
+          GLOBAL_EQ->get_unitary_periodic_pressure_drop_vector());
 
   // Synchronize and finalize matrices
   GLOBAL_EQ->finalize_constant_matrices();
@@ -357,8 +420,27 @@ void DLMFD_ProjectionNavierStokes::do_before_time_stepping(
   if (my_rank == is_master)
     SCT_get_elapsed_time("Matrix_Assembly&Initialization");
 
-  // Do DLMFD paraview set-up
+  // Do DLMFD solid/fluid set-up
   dlmfd_solver->do_before_time_stepping(t_it);
+
+  // Flow rate
+  if (compute_flow_rate_on != "none")
+  {
+    if (my_rank == is_master)
+    {
+      MAC::out() << endl
+                 << "   +++ Flow rate ++++++"
+                 << endl
+                 << endl;
+      MAC::out() << "      Output every " << flow_rate_frequency
+                 << " time steps" << endl;
+      MAC::out() << "      Boundary name = "
+                 << compute_flow_rate_on << endl;
+      MAC::out() << endl
+                 << endl;
+    }
+    compute_flow_rate(t_it, b_restart);
+  }
 
   stop_total_timer();
 }
@@ -394,9 +476,10 @@ void DLMFD_ProjectionNavierStokes::do_before_inner_iterations_stage(
   // Perform matrix level operations before each time step
   GLOBAL_EQ->at_each_time_step();
 
-  // Update pressure drop in case of periodic imposed flow rate
-  if (UU->primary_grid()->is_periodic_flow_rate())
-    update_pressure_drop_imposed_flow_rate(t_it);
+  if (b_pressure_drop_each_time)
+    // Update pressure drop in case of periodic imposed flow rate
+    if (UU->primary_grid()->is_periodic_flow_rate())
+      update_pressure_drop_imposed_flow_rate(t_it);
 
   stop_total_timer();
 }
@@ -408,8 +491,7 @@ void DLMFD_ProjectionNavierStokes::do_after_inner_iterations_stage(
 {
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage");
 
-  start_total_timer(
-      "DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage");
+  start_total_timer("DLMFD_ProjectionNavierStokes:: do_after_inner_iterations_stage");
 
   FV_OneStepIteration::do_after_inner_iterations_stage(t_it);
 
@@ -425,8 +507,48 @@ void DLMFD_ProjectionNavierStokes::do_after_inner_iterations_stage(
     MAC::out() << "         L2 Norm of distribvec(div(u)) = " << MAC::doubleToString(ios::scientific, 14, normdivu) << endl;
   compute_and_print_divu_norm();
 
+  // Flow rate
+  compute_flow_rate(t_it, false);
+
   // DLMFD computation
   dlmfd_solver->do_after_inner_iterations_stage(t_it);
+
+  // Projection translation
+  if (b_projection_translation)
+  {
+    double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
+
+    if (my_rank == is_master)
+      MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
+                 << endl;
+
+    if (distance_to_bottom < critical_distance_translation)
+    {
+
+      if (my_rank == is_master)
+        MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                   << endl
+                   << "         !!!     Domain Translation      !!!"
+                   << endl
+                   << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                   << endl;
+
+      translated_distance += MVQ_translation_vector(translation_direction);
+      if (my_rank == is_master)
+        MAC::out() << "         Translated distance = " << translated_distance << endl;
+
+      fields_projection();
+
+      dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
+
+      if (MVQ_translation_vector(translation_direction) < 0.)
+        bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+            [translation_direction](0);
+      else
+        bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+            [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+    }
+  }
 
   stop_total_timer();
 }
@@ -440,7 +562,7 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
 
   start_total_timer("DLMFD_ProjectionNavierStokes:: do_additional_savings");
 
-  dlmfd_solver->do_additional_savings(cycleNumber, t_it);
+  dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 
   // Elapsed time by sub-problems
   if (my_rank == is_master)
@@ -470,6 +592,168 @@ void DLMFD_ProjectionNavierStokes::do_additional_save_for_restart(
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::set_translation_vector()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: set_translation_vector");
+
+  MVQ_translation_vector.resize(primary_grid->nb_space_dimensions());
+  translation_direction = primary_grid->get_translation_direction();
+  MVQ_translation_vector(translation_direction) = primary_grid->get_translation_magnitude();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::fields_projection()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: fields_projection");
+
+  FV_Mesh *pmesh = const_cast<FV_Mesh *>(primary_grid);
+  pmesh->translation();
+
+  UU->translation_projection(0, 1, !b_ExplicitDLMFD);
+  synchronize_velocity_field(0);
+
+  PP->translation_projection(0, 1);
+  synchronize_pressure_field(0);
+
+  if (b_ExplicitDLMFD)
+  {
+    // Copy back DLMFD vector on velocity field
+    UU->update_free_DOFs_value(0, GLOBAL_EQ->get_rhs_DLMFD_Nm1());
+
+    // Projection-translation at the level of the field
+    UU->translation_projection(0, 1, b_ExplicitDLMFD);
+
+    // Synchronize the DLMFD forcing term at previous time
+    synchronize_DLMFD_Nm1_rhs(0);
+
+    // Re-assign velocity field from vector
+    UU->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_U());
+  }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::synchronize_velocity_field(size_t level)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: synchronize_velocity_field");
+
+  size_t nb_comps = UU->nb_components();
+
+  // Transfer field values owned by the proc only to the global vector
+  for (size_t comp = 0; comp < nb_comps; ++comp)
+  {
+    // Get local min and max indices
+    size_t_vector min_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+      min_unknown_index(l) =
+          UU->get_min_index_unknown_handled_by_proc(comp, l);
+    size_t_vector max_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+      max_unknown_index(l) =
+          UU->get_max_index_unknown_handled_by_proc(comp, l);
+
+    // Set value in global vector
+    size_t k = 0;
+    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+      for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        if (dim == 2)
+          GLOBAL_EQ->set_velocity_unknown(
+              UU->DOF_global_number(i, j, k, comp),
+              UU->DOF_value(i, j, k, comp, level));
+        else
+          for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+            GLOBAL_EQ->set_velocity_unknown(
+                UU->DOF_global_number(i, j, k, comp),
+                UU->DOF_value(i, j, k, comp, level));
+  }
+
+  // Transfer back values from the global vector to the field
+  GLOBAL_EQ->synchronize_velocity_unknown_vector();
+  UU->update_free_DOFs_value(level, GLOBAL_EQ->get_solution_U());
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::synchronize_pressure_field(size_t level)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: synchronize_pressure_field");
+
+  // Transfer field values owned by the proc only to the global vector
+  // Get local min and max indices
+  size_t_vector min_unknown_index(dim, 0);
+  for (size_t l = 0; l < dim; ++l)
+    min_unknown_index(l) =
+        PP->get_min_index_unknown_handled_by_proc(0, l);
+  size_t_vector max_unknown_index(dim, 0);
+  for (size_t l = 0; l < dim; ++l)
+    max_unknown_index(l) =
+        PP->get_max_index_unknown_handled_by_proc(0, l);
+
+  // Set value in global vector
+  size_t k = 0;
+  for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+      if (dim == 2)
+        GLOBAL_EQ->set_pressure_unknown(
+            PP->DOF_global_number(i, j, k, 0),
+            PP->DOF_value(i, j, k, 0, level));
+      else
+        for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+          GLOBAL_EQ->set_pressure_unknown(
+              PP->DOF_global_number(i, j, k, 0),
+              PP->DOF_value(i, j, k, 0, level));
+
+  // Transfer back values from the global vector to the field
+  GLOBAL_EQ->synchronize_pressure_unknown_vector();
+  PP->update_free_DOFs_value(level, GLOBAL_EQ->get_solution_pressure());
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::synchronize_DLMFD_Nm1_rhs(size_t level)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: synchronize_DLMFD_Nm1_rhs");
+
+  size_t nb_comps = UU->nb_components();
+
+  // Nullify the DLMFD forcing term at previous time at the matrix level
+  GLOBAL_EQ->nullify_DLMFD_Nm1_rhs();
+
+  // Transfer field values owned by the proc only to the global vector
+  for (size_t comp = 0; comp < nb_comps; ++comp)
+  {
+    // Get local min and max indices
+    size_t_vector min_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+      min_unknown_index(l) =
+          UU->get_min_index_unknown_handled_by_proc(comp, l);
+    size_t_vector max_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+      max_unknown_index(l) =
+          UU->get_max_index_unknown_handled_by_proc(comp, l);
+
+    // Set value in global vector
+    size_t k = 0;
+    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+      for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        if (dim == 2)
+          GLOBAL_EQ->set_rhs_DLMFD_Nm1(
+              UU->DOF_global_number(i, j, k, comp),
+              UU->DOF_value(i, j, k, comp, level));
+        else
+          for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+            GLOBAL_EQ->set_rhs_DLMFD_Nm1(
+                UU->DOF_global_number(i, j, k, comp),
+                UU->DOF_value(i, j, k, comp, level));
+  }
+
+  // Transfer back values from the global vector to the field
+  GLOBAL_EQ->synchronize_rhs_DLMFD_Nm1_vector();
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokes::NavierStokes_Projection(
     FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
@@ -485,6 +769,11 @@ void DLMFD_ProjectionNavierStokes::NavierStokes_Projection(
 
   // Copy back velocity solution in field
   UU->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_velocity());
+
+  if (!b_pressure_drop_each_time)
+    // Correct velocity in case of periodic imposed flow rate
+    if (UU->primary_grid()->is_periodic_flow_rate())
+      periodic_flow_rate_update(t_it);
 }
 
 //---------------------------------------------------------------------------
@@ -839,6 +1128,8 @@ void DLMFD_ProjectionNavierStokes::assemble_unitary_periodic_pressure_gradient_r
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: "
             "assemble_unitary_periodic_pressure_gradient_rhs");
 
+  cout << VEC_rhs << endl;
+
   // Parameters
   size_t comp = UU->primary_grid()->get_periodic_flow_direction();
   double dxC, dyC, dzC;
@@ -884,6 +1175,113 @@ void DLMFD_ProjectionNavierStokes::assemble_unitary_periodic_pressure_gradient_r
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::assemble_periodic_pressure_rhs()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: assemble_periodic_pressure_rhs");
+
+  // Parameters
+  size_t comp = UU->primary_grid()->get_periodic_flow_direction();
+  double dpdl = -UU->primary_grid()->get_periodic_pressure_drop() /
+                (UU->primary_grid()->get_main_domain_max_coordinate(comp) - UU->primary_grid()->get_main_domain_min_coordinate(comp));
+  double dxC, dyC, dzC;
+  size_t center_pos_in_matrix = 0;
+
+  // Get local min and max indices
+  size_t_vector min_unknown_index(dim, 0);
+  for (size_t l = 0; l < dim; ++l)
+    min_unknown_index(l) =
+        UU->get_min_index_unknown_handled_by_proc(comp, l);
+  size_t_vector max_unknown_index(dim, 0);
+  for (size_t l = 0; l < dim; ++l)
+    max_unknown_index(l) =
+        UU->get_max_index_unknown_handled_by_proc(comp, l);
+
+  // Perform assembling
+  for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+  {
+    dxC = UU->get_cell_size(i, comp, 0);
+    for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+    {
+      dyC = UU->get_cell_size(j, comp, 1);
+
+      if (dim == 2)
+      {
+        size_t k = 0;
+        center_pos_in_matrix = UU->DOF_global_number(i, j, k, comp);
+        GLOBAL_EQ->set_periodic_pressure_rhs_item(
+            center_pos_in_matrix, dpdl * dxC * dyC);
+      }
+      else
+      {
+        for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+        {
+          dzC = UU->get_cell_size(k, comp, 2);
+          center_pos_in_matrix = UU->DOF_global_number(i, j, k, comp);
+          GLOBAL_EQ->set_periodic_pressure_rhs_item(
+              center_pos_in_matrix, dpdl * dxC * dyC * dzC);
+        }
+      }
+    }
+  }
+
+  GLOBAL_EQ->synchronize_rhs_periodic_pressure_vector();
+}
+
+// //---------------------------------------------------------------------------
+// void DLMFD_ProjectionNavierStokes::update_pressure_drop_imposed_flow_rate(
+//     FV_TimeIterator const *t_it)
+// //---------------------------------------------------------------------------
+// {
+//   MAC_LABEL(
+//       "DLMFD_ProjectionNavierStokes:: update_pressure_drop_imposed_flow_rate");
+
+//   FV_Mesh const *primary_mesh = UU->primary_grid();
+
+//   // Get the periodic flow direction
+//   size_t periodic_flow_direction = primary_mesh->get_periodic_flow_direction();
+
+//   // Get the boundary name
+//   string boundary_name = periodic_flow_direction == 0 ? "right" : periodic_flow_direction == 1 ? "top"
+//                                                                                                : "front";
+//   // Compute the flow rate
+//   double flow_rate = PAC_Misc::compute_flow_rate(UU, 0, boundary_name);
+
+//   // Get the imposed flow rate
+//   double imposed_flow_rate = primary_mesh->get_periodic_flow_rate();
+
+//   // Correction
+//   double kp = 1.e1;
+//   //   double ki = 1.e-1, ks = 1.e0;
+//   double old_ppd = primary_mesh->get_periodic_pressure_drop();
+//   //    static double Ik = 0;
+//   //    static double flow_rate_previoustime = 0 ;
+//   //    static double ppd_previoustime = 0 ;
+
+//   //    double delta_ppd = kp * ( imposed_flow_rate - flow_rate ) + Ik ;
+//   //    double new_ppd = old_ppd - delta_ppd ;
+//   //    Ik = Ik + 0.1 * t_it->time_step() * ( ki * ( imposed_flow_rate - flow_rate )
+//   //    	+ ks * ( delta_ppd - kp * ( imposed_flow_rate - flow_rate ) -Ik ) );
+
+//   double delta_ppd = kp * (imposed_flow_rate - flow_rate);
+
+//   double new_ppd = old_ppd - delta_ppd;
+
+//   //    if ( t_it->iteration_number() == 1 )
+//   //      new_ppd = - density * imposed_flow_rate * 4. / ( t_it->time_step() * 1. );
+
+//   const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(new_ppd);
+//   //    MAC::out() << "Flow rate = " << flow_rate << endl;
+//   //    MAC::out() << "Ppd = " << new_ppd << endl;
+
+//   string fr_filename = resultsDirectory + "/flowrate.dat";
+//   // MAC::out() << fr_filename << endl;
+//   ofstream FILEOUT(fr_filename.c_str(), ios::app);
+//   FILEOUT << t_it->time() << " " << new_ppd << " " << flow_rate << endl;
+//   FILEOUT.close();
+// }
+
+//---------------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokes::update_pressure_drop_imposed_flow_rate(
     FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
@@ -894,48 +1292,83 @@ void DLMFD_ProjectionNavierStokes::update_pressure_drop_imposed_flow_rate(
   FV_Mesh const *primary_mesh = UU->primary_grid();
 
   // Get the periodic flow direction
-  size_t periodic_flow_direction =
-      primary_mesh->get_periodic_flow_direction();
+  size_t periodic_flow_direction = primary_mesh->get_periodic_flow_direction();
+
+  // Area of boundary face perpendicular to periodic flow direction
+  double face_area =
+      primary_mesh->get_main_domain_boundary_perp_to_direction_measure(
+          periodic_flow_direction);
+
+  // Length of domain in the periodic direction
+  double periodic_length =
+      UU->primary_grid()->get_main_domain_max_coordinate(
+          periodic_flow_direction) -
+      UU->primary_grid()->get_main_domain_min_coordinate(
+          periodic_flow_direction);
 
   // Get the boundary name
   string boundary_name = periodic_flow_direction == 0 ? "right" : periodic_flow_direction == 1 ? "top"
                                                                                                : "front";
-
   // Compute the flow rate
   double flow_rate = PAC_Misc::compute_flow_rate(UU, 0, boundary_name);
 
   // Get the imposed flow rate
-  double imposed_flow_rate = primary_mesh->get_periodic_flow_rate();
+  double imposed_periodic_flow_rate = primary_mesh->get_periodic_flow_rate();
 
-  // Correction
-  double kp = 1.e1;
-  //   double ki = 1.e-1, ks = 1.e0;
-  double old_ppd = primary_mesh->get_periodic_pressure_drop();
-  //    static double Ik = 0;
-  //    static double flow_rate_previoustime = 0 ;
-  //    static double ppd_previoustime = 0 ;
+  // Velocity correction and nominal flow rate
+  double per_vel = -t_it->time_step() / (density * periodic_length);
+  double nominal_flow_rate = per_vel * face_area;
 
-  //    double delta_ppd = kp * ( imposed_flow_rate - flow_rate ) + Ik ;
-  //    double new_ppd = old_ppd - delta_ppd ;
-  //    Ik = Ik + 0.1 * t_it->time_step() * ( ki * ( imposed_flow_rate - flow_rate )
-  //    	+ ks * ( delta_ppd - kp * ( imposed_flow_rate - flow_rate ) -Ik ) );
+  double delta_q = imposed_periodic_flow_rate - flow_rate;
 
-  double delta_ppd = kp * (imposed_flow_rate - flow_rate);
+  double ppd = delta_q / nominal_flow_rate;
 
-  double new_ppd = old_ppd - delta_ppd;
+  if (my_rank == is_master)
+    MAC::out() << "         Periodic pressure drop = " << MAC::doubleToString(ios::scientific, 14, ppd) << endl;
 
-  //    if ( t_it->iteration_number() == 1 )
-  //      new_ppd = - density * imposed_flow_rate * 4. / ( t_it->time_step() * 1. );
+  const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(ppd);
+}
 
-  const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(new_ppd);
-  //    MAC::out() << "Flow rate = " << flow_rate << endl;
-  //    MAC::out() << "Ppd = " << new_ppd << endl;
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::periodic_flow_rate_update(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: periodic_flow_rate_update");
 
-  string fr_filename = resultsDirectory + "/flowrate.dat";
-  MAC::out() << fr_filename << endl;
-  ofstream FILEOUT(fr_filename.c_str(), ios::app);
-  FILEOUT << t_it->time() << " " << new_ppd << " " << flow_rate << endl;
-  FILEOUT.close();
+  FV_Mesh const *primary_mesh = UU->primary_grid();
+  size_t periodic_flow_direction = primary_mesh->get_periodic_flow_direction();
+
+  // Area of boundary face perpendicular to periodic flow direction
+  double face_area =
+      primary_mesh->get_main_domain_boundary_perp_to_direction_measure(periodic_flow_direction);
+
+  // Length of domain in the periodic direction
+  double periodic_length =
+      UU->primary_grid()->get_main_domain_max_coordinate(
+          periodic_flow_direction) -
+      UU->primary_grid()->get_main_domain_min_coordinate(
+          periodic_flow_direction);
+
+  // Imposed flow rate
+  double imposed_periodic_flow_rate = primary_mesh->get_periodic_flow_rate();
+
+  // Velocity correction and nominal flow rate
+  double per_vel = -t_it->time_step() / (density * periodic_length);
+  double nominal_flow_rate = per_vel * face_area;
+
+  // Compute flow rate difference and updated pressure drop
+  string boundary_name = periodic_flow_direction == 0 ? "right" : periodic_flow_direction == 1 ? "top"
+                                                                                               : "front";
+  double delta_q = imposed_periodic_flow_rate - PAC_Misc::compute_flow_rate(UU, 0, boundary_name);
+
+  double ppd = delta_q / nominal_flow_rate;
+  if (my_rank == is_master)
+    MAC::out() << "Periodic pressure drop = " << MAC::doubleToString(ios::scientific, 14, ppd) << endl;
+  const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(ppd);
+
+  // Correct velocity field
+  UU->add_to_DOFs_value(periodic_flow_direction, 0, ppd * per_vel);
+  GLOBAL_EQ->initialize_velocity();
 }
 
 //---------------------------------------------------------------------------
@@ -1013,4 +1446,53 @@ void DLMFD_ProjectionNavierStokes::compute_and_print_divu_norm(void)
   if (my_rank == is_master)
     MAC::out() << "         Norm of div(u) on grid: L2 = " << div_velocity
                << "  Linf = " << max_divu << endl;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::compute_flow_rate(FV_TimeIterator const *t_it,
+                                                     bool check_restart)
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: compute_flow_rate");
+
+  static size_t flow_rate_counter = 0;
+
+  if (compute_flow_rate_on != "none")
+  {
+    if (!flow_rate_counter)
+    {
+      flow_rate = PAC_Misc::compute_flow_rate(UU, 0, compute_flow_rate_on);
+      if (my_rank == is_master)
+      {
+        MAC::out() << "         Flow rate through "
+                   << compute_flow_rate_on
+                   << " boundary = "
+                   << MAC::doubleToString(ios::scientific, 6, flow_rate)
+                   << endl;
+        string filename = resultsDirectory + "/" + "flowrate_" + compute_flow_rate_on + ".res";
+        if (check_restart)
+          GrainsExec::checkTime_outputFile(filename, t_it->time());
+        else
+        {
+          ofstream flfile(filename.c_str(), ios::app);
+          flfile << MAC::doubleToString(ios::scientific, 6, t_it->time())
+                 << " " << MAC::doubleToString(ios::scientific, 6, flow_rate) << endl;
+          flfile.close();
+        }
+      }
+    }
+    ++flow_rate_counter;
+    if (flow_rate_counter == flow_rate_frequency)
+      flow_rate_counter = 0;
+  }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_ProjectionNavierStokes::build_links_translation()
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL("DLMFD_ProjectionNavierStokes:: build_links_translation");
+
+  UU->create_transproj_interpolation();
+  PP->create_transproj_interpolation();
 }

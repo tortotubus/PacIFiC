@@ -15,7 +15,17 @@ DLMFD_AllRigidBodies::DLMFD_AllRigidBodies(size_t &dim,
                                            FV_DiscreteField *PP,
                                            double const critical_distance) : are_particles_fixed(are_particles_fixed_),
                                                                              v_AllSharedOnProcs(NULL),
-                                                                             l_AllSharedOnProcs(NULL)
+                                                                             l_AllSharedOnProcs(NULL),
+                                                                             output_x_velocity("yes"),
+                                                                             output_y_velocity("yes"),
+                                                                             output_z_velocity("yes"),
+                                                                             output_x_position("yes"),
+                                                                             output_y_position("yes"),
+                                                                             output_z_position("yes"),
+                                                                             output_x_omega("yes"),
+                                                                             output_y_omega("yes"),
+                                                                             output_z_omega("yes"),
+                                                                             output_orientation("no")
 //---------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_AllRigidBodies:: DLMFD_AllRigidBodies");
@@ -940,6 +950,488 @@ void DLMFD_AllRigidBodies::sum_DLM_hydrodynamic_force_output(const bool &b_resta
 }
 
 //---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::read_particles_outputs(MAC_ModuleExplorer const *exp)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::read_particles_outputs");
+
+   // Velocities & position output
+   if (exp->has_entry("Output_X_velocity"))
+      output_x_velocity = exp->string_data("Output_X_velocity");
+   if (output_x_velocity != "yes" && output_x_velocity != "no" && output_x_velocity != "mean" && output_x_velocity != "all")
+      output_x_velocity = "yes";
+
+   if (exp->has_entry("Output_Y_velocity"))
+      output_y_velocity = exp->string_data("Output_Y_velocity");
+   if (output_y_velocity != "yes" && output_y_velocity != "no" && output_y_velocity != "mean" && output_y_velocity != "all")
+      output_y_velocity = "yes";
+
+   if (exp->has_entry("Output_Z_velocity"))
+      output_z_velocity = exp->string_data("Output_Z_velocity");
+   if (output_z_velocity != "yes" && output_z_velocity != "no" && output_z_velocity != "mean" && output_z_velocity != "all")
+      output_z_velocity = "yes";
+
+   if (exp->has_entry("Output_X_position"))
+      output_x_position = exp->string_data("Output_X_position");
+   if (output_x_position != "yes" && output_x_position != "no" && output_x_position != "mean" && output_x_position != "all")
+      output_x_position = "yes";
+
+   if (exp->has_entry("Output_Y_position"))
+      output_y_position = exp->string_data("Output_Y_position");
+   if (output_y_position != "yes" && output_y_position != "no" && output_y_position != "mean" && output_y_position != "all")
+      output_y_position = "yes";
+
+   if (exp->has_entry("Output_Z_position"))
+      output_z_position = exp->string_data("Output_Z_position");
+   if (output_z_position != "yes" && output_z_position != "no" && output_z_position != "mean" && output_z_position != "all")
+      output_z_position = "yes";
+
+   if (exp->has_entry("Output_X_Omega"))
+      output_x_omega = exp->string_data("Output_X_Omega");
+   if (output_x_omega != "yes" && output_x_omega != "no" && output_x_omega != "mean" && output_x_omega != "all")
+      output_x_omega = "yes";
+
+   if (exp->has_entry("Output_Y_Omega"))
+      output_y_omega = exp->string_data("Output_Y_Omega");
+   if (output_y_omega != "yes" && output_y_omega != "no" && output_y_omega != "mean" && output_y_omega != "all")
+      output_y_omega = "yes";
+
+   if (exp->has_entry("Output_Z_Omega"))
+      output_z_omega = exp->string_data("Output_Z_Omega");
+   if (output_z_omega != "yes" && output_z_omega != "no" && output_z_omega != "mean" && output_z_omega != "all")
+      output_z_omega = "yes";
+
+   // Orientation output
+   if (exp->has_entry("Output_orientation"))
+      output_orientation = exp->string_data("Output_orientation");
+   if (output_orientation != "yes" && output_orientation != "no" && output_orientation != "mean" && output_orientation != "all")
+      output_orientation = "no";
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::particles_features_output(const string &path_name,
+                                                     const bool &b_restart,
+                                                     const double &time) const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::particles_features_output");
+
+   string file_name;
+   size_t i, m;
+   static size_t counter = 0;
+   static size_t restart_counter = 0;
+   restart_counter += !b_restart;
+   double mean_value = 0., max_value = -1.e20, min_value = 1.e20, val = 0.,
+          rms = 0.;
+
+   if (counter == 0 && restart_counter)
+   {
+      /* x velocity file
+      ------------------*/
+      if (output_x_velocity != "no")
+      {
+         file_name = path_name + "x-velocity_time.res";
+         ofstream xvf(file_name.c_str(), ios::app);
+         xvf.setf(ios::scientific, ios::floatfield);
+         xvf.precision(6);
+         xvf << time;
+         if (output_x_velocity == "yes" || output_x_velocity == "all")
+            for (i = 0; i < RBs_number; i++)
+               xvf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(0);
+         if (output_x_velocity == "all" || output_x_velocity == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(0);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(0) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            xvf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         xvf << endl;
+         xvf.close();
+      }
+
+      /* y velocity file
+      ------------------*/
+      if (output_y_velocity != "no")
+      {
+         file_name = path_name + "y-velocity_time.res";
+         ofstream yvf(file_name.c_str(), ios::app);
+         yvf.setf(ios::scientific, ios::floatfield);
+         yvf.precision(6);
+         yvf << time;
+         if (output_y_velocity == "yes" || output_y_velocity == "all")
+            for (i = 0; i < RBs_number; i++)
+               yvf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(1);
+         if (output_y_velocity == "all" || output_y_velocity == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(1);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(1) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            yvf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         yvf << endl;
+         yvf.close();
+      }
+
+      /* z velocity file
+      ------------------*/
+      if (output_z_velocity != "no")
+      {
+         file_name = path_name + "z-velocity_time.res";
+         ofstream zvf(file_name.c_str(), ios::app);
+         zvf.setf(ios::scientific, ios::floatfield);
+         zvf.precision(6);
+         zvf << time;
+         if (output_z_velocity == "yes" || output_z_velocity == "all")
+            for (i = 0; i < RBs_number; i++)
+               zvf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(2);
+         if (output_z_velocity == "all" || output_z_velocity == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(2);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_translational_velocity()(2) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            zvf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         zvf << endl;
+         zvf.close();
+      }
+
+      /* x angular velocity file
+      --------------------------*/
+      if (output_x_omega != "no")
+      {
+         file_name = path_name + "x-omega_time.res";
+         ofstream xomf(file_name.c_str(), ios::app);
+         xomf.setf(ios::scientific, ios::floatfield);
+         xomf.precision(6);
+         xomf << time;
+         if (output_x_omega == "yes" || output_x_omega == "all")
+            for (i = 0; i < RBs_number; i++)
+               xomf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(0);
+         if (output_x_omega == "all" || output_x_omega == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(0);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(0) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            xomf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         xomf << endl;
+         xomf.close();
+      }
+
+      /* y angular velocity file
+      --------------------------*/
+      if (output_y_omega != "no")
+      {
+         file_name = path_name + "y-omega_time.res";
+         ofstream yomf(file_name.c_str(), ios::app);
+         yomf.setf(ios::scientific, ios::floatfield);
+         yomf.precision(6);
+         yomf << time;
+         if (output_y_omega == "yes" || output_y_omega == "all")
+            for (i = 0; i < RBs_number; i++)
+               yomf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(1);
+         if (output_y_omega == "all" || output_y_omega == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(1);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(1) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            yomf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         yomf << endl;
+         yomf.close();
+      }
+
+      /* z angular velocity file
+      ------------------------*/
+      if (output_z_omega != "no")
+      {
+         file_name = path_name + "z-omega_time.res";
+         ofstream zomf(file_name.c_str(), ios::app);
+         zomf.setf(ios::scientific, ios::floatfield);
+         zomf.precision(6);
+         zomf << time;
+         if (output_z_omega == "yes" || output_z_omega == "all")
+            for (i = 0; i < RBs_number; i++)
+               zomf << " " << vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(2);
+         if (output_z_omega == "all" || output_z_omega == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(2);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow(vec_ptr_DLMFDallrigidbodies[i]->get_angular_velocity_3D()(2) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            zomf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         zomf << endl;
+         zomf.close();
+      }
+
+      /* x position file
+      ------------------*/
+      if (output_x_position != "no")
+      {
+         file_name = path_name + "x-position_time.res";
+         ofstream xpf(file_name.c_str(), ios::app);
+         xpf.setf(ios::scientific, ios::floatfield);
+         xpf.precision(6);
+         xpf << time;
+         if (output_x_position == "yes" || output_x_position == "all")
+            for (i = 0; i < RBs_number; i++)
+               xpf << " " << (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(0);
+         if (output_x_position == "all" || output_x_position == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(0);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow((*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(0) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            xpf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         xpf << endl;
+         xpf.close();
+      }
+
+      /* y position file
+      ------------------*/
+      if (output_y_position != "no")
+      {
+         file_name = path_name + "y-position_time.res";
+         ofstream ypf(file_name.c_str(), ios::app);
+         ypf.setf(ios::scientific, ios::floatfield);
+         ypf.precision(6);
+         ypf << time;
+         if (output_y_position == "yes" || output_y_position == "all")
+            for (i = 0; i < RBs_number; i++)
+               ypf << " " << (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(1);
+         if (output_y_position == "all" || output_y_position == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(1);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow((*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(1) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            ypf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         ypf << endl;
+         ypf.close();
+      }
+
+      /* z position file
+      ------------------*/
+      if (output_z_position != "no")
+      {
+         file_name = path_name + "z-position_time.res";
+         ofstream zpf(file_name.c_str(), ios::app);
+         zpf.setf(ios::scientific, ios::floatfield);
+         zpf.precision(6);
+         zpf << time;
+         if (output_z_position == "yes" || output_z_position == "all")
+            for (i = 0; i < RBs_number; i++)
+               zpf << " " << (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(2);
+         if (output_z_position == "all" || output_z_position == "mean")
+         {
+            mean_value = 0.;
+            max_value = -1.e20;
+            min_value = 1.e20;
+            for (i = 0; i < RBs_number; i++)
+            {
+               val = (*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(2);
+               mean_value += val;
+               max_value = max(max_value, val);
+               min_value = min(min_value, val);
+            }
+            rms = 0.;
+            mean_value /= RBs_number;
+            for (i = 0; i < RBs_number; i++)
+               rms += pow((*vec_ptr_DLMFDallrigidbodies[i]->get_ptr_to_gravity_centre())(2) - mean_value, 2.);
+            rms = sqrt(rms / RBs_number);
+            zpf << " " << mean_value << " " << min_value << " " << max_value << " " << rms;
+         }
+         zpf << endl;
+         zpf.close();
+      }
+
+      /* Orientation files
+      --------------------*/
+      if (output_orientation != "no")
+      {
+         file_name = path_name + "x-orientation_time.res";
+         ofstream xof(file_name.c_str(), ios::app);
+         xof.setf(ios::scientific, ios::floatfield);
+         xof.precision(6);
+         xof << time;
+
+         file_name = path_name + "y-orientation_time.res";
+         ofstream yof(file_name.c_str(), ios::app);
+         yof.setf(ios::scientific, ios::floatfield);
+         yof.precision(6);
+         yof << time;
+
+         file_name = path_name + "z-orientation_time.res";
+         ofstream zof(file_name.c_str(), ios::app);
+         zof.setf(ios::scientific, ios::floatfield);
+         zof.precision(6);
+         zof << time;
+
+         geomVector vorientation(dim);
+         geomVector vmean_value(dim), vmax_value(dim), vmin_value(dim);
+         for (m = 0; m < dim; ++m)
+         {
+            vmean_value(m) = 0.;
+            vmax_value(m) = -1.e20;
+            vmin_value(m) = 1.e20;
+         }
+
+         for (i = 0; i < RBs_number; i++)
+         {
+            vorientation = vec_ptr_DLMFDallrigidbodies[i]->particle_orientation_vector();
+            if (output_orientation == "yes" || output_orientation == "all")
+            {
+               xof << " " << vorientation(0);
+               yof << " " << vorientation(1);
+               zof << " " << vorientation(2);
+            }
+
+            if (output_orientation == "all" || output_orientation == "mean")
+            {
+               for (m = 0; m < dim; ++m)
+               {
+                  vmean_value(m) += vorientation(m);
+                  vmax_value(m) = max(vmax_value(m), vorientation(m));
+                  vmin_value(m) = min(vmin_value(m), vorientation(m));
+               }
+            }
+         }
+
+         if (output_orientation == "all" || output_orientation == "mean")
+         {
+            geomVector vrms(dim);
+            for (m = 0; m < dim; ++m)
+               vrms(m) = 0.;
+            for (i = 0; i < RBs_number; i++)
+            {
+               vorientation = vec_ptr_DLMFDallrigidbodies[i]->particle_orientation_vector();
+               for (m = 0; m < dim; ++m)
+                  vrms(m) += pow(vorientation(m) - vmean_value(m), 2.);
+            }
+
+            for (m = 0; m < dim; ++m)
+               vrms(m) = sqrt(vrms(m) / RBs_number);
+
+            xof << " " << vmean_value(0) << " " << vmin_value(0) << " "
+                << vmax_value(0) << " " << vrms(0);
+            yof << " " << vmean_value(1) << " " << vmin_value(1) << " "
+                << vmax_value(1) << " " << vrms(1);
+            zof << " " << vmean_value(2) << " " << vmin_value(2) << " "
+                << vmax_value(2) << " " << vrms(2);
+         }
+
+         xof << endl;
+         xof.close();
+         yof << endl;
+         yof.close();
+         zof << endl;
+         zof.close();
+      }
+   }
+
+   ++counter;
+   if (counter == output_frequency)
+      counter = 0;
+   ++restart_counter;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::nullify_all_Uzawa_vectors()
 //---------------------------------------------------------------------------
 {
@@ -1211,4 +1703,32 @@ void DLMFD_AllRigidBodies::allocate_translational_angular_velocity_array()
       translational_velocity_nm1 = new doubleArray2D(particles_number, dim);
       angular_velocity_3D_nm1 = new doubleArray2D(particles_number, dim);
    }
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_AllRigidBodies::compute_minimum_distance_to_bottom(const double &coordinate, const size_t &direction) const
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::compute_minimum_distance_to_bottom");
+
+   double minimum_distance = 1e20, distance;
+
+   for (size_t j = 0; j < RBs_number; j++)
+   {
+      distance = vec_ptr_DLMFDallrigidbodies[j]->compute_distance_to_bottom(coordinate, direction);
+      minimum_distance = distance < minimum_distance ? distance : minimum_distance;
+   }
+
+   return minimum_distance;
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_AllRigidBodies::translate_geometricBoundaries(const geomVector &translation_vector,
+                                                         const size_t &translation_direction)
+//---------------------------------------------------------------------------
+{
+   MAC_LABEL("DLMFD_AllRigidBodies::translate_geometricBoundaries");
+
+   if (GeoBoundaries)
+      GeoBoundaries->translate(translation_vector, translation_direction);
 }

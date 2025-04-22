@@ -720,35 +720,6 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
 {
     MAC_LABEL("DLMFD_RigidBody::check_allocation_DLMFD_Cvectors");
 
-    // if (ndof)
-    // {
-    //     if (NDOF_comp)
-    //         delete[] NDOF_comp;
-    //     if (NDOF_leverage)
-    //         delete[] NDOF_leverage;
-    //     if (NDOF_nfieldUNK)
-    //         delete[] NDOF_nfieldUNK;
-
-    //     NDOF_comp = new size_t[ndof];
-    //     NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof];
-    //     NDOF_nfieldUNK = new size_t[ndof];
-
-    //     if (NDOF_globalpos)
-    //         delete[] NDOF_globalpos;
-    //     if (NDOF_deltaOmega)
-    //         delete[] NDOF_deltaOmega;
-    //     if (NDOF_FVTriplet)
-    //         delete[] NDOF_FVTriplet;
-
-    //     NDOF_globalpos = new size_t[ntotal_fieldunk];
-    //     NDOF_deltaOmega = new double[ntotal_fieldunk];
-    //     NDOF_FVTriplet = new size_t[3 * ntotal_fieldunk];
-
-    //     cout << "ntotal_fieldunk print    " << ntotal_fieldunk << endl;
-    // }
-
-    // Filomène
-
     if (ndof)
     {
         // If vectors are too small or over-sized -> re-allocate
@@ -1470,7 +1441,7 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
             {
                 f << text2write_before;
                 for (size_t index = 0; index < dim; index++)
-                    f << (*imp)->get_oneCoordinate(index) << "\t";
+                    f << (*imp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
                 f << text2write_after << endl;
             }
 
@@ -1481,9 +1452,29 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
         {
             f << text2write_before;
             for (size_t index = 0; index < dim; index++)
-                f << (*bmp)->get_oneCoordinate(index) << "\t";
+                f << (*bmp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
             f << text2write_after << endl;
         }
+}
+
+//---------------------------------------------------------------------------
+double DLMFD_RigidBody::compute_distance_to_bottom(const double &coordinate, const size_t &direction) const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: compute_distance_to_bottom");
+
+    return (fabs(gravity_center(direction) - coordinate));
+}
+
+//---------------------------------------------------------------------------
+geomVector DLMFD_RigidBody::particle_orientation_vector() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody:: particle_orientation_vector");
+
+    geomVector zero(gravity_center.getVecSize());
+
+    return zero;
 }
 
 //---------------------------------------------------------------------------
@@ -1674,7 +1665,7 @@ void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f, double co
     double alpha = fluidsolid_coupling_factor;
     double coeff = timestep / alpha;
 
-    if (component_type != "O")
+    if (component_type != "O" && component_type != "PO")
     {
         t_tran = q_tran * (coeff / mass);
 
@@ -1789,7 +1780,6 @@ void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
                                                                NDOF_FVTriplet[m + 2],
                                                                comp,
                                                                0);
-
             ++l;
             m += 3;
         }

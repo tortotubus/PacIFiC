@@ -420,7 +420,7 @@ void FS_RigidBody:: update_RB_position_and_velocity(geomVector const& pos,
 
 
 //---------------------------------------------------------------------------
-vector<geomVector> const* FS_RigidBody:: get_ptr_to_periodic_directions() const
+vector<geomVector> * FS_RigidBody:: get_ptr_to_periodic_directions() const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "FS_RigidBody:: get_ptr_to_periodic_directions" ) ;

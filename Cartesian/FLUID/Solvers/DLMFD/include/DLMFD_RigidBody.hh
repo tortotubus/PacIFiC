@@ -329,6 +329,10 @@ public: //-----------------------------------------------------------------
     @param newg new gravity center */
     virtual void translateGeometricFeatures(geomVector const &newg) = 0;
 
+    double compute_distance_to_bottom(const double &coordinate, const size_t &direction) const;
+
+    virtual geomVector particle_orientation_vector() const;
+
     //@}
 
     //-- Clear methods

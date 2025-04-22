@@ -74,7 +74,7 @@ void DLMFD_GeneralPolyhedron::set_all_MAC(FV_DiscreteField *pField, double criti
 
     FV_Mesh const *primary_grid = pField->primary_grid();
 
-    if (component_type == "O")
+    if (component_type == "O" || component_type == "PO")
     {
         if (g2 == NULL)
             g2 = new geomVector(3);
@@ -601,6 +601,8 @@ bool DLMFD_GeneralPolyhedron::isIn(const geomVector &point) const
 
     bool inSolid = false;
 
+    bool is_an_obstacle = component_type == "O" || component_type == "PO";
+
     // The particle is a tetrahedron
     if (corners.size() == 4 && facesVec.size() == 4)
         inSolid = checkPointInTetrahedron(corners[0], corners[1], corners[2], corners[3], point);
@@ -617,7 +619,7 @@ bool DLMFD_GeneralPolyhedron::isIn(const geomVector &point) const
                 if (checkPointInTetrahedron(corners[(*faceIter)[0]],
                                             corners[(*faceIter)[1]],
                                             corners[(*faceIter)[2]],
-                                            component_type == "O" ? *g2 : gravity_center,
+                                            is_an_obstacle ? *g2 : gravity_center,
                                             point))
                     inSolid = true;
             }
@@ -627,7 +629,7 @@ bool DLMFD_GeneralPolyhedron::isIn(const geomVector &point) const
                     if (checkPointInTetrahedron(corners[(*faceIter)[0]],
                                                 corners[(*faceIter)[idxPts - 1]],
                                                 corners[(*faceIter)[idxPts]],
-                                                component_type == "O" ? *g2 : gravity_center,
+                                                is_an_obstacle ? *g2 : gravity_center,
                                                 point))
                         inSolid = true;
             }

@@ -197,6 +197,12 @@ public: //-----------------------------------------------------------------
     @param nothing File name */
     void sum_DLM_hydrodynamic_force_output(const bool &b_restart);
 
+    void read_particles_outputs(MAC_ModuleExplorer const *exp);
+
+    void particles_features_output(const string &path_name,
+                                   const bool &b_restart,
+                                   const double &time) const;
+
     //@}
 
     // -- DLMFD solving methods
@@ -272,6 +278,17 @@ public: //-----------------------------------------------------------------
 
     //@}
 
+    // -- Geometric methods
+    /** @name Geometric methods */
+    //@{
+
+    double compute_minimum_distance_to_bottom(const double &coordinate, const size_t &direction) const;
+
+    void translate_geometricBoundaries(const geomVector &translation_vector,
+                                       const size_t &translation_direction);
+
+    //@}
+
 protected: //----------------------------------------------------------------
     bool b_output_hydro_forceTorque;
     bool are_particles_fixed;
@@ -302,6 +319,17 @@ private: //----------------------------------------------------------------
     list<int> *l_AllSharedOnProcs;             /**< list, stored on master process, of ids
                                               of solid component shared on all processes, except those which are
                                               shared by master */
+
+    string output_x_velocity;  /**< X-velocity output type: yes, no, mean or all */
+    string output_y_velocity;  /**< Y-velocity output type: yes, no, mean or all */
+    string output_z_velocity;  /**< Z-velocity output type: yes, no, mean or all */
+    string output_x_position;  /**< X-position output type: yes, no, mean or all */
+    string output_y_position;  /**< Y-position output type: yes, no, mean or all */
+    string output_z_position;  /**< Z-position output type: yes, no, mean or all */
+    string output_x_omega;     /**< X-Omega output type: yes, no, mean or all */
+    string output_y_omega;     /**< Y-Omega output type: yes, no, mean or all */
+    string output_z_omega;     /**< Z-Omega output type: yes, no, mean or all */
+    string output_orientation; /**< Orientation output type: yes, no, mean or all */
 
     doubleArray2D *translational_velocity_nm1; /**< array containing the
     translational velocity of all particules at previous time */

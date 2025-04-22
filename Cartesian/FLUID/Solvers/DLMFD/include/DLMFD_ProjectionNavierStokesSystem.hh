@@ -121,6 +121,36 @@ public: //-----------------------------------------------------------
    LA_Vector *get_unitary_periodic_pressure_drop_vector(void);
    //@}
 
+   /** @name Translation projection from peligriff */
+   //@{
+
+   void set_velocity_unknown(size_t i_row, double xx);
+
+   void set_pressure_unknown(size_t i_row, double xx);
+
+   void synchronize_velocity_unknown_vector();
+
+   void synchronize_pressure_unknown_vector();
+
+   void nullify_DLMFD_Nm1_rhs();
+
+   void set_rhs_DLMFD_Nm1(size_t i_row, double xx);
+
+   LA_SeqVector const *get_rhs_DLMFD_Nm1();
+
+   void synchronize_rhs_DLMFD_Nm1_vector();
+
+   //@}
+
+   void synchronize_rhs_periodic_pressure_vector();
+
+   /** @name Set */
+   //@{
+
+   void set_periodic_pressure_rhs_item(size_t i_row, double xx);
+
+   //@}
+
    //-- Basic operations on matrices & vectors
 
    /** @name Basic operations on matrices & vectors */
@@ -334,6 +364,9 @@ private:   //----------------------------------------------------------
    // Periodic pressure drop rhs for dp/dl = 1
    LA_Vector *VEC_rhs_A_UnitaryPeriodicPressureGradient;
 
+   // Periodic pressure rhs
+   LA_Vector *VEC_rhs_A_PeriodicPressure;
+
    // Work vectors
    LA_Vector *VEC_q;
    LA_Vector *VEC_t;
@@ -362,6 +395,7 @@ private:   //----------------------------------------------------------
    bool b_ExplicitPressureGradient;
    bool b_HighOrderPressureCorrection;
    bool b_NS_ExplicitDLMFD;
+   bool b_NS_pressure_drop_each_time;
 
    // Uzawa algorithm
    double Uzawa_DLMFD_precision;

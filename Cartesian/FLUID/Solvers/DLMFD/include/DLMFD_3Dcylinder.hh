@@ -92,6 +92,8 @@ public: //------------------------------------------------------------------
     @param newg new gravity center */
     void translateGeometricFeatures(geomVector const &newg);
 
+    geomVector particle_orientation_vector() const;
+
     //@}
 
     //-- Add methods

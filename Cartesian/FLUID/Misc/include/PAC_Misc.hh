@@ -2,6 +2,7 @@
 #define PAC_MISC_HH
 
 #include <MAC.hh>
+#include <MAC_ModuleExplorer.hh>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -32,6 +33,15 @@ class PAC_Misc
       @param boundary_name boundary name */
       static double compute_flow_rate( FV_DiscreteField const* FF,
       	size_t level, string const& boundary_name );
+
+      /** @brief Check whether boundary name corresponds to a primary main boundary
+      @param boundary_name Boundary name 
+      @param dim Dimension      
+      @param message Message
+      @param exp Module explorer */
+      static bool is_main_boundary( string const& boundary_name, 
+      	            const size_t& dim, string const& message,
+	                  MAC_ModuleExplorer const* exp );
 	
       /** @ brief Clear results and restart directories in case of a new run */
       static void clearAllFiles( string const& resultsDirectory,

@@ -66,7 +66,7 @@ class FS_RigidBody
       geomVector const* get_ptr_to_gravity_centre() const;
 
       /** @brief Returns a constant pointer to the periodic clones of RB */
-      vector<geomVector> const* get_ptr_to_periodic_directions() const;
+      vector<geomVector> * get_ptr_to_periodic_directions() const;
 
       /** @brief Returns circumscribed radius of RB */
       double get_circumscribed_radius() const;
