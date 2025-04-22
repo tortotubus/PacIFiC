@@ -5,7 +5,7 @@
 #include <DLMFD_BoundaryMultiplierPoint.hh>
 #include <DLMFD_GeomBoundary.hh>
 #include <DLMFD_InteriorMultiplierPoint.hh>
-#include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_System.hh>
 #include <FS_RigidBody.hh>
 #include <doubleVector.hh>
 #include <geomVector.hh>
@@ -425,7 +425,7 @@ class DLMFD_RigidBody
     @param GLOBAL_EQ Global velocity-pressure matrix system
     @param init True for initialization step of Uzawa algorithm, false
     otherwise */
-    void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+    void compute_fluid_rhs(DLMFD_System *GLOBAL_EQ,
                            bool init);
 
     /** @brief Compute residuals x=<alpha,tu-(tU+tomega^GM)>_P */
@@ -456,7 +456,7 @@ class DLMFD_RigidBody
     false for boundary points only
     @param pField Constrained field */
     void
-    compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+    compute_fluid_DLMFD_explicit(DLMFD_System *GLOBAL_EQ,
                                  bool bulk, FV_DiscreteField *pField);
 
     /** @brief Fill a multiplier point infos

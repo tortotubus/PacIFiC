@@ -30,7 +30,7 @@ DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
                                        MAC_ModuleExplorer const *exp,
                                        FV_DiscreteField *mac_UF,
                                        FV_DiscreteField *mac_PF,
-                                       struct NS2System const &transfer)
+                                       bool &is_stressCal_)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: create");
@@ -38,7 +38,7 @@ DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
     MAC_CHECK_PRE(mac_UF != 0);
 
     DLMFD_DirectionSplittingSystem *result =
-        new DLMFD_DirectionSplittingSystem(a_owner, exp, mac_UF, mac_PF, transfer);
+        new DLMFD_DirectionSplittingSystem(a_owner, exp, mac_UF, mac_PF, is_stressCal_);
 
     MAC_CHECK_POST(result != 0);
     MAC_CHECK_POST(result->owner() == a_owner);
@@ -52,9 +52,24 @@ DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplittingSystem(
     MAC_ModuleExplorer const *exp,
     FV_DiscreteField *mac_UF,
     FV_DiscreteField *mac_PF,
-    struct NS2System const &fromNS)
+    bool &is_stressCal_)
     //----------------------------------------------------------------------
-    : MAC_Object(a_owner), UF(mac_UF), PF(mac_PF), MAT_velocityUnsteadyPlusDiffusion_1D(0), is_solids(fromNS.is_solids_), is_stressCal(fromNS.is_stressCal_)
+    : MAC_Object(a_owner),
+      DLMFD_System(a_owner,
+                   exp,
+                   mac_UF,
+                   mac_PF,
+                   0,
+                   0,
+                   false,
+                   false,
+                   false,
+                   is_stressCal_),
+      UF(mac_UF),
+      PF(mac_PF),
+      MAT_velocityUnsteadyPlusDiffusion_1D(0),
+      is_solids(false),
+      is_stressCal(is_stressCal_)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplittingSystem");
 

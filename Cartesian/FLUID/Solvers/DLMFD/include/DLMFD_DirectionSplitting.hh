@@ -87,11 +87,13 @@ public: //-----------------------------------------------------------------
 
 protected: //--------------------------------------------------------------
 private:   //----------------------------------------------------------------
-           //-- Constructors & Destructor
+    static DLMFD_DirectionSplitting const *PROTOTYPE;
+
+    //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
     /** @brief Destructor */
-    virtual ~DLMFD_DirectionSplitting(void);
+    virtual ~DLMFD_DirectionSplitting();
 
     /** @brief Copy constructor */
     DLMFD_DirectionSplitting(DLMFD_DirectionSplitting const &other);
@@ -104,7 +106,7 @@ private:   //----------------------------------------------------------------
                              MAC_ModuleExplorer const *exp);
 
     /** @brief Constructor without argument */
-    DLMFD_DirectionSplitting(void);
+    DLMFD_DirectionSplitting();
 
     /** @brief Create a clone
     @param a_owner the MAC-based object
@@ -291,6 +293,9 @@ private: //----------------------------------------------------------------
     DLMFD_DirectionSplittingSystem *GLOBAL_EQ;
     DS_PID *controller;
 
+    size_t sub_prob_number;
+    double imposed_CFL;
+
     size_t nb_procs;
     size_t my_rank;
     size_t is_master;
@@ -332,6 +337,12 @@ private: //----------------------------------------------------------------
     // Grid motion
     bool b_projection_translation;
     int outOfDomain_boundaryID;
+    FV_Mesh const *primary_grid;
+    double critical_distance_translation;
+    geomVector MVQ_translation_vector;
+    size_t translation_direction;
+    double bottom_coordinate;
+    double translated_distance;
 
     double Qold;
 

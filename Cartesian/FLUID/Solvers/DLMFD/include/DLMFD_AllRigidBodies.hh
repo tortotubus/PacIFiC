@@ -10,6 +10,7 @@
 #include <doubleArray2D.hh>
 #include <size_t_array2D.hh>
 #include <size_t_vector.hh>
+#include <DLMFD_System.hh>
 using namespace std;
 
 /** @brief The class DLMFD_AllRigidBodies.
@@ -258,7 +259,7 @@ class DLMFD_AllRigidBodies
     global matrix system
     @param GLOBAL_EQ Linear system object
     @param init True if very first Uzawa iteration */
-    void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+    void compute_fluid_rhs(DLMFD_System *GLOBAL_EQ,
                            bool init);
 
     /** @brief Compute residuals x=<alpha,tu-(tU+tomega^GM)>_P */
@@ -286,7 +287,7 @@ class DLMFD_AllRigidBodies
 
     /** @brief Compute the momentum equations right hand side <w,v>_P */
     void
-    compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+    compute_fluid_DLMFD_explicit(DLMFD_System *GLOBAL_EQ,
                                  bool bulk);
 
     //@}

@@ -25,6 +25,16 @@
 #include <math.h>
 #include <algorithm>
 
+DLMFD_DirectionSplitting const *DLMFD_DirectionSplitting::PROTOTYPE = new DLMFD_DirectionSplitting();
+
+//---------------------------------------------------------------------------
+DLMFD_DirectionSplitting::DLMFD_DirectionSplitting()
+    //--------------------------------------------------------------------------
+    : FV_OneStepIteration("DLMFD_DirectionSplitting"), PAC_ComputingTime("Solver")
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: DLMFD_DirectionSplitting");
+}
+
 //---------------------------------------------------------------------------
 DLMFD_DirectionSplitting *
 DLMFD_DirectionSplitting::create_replica(MAC_Object *a_owner,
@@ -51,25 +61,31 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
       PAC_ComputingTime("Solver"),
       UF(dom->discrete_field("velocity")),
       PF(dom->discrete_field("pressure")),
+      imposed_CFL(0.5),
       GLOBAL_EQ(0),
-      mu(0.),
-      kai(0.),
-      AdvectionScheme(""),
+      rho(1.),
+      mu(1.),
+      kai(1.),
+      AdvectionScheme("TVD"),
       resultsDirectory("Res"),
-      StencilCorrection(""),
+      StencilCorrection("FD"),
       is_CConlyDivergence(false),
-      FluxRedistThres(0.),
-      AdvectionTimeAccuracy(0),
-      rho(0.),
+      FluxRedistThres(0.5),
+      AdvectionTimeAccuracy(1),
       b_restart(false),
       is_solids(false),
       is_stressCal(false),
-      ViscousStressOrder(""),
-      PressureStressOrder(""),
-      stressCalFreq(0),
+      ViscousStressOrder("second"),
+      PressureStressOrder("first"),
+      stressCalFreq(1),
       is_par_motion(false),
       b_projection_translation(dom->primary_grid()->is_translation_active()),
       outOfDomain_boundaryID(0),
+      primary_grid(dom->primary_grid()),
+      critical_distance_translation(0.),
+      translation_direction(0),
+      bottom_coordinate(0.),
+      translated_distance(0.),
       gravity_vector(0),
       exceed(false),
       turn(false)
@@ -89,12 +105,92 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         MAC_ASSERT(UF->storage_depth() == 5);
     }
 
+    // Is the run a follow up of a previous job
+    b_restart = MAC_Application::is_follow();
+
     // Call of MAC_Communicator routine to set the rank of each proces and
     // the number of processes during execution
     macCOMM = MAC_Exec::communicator();
     my_rank = macCOMM->rank();
     nb_procs = macCOMM->nb_ranks();
     is_master = 0;
+
+    // Imposed CFL
+    if (exp->has_entry("Imposed_CFL"))
+        imposed_CFL = exp->double_data("Imposed_CFL");
+
+    // Read Density
+    if (exp->has_entry("Density"))
+    {
+        rho = exp->double_data("Density");
+        exp->test_data("Density", "Density>0.");
+    }
+
+    // Read Viscosity
+    if (exp->has_entry("Viscosity"))
+    {
+        mu = exp->double_data("Viscosity");
+        exp->test_data("Viscosity", "Viscosity>0.");
+    }
+
+    // Read Kai
+    if (exp->has_entry("Kai"))
+    {
+        kai = exp->double_data("Kai");
+        exp->test_data("Kai", "Kai>=0.");
+    }
+
+    // Divergence scheme
+    if (exp->has_entry("StencilCorrection"))
+        StencilCorrection = exp->string_data("StencilCorrection");
+    if (StencilCorrection != "FD" && StencilCorrection != "CutCell")
+    {
+        string error_message = "   - FD\n   - CutCell";
+        MAC_Error::object()->raise_bad_data_value(exp,
+                                                  "StencilCorrection", error_message);
+    }
+
+    if ((StencilCorrection == "CutCell") && (exp->has_entry("CutCell_Only_Divergence")))
+        is_CConlyDivergence = exp->bool_data("CutCell_Only_Divergence");
+
+    if (exp->has_entry("FluxRedistributionThreshold"))
+        FluxRedistThres = exp->double_data("FluxRedistributionThreshold");
+
+    // Advection scheme
+    if (exp->has_entry("AdvectionScheme"))
+        AdvectionScheme = exp->string_data("AdvectionScheme");
+    if (AdvectionScheme != "Upwind" && AdvectionScheme != "TVD" && AdvectionScheme != "CenteredFD" && AdvectionScheme != "Centered")
+    {
+        string error_message =
+            "   - Upwind\n   - TVD\n   - CenteredFD\n   - Centered";
+        MAC_Error::object()->raise_bad_data_value(exp,
+                                                  "AdvectionScheme", error_message);
+    }
+
+    // Advection term time accuracy
+    if (exp->has_entry("AdvectionTimeAccuracy"))
+        AdvectionTimeAccuracy = exp->int_data("AdvectionTimeAccuracy");
+    if (AdvectionTimeAccuracy != 1 && AdvectionTimeAccuracy != 2)
+    {
+        string error_message = "   - 1\n   - 2\n   ";
+        MAC_Error::object()->raise_bad_data_value(exp,
+                                                  "AdvectionTimeAccuracy", error_message);
+    }
+
+    // Critical distance
+    if (dom->primary_grid()->is_translation_active())
+    {
+        if (exp->has_entry("Critical_Distance_Translation"))
+            critical_distance_translation = exp->double_data(
+                "Critical_Distance_Translation");
+        else
+        {
+            string error_message = " Projection-Translation is active but ";
+            error_message += "Critical_Distance_Translation is NOT defined.";
+            MAC_Error::object()->raise_bad_data_value(exp,
+                                                      "Projection_Translation", error_message);
+        }
+    }
 
     is_periodic[0][0] = false;
     is_periodic[0][1] = false;
@@ -162,7 +258,7 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
 
     // Build the matrix system
     MAC_ModuleExplorer *se = exp->create_subexplorer(0, "DLMFD_DirectionSplittingSystem");
-    GLOBAL_EQ = DLMFD_DirectionSplittingSystem::create(this, se, UF, PF, inputData);
+    GLOBAL_EQ = DLMFD_DirectionSplittingSystem::create(this, se, UF, PF, is_stressCal);
     se->destroy();
 
     if (UF->primary_grid()->is_periodic_flow_rate())
@@ -209,6 +305,7 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         SCT_insert_app("Pressure Update");
         SCT_insert_app("Viscous stress");
         SCT_insert_app("Pressure stress");
+        SCT_insert_app("FluidSolid_CorrectionStep");
         SCT_get_elapsed_time("Objects_Creation");
     }
 
@@ -281,6 +378,7 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_one_inner_iteration");
 
+    // Direction Splitting workflow
     if (my_rank == is_master)
         SCT_set_start("Pressure predictor");
     NS_first_step(t_it);
@@ -306,6 +404,15 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
         SCT_get_elapsed_time("Pressure Update");
 
     UF->copy_DOFs_value(0, 1);
+
+    // Fictitous Domain workflow
+    if (my_rank == is_master)
+        SCT_set_start("FluidSolid_CorrectionStep");
+
+    dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+
+    if (my_rank == is_master)
+        SCT_get_elapsed_time("FluidSolid_CorrectionStep");
 }
 
 //---------------------------------------------------------------------------
@@ -392,6 +499,8 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
 
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
+
+    dlmfd_solver->do_before_time_stepping(t_it);
 }
 
 //---------------------------------------------------------------------------
@@ -515,6 +624,45 @@ void DLMFD_DirectionSplitting::do_after_inner_iterations_stage(
        }
     */
 
+    dlmfd_solver->do_after_inner_iterations_stage(t_it);
+
+    // Projection translation
+    if (b_projection_translation)
+    {
+        double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
+
+        if (my_rank == is_master)
+            MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
+                       << endl;
+
+        if (distance_to_bottom < critical_distance_translation)
+        {
+
+            if (my_rank == is_master)
+                MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                           << endl
+                           << "         !!!     Domain Translation      !!!"
+                           << endl
+                           << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                           << endl;
+
+            translated_distance += MVQ_translation_vector(translation_direction);
+            if (my_rank == is_master)
+                MAC::out() << "         Translated distance = " << translated_distance << endl;
+
+            fields_projection();
+
+            dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
+
+            if (MVQ_translation_vector(translation_direction) < 0.)
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction](0);
+            else
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+        }
+    }
+
     double cfl = UF->compute_CFL(t_it, 0);
     if (my_rank == is_master)
         MAC::out() << "CFL: " << cfl << endl;
@@ -526,6 +674,8 @@ void DLMFD_DirectionSplitting::do_additional_savings(FV_TimeIterator const *t_it
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_additional_savings");
+
+    dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 
     GLOBAL_EQ->display_debug();
 }
@@ -1119,6 +1269,22 @@ void DLMFD_DirectionSplitting::NS_first_step(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_first_step");
+
+    sub_prob_number = 1;
+
+    // Compute CFL
+    double computed_CFL = UF->compute_CFL(t_it, 0);
+    size_t n_advection_subtimesteps = unsigned(computed_CFL / imposed_CFL) + 1;
+
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : NS_first_step" << endl;
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "CFL : imposed = " << imposed_CFL << " computed = "
+                   << computed_CFL << "  Nb of sub time steps = " << n_advection_subtimesteps << endl;
+    }
 
     size_t_vector min_unknown_index(3, 0);
     size_t_vector max_unknown_index(3, 0);
@@ -3140,6 +3306,8 @@ void DLMFD_DirectionSplitting::NS_velocity_update(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_velocity_update");
 
+    sub_prob_number += 1;
+
     double gamma = mu;
 
     assemble_DS_un_at_rhs(t_it, gamma);
@@ -3980,6 +4148,8 @@ void DLMFD_DirectionSplitting::NS_pressure_update(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_pressure_update");
 
+    sub_prob_number += 1;
+
     double gamma = mu / 2.0;
 
     Solve_i_in_jk(PF, t_it, 0, 1, 2, gamma, 1);
@@ -4015,6 +4185,8 @@ void DLMFD_DirectionSplitting::NS_final_step(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_final_step");
+
+    sub_prob_number += 1;
 
     size_t_vector min_unknown_index(3, 0);
     size_t_vector max_unknown_index(3, 0);

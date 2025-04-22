@@ -2005,7 +2005,7 @@ void DLMFD_RigidBody::setTVectors_constant()
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_fluid_rhs(
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init)
+    DLMFD_System *GLOBAL_EQ, bool init)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_fluid_rhs");
@@ -2178,7 +2178,7 @@ void DLMFD_RigidBody::update_w(const double &beta)
 }
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool bulk,
+    DLMFD_System *GLOBAL_EQ, bool bulk,
     FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {

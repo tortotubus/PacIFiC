@@ -1864,7 +1864,7 @@ void DLMFD_AllRigidBodies::solve_Particles_OneUzawaIter_Velocity(
 
 //---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::compute_fluid_rhs(
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init)
+    DLMFD_System *GLOBAL_EQ, bool init)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_AllRigidBodies:: compute_fluid_rhs");
@@ -1997,7 +1997,7 @@ void DLMFD_AllRigidBodies::update_w(const double &beta)
 
 //---------------------------------------------------------------------------
 void DLMFD_AllRigidBodies::compute_fluid_DLMFD_explicit(
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool bulk)
+    DLMFD_System *GLOBAL_EQ, bool bulk)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_AllRigidBodies::compute_fluid_DLMFD_explicit");

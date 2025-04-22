@@ -2,6 +2,7 @@
 #define REG_HEAT_EQUATION_SYSTEM_HH
 
 #include <MAC_Object.hh>
+#include <DLMFD_System.hh>
 #include <utility>
 #include <boolVector.hh>
 #include <size_t_array2D.hh>
@@ -82,7 +83,7 @@ Matrix systems for the resolution of the heat equation.
 
 @author A. Goyal - Pacific project 2022 */
 
-class DLMFD_DirectionSplittingSystem : public MAC_Object
+class DLMFD_DirectionSplittingSystem : public MAC_Object, public DLMFD_System
 {
 private: //----------------------------------------------------------
          //-- Constructors & Destructor
@@ -105,7 +106,7 @@ private: //----------------------------------------------------------
                                    MAC_ModuleExplorer const *exp,
                                    FV_DiscreteField *mac_UF,
                                    FV_DiscreteField *mac_PF,
-                                   struct NS2System const &fromNS);
+                                   bool &is_stressCal_);
     //@}
 
 public: //-----------------------------------------------------------
@@ -120,7 +121,7 @@ public: //-----------------------------------------------------------
                                                   MAC_ModuleExplorer const *exp,
                                                   FV_DiscreteField *mac_UF,
                                                   FV_DiscreteField *mac_PF,
-                                                  struct NS2System const &transfer);
+                                                  bool &is_stressCal_);
     //@}
 
     //-- Access

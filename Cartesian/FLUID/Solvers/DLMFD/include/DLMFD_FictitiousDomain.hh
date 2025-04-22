@@ -2,7 +2,6 @@
 #define DLMFD_FictitiousDomain_HH
 
 #include <DLMFD_AllRigidBodies.hh>
-#include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <FS_SolidPlugIn.hh>
 #include <FV_DomainAndFields.hh>
 #include <FV_TimeIterator.hh>
@@ -31,9 +30,9 @@ struct NavierStokes2FluidSolid
     geomVector gravity_vector;
     geomVector split_gravity_vector;
 
-    // Linear resolution
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ;
-    size_t velocitylevelDiscrField;
+   // Linear resolution
+   DLMFD_System *GLOBAL_EQ;
+   size_t velocitylevelDiscrField;
 
     // Booleans
     bool b_restart;
@@ -255,7 +254,7 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     FV_DiscreteField *UU;
     FV_DiscreteField *PP;
 
-    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ;
+   DLMFD_System *GLOBAL_EQ;
 
     // Physical Parameters
     size_t dim;
