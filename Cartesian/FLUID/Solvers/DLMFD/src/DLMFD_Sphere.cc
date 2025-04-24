@@ -2,6 +2,7 @@
 #include <DLMFD_RigidBody.hh>
 #include <DLMFD_InteriorMultiplierPoint.hh>
 #include <DLMFD_BoundaryMultiplierPoint.hh>
+#include <DLMFD_FictitiousDomain.hh>
 #include <FS_Sphere.hh>
 #include <math.h>
 #include <iostream>
@@ -112,7 +113,7 @@ void DLMFD_Sphere::set_boundary_points_list(FV_DiscreteField *pField, double cri
     MAC_LABEL("DLMFD_Sphere:: set_boundary_points_list");
 
     double pi = acos(-1.);
-    double spacing = critical_distance;
+    double spacing = DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef * critical_distance;
 
     FV_Mesh const *primary_grid = pField->primary_grid();
 
