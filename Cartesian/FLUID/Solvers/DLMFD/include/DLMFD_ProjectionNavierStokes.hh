@@ -262,6 +262,8 @@ private: //----------------------------------------------------------------
 
     // Restart
     bool b_restart;
+    string restartFileName_0;
+    string restartFileName_1;
     string explicitDLMFD_restartFilename_Prefix;
     string explicitDLMFD_restartFilename_Root;
     string explicitDLMFD_restartFilename;

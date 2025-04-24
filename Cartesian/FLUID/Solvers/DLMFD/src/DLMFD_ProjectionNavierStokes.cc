@@ -68,6 +68,8 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(MAC_Object *a_owner,
       density(exp->double_data("Density")),
       viscosity(exp->double_data("Viscosity")),
       imposed_CFL(0.5),
+      restartFileName_0("savingB"),
+      restartFileName_1("savingA"),
       AdvectionScheme("TVD"),
       resultsDirectory("Res"),
       ViscousTimeAccuracy(1),
@@ -561,6 +563,16 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
   MAC_LABEL("DLMFD_ProjectionNavierStokes:: do_additional_savings");
 
   start_total_timer("DLMFD_ProjectionNavierStokes:: do_additional_savings");
+
+  static size_t saving_counter = 2;
+
+  string current_saving_filename = restartFileName_1;
+  if (saving_counter == 0)
+    current_saving_filename = restartFileName_0;
+  size_t pos = current_saving_filename.rfind(".");
+  explicitDLMFD_restartFilename = explicitDLMFD_restartFilename_Root + current_saving_filename.substr(0, pos);
+  if (saving_counter < 2)
+    GLOBAL_EQ->do_additional_savings(explicitDLMFD_restartFilename);
 
   dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 

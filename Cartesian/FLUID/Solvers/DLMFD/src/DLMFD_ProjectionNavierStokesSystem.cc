@@ -610,6 +610,12 @@ void DLMFD_ProjectionNavierStokesSystem::add_storable_objects(
       VEC_rhs_VelocityAdvection_Nm2->set_name("UgradU_nm2");
       VECS_Storage->add_vector_to_store(VEC_rhs_VelocityAdvection_Nm2);
    }
+
+   if (b_NS_ExplicitDLMFD)
+   {
+      VEC_rhs_VelocityDLMFD_Nm1->set_name("ExplicitDLMFD_nm1");
+      VECS_Storage->add_vector_to_store(VEC_rhs_VelocityDLMFD_Nm1);
+   }
 }
 
 //----------------------------------------------------------------------
@@ -1047,59 +1053,59 @@ void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD(bool const
    VEC_rhs_VelocityDLMFD_Nm1 = MAT_A_VelocityUnsteady->create_vector(this);
    VEC_rhs_VelocityDLMFD_Nm1->re_initialize(UU->nb_global_unknowns());
 
-   // If DLM have been saved in a separate file
-   // Check that this file exists and read values from it in case of restart
-   if (restart)
-   {
-      MAC_Communicator const *pelCOMM = MAC_Exec::communicator();
-      size_t my_rank = pelCOMM->rank();
+   // // If DLM have been saved in a separate file
+   // // Check that this file exists and read values from it in case of restart
+   // if (restart)
+   // {
+   //    MAC_Communicator const *pelCOMM = MAC_Exec::communicator();
+   //    size_t my_rank = pelCOMM->rank();
 
-      ostringstream oss;
-      oss << rootfilename_dlm;
-      if (pelCOMM->nb_ranks() > 1)
-         oss << "_" << my_rank;
-      oss << ".pel";
+   //    ostringstream oss;
+   //    oss << rootfilename_dlm;
+   //    if (pelCOMM->nb_ranks() > 1)
+   //       oss << "_" << my_rank;
+   //    oss << ".mac";
 
-      ifstream fileIN(oss.str().c_str(), ios::in);
-      if (fileIN.is_open())
-      {
-         double xx = 0.;
-         for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
-         {
-            fileIN >> xx;
-            U_LOC->set_item(i, xx);
-         }
-         fileIN.close();
+   //    ifstream fileIN(oss.str().c_str(), ios::in);
+   //    if (fileIN.is_open())
+   //    {
+   //       double xx = 0.;
+   //       for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
+   //       {
+   //          fileIN >> xx;
+   //          U_LOC->set_item(i, xx);
+   //       }
+   //       fileIN.close();
 
-         UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
-         VEC_rhs_VelocityDLMFD_Nm1->synchronize();
-      }
-      else
-      {
-         oss << ".bin";
+   //       UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
+   //       VEC_rhs_VelocityDLMFD_Nm1->synchronize();
+   //    }
+   //    else
+   //    {
+   //       oss << ".bin";
 
-         ifstream fileINbin(oss.str().c_str(), ios::in | ios::binary);
-         if (fileINbin.is_open())
-         {
-            double xx = 0.;
-            for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
-            {
-               fileINbin.read(reinterpret_cast<char *>(&xx), sizeof(double));
-               U_LOC->set_item(i, xx);
-            }
-            fileINbin.close();
+   //       ifstream fileINbin(oss.str().c_str(), ios::in | ios::binary);
+   //       if (fileINbin.is_open())
+   //       {
+   //          double xx = 0.;
+   //          for (size_t i = 0; i < U_LOC->nb_rows(); ++i)
+   //          {
+   //             fileINbin.read(reinterpret_cast<char *>(&xx), sizeof(double));
+   //             U_LOC->set_item(i, xx);
+   //          }
+   //          fileINbin.close();
 
-            UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
-            VEC_rhs_VelocityDLMFD_Nm1->synchronize();
-         }
-         else
-            MAC::out() << "Warning : explicit DLM restart file " << oss.str().c_str() << " does not exist on proc " << my_rank << endl;
-      }
+   //          UU_NUM->scatter()->set(U_LOC, VEC_rhs_VelocityDLMFD_Nm1);
+   //          VEC_rhs_VelocityDLMFD_Nm1->synchronize();
+   //       }
+   //       else
+   //          MAC::out() << "Warning : explicit DLM restart file " << oss.str().c_str() << " does not exist on proc " << my_rank << endl;
+   //    }
 
-      pelCOMM->barrier();
-      if (my_rank == 0)
-         MAC::out() << endl;
-   }
+   //    pelCOMM->barrier();
+   //    if (my_rank == 0)
+   //       MAC::out() << endl;
+   // }
 }
 
 //----------------------------------------------------------------------
@@ -1118,7 +1124,7 @@ void DLMFD_ProjectionNavierStokesSystem::do_additional_savings(string const &roo
       oss << rootfilename_dlm;
       if (pelCOMM->nb_ranks() > 1)
          oss << "_" << my_rank;
-      oss << ".pel.bin";
+      oss << ".mac.bin";
       ofstream fileOUTbin(oss.str().c_str(), ios::out | ios::binary);
 
       UU_NUM->scatter()->get(VEC_rhs_VelocityDLMFD_Nm1, U_LOC);
