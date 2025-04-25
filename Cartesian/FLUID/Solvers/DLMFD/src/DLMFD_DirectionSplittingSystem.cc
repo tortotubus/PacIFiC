@@ -23,14 +23,12 @@
 // Additions
 #include <stdio.h>
 #include <stdlib.h>
-
 //----------------------------------------------------------------------
 DLMFD_DirectionSplittingSystem *
 DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
                                        MAC_ModuleExplorer const *exp,
                                        FV_DiscreteField *mac_UF,
-                                       FV_DiscreteField *mac_PF,
-                                       bool &is_stressCal_)
+                                       FV_DiscreteField *mac_PF)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: create");
@@ -38,11 +36,10 @@ DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
     MAC_CHECK_PRE(mac_UF != 0);
 
     DLMFD_DirectionSplittingSystem *result =
-        new DLMFD_DirectionSplittingSystem(a_owner, exp, mac_UF, mac_PF, is_stressCal_);
+        new DLMFD_DirectionSplittingSystem(a_owner, exp, mac_UF, mac_PF);
 
     MAC_CHECK_POST(result != 0);
     MAC_CHECK_POST(result->owner() == a_owner);
-
     return (result);
 }
 
@@ -51,8 +48,7 @@ DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplittingSystem(
     MAC_Object *a_owner,
     MAC_ModuleExplorer const *exp,
     FV_DiscreteField *mac_UF,
-    FV_DiscreteField *mac_PF,
-    bool &is_stressCal_)
+    FV_DiscreteField *mac_PF)
     //----------------------------------------------------------------------
     : MAC_Object(a_owner),
       DLMFD_System(a_owner,
@@ -64,19 +60,16 @@ DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplittingSystem(
                    false,
                    false,
                    false,
-                   is_stressCal_),
+                   false),
       UF(mac_UF),
       PF(mac_PF),
-      MAT_velocityUnsteadyPlusDiffusion_1D(0),
-      is_solids(false),
-      is_stressCal(is_stressCal_)
+      MAT_velocityUnsteadyPlusDiffusion_1D(0)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplittingSystem");
-
     int const *MPI_coordinates_world = UF->primary_grid()->get_MPI_coordinates();
     int const *MPI_max_coordinates_world = UF->primary_grid()->get_domain_decomposition();
-
     is_periodic[0][0] = false;
+
     is_periodic[0][1] = false;
     is_periodic[0][2] = false;
     is_periodic[1][0] = false;
@@ -120,42 +113,32 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: build_system");
 
-    // Local vectors to store diffusive terms
-    vel_diffusion.reserve(3);
-    vel_diffusion.push_back(new doubleVector(1, 0.));
-    vel_diffusion.push_back(new doubleVector(1, 0.));
-    vel_diffusion.push_back(new doubleVector(1, 0.));
+    // velocity Laplacian
+    MAT_D_velocityUnsteadyPlusDiffusion = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_D_velocityDiffusion"));
+    VEC_rhs_D_velocityDiffusionPlusBodyTerm = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
-    vel_divergence.reserve(2);
-    vel_divergence.push_back(new doubleArray2D(1, 1, 0.));
-    vel_divergence.push_back(new doubleArray2D(1, 1, 0.));
+    // Unknowns vectors
+    VEC_DS_UF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_DS_UF_previoustime = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_DS_UF_timechange = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
-    // Local vector for advection
-    vel_advection.reserve(1);
-    vel_advection.push_back(new doubleVector(1, 0.));
+    VEC_DS_PF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
-    for (size_t field = 0; field < 2; field++)
-    {
-        // Vector to store the presence/absence of particle on the field variable
-        node[field][0].void_frac = LA_SeqVector::create(this, 0);
-        node[field][0].parID = LA_SeqVector::create(this, 0);
-        node[field][0].bound_cell = LA_SeqVector::create(this, 0);
-        node[field][1].void_frac = LA_SeqVector::create(this, 0);
-        node[field][1].parID = LA_SeqVector::create(this, 0);
-        node[field][1].bound_cell = LA_SeqVector::create(this, 0);
-    }
+    // Local vector
+    UF_DS_LOC = LA_SeqVector::create(this, 0);
+    PF_DS_LOC = LA_SeqVector::create(this, 0);
+
+    // velocity numbering
+    UF_NUM = FV_SystemNumbering::create(this, UF);
+    PF_NUM = FV_SystemNumbering::create(this, PF);
 
     // Direction splitting matrices
     MAT_velocityUnsteadyPlusDiffusion_1D = LA_SeqMatrix::make(this, exp->create_subexplorer(this, "MAT_1DLAP_generic"));
 
     for (size_t field = 0; field < 2; field++)
     {
-
         for (size_t dir = 0; dir < dim; dir++)
         {
-            // Local vector to store the row index
-            row_index[field][dir] = (size_t_array2D **)malloc(nb_comps[field] * sizeof(size_t_array2D *));
-
             // Spacial discretization matrices
             A[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
             A[field][dir].ii_super = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
@@ -183,9 +166,6 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
             Schur[field][dir].ei = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
             Schur[field][dir].ee = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
 
-            // Matrix for Schur complement of Schur complement
-            DoubleSchur[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-
             // Product of Schur complement matrices
             SchurP[field][dir].ei_ii_ie = (LA_SeqMatrix **)malloc(nb_comps[field] * sizeof(LA_SeqMatrix *));
             SchurP[field][dir].result = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
@@ -197,10 +177,13 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
             Schur_VEC[field][dir].T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
             Schur_VEC[field][dir].interface_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
 
+            // Matrix for Schur complement of Schur complement
+            DoubleSchur[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
+
             for (size_t comp = 0; comp < nb_comps[field]; comp++)
             {
                 size_t_vector nb_unknowns_handled_by_proc(dim, 0);
-                size_t nb_index = 0;
+                size_t nb_index;
                 for (size_t l = 0; l < dim; ++l)
                 {
                     if (field == 0)
@@ -240,8 +223,6 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
                 {
                     nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(1);
                 }
-
-                row_index[field][dir][comp] = new size_t_array2D(1, 1);
 
                 A[field][dir].ii_main[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
                 A[field][dir].ii_super[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
@@ -321,34 +302,32 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: re_initialize");
 
+    size_t UF_glob = UF->nb_global_unknowns();
     size_t UF_loc = UF->nb_local_unknowns();
+
+    size_t pf_glob = PF->nb_global_unknowns();
     size_t pf_loc = PF->nb_local_unknowns();
 
-    vel_diffusion[0]->re_initialize(UF_loc);
-    vel_diffusion[1]->re_initialize(UF_loc);
-    vel_diffusion[2]->re_initialize(UF_loc);
+    // velocity Laplacian
+    MAT_D_velocityUnsteadyPlusDiffusion->re_initialize(UF_glob, UF_glob);
+    VEC_rhs_D_velocityDiffusionPlusBodyTerm->re_initialize(UF_glob);
 
-    vel_advection[0]->re_initialize(UF_loc);
+    // Unknowns vectors
+    VEC_DS_UF->re_initialize(UF_glob);
+    VEC_DS_UF_previoustime->re_initialize(UF_glob);
+    VEC_DS_UF_timechange->re_initialize(UF_glob);
 
-    vel_divergence[0]->re_initialize(pf_loc, 2);
-    vel_divergence[1]->re_initialize(UF_loc, 2);
+    VEC_DS_PF->re_initialize(pf_glob);
 
-    // Vectors to store void fractions and intersection information
-    // if (is_solids)
-    // {
-    //     node[0][0].void_frac->re_initialize(pf_loc);
-    //     node[0][0].parID->re_initialize(pf_loc);
-    //     node[0][0].bound_cell->re_initialize(pf_loc);
-    //     node[0][1].void_frac->re_initialize(pf_loc);
-    //     node[0][1].parID->re_initialize(pf_loc);
-    //     node[0][1].bound_cell->re_initialize(pf_loc);
-    //     node[1][0].void_frac->re_initialize(UF_loc);
-    //     node[1][0].parID->re_initialize(UF_loc);
-    //     node[1][0].bound_cell->re_initialize(UF_loc);
-    //     node[1][1].void_frac->re_initialize(UF_loc);
-    //     node[1][1].parID->re_initialize(UF_loc);
-    //     node[1][1].bound_cell->re_initialize(UF_loc);
-    // }
+    // Local vector
+    UF_DS_LOC->re_initialize(UF_loc);
+
+    PF_DS_LOC->re_initialize(pf_loc);
+
+    // velocity numbering
+    UF_NUM->define_scatter(VEC_DS_UF);
+    PF_NUM->define_scatter(VEC_DS_PF);
+
     // Initialize Direction splitting matrices & vectors for pressure
     size_t nb_procs, proc_pos;
 
@@ -357,40 +336,31 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
         for (size_t comp = 0; comp < nb_comps[field]; comp++)
         {
             size_t_vector nb_unknowns_handled_by_proc(dim, 0);
-            size_t_vector nb_dof_on_proc(dim, 0);
-
-            size_t nb_total_unknown = 1;
 
             for (size_t l = 0; l < dim; l++)
             {
                 if (field == 0)
                 {
                     nb_unknowns_handled_by_proc(l) = 1 + PF->get_max_index_unknown_handled_by_proc(comp, l) - PF->get_min_index_unknown_handled_by_proc(comp, l);
-                    nb_dof_on_proc(l) = PF->get_local_nb_dof(comp, l);
                 }
                 else if (field == 1)
                 {
                     nb_unknowns_handled_by_proc(l) = 1 + UF->get_max_index_unknown_handled_by_proc(comp, l) - UF->get_min_index_unknown_handled_by_proc(comp, l);
-                    nb_dof_on_proc(l) = UF->get_local_nb_dof(comp, l);
                 }
             }
 
             for (size_t l = 0; l < dim; l++)
             {
-                // Changed from 2 to 1 on 8Apr2021 by Goyal
-                nb_total_unknown *= 1 + nb_dof_on_proc(l);
-                size_t nb_index = 0;
+                size_t nb_index;
                 if (l == 0)
                 {
                     if (dim == 2)
                     {
                         nb_index = nb_unknowns_handled_by_proc(1);
-                        row_index[field][l][comp]->re_initialize(nb_dof_on_proc(1), 1);
                     }
                     else if (dim == 3)
                     {
                         nb_index = nb_unknowns_handled_by_proc(1) * nb_unknowns_handled_by_proc(2);
-                        row_index[field][l][comp]->re_initialize(nb_dof_on_proc(1), nb_dof_on_proc(2));
                     }
                 }
                 else if (l == 1)
@@ -398,18 +368,15 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                     if (dim == 2)
                     {
                         nb_index = nb_unknowns_handled_by_proc(0);
-                        row_index[field][l][comp]->re_initialize(nb_dof_on_proc(0), 1);
                     }
                     else if (dim == 3)
                     {
                         nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(2);
-                        row_index[field][l][comp]->re_initialize(nb_dof_on_proc(0), nb_dof_on_proc(2));
                     }
                 }
                 else if (l == 2)
                 {
                     nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(1);
-                    row_index[field][l][comp]->re_initialize(nb_dof_on_proc(0), nb_dof_on_proc(1));
                 }
 
                 nb_procs = nb_procs_in_i[l];
@@ -496,6 +463,7 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                     if (proc_pos == 0)
                     {
                         // Master processor
+
                         for (size_t index = 0; index < nb_index; index++)
                         {
                             A[field][l].ee[comp][index]->re_initialize(nb_procs, nb_procs);
@@ -549,6 +517,85 @@ DLMFD_DirectionSplittingSystem::~DLMFD_DirectionSplittingSystem(void)
 }
 
 //----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::initialize_DS_velocity(void)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: initialize_DS_velocity");
+
+    UF->extract_unknown_DOFs_value(0, UF_DS_LOC);
+    UF_NUM->scatter()->set(UF_DS_LOC, VEC_DS_UF);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::initialize_DS_pressure(void)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: initialize_DS_pressure");
+
+    PF->extract_unknown_DOFs_value(0, PF_DS_LOC);
+    PF_NUM->scatter()->set(PF_DS_LOC, VEC_DS_PF);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *
+DLMFD_DirectionSplittingSystem::get_solution_DS_velocity(void) const
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_solution_DS_velocity");
+
+    UF_NUM->scatter()->get(VEC_DS_UF, UF_DS_LOC);
+
+    LA_SeqVector const *DS_result = UF_DS_LOC;
+
+    return (DS_result);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *
+DLMFD_DirectionSplittingSystem::get_solution_DS_pressure(void) const
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_solution_DS_pressure");
+
+    PF_NUM->scatter()->get(VEC_DS_PF, PF_DS_LOC);
+
+    LA_SeqVector const *DS_result = PF_DS_LOC;
+
+    return (DS_result);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::at_each_time_step(void)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: at_each_time_step");
+
+    // Store velocity at previous time
+    VEC_DS_UF->synchronize();
+    VEC_DS_UF_previoustime->set(VEC_DS_UF);
+    VEC_DS_PF->synchronize();
+}
+
+//----------------------------------------------------------------------
+double
+DLMFD_DirectionSplittingSystem::compute_DS_velocity_change(void)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: compute_DS_velocity_change");
+
+    VEC_DS_UF->synchronize();
+    VEC_DS_UF_timechange->set(VEC_DS_UF);
+    VEC_DS_UF_timechange->sum(VEC_DS_UF_previoustime, -1.0);
+
+    double norm_UF = VEC_DS_UF->two_norm();
+    double time_change = VEC_DS_UF_timechange->two_norm();
+    if (norm_UF > 1e-4)
+        time_change /= norm_UF;
+
+    return (time_change);
+}
+
+//----------------------------------------------------------------------
 void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp, size_t const &dir, struct TDMatrix *arr, size_t const &r_index)
 //----------------------------------------------------------------------
 {
@@ -583,7 +630,7 @@ void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp, si
 void DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(TDMatrix *arr, LA_SeqVector *rhs, size_t const &comp, size_t const &dir, size_t const &r_index)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DS_HeatEquationSystem:: mod_thomas_algorithm");
+    MAC_LABEL("DDS_HeatEquationSystem:: mod_thomas_algorithm");
 
     size_t nrows = arr[dir].ii_main[comp][r_index]->nb_rows();
     double temp = arr[dir].ii_main[comp][r_index]->item(0);
@@ -628,51 +675,7 @@ DLMFD_DirectionSplittingSystem::get_A(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-NodeProp
-DLMFD_DirectionSplittingSystem::get_node_property(size_t const &field, size_t const &time_level)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_node_property");
-    return (node[field][time_level]);
-}
 
-//----------------------------------------------------------------------
-doubleArray2D *
-DLMFD_DirectionSplittingSystem::get_node_divergence(size_t const &field)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_node_divergence");
-    return (vel_divergence[field]);
-}
-
-//----------------------------------------------------------------------
-size_t_array2D *
-DLMFD_DirectionSplittingSystem::get_row_indexes(size_t const &field, size_t const &dir, size_t const &comp)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_row_index");
-    return (row_index[field][dir][comp]);
-}
-
-//----------------------------------------------------------------------
-vector<doubleVector *>
-DLMFD_DirectionSplittingSystem::get_velocity_diffusion()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_velocity_diffusion");
-    return (vel_diffusion);
-}
-
-//----------------------------------------------------------------------
-vector<doubleVector *>
-DLMFD_DirectionSplittingSystem::get_velocity_advection()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_velocity_advection");
-    return (vel_advection);
-}
-
-//----------------------------------------------------------------------
 TDMatrix *
 DLMFD_DirectionSplittingSystem::get_Schur(size_t const &field)
 //----------------------------------------------------------------------
@@ -727,12 +730,10 @@ DLMFD_DirectionSplittingSystem::get_VEC(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplitting_solver(FV_DiscreteField *FF, size_t const &j, size_t const &k, size_t const &min_i, size_t const &comp, size_t const &dir, size_t const &r_index, size_t const &level)
+void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(FV_DiscreteField *FF, size_t const &j, size_t const &k, size_t const &min_i, size_t const &comp, size_t const &dir, size_t const &field, size_t const &r_index)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplitting_solver");
-
-    size_t field = (FF == PF) ? 0 : 1;
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: DS_NavierStokes_solver");
 
     LocalVector *rhs = get_VEC(field);
     TDMatrix *arr = get_A(field);
@@ -743,16 +744,16 @@ void DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplitting_solver(FV_Discrete
     nb_procs = nb_procs_in_i[dir];
 
     // Solve the DS splitting problem in
+
     DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(arr, rhs[dir].local_T[comp], comp, dir, r_index);
 
     // Transfer in the distributed vector
     size_t nb_local_unk = rhs[dir].local_T[comp]->nb_rows();
     // Since, this function is used in all directions;
-    // ii, jj, and kk are used to convert the passed
-    // arguments corresponding to correct direction
+    // ii, jj, and kk are used to convert the passed arguments corresponding to correct direction
     size_t ii = 0, jj = 0, kk = 0;
 
-    size_t m, i;
+    size_t m, i, global_number_in_distributed_vector;
 
     for (m = 0; m < nb_local_unk; ++m)
     {
@@ -777,7 +778,15 @@ void DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplitting_solver(FV_Discrete
             kk = i;
         }
 
-        FF->set_DOF_value(ii, jj, kk, comp, level, rhs[dir].local_T[comp]->item(m));
+        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        if (field == 0)
+        {
+            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].local_T[comp]->item(m));
+        }
+        else if (field == 1)
+        {
+            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].local_T[comp]->item(m));
+        }
     }
 
     // Put the interface unknowns in distributed vector
@@ -803,12 +812,47 @@ void DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplitting_solver(FV_Discrete
 
     if ((is_periodic[field][dir] == 1))
     {
-        FF->set_DOF_value(ii, jj, kk, comp, level, rhs[dir].interface_T[comp]->item(proc_pos));
+        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        if (field == 0)
+        {
+            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+        }
+        else if (field == 1)
+        {
+            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+        }
     }
     else if ((is_periodic[field][dir] == 0) && (proc_pos != nb_procs - 1))
     {
-        FF->set_DOF_value(ii, jj, kk, comp, level, rhs[dir].interface_T[comp]->item(proc_pos));
+        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        if (field == 0)
+        {
+            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+        }
+        else if (field == 1)
+        {
+            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+        }
     }
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::synchronize_DS_solution_vec(void)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: synchronize_DS_solution_vec");
+
+    VEC_DS_UF->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::synchronize_DS_solution_vec_P(void)
+//----------------------------------------------------------------------
+
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: synchronize_DS_solution_vec");
+
+    VEC_DS_PF->synchronize();
 }
 
 //----------------------------------------------------------------------
@@ -826,6 +870,10 @@ void DLMFD_DirectionSplittingSystem::compute_product_matrix_interior(struct TDMa
 
     // Get product of Aei*inv(Aii)*Aie for appropriate column
     arr[dir].ei[comp][r_index]->multiply_vec_then_add(prr[dir].result[comp], prr[dir].ii_ie[comp]);
+
+    size_t nb_procs;
+
+    nb_procs = nb_procs_in_i[dir];
 
     size_t int_unknown = prr[dir].ii_ie[comp]->nb_rows();
 

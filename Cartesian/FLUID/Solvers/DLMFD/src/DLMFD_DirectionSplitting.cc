@@ -11,7 +11,6 @@
 #include <MAC_Error.hh>
 #include <MAC_ModuleExplorer.hh>
 #include <MAC_Vector.hh>
-#include <MAC_BoolArray2D.hh>
 #include <MAC_Communicator.hh>
 #include <MAC_Exec.hh>
 #include <MAC_Application.hh>
@@ -23,14 +22,12 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
-#include <algorithm>
-
 DLMFD_DirectionSplitting const *DLMFD_DirectionSplitting::PROTOTYPE = new DLMFD_DirectionSplitting();
 
 //---------------------------------------------------------------------------
-DLMFD_DirectionSplitting::DLMFD_DirectionSplitting()
+DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(void)
     //--------------------------------------------------------------------------
-    : FV_OneStepIteration("DLMFD_DirectionSplitting"), PAC_ComputingTime("Solver")
+    : FV_OneStepIteration("DLMFD_DirectionSplitting"), ComputingTime("Solver")
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: DLMFD_DirectionSplitting");
 }
@@ -42,7 +39,7 @@ DLMFD_DirectionSplitting::create_replica(MAC_Object *a_owner,
                                          MAC_ModuleExplorer *exp) const
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DS_DirectionSplitting:: create_replica");
+    MAC_LABEL("DLMFD_DirectionSplitting:: create_replica");
     MAC_CHECK(create_replica_PRE(a_owner, dom, exp));
 
     DLMFD_DirectionSplitting *result =
@@ -58,115 +55,93 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
                                                    MAC_ModuleExplorer const *exp)
     //---------------------------------------------------------------------------
     : FV_OneStepIteration(a_owner, dom, exp),
-      PAC_ComputingTime("Solver"),
+      ComputingTime("Solver"),
       UF(dom->discrete_field("velocity")),
       PF(dom->discrete_field("pressure")),
-      imposed_CFL(0.5),
       GLOBAL_EQ(0),
-      rho(1.),
+      peclet(1.),
       mu(1.),
       kai(1.),
       AdvectionScheme("TVD"),
-      resultsDirectory("Res"),
-      StencilCorrection("FD"),
-      is_CConlyDivergence(false),
-      FluxRedistThres(0.5),
       AdvectionTimeAccuracy(1),
-      b_restart(false),
-      is_solids(false),
-      is_stressCal(false),
-      ViscousStressOrder("second"),
-      PressureStressOrder("first"),
-      stressCalFreq(1),
-      is_par_motion(false),
-      b_projection_translation(dom->primary_grid()->is_translation_active()),
-      outOfDomain_boundaryID(0),
-      primary_grid(dom->primary_grid()),
-      critical_distance_translation(0.),
-      translation_direction(0),
-      bottom_coordinate(0.),
-      translated_distance(0.),
-      gravity_vector(0),
-      exceed(false),
-      turn(false)
+      rho(1.)
 {
-    // CREATE ALL THE OBJECTS ABOVE FROM DS_DirectionSplitting !!!!!!!
     MAC_LABEL("DLMFD_DirectionSplitting:: DLMFD_DirectionSplitting");
     MAC_ASSERT(UF->discretization_type() == "staggered");
     MAC_ASSERT(PF->discretization_type() == "centered");
-    if (b_projection_translation)
-    {
-        MAC_ASSERT(PF->storage_depth() == 3);
-        MAC_ASSERT(UF->storage_depth() == 6);
-    }
-    else
-    {
-        MAC_ASSERT(PF->storage_depth() == 2);
-        MAC_ASSERT(UF->storage_depth() == 5);
-    }
-
-    // Is the run a follow up of a previous job
-    b_restart = MAC_Application::is_follow();
+    MAC_ASSERT(UF->storage_depth() == 5);
 
     // Call of MAC_Communicator routine to set the rank of each proces and
     // the number of processes during execution
-    macCOMM = MAC_Exec::communicator();
-    my_rank = macCOMM->rank();
-    nb_procs = macCOMM->nb_ranks();
+    pelCOMM = MAC_Exec::communicator();
+    my_rank = pelCOMM->rank();
+    nb_procs = pelCOMM->nb_ranks();
     is_master = 0;
-
-    // Imposed CFL
-    if (exp->has_entry("Imposed_CFL"))
-        imposed_CFL = exp->double_data("Imposed_CFL");
-
+    is_periodic[0][0] = false;
+    is_periodic[0][1] = false;
+    is_periodic[0][2] = false;
+    is_periodic[1][0] = false;
+    is_periodic[1][1] = false;
+    is_periodic[1][2] = false;
+    // Timing routines
+    if (my_rank == is_master)
+    {
+        CT_set_start();
+        SCT_insert_app("Objects_Creation");
+        SCT_set_start("Objects_Creation");
+    }
+    // Is the run a follow up of a previous job
+    b_restart = MAC_Application::is_follow();
+    // Clear results directory in case of a new run
+    if (!b_restart)
+        PAC_Misc::clearAllFiles("Res", "Savings", my_rank);
+    // Get space dimension
+    dim = UF->primary_grid()->nb_space_dimensions();
+    nb_comps[0] = PF->nb_components();
+    nb_comps[1] = UF->nb_components();
+    if (dim == 1)
+    {
+        string error_message = "Space dimension should either 2 or 3";
+        MAC_Error::object()->raise_bad_data_value(exp,
+                                                  "nb_space_dimensions",
+                                                  error_message);
+    }
+    // Create the Direction Splitting subcommunicators
+    create_DDS_subcommunicators();
     // Read Density
     if (exp->has_entry("Density"))
     {
         rho = exp->double_data("Density");
         exp->test_data("Density", "Density>0.");
     }
-
     // Read Viscosity
     if (exp->has_entry("Viscosity"))
+
     {
         mu = exp->double_data("Viscosity");
         exp->test_data("Viscosity", "Viscosity>0.");
     }
-
     // Read Kai
     if (exp->has_entry("Kai"))
     {
         kai = exp->double_data("Kai");
         exp->test_data("Kai", "Kai>=0.");
     }
-
-    // Divergence scheme
-    if (exp->has_entry("StencilCorrection"))
-        StencilCorrection = exp->string_data("StencilCorrection");
-    if (StencilCorrection != "FD" && StencilCorrection != "CutCell")
-    {
-        string error_message = "   - FD\n   - CutCell";
-        MAC_Error::object()->raise_bad_data_value(exp,
-                                                  "StencilCorrection", error_message);
-    }
-
-    if ((StencilCorrection == "CutCell") && (exp->has_entry("CutCell_Only_Divergence")))
-        is_CConlyDivergence = exp->bool_data("CutCell_Only_Divergence");
-
-    if (exp->has_entry("FluxRedistributionThreshold"))
-        FluxRedistThres = exp->double_data("FluxRedistributionThreshold");
-
     // Advection scheme
     if (exp->has_entry("AdvectionScheme"))
         AdvectionScheme = exp->string_data("AdvectionScheme");
-    if (AdvectionScheme != "Upwind" && AdvectionScheme != "TVD" && AdvectionScheme != "CenteredFD" && AdvectionScheme != "Centered")
+    if (AdvectionScheme != "Upwind" && AdvectionScheme != "TVD")
     {
-        string error_message =
-            "   - Upwind\n   - TVD\n   - CenteredFD\n   - Centered";
+        string error_message = "   - Upwind\n   - TVD";
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "AdvectionScheme", error_message);
     }
-
+    if (AdvectionScheme == "TVD" && UF->primary_grid()->get_security_bandwidth() < 2)
+    {
+        string error_message = "   >= 2 with TVD scheme";
+        MAC_Error::object()->raise_bad_data_value(exp,
+                                                  "security_bandwidth", error_message);
+    }
     // Advection term time accuracy
     if (exp->has_entry("AdvectionTimeAccuracy"))
         AdvectionTimeAccuracy = exp->int_data("AdvectionTimeAccuracy");
@@ -176,191 +151,38 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "AdvectionTimeAccuracy", error_message);
     }
-
-    // Critical distance
-    if (dom->primary_grid()->is_translation_active())
-    {
-        if (exp->has_entry("Critical_Distance_Translation"))
-            critical_distance_translation = exp->double_data(
-                "Critical_Distance_Translation");
-        else
-        {
-            string error_message = " Projection-Translation is active but ";
-            error_message += "Critical_Distance_Translation is NOT defined.";
-            MAC_Error::object()->raise_bad_data_value(exp,
-                                                      "Projection_Translation", error_message);
-        }
-    }
-
-    is_periodic[0][0] = false;
-    is_periodic[0][1] = false;
-    is_periodic[0][2] = false;
-    is_periodic[1][0] = false;
-    is_periodic[1][1] = false;
-    is_periodic[1][2] = false;
-
-    // Timing routines
-    if (my_rank == is_master)
-    {
-        CT_set_start();
-        SCT_insert_app("Objects_Creation");
-        SCT_set_start("Objects_Creation");
-    }
-
-    if (AdvectionScheme == "TVD" && UF->primary_grid()->get_security_bandwidth() < 2)
-    {
-        string error_message = "   >= 2 with TVD scheme";
-        MAC_Error::object()->raise_bad_data_value(exp,
-                                                  "security_bandwidth", error_message);
-    }
-
-    // Get space dimension
-    dim = UF->primary_grid()->nb_space_dimensions();
-    nb_comps[0] = PF->nb_components();
-    nb_comps[1] = UF->nb_components();
-
-    if (dim == 1)
-    {
-        string error_message = "Space dimension should either 2 or 3";
-        MAC_Error::object()->raise_bad_data_value(exp,
-                                                  "nb_space_dimensions",
-                                                  error_message);
-    }
-
-    // Create the Direction Splitting subcommunicators
-    create_DS_subcommunicators();
-
-    if (is_stressCal == true && UF->primary_grid()->get_security_bandwidth() < 4)
-    {
-        string error_message = "   >= 4 for correct stress calculations on solids";
-        MAC_Error::object()->raise_bad_data_value(exp,
-                                                  "security_bandwidth", error_message);
-    }
-
     // Periodic boundary condition check for velocity
     U_periodic_comp = UF->primary_grid()->get_periodic_directions();
     is_periodic[1][0] = U_periodic_comp->operator()(0);
     is_periodic[1][1] = U_periodic_comp->operator()(1);
     if (dim > 2)
         is_periodic[1][2] = U_periodic_comp->operator()(2);
-
     // Periodic boundary condition check for pressure
     P_periodic_comp = PF->primary_grid()->get_periodic_directions();
     is_periodic[0][0] = P_periodic_comp->operator()(0);
     is_periodic[0][1] = P_periodic_comp->operator()(1);
     if (dim > 2)
         is_periodic[0][2] = P_periodic_comp->operator()(2);
-
-    // Create structure to input in the solver system
-    struct NS2System inputData;
-    inputData.is_solids_ = is_solids;
-    inputData.is_stressCal_ = is_stressCal;
-
     // Build the matrix system
     MAC_ModuleExplorer *se = exp->create_subexplorer(0, "DLMFD_DirectionSplittingSystem");
-    GLOBAL_EQ = DLMFD_DirectionSplittingSystem::create(this, se, UF, PF, is_stressCal);
+    GLOBAL_EQ = DLMFD_DirectionSplittingSystem::create(this, se, UF, PF);
     se->destroy();
-
-    if (UF->primary_grid()->is_periodic_flow_rate())
-    {
-        // controller = DS_PID::create(0.5,1.,0);
-        // Set the initial pressure drop, required in case of given flow rate
-        if (!b_restart)
-        {
-            if (fabs(UF->primary_grid()->get_periodic_pressure_drop()) < 1.e-12)
-                const_cast<FV_Mesh *>(UF->primary_grid())->set_periodic_pressure_drop(-100.);
-            if (macCOMM->rank() == 0)
-            {
-                string fileName = "./DS_results/flow_pressure_history.csv";
-                std::ofstream MyFile;
-                MyFile.open(fileName.c_str());
-                MyFile << "t Qc dP exceed turn" << endl;
-                MyFile.close();
-            }
-        }
-        else if (b_restart)
-        {
-            double temp_press;
-            string fileName = "./DS_results/flow_pressure_history.csv";
-            std::ifstream MyFile;
-            MyFile.open(fileName.c_str());
-            MyFile.seekg(-31, ios_base::end);
-            MyFile >> Qold >> temp_press >> exceed >> turn;
-            MyFile.close();
-            const_cast<FV_Mesh *>(UF->primary_grid())
-                ->set_periodic_pressure_drop(temp_press);
-        }
-    }
-
     // Timing routines
     if (my_rank == is_master)
     {
         SCT_insert_app("Matrix_Assembly&Initialization");
-        SCT_insert_app("Matrix_RE_Assembly&Initialization");
-        // SCT_insert_app("Stencil");
-        // SCT_insert_app("Schur");
         SCT_insert_app("Pressure predictor");
+        //     SCT_insert_app("Explicit Velocity step");
+        //     SCT_insert_app("Velocity x update");
+        //     SCT_insert_app("Velocity y update");
+        //     SCT_insert_app("Velocity z update");
         SCT_insert_app("Velocity update");
         SCT_insert_app("Penalty Step");
+
         SCT_insert_app("Pressure Update");
-        SCT_insert_app("Viscous stress");
-        SCT_insert_app("Pressure stress");
-        SCT_insert_app("FluidSolid_CorrectionStep");
+        SCT_insert_app("Writing CSV");
         SCT_get_elapsed_time("Objects_Creation");
     }
-
-    // Set the split gravity vector
-    split_gravity_vector.resize(dim);
-    split_gravity_vector.setVecZero();
-    if (exp->has_entry("Split_gravity_vector"))
-    {
-        doubleVector *grav = new doubleVector(dim);
-        *grav = exp->doubleVector_data("Split_gravity_vector");
-        for (size_t idx = 0; idx < dim; ++idx)
-            split_gravity_vector(idx) = (*grav)(idx);
-        delete grav;
-    }
-
-    // Set the geometric gravity vector
-    // Set the gravity vector
-    gravity_vector_geom.resize(dim);
-    gravity_vector_geom.setVecZero();
-    if (exp->has_entry("Gravity_vector"))
-    {
-        doubleVector *grav = new doubleVector(dim);
-        *grav = exp->doubleVector_data("Gravity_vector");
-        for (size_t idx = 0; idx < dim; ++idx)
-            gravity_vector_geom(idx) = (*grav)(idx);
-        delete grav;
-    }
-
-    // Set the output frequency
-    size_t output_frequency = 1;
-    if (exp->has_entry("Output_frequency"))
-        output_frequency = size_t(exp->int_data("Output_frequency"));
-
-    // Results directory
-    if (exp->has_entry("Results_directory"))
-        resultsDirectory = exp->string_data("Results_directory");
-
-    // Clear results directory in case of a new run
-    if (!b_restart)
-        PAC_Misc::clearAllFiles(resultsDirectory, "Savings", my_rank);
-
-    // Create Fictitious Domain solver
-    struct NavierStokes2FluidSolid transfert;
-    transfert.solid_resDir = resultsDirectory;
-    transfert.rho_f = rho;
-    transfert.gravity_vector = gravity_vector_geom;
-    transfert.split_gravity_vector = split_gravity_vector;
-    transfert.GLOBAL_EQ = GLOBAL_EQ;
-    transfert.velocitylevelDiscrField = 0;
-    transfert.b_restart = b_restart;
-    transfert.output_frequency = output_frequency;
-    transfert.UU = UF;
-    transfert.PP = PF;
-
-    dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 }
 
 //---------------------------------------------------------------------------
@@ -368,29 +190,27 @@ DLMFD_DirectionSplitting::~DLMFD_DirectionSplitting(void)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: ~DLMFD_DirectionSplitting");
-
-    free_DS_subcommunicators();
+    free_DDS_subcommunicators();
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_one_inner_iteration");
+    MAC_CHECK_PRE(do_one_inner_iteration_PRE(t_it));
 
-    // Direction Splitting workflow
+    start_total_timer("DLMFD_DirectionSplitting:: do_one_inner_iteration");
+    start_solving_timer();
     if (my_rank == is_master)
         SCT_set_start("Pressure predictor");
     NS_first_step(t_it);
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure predictor");
-
     if (my_rank == is_master)
         SCT_set_start("Velocity update");
     NS_velocity_update(t_it);
     if (my_rank == is_master)
         SCT_get_elapsed_time("Velocity update");
-
     if (my_rank == is_master)
         SCT_set_start("Penalty Step");
     NS_pressure_update(t_it);
@@ -403,865 +223,672 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
 
-    UF->copy_DOFs_value(0, 1);
-
-    // Fictitous Domain workflow
-    if (my_rank == is_master)
-        SCT_set_start("FluidSolid_CorrectionStep");
-
-    dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
-
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("FluidSolid_CorrectionStep");
+    stop_solving_timer();
+    stop_total_timer();
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_it,
                                                        std::string const &basename)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_before_time_stepping");
-
+    start_total_timer("DLMFD_DirectionSplitting:: do_before_time_stepping");
     if (my_rank == is_master)
         SCT_set_start("Matrix_Assembly&Initialization");
+    FV_OneStepIteration::do_before_time_stepping(t_it, basename);
 
-    allocate_mpi_variables(PF);
-    allocate_mpi_variables(UF);
-
-    // Setting ugradu as zero at start of simulation
-    if (b_restart == false)
-        ugradu_initialization();
-
-    // Calculate row index for each field in each direction`
-    calculate_row_indexes(PF);
-    calculate_row_indexes(UF);
-
-    // Projection-Translation
-    if (b_projection_translation)
-        build_links_translation();
-
-    // if (is_solids)
-    // {
-    //     // Build void frac and intersection variable
-    //     allrigidbodies->build_solid_variables_on_fluid_grid(PF, StencilCorrection);
-    //     allrigidbodies->build_solid_variables_on_fluid_grid(UF, StencilCorrection);
-    //     // Compute void fraction for pressure and velocity field
-    //     allrigidbodies->compute_void_fraction_on_grid(PF, false);
-    //     allrigidbodies->compute_void_fraction_on_grid(UF, false);
-    //     // Compute intersection with RB for pressure and velocity field
-    //     allrigidbodies->compute_grid_intersection_with_rigidbody(PF, false);
-    //     allrigidbodies->compute_grid_intersection_with_rigidbody(UF, false);
-    //     // Compute the face fractions of CutCell is active
-    //     if (StencilCorrection == "CutCell")
-    //     {
-    //         allrigidbodies->compute_cutCell_geometric_parameters(PF);
-    //         allrigidbodies->compute_cutCell_geometric_parameters(UF);
-    //     }
-
-    //     if (my_rank == 0)
-    //         cout << "Finished void fraction and grid intersection... \n"
-    //              << endl;
-
-    //     // Field initialization
-    //     vector<size_t> vec{0, 1, 3};
-    //     if (dim == 3)
-    //         vec.push_back(4);
-    //     initialize_grid_nodes_on_rigidbody(vec);
-
-    //     if (my_rank == 0)
-    //         cout << "Finished field initializations... \n"
-    //              << endl;
-    // }
-
-    // Calculate the divergence at last time step data in case of restart
-    // Not required for the fresh start as imposed field (if any)
-    // is always divergence-free
-    if (b_restart)
-    {
-        compute_velocity_divergence(PF);
-        doubleArray2D *divergencePF = GLOBAL_EQ->get_node_divergence(0);
-        for (size_t i = 0; i < PF->nb_local_unknowns(); i++)
-        {
-            divergencePF->operator()(i, 1) = divergencePF->operator()(i, 0);
-            // divergencePF->operator()(i,0) = 0.;
-            // divergencePF->operator()(i,1) = 0.;
-        }
-    }
-
+    allocate_mpi_variables(PF, 0);
+    allocate_mpi_variables(UF, 1);
+    // Initialize velocity vector at the matrix level
+    GLOBAL_EQ->initialize_DS_velocity();
+    GLOBAL_EQ->initialize_DS_pressure();
     // Direction splitting
     // Assemble 1D tridiagonal matrices
-    assemble_1D_matrices(PF, t_it);
-    assemble_1D_matrices(UF, t_it);
-
-    if (my_rank == 0)
-        cout << "Finished assembling pre-coefficient matrix... \n"
-             << endl;
-
+    assemble_1D_matrices(t_it);
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
-
-    dlmfd_solver->do_before_time_stepping(t_it);
+    stop_total_timer();
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_after_time_stepping(void)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_after_time_stepping");
-
     // Elapsed time by sub-problems
 
     // SCT_set_start( "Writing CSV" );
-    // write_output_field(PF);
-    // write_output_field(UF);
+    // write_pressure_field(t_it);
+    // write_velocity_field(t_it);
     // SCT_get_elapsed_time( "Writing CSV" );
-
     output_L2norm_velocity(0);
     output_L2norm_pressure(0);
-
+    // error_with_analytical_solution();
     if (my_rank == is_master)
     {
         double cputime = CT_get_elapsed_time();
         cout << endl
-             << "========================================================" << endl
-             << "                Navier Stokes Problem                   " << endl
-             << "========================================================" << endl;
+             << "Full problem" << endl;
         write_elapsed_time_smhd(cout, cputime, "Computation time");
         SCT_get_summary(cout, cputime);
     }
-
-    deallocate_mpi_variables();
+    deallocate_mpi_variables(0);
+    deallocate_mpi_variables(1);
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_before_inner_iterations_stage(
     FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_before_inner_iterations_stage");
-
-    if (my_rank == is_master)
-        SCT_set_start("Matrix_RE_Assembly&Initialization");
-
-    // if ((is_par_motion) && (is_solids))
-    // {
-    //     // Solve equation of motion for all RB and update pos,vel
-    //     // allrigidbodies->solve_RB_equation_of_motion(t_it);
-    //     allrigidbodies->compute_halo_zones_for_all_rigid_body();
-    //     allrigidbodies->generate_list_of_local_RB();
-    //     allrigidbodies->initialize_surface_variables_for_all_RB();
-    //     allrigidbodies->compute_surface_variables_for_all_RB();
-    //     allrigidbodies->create_neighbour_list_for_AllRB();
-    //     // Clear void fraction and intersection data
-    //     allrigidbodies->clear_GrainsRB_data_on_grid(PF);
-    //     allrigidbodies->clear_GrainsRB_data_on_grid(UF);
-    //     // Compute void fraction for pressure and velocity field
-    //     allrigidbodies->compute_void_fraction_on_grid(PF, true);
-    //     allrigidbodies->compute_void_fraction_on_grid(UF, true);
-    //     // Compute intersection with RB for pressure and velocity field
-    //     allrigidbodies->compute_grid_intersection_with_rigidbody(PF, true);
-    //     allrigidbodies->compute_grid_intersection_with_rigidbody(UF, true);
-    //     // Compute the face fractions of CutCell is active
-    //     if (StencilCorrection == "CutCell")
-    //     {
-    //         allrigidbodies->compute_cutCell_geometric_parameters(PF);
-    //         allrigidbodies->compute_cutCell_geometric_parameters(UF);
-    //     }
-    //     // Compute the fresh node coming in fluid in this step
-    //     allrigidbodies->compute_fresh_nodes(PF);
-    //     allrigidbodies->compute_fresh_nodes(UF);
-
-    //     // Field initialization
-    //     vector<size_t> vec{0, 1, 3};
-    //     if (dim == 3)
-    //         vec.push_back(4);
-    //     initialize_grid_nodes_on_rigidbody(vec);
-
-    //     // // Extrapolate advecvtion term on fresh nodes
-    //     // allrigidbodies->extrapolate_scalar_on_fresh_nodes(UF,2);
-    //     // // Interpolate velocity on the fresh nodes in fluid domain
-    //     // allrigidbodies->interpolate_vector_on_fresh_nodes(UF,vec);
-    //     // // allrigidbodies->extrapolate_scalar_on_fresh_nodes(PF,0);
-    //     // // allrigidbodies->extrapolate_scalar_on_fresh_nodes(PF,1);
-
-    //     // Direction splitting
-    //     // Assemble 1D tridiagonal matrices
-    //     assemble_1D_matrices(PF, t_it);
-    //     assemble_1D_matrices(UF, t_it);
-    // }
-
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("Matrix_RE_Assembly&Initialization");
+    start_total_timer("DLMFD_DirectionSplitting:: do_before_inner_iterations_stage");
+    FV_OneStepIteration::do_before_inner_iterations_stage(t_it);
+    // Perform matrix level operations before each time step
+    GLOBAL_EQ->at_each_time_step();
+    stop_total_timer();
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_after_inner_iterations_stage(
+
     FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_after_inner_iterations_stage");
-
-    // Compute hydrodynamic forces by surface viscous stress
+    start_total_timer("DLMFD_DirectionSplitting:: do_after_inner_iterations_stage");
+    FV_OneStepIteration::do_after_inner_iterations_stage(t_it);
+    // Compute velocity change over the time step
+    double velocity_time_change = GLOBAL_EQ->compute_DS_velocity_change() / t_it->time_step();
     if (my_rank == is_master)
-        SCT_set_start("Viscous stress");
-    // if (is_stressCal && (t_it->iteration_number() % stressCalFreq == 0))
-    // {
-    //     allrigidbodies->compute_viscous_force_and_torque_for_allRB(ViscousStressOrder);
-    // }
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("Viscous stress");
-
-    output_L2norm_divergence();
-
-    /*
-       double vel_divergence = get_velocity_divergence(t_it);
-
-       if ( my_rank == is_master ) {
-          string fileName = "./DS_results/max_divergence.csv" ;
-          ofstream MyFile( fileName.c_str(), ios::app ) ;
-          MyFile << t_it -> time() << "," << vel_divergence << endl;
-          MyFile.close( ) ;
-       }
-    */
-
-    dlmfd_solver->do_after_inner_iterations_stage(t_it);
-
-    // Projection translation
-    if (b_projection_translation)
-    {
-        double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
-
-        if (my_rank == is_master)
-            MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
-                       << endl;
-
-        if (distance_to_bottom < critical_distance_translation)
-        {
-
-            if (my_rank == is_master)
-                MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
-                           << endl
-                           << "         !!!     Domain Translation      !!!"
-                           << endl
-                           << "         -> -> -> -> -> -> -> -> -> -> -> ->"
-                           << endl;
-
-            translated_distance += MVQ_translation_vector(translation_direction);
-            if (my_rank == is_master)
-                MAC::out() << "         Translated distance = " << translated_distance << endl;
-
-            fields_projection();
-
-            dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
-
-            if (MVQ_translation_vector(translation_direction) < 0.)
-                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                    [translation_direction](0);
-            else
-                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                    [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
-        }
-    }
-
+        cout << "velocity change = " << MAC::doubleToString(ios::scientific, 5, velocity_time_change) << endl;
+    double vel_divergence = get_velocity_divergence();
     double cfl = UF->compute_CFL(t_it, 0);
     if (my_rank == is_master)
         MAC::out() << "CFL: " << cfl << endl;
+    stop_total_timer();
 }
-
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_additional_savings(FV_TimeIterator const *t_it,
                                                      int const &cycleNumber)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_additional_savings");
-
-    dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
-
+    start_total_timer("DLMFD_DirectionSplitting:: do_additional_savings");
+    stop_total_timer();
     GLOBAL_EQ->display_debug();
 }
-
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::ugradu_initialization()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: ugradu_initialization");
-
-    for (size_t comp = 0; comp < nb_comps[1]; comp++)
-        UF->set_DOFs_value(comp, 2, 0.);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::calculate_row_indexes(FV_DiscreteField const *FF)
+void DLMFD_DirectionSplitting::error_with_analytical_solution()
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplitting:: calculate_row_indexes");
-
-    size_t field = (FF == PF) ? 0 : 1;
-
-    for (size_t comp = 0; comp < nb_comps[field]; comp++)
+    MAC_LABEL(
+        "DLMFD_DirectionSplitting:: error_with_analytical_solution");
+    // Parameters
+    double x, y, z;
+    size_t cpp;
+    double bodyterm = 0., height;
+    // Periodic pressure gradient
+    if (UF->primary_grid()->is_periodic_flow())
     {
-        // Get local min and max indices
-        size_t_vector min_unknown_index(3, 0);
-        size_t_vector max_unknown_index(3, 0);
-
+        cpp = UF->primary_grid()->get_periodic_flow_direction();
+        bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
+                   (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
+    }
+    height = (UF->primary_grid()->get_main_domain_max_coordinate(1) - UF->primary_grid()->get_main_domain_min_coordinate(1)) / 2.;
+    for (size_t comp = 0; comp < nb_comps[1]; ++comp)
+    {
+        // Get nb of local dof
+        size_t_vector local_dof_number(dim, 0);
         for (size_t l = 0; l < dim; ++l)
-        {
-            min_unknown_index(l) =
-                FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                FF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
+            local_dof_number(l) = UF->get_local_nb_dof(comp, l);
+        // Compute error
 
-        for (size_t dir = 0; dir < dim; dir++)
+        double computed_field = 0., analytical_solution = 0.;
+        double error_L2 = 0.;
+        for (size_t i = 0; i < local_dof_number(0); ++i)
         {
-            size_t_array2D *row_index = GLOBAL_EQ->get_row_indexes(field, dir, comp);
-            switch (dir)
+            x = UF->get_DOF_coordinate(i, comp, 0);
+            for (size_t j = 0; j < local_dof_number(1); ++j)
             {
-            case 0:
-                for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); j++)
+                y = UF->get_DOF_coordinate(j, comp, 1);
+                if (dim == 2)
                 {
-                    for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); k++)
+                    size_t k = 0;
+                    computed_field = UF->DOF_value(i, j, k, comp, 0);
+                    if (comp == cpp)
                     {
-                        size_t p = (j - min_unknown_index(1)) + (1 + max_unknown_index(1) - min_unknown_index(1)) * (k - min_unknown_index(2));
-                        row_index->operator()(j, k) = p;
+                        analytical_solution = (bodyterm / (2. * mu)) * ((y - height) * (y - height) - height * height);
+                    }
+                    if (UF->DOF_is_unknown_handled_by_proc(i, j, k, comp))
+                        error_L2 += MAC::sqr(computed_field - analytical_solution) * UF->get_cell_measure(i, j, k, comp);
+                }
+                else
+                {
+                    for (size_t k = 0; k < local_dof_number(2); ++k)
+                    {
+                        z = UF->get_DOF_coordinate(k, comp, 2);
+                        computed_field = UF->DOF_value(i, j, k, comp, 0);
+                        if (comp == cpp)
+                        {
+                            analytical_solution = (bodyterm / (2. * mu)) * (y * y - height * height);
+                        }
+                        if (UF->DOF_is_unknown_handled_by_proc(i, j, k, comp))
+                            error_L2 += MAC::sqr(computed_field - analytical_solution) * UF->get_cell_measure(i, j, k, comp);
                     }
                 }
-                break;
-            case 1:
-                for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); i++)
-                {
-                    for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); k++)
-                    {
-                        size_t p = (i - min_unknown_index(0)) + (1 + max_unknown_index(0) - min_unknown_index(0)) * (k - min_unknown_index(2));
-                        row_index->operator()(i, k) = p;
-                    }
-                }
-                break;
-            case 2:
-                for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); i++)
-                {
-                    for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); j++)
-                    {
-                        size_t p = (i - min_unknown_index(0)) + (1 + max_unknown_index(0) - min_unknown_index(0)) * (j - min_unknown_index(1));
-                        row_index->operator()(i, j) = p;
-                    }
-                }
-                break;
             }
         }
+        error_L2 = pelCOMM->sum(error_L2);
+        error_L2 = MAC::sqrt(error_L2);
+        if (my_rank == 0)
+            cout << "L2 Error with analytical solution field " << UF->name() << ", component " << comp << " = " << std::fixed << std::setprecision(16) << error_L2 << endl;
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_field_matrix(FV_DiscreteField const *FF, FV_TimeIterator const *t_it)
+size_t
+DLMFD_DirectionSplitting::return_row_index(
+    FV_DiscreteField const *FF,
+    size_t const &comp,
+    size_t const &dir,
+    size_t const &j,
+    size_t const &k)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: return_row_index");
+    // Get local min and max indices
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+    {
+        min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+        max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
+    }
+    size_t p = 0;
+    if (dim == 2)
+    {
+        if (dir == 0)
+        {
+            p = j - min_unknown_index(1);
+        }
+        else if (dir == 1)
+        {
+            p = j - min_unknown_index(0);
+        }
+    }
+    else if (dim == 3)
+    {
+        if (dir == 0)
+        {
+            p = (j - min_unknown_index(1)) + (1 + max_unknown_index(1) - min_unknown_index(1)) * (k - min_unknown_index(2));
+        }
+        else if (dir == 1)
+        {
+            p = (j - min_unknown_index(0)) + (1 + max_unknown_index(0) - min_unknown_index(0)) * (k - min_unknown_index(2));
+        }
+        else if (dir == 2)
+        {
+            p = (j - min_unknown_index(0)) + (1 + max_unknown_index(0) - min_unknown_index(0)) * (k - min_unknown_index(1));
+        }
+    }
+    return (p);
+}
+
+//---------------------------------------------------------------------------
+double
+DLMFD_DirectionSplitting::assemble_field_matrix(
+    FV_DiscreteField const *FF,
+    FV_TimeIterator const *t_it,
+    double const &gamma,
+    size_t const &comp,
+    size_t const &dir,
+    size_t const &field,
+    size_t const &j,
+    size_t const &k,
+    size_t const &r_index)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: assemble_field_matrix");
-
-    // if ( my_rank == is_master )
-    // 	SCT_set_start("Stencil");
-
-    // Assemble the matrices for pressure field(0) and velocity(1) field
-    size_t field = (FF == PF) ? 0 : 1;
-    double gamma = mu / 2.0;
-    TDMatrix *A = GLOBAL_EQ->get_A(field);
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    // doubleArray2D* CC_face_frac = allrigidbodies->get_CC_face_fraction(FF);
-    // doubleArray2D* CC_vol = allrigidbodies->get_CC_cell_volume(FF);
-
-    for (size_t comp = 0; comp < nb_comps[field]; comp++)
+    // Parameters
+    double dxr, dxl, dx, xR, xL, xC, right = 0., left = 0., center = 0.;
+    // Get local min and max indices
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
     {
-        // Get local min and max indices
-        for (size_t l = 0; l < dim; ++l)
+        min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+        max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
+    }
+    // Perform assembling
+    size_t m, i;
+    TDMatrix *A = GLOBAL_EQ->get_A(field);
+    double Aee_diagcoef = 0.;
+    for (m = 0, i = min_unknown_index(dir); i <= max_unknown_index(dir); ++i, ++m)
+    {
+        xC = FF->get_DOF_coordinate(i, comp, dir);
+        xR = FF->get_DOF_coordinate(i + 1, comp, dir);
+        xL = FF->get_DOF_coordinate(i - 1, comp, dir);
+        dx = FF->get_cell_size(i, comp, dir);
+        dxr = xR - xC;
+        dxl = xC - xL;
+        size_t k_min, k_max;
+        double value = 0., unsteady_term = 0.;
+        if (field == 0)
         {
-            min_unknown_index(l) =
-                FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                FF->get_max_index_unknown_handled_by_proc(comp, l);
+            right = -1.0 / (dxr);
+            left = -1.0 / (dxl);
+            // add unsteady term for pressure field
+            unsteady_term = 1.0 * dx;
+        }
+        else if (field == 1)
+        {
+            right = -gamma / (dxr);
+            left = -gamma / (dxl);
+            // add unsteady term for velocity field
+            unsteady_term = rho * (FF->get_cell_size(i, comp, dir)) / (t_it->time_step());
         }
 
-        for (size_t dir = 0; dir < dim; dir++)
+        center = -(right + left);
+
+        if (dim == 2)
         {
+            k_min = 0;
+            k_max = 0;
+        }
+        else
+        {
+            k_min = min_unknown_index(2);
+            k_max = max_unknown_index(2);
+        }
 
-            bool r_bound = false;
-            bool l_bound = false;
-            // All the proc will have open right bound,
-            // except last proc for non periodic systems
-            if ((is_periodic[field][dir] != 1) && (rank_in_i[dir] == nb_ranks_comm_i[dir] - 1))
-                r_bound = true;
-            // All the proc will have open left bound,
-            // except first proc for non periodic systems
-            if ((is_periodic[field][dir] != 1) && (rank_in_i[dir] == 0))
-                l_bound = true;
+        bool r_bound = false;
+        bool l_bound = false;
+        // All the proc will have open right bound, except last proc for non periodic systems
+        if ((is_periodic[field][dir] != 1) && (rank_in_i[dir] == nb_ranks_comm_i[dir] - 1))
+            r_bound = true;
+        // All the proc will have open left bound, except first proc for non periodic systems
+        if ((is_periodic[field][dir] != 1) && (rank_in_i[dir] == 0))
+            l_bound = true;
 
-            size_t dir_j = (dir == 0) ? 1 : 0;
-            size_t dir_k = (dir == 2) ? 1 : 2;
+        // Since, this function is used in all directions;
+        // ii, jj, and kk are used to convert the passed arguments corresponding to correct direction
+        size_t ii = 0, jj = 0, kk = 0;
 
-            size_t local_min_k = (dim == 2) ? 0 : min_unknown_index(dir_k);
-            size_t local_max_k = (dim == 2) ? 0 : max_unknown_index(dir_k);
-
-            size_t_array2D *row_index = GLOBAL_EQ->get_row_indexes(field, dir, comp);
-
-            for (size_t j = min_unknown_index(dir_j);
-                 j <= max_unknown_index(dir_j); ++j)
+        // Condition for handling the pressure neumann conditions at wall
+        if (i == min_unknown_index(dir) && l_bound)
+        {
+            if (dir == 0)
             {
-                for (size_t k = local_min_k; k <= local_max_k; ++k)
+                ii = i - 1;
+                jj = min_unknown_index(1);
+                kk = k_min;
+            }
+            else if (dir == 1)
+            {
+                ii = min_unknown_index(0);
+                jj = i - 1;
+                kk = k_min;
+            }
+            else if (dir == 2)
+            {
+                ii = min_unknown_index(0);
+                jj = min_unknown_index(1);
+                kk = i - 1;
+            }
+            if (FF->DOF_in_domain(ii, jj, kk, comp) && FF->DOF_has_imposed_Dirichlet_value(ii, jj, kk, comp))
+            {
+                value = center;
+            }
+            else
+            {
+                value = -right;
+            }
+        }
+        else if (i == max_unknown_index(dir) && r_bound)
+        {
+            if (dir == 0)
+            {
+                ii = i + 1;
+                jj = max_unknown_index(1);
+                kk = k_max;
+            }
+            else if (dir == 1)
+            {
+                ii = max_unknown_index(0);
+                jj = i + 1;
+                kk = k_max;
+            }
+            else if (dir == 2)
+            {
+                ii = max_unknown_index(0);
+                jj = max_unknown_index(1);
+                kk = i + 1;
+            }
+            if (FF->DOF_in_domain(ii, jj, kk, comp) && FF->DOF_has_imposed_Dirichlet_value(ii, jj, kk, comp))
+            {
+                value = center;
+            }
+            else
+            {
+                value = -left;
+            }
+        }
+        else
+        {
+            value = center;
+        }
+
+        value = value + unsteady_term;
+
+        // Set Aie, Aei and Ae
+        if ((!l_bound) && (i == min_unknown_index(dir)))
+        {
+            // Periodic boundary condition at minimum unknown index
+            // First proc has non zero value in Aie,Aei for first & last index
+            if (rank_in_i[dir] == 0)
+            {
+                A[dir].ie[comp][r_index]->set_item(m, nb_ranks_comm_i[dir] - 1, left);
+                A[dir].ei[comp][r_index]->set_item(nb_ranks_comm_i[dir] - 1, m, right);
+            }
+            else
+            {
+                A[dir].ie[comp][r_index]->set_item(m, rank_in_i[dir] - 1, left);
+                A[dir].ei[comp][r_index]->set_item(rank_in_i[dir] - 1, m, right);
+            }
+        }
+
+        if ((!r_bound) && (i == max_unknown_index(dir)))
+        {
+            // Periodic boundary condition at maximum unknown index
+            // For last index, Aee comes from this proc as it is interface unknown wrt this proc
+            A[dir].ie[comp][r_index]->set_item(m - 1, rank_in_i[dir], right);
+
+            Aee_diagcoef = value;
+            A[dir].ei[comp][r_index]->set_item(rank_in_i[dir], m - 1, left);
+        }
+
+        // Set Aii_sub_diagonal
+        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
+        {
+            if (i > min_unknown_index(dir))
+                A[dir].ii_sub[comp][r_index]->set_item(m - 1, left);
+        }
+        else
+        {
+            if (i < max_unknown_index(dir))
+            {
+                if (i > min_unknown_index(dir))
                 {
-                    size_t r_index = row_index->operator()(j, k);
-                    // Perform assembling
-                    double Aee_diagcoef = 0.;
-                    for (size_t m = 0, i = min_unknown_index(dir);
-                         i <= max_unknown_index(dir); ++i, ++m)
-                    {
-                        int i_temp = (int)((dir == 0) ? i : min_unknown_index(0));
-                        int j_temp = (int)((dir == 1) ? i : min_unknown_index(1));
-                        int k_temp = (int)((dir == 2) ? i : min_unknown_index(2));
-
-                        double xC = FF->get_DOF_coordinate(i, comp, dir);
-
-                        // Check if the index is at right domain
-                        // boundary with neumann or dirichlet BC
-                        double xR = FF->get_DOF_coordinate(i + 1, comp, dir);
-                        if ((i == max_unknown_index(dir)) && r_bound && FF->DOF_on_BC(i_temp, j_temp, k_temp, comp))
-                        {
-                            xR = 0.;
-                        }
-
-                        // Check if the index is at left domain
-                        // boundary with neumann or dirichlet BC
-                        double xL = FF->get_DOF_coordinate(i - 1, comp, dir);
-                        if ((i == min_unknown_index(dir)) && l_bound && FF->DOF_on_BC(i_temp, j_temp, k_temp, comp))
-                        {
-                            xL = 0.;
-                        }
-
-                        double dxr = xR - xC;
-                        double dxl = xC - xL;
-                        double dx = FF->get_cell_size(i, comp, dir);
-                        // double pre_factor = (2. * dx) / (dxr + dxl);
-
-                        double right = (FF == PF) ? -1.0 / dxr : -gamma / dxr;
-                        double left = (FF == PF) ? -1.0 / dxl : -gamma / dxl;
-                        double unsteady_term = (FF == PF) ? 1.0 * dx
-                                                          : rho * dx / t_it->time_step();
-
-                        double center = -(right + left);
-
-                        // if ((is_solids) && (FF == UF))
-                        // {
-                        //     size_t_array2D *intersect_vector = allrigidbodies
-                        //                                            ->get_intersect_vector_on_grid(FF);
-                        //     doubleArray2D *intersect_distance = allrigidbodies
-                        //                                             ->get_intersect_distance_on_grid(FF);
-                        //     size_t_array2D *void_frac = allrigidbodies
-                        //                                     ->get_void_fraction_on_grid(FF);
-
-                        //     size_t p = 0;
-                        //     if (dir == 0)
-                        //     {
-                        //         p = FF->DOF_local_number(i, j, k, comp);
-                        //     }
-                        //     else if (dir == 1)
-                        //     {
-                        //         p = FF->DOF_local_number(j, i, k, comp);
-                        //     }
-                        //     else if (dir == 2)
-                        //     {
-                        //         p = FF->DOF_local_number(j, k, i, comp);
-                        //     }
-
-                        //     if (void_frac->operator()(p, 0) == 0)
-                        //     {
-                        //         // if left node is inside the solid particle
-                        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-                        //         {
-                        //             left = -gamma / intersect_distance->operator()(p, 2 * dir + 0);
-                        //             // pre_factor = (2. * dx) / (dxr + intersect_distance->operator()(p,2*dir+0));
-                        //         }
-                        //         // if right node is inside the solid particle
-                        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-                        //         {
-                        //             right = -gamma / intersect_distance->operator()(p, 2 * dir + 1);
-                        //             // pre_factor = (2. * dx) / (dxl + intersect_distance->operator()(p,2*dir+1));
-                        //         }
-                        //     }
-                        //     else if (void_frac->operator()(p, 0) != 0)
-                        //     {
-                        //         // if center node is inside the solid particle
-                        //         left = 0.;
-                        //         right = 0.;
-                        //     }
-
-                        //     center = -(right + left);
-
-                        //     if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-                        //         left = 0.;
-                        //     if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-                        //         right = 0.;
-                        // }
-
-                        // left *= pre_factor;
-                        // right *= pre_factor;
-                        // center *= pre_factor;
-
-                        double value = center;
-
-                        // Condition for handling the pressure
-                        // neumann conditions at wall
-                        if (i == min_unknown_index(dir) && l_bound)
-                        {
-                            int ii = (int)((dir == 0) ? i - 1 : min_unknown_index(0));
-                            int jj = (int)((dir == 1) ? i - 1 : min_unknown_index(1));
-                            int kk = (int)((dir == 2) ? i - 1 : min_unknown_index(2));
-
-                            if (FF->DOF_in_domain(ii, jj, kk, comp) && FF->DOF_has_imposed_Dirichlet_value((size_t)ii, (size_t)jj, (size_t)kk, comp))
-                            {
-                                // For Dirichlet boundary condition
-                                value = center;
-                            }
-                            else
-                            {
-                                // For Neumann homogeneous boundary condition
-                                value = -right;
-                            }
-                        }
-                        else if (i == max_unknown_index(dir) && r_bound)
-                        {
-                            int ii = (int)((dir == 0) ? i + 1 : max_unknown_index(0));
-                            int jj = (int)((dir == 1) ? i + 1 : max_unknown_index(1));
-                            int kk = (int)((dir == 2) ? i + 1 : max_unknown_index(2));
-
-                            if (FF->DOF_in_domain(ii, jj, kk, comp) && FF->DOF_has_imposed_Dirichlet_value((size_t)ii, (size_t)jj, (size_t)kk, comp))
-                            {
-                                // For Dirichlet boundary condition
-                                value = center;
-                            }
-                            else
-                            {
-                                // For Neumann homogeneous boundary condition
-                                value = -left;
-                            }
-                        }
-
-                        value = value + unsteady_term;
-
-                        // Set Aie, Aei and Ae
-                        if ((!l_bound) && (i == min_unknown_index(dir)))
-                        {
-                            // Periodic boundary condition at minimum unknown index
-                            // First proc has non zero value in Aie,Aei for first & last index
-                            if (rank_in_i[dir] == 0)
-                            {
-                                A[dir].ie[comp][r_index]->set_item(m, nb_ranks_comm_i[dir] - 1, left);
-                                A[dir].ei[comp][r_index]->set_item(nb_ranks_comm_i[dir] - 1, m, left);
-                            }
-                            else
-                            {
-                                A[dir].ie[comp][r_index]->set_item(m, rank_in_i[dir] - 1, left);
-                                A[dir].ei[comp][r_index]->set_item(rank_in_i[dir] - 1, m, left);
-                            }
-                        }
-
-                        if ((!r_bound) && (i == max_unknown_index(dir)))
-                        {
-                            // Periodic boundary condition at maximum unknown index
-                            // For last index, Aee comes from this proc as it
-                            // is interface unknown wrt this proc
-                            A[dir].ie[comp][r_index]->set_item(m - 1, rank_in_i[dir], left);
-                            Aee_diagcoef = value;
-                            A[dir].ei[comp][r_index]->set_item(rank_in_i[dir], m - 1, left);
-                        }
-
-                        // Set Aii_sub_diagonal
-                        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
-                        {
-                            if (i > min_unknown_index(dir))
-                                A[dir].ii_sub[comp][r_index]->set_item(m - 1, left);
-                        }
-                        else
-                        {
-                            if (i < max_unknown_index(dir))
-                                if (i > min_unknown_index(dir))
-                                    A[dir].ii_sub[comp][r_index]->set_item(m - 1, left);
-                        }
-
-                        // Set Aii_super_diagonal
-                        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
-                        {
-                            if (i < max_unknown_index(dir))
-                                A[dir].ii_super[comp][r_index]->set_item(m, right);
-                        }
-                        else
-                        {
-                            if (i < max_unknown_index(dir) - 1)
-                                A[dir].ii_super[comp][r_index]->set_item(m, right);
-                        }
-
-                        // Set Aii_main_diagonal
-                        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
-                        {
-                            A[dir].ii_main[comp][r_index]->set_item(m, value);
-                        }
-                        else
-                        {
-                            if (i < max_unknown_index(dir))
-                                A[dir].ii_main[comp][r_index]->set_item(m, value);
-                        }
-                    } // End of for loop
-
-                    GLOBAL_EQ->pre_thomas_treatment(comp, dir, A, r_index);
-
-                    // Storing Aee for MPI communication
-                    ProdMatrix *Ap = GLOBAL_EQ->get_Ap(field);
-                    double *local_coeff = data_for_S[field][dir].send[comp][0];
-                    size_t nbrow = Ap[dir].ei_ii_ie[comp]->nb_rows();
-                    size_t ii = (nbrow * nbrow + 1) * r_index;
-                    local_coeff[ii] = Aee_diagcoef;
+                    A[dir].ii_sub[comp][r_index]->set_item(m - 1, left);
                 }
             }
         }
-    }
 
-    // if ( my_rank == is_master )
-    // 	SCT_get_elapsed_time("Stencil");
+        // Set Aii_super_diagonal
+        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
+        {
+            if (i < max_unknown_index(dir))
+                A[dir].ii_super[comp][r_index]->set_item(m, right);
+        }
+        else
+        {
+            if (i < max_unknown_index(dir) - 1)
+            {
+                A[dir].ii_super[comp][r_index]->set_item(m, right);
+            }
+        }
+
+        // Set Aii_main_diagonal
+        if ((rank_in_i[dir] == nb_ranks_comm_i[dir] - 1) && (is_periodic[field][dir] != 1))
+        {
+            A[dir].ii_main[comp][r_index]->set_item(m, value);
+        }
+        else
+        {
+            if (i < max_unknown_index(dir))
+            {
+                A[dir].ii_main[comp][r_index]->set_item(m, value);
+            }
+        }
+    } // End of for loop
+
+    GLOBAL_EQ->pre_thomas_treatment(comp, dir, A, r_index);
+
+    return (Aee_diagcoef);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_field_schur_matrix(FV_DiscreteField const *FF)
+void DLMFD_DirectionSplitting::assemble_field_schur_matrix(struct TDMatrix *A, size_t const &comp, size_t const &dir, double const &Aee_diagcoef, size_t const &field, size_t const &r_index)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: assemble_field_schur_matrix");
     // Compute the product matrix for each proc
 
-    // if ( my_rank == is_master )
-    // 	SCT_set_start("Schur");
+    if (nb_ranks_comm_i[dir] > 1)
+    {
 
-    size_t field = (FF == PF) ? 0 : 1;
+        ProdMatrix *Ap = GLOBAL_EQ->get_Ap(field);
 
-    TDMatrix *A = GLOBAL_EQ->get_A(field);
-    ProdMatrix *Ap = GLOBAL_EQ->get_Ap(field);
+        GLOBAL_EQ->compute_product_matrix(A, Ap, comp, dir, field, r_index);
+
+        LA_SeqMatrix *product_matrix = Ap[dir].ei_ii_ie[comp];
+        LA_SeqMatrix *receive_matrix = product_matrix->create_copy(this, product_matrix);
+
+        if (rank_in_i[dir] == 0)
+        {
+            A[dir].ee[comp][r_index]->set_item(0, 0, Aee_diagcoef);
+            for (size_t i = 1; i < nb_ranks_comm_i[dir]; ++i)
+            {
+
+                // Create the container to receive
+                size_t nbrows = product_matrix->nb_rows();
+                size_t nb_received_data = pow(nbrows, 2) + 1;
+                double *received_data = new double[nb_received_data];
+
+                // Receive the data
+                static MPI_Status status;
+                MPI_Recv(received_data, nb_received_data, MPI_DOUBLE, i, 0,
+                         DDS_Comm_i[dir], &status);
+
+                // Transfer the received data to the receive matrix
+                for (int k = 0; k < nbrows; k++)
+                {
+                    for (int j = 0; j < nbrows; j++)
+                    {
+                        // Assemble the global product matrix by adding contributions from all the procs
+                        receive_matrix->add_to_item(k, j, received_data[k * (nbrows) + j]);
+                    }
+                }
+
+                if (is_periodic[field][dir] == 0)
+                {
+                    if (i < nb_ranks_comm_i[dir] - 1)
+                    {
+                        // Assemble the global Aee matrix
+                        // No periodic condition in x. So no fe contribution from last proc
+                        A[dir].ee[comp][r_index]->set_item(i, i, received_data[nb_received_data - 1]);
+                    }
+                }
+                else
+                {
+                    // Assemble the global Aee matrix
+                    // Periodic condition in x. So there is fe contribution from last proc
+                    A[dir].ee[comp][r_index]->set_item(i, i, received_data[nb_received_data - 1]);
+                }
+                delete[] received_data;
+            }
+        }
+        else
+        {
+            // Create the packed data container
+            size_t nbrows = product_matrix->nb_rows();
+            size_t nb_send_data = pow(nbrows, 2) + 1;
+            double *packed_data = new double[nb_send_data];
+
+            // Fill the packed data container with Aie
+            // Iterator only fetches the values present. Zeros are not fetched.
+
+            for (size_t i = 0; i < nbrows; i++)
+            {
+                for (size_t j = 0; j < nbrows; j++)
+                {
+                    // Packing rule
+                    // Pack the product matrix into a vector
+                    packed_data[i * nbrows + j] = product_matrix->item(i, j);
+                }
+            }
+
+            // Fill the last element of packed data with the diagonal coefficient Aee
+            packed_data[nb_send_data - 1] = Aee_diagcoef;
+
+            // Send the data
+            MPI_Send(packed_data, nb_send_data, MPI_DOUBLE, 0, 0, DDS_Comm_i[dir]);
+
+            delete[] packed_data;
+        }
+
+        // Assemble the schlur complement in the master proc
+
+        if (rank_in_i[dir] == 0)
+        {
+            TDMatrix *Schur = GLOBAL_EQ->get_Schur(field);
+            size_t nb_row = Schur[dir].ii_main[comp][r_index]->nb_rows();
+            for (int p = 0; p < nb_row; p++)
+            {
+                Schur[dir].ii_main[comp][r_index]->set_item(p, A[dir].ee[comp][r_index]->item(p, p) - receive_matrix->item(p, p));
+                if (p < nb_row - 1)
+                    Schur[dir].ii_super[comp][r_index]->set_item(p, -receive_matrix->item(p, p + 1));
+                if (p > 0)
+                    Schur[dir].ii_sub[comp][r_index]->set_item(p - 1, -receive_matrix->item(p, p - 1));
+                // In case of periodic and multi-processor, there will be a variant of Tridiagonal matrix instead of normal format
+                if (is_periodic[field][dir] == 1)
+                {
+                    Schur[dir].ie[comp][r_index]->set_item(p, 0, -receive_matrix->item(p, nb_row));
+                    Schur[dir].ei[comp][r_index]->set_item(0, p, -receive_matrix->item(nb_row, p));
+                }
+            }
+            // Pre-thomas treatment on Schur complement
+            GLOBAL_EQ->pre_thomas_treatment(comp, dir, Schur, r_index);
+
+            // In case of periodic and multi-processor, there will be a variant of Tridiagonal matrix instead of normal format
+            // So, Schur complement of Schur complement is calculated
+            if (is_periodic[field][dir] == 1)
+            {
+                Schur[dir].ee[comp][r_index]->set_item(0, 0, A[dir].ee[comp][r_index]->item(nb_row, nb_row) - receive_matrix->item(nb_row, nb_row));
+
+                ProdMatrix *SchurP = GLOBAL_EQ->get_SchurP(field);
+                GLOBAL_EQ->compute_product_matrix_interior(Schur, SchurP, comp, 0, dir, r_index);
+
+                TDMatrix *DoubleSchur = GLOBAL_EQ->get_DoubleSchur(field);
+                size_t nb_row = DoubleSchur[dir].ii_main[comp][r_index]->nb_rows();
+                DoubleSchur[dir].ii_main[comp][r_index]->set_item(0, Schur[dir].ee[comp][r_index]->item(0, 0) - SchurP[dir].ei_ii_ie[comp]->item(0, 0));
+            }
+        }
+    }
+    else if (is_periodic[field][dir] == 1)
+    {
+        // Condition for single processor in any direction with periodic boundary conditions
+        ProdMatrix *Ap = GLOBAL_EQ->get_Ap(field);
+        GLOBAL_EQ->compute_product_matrix(A, Ap, comp, dir, field, r_index);
+
+        LA_SeqMatrix *product_matrix = Ap[dir].ei_ii_ie[comp];
+        LA_SeqMatrix *receive_matrix = product_matrix->create_copy(this, product_matrix);
+
+        A[dir].ee[comp][r_index]->set_item(0, 0, Aee_diagcoef);
+
+        TDMatrix *Schur = GLOBAL_EQ->get_Schur(field);
+        size_t nb_row = Schur[dir].ii_main[comp][r_index]->nb_rows();
+        for (int p = 0; p < nb_row; p++)
+        {
+            Schur[dir].ii_main[comp][r_index]->set_item(p, A[dir].ee[comp][r_index]->item(p, p) - receive_matrix->item(p, p));
+            if (p < nb_row - 1)
+                Schur[dir].ii_super[comp][r_index]->set_item(p, -receive_matrix->item(p, p + 1));
+            if (p > 0)
+                Schur[dir].ii_sub[comp][r_index]->set_item(p - 1, -receive_matrix->item(p, p - 1));
+        }
+        GLOBAL_EQ->pre_thomas_treatment(comp, dir, Schur, r_index);
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting::assemble_1D_matrices(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_1D_matrices");
+
+    double gamma = mu / 2.0;
 
     size_t_vector min_unknown_index(dim, 0);
     size_t_vector max_unknown_index(dim, 0);
 
-    for (size_t comp = 0; comp < nb_comps[field]; comp++)
+    // Assemble the matrices for pressure field(0) and velocity(1) field
+    for (size_t field = 0; field < 2; field++)
     {
-        // Get local min and max indices
-        for (size_t l = 0; l < dim; ++l)
+        for (size_t comp = 0; comp < nb_comps[field]; comp++)
         {
-            min_unknown_index(l) =
-                FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                FF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        for (size_t dir = 0; dir < dim; dir++)
-        {
-            size_t dir_j = (dir == 0) ? 1 : 0;
-            size_t dir_k = (dir == 2) ? 1 : 2;
-
-            size_t_array2D *row_index = GLOBAL_EQ->get_row_indexes(field, dir, comp);
-
-            size_t local_min_k = (dim == 2) ? 0 : min_unknown_index(dir_k);
-            size_t local_max_k = (dim == 2) ? 0 : max_unknown_index(dir_k);
-
-            if (nb_ranks_comm_i[dir] > 1)
+            // Get local min and max indices
+            for (size_t l = 0; l < dim; ++l)
             {
-
-                size_t nbrow = Ap[dir].ei_ii_ie[comp]->nb_rows();
-                double *local_packet = data_for_S[field][dir].send[comp][0];
-
-                // Calculating the product matrix and creating the container for MPI
-                for (size_t j = min_unknown_index(dir_j);
-                     j <= max_unknown_index(dir_j); ++j)
+                if (field == 0)
                 {
-                    for (size_t k = local_min_k; k <= local_max_k; ++k)
-                    {
-                        size_t r_index = row_index->operator()(j, k);
-
-                        GLOBAL_EQ->compute_product_matrix(A, Ap, comp, dir, field, r_index);
-
-                        // Create the data container to send and in the master as well
-                        for (size_t kk = 0; kk < nbrow; kk++)
-                        {
-                            for (size_t jj = 0; jj < nbrow; jj++)
-                            {
-                                size_t ii = (nbrow * nbrow + 1) * r_index + nbrow * kk + jj + 1;
-                                local_packet[ii] = Ap[dir].ei_ii_ie[comp]->item(kk, jj);
-                            }
-                        }
-                    }
+                    min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(comp, l);
+                    max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(comp, l);
                 }
-
-                if (rank_in_i[dir] != 0)
+                else if (field == 1)
                 {
-                    // Send the packed data to master
-                    MPI_Send(data_for_S[field][dir].send[comp][0],
-                             (int)data_for_S[field][dir].size[comp],
-                             MPI_DOUBLE, 0, 0, DS_Comm_i[dir]);
+                    min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
+                    max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
                 }
-
-                // Assemble the global product matrix by adding contribution from
-                // all procs
-                if (rank_in_i[dir] == 0)
-                {
-                    for (size_t i = 1; i < (size_t)nb_ranks_comm_i[dir]; ++i)
-                    {
-                        // Recieve the data packet sent by master
-                        static MPI_Status status;
-                        MPI_Recv(data_for_S[field][dir].receive[comp][0],
-                                 (int)data_for_S[field][dir].size[comp],
-                                 MPI_DOUBLE, (int)i, 0, DS_Comm_i[dir], &status);
-
-                        for (size_t j = min_unknown_index(dir_j);
-                             j <= max_unknown_index(dir_j); ++j)
-                        {
-                            for (size_t k = local_min_k; k <= local_max_k; ++k)
-                            {
-                                size_t r_index = row_index->operator()(j, k);
-                                size_t p = (nbrow * nbrow + 1) * r_index;
-                                double ee_proc0 = local_packet[p];
-                                A[dir].ee[comp][r_index]->set_item(0, 0, ee_proc0);
-
-                                for (size_t kk = 0; kk < nbrow; kk++)
-                                {
-                                    for (size_t jj = 0; jj < nbrow; jj++)
-                                    {
-                                        size_t ii = (nbrow * nbrow + 1) * r_index + nbrow * kk + jj + 1;
-                                        double value =
-                                            data_for_S[field][dir].receive[comp][0][ii];
-                                        local_packet[ii] += value;
-                                    }
-                                }
-
-                                size_t ii = (nbrow * nbrow + 1) * r_index;
-                                double value_Aee =
-                                    data_for_S[field][dir].receive[comp][0][ii];
-
-                                // Assemble the global Aee matrix
-                                // Only for (nb_proc-1) in case no PBC
-                                // Otherwise for (nb_proc)
-                                if (!is_periodic[field][dir])
-                                {
-                                    if (i < (size_t)nb_ranks_comm_i[dir] - 1)
-                                    {
-                                        A[dir].ee[comp][r_index]->set_item(i, i, value_Aee);
-                                    }
-                                }
-                                else
-                                {
-                                    A[dir].ee[comp][r_index]->set_item(i, i, value_Aee);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Assemble the schlur complement in the master proc
-                if (rank_in_i[dir] == 0)
-                {
-                    TDMatrix *Schur = GLOBAL_EQ->get_Schur(field);
-                    for (size_t j = min_unknown_index(dir_j);
-                         j <= max_unknown_index(dir_j); ++j)
-                    {
-                        for (size_t k = local_min_k; k <= local_max_k; ++k)
-                        {
-                            size_t r_index = row_index->operator()(j, k);
-                            size_t schur_size = Schur[dir].ii_main[comp][r_index]->nb_rows();
-                            for (int p = 0; p < (int)schur_size; p++)
-                            {
-                                size_t ii = (nbrow * nbrow + 1) * r_index + nbrow * p + p + 1;
-                                Schur[dir].ii_main[comp][r_index]->set_item(p, A[dir].ee[comp][r_index]->item(p, p) - local_packet[ii]);
-                                if (p < (int)schur_size - 1)
-                                    Schur[dir].ii_super[comp][r_index]->set_item(p, -local_packet[ii + 1]);
-                                if (p > 0)
-                                    Schur[dir].ii_sub[comp][r_index]->set_item(p - 1, -local_packet[ii - 1]);
-                                // In case of periodic and multi-processor,
-                                // there will be a variant of Tridiagonal matrix
-                                // instead of normal format
-                                if (is_periodic[field][dir] == 1)
-                                {
-                                    ii = (nbrow * nbrow + 1) * r_index + nbrow * p + schur_size + 1;
-                                    Schur[dir].ie[comp][r_index]->set_item(p, 0,
-                                                                           -local_packet[ii]);
-                                    ii = (nbrow * nbrow + 1) * r_index + nbrow * schur_size + p + 1;
-                                    Schur[dir].ei[comp][r_index]->set_item(0, p,
-                                                                           -local_packet[ii]);
-                                }
-                            }
-                            // Pre-thomas treatment on Schur complement
-                            GLOBAL_EQ->pre_thomas_treatment(comp, dir, Schur, r_index);
-
-                            // In case of periodic and multi-processor, there will be
-                            // a variant of Tridiagonal matrix instead of normal format
-                            // So, Schur complement of Schur complement is calculated
-                            if (is_periodic[field][dir] == 1)
-                            {
-                                size_t ii = ((size_t)pow(nbrow, 2) + 1) * r_index + nbrow * schur_size + schur_size + 1;
-                                Schur[dir].ee[comp][r_index]->set_item(0, 0,
-                                                                       A[dir].ee[comp][r_index]->item(schur_size, schur_size) - local_packet[ii]);
-
-                                ProdMatrix *SchurP = GLOBAL_EQ->get_SchurP(field);
-                                GLOBAL_EQ->compute_product_matrix_interior(Schur, SchurP, comp, 0, dir, r_index);
-
-                                TDMatrix *DoubleSchur = GLOBAL_EQ->get_DoubleSchur(field);
-                                DoubleSchur[dir].ii_main[comp][r_index]->set_item(0, Schur[dir].ee[comp][r_index]->item(0, 0) - SchurP[dir].ei_ii_ie[comp]->item(0, 0));
-                            }
-                        }
-                    }
-                }
-                // Condition for single processor in any
-                // direction with periodic boundary conditions
             }
-            else if (is_periodic[field][dir] == 1)
+            for (size_t dir = 0; dir < dim; dir++)
             {
-                for (size_t j = min_unknown_index(dir_j);
-                     j <= max_unknown_index(dir_j); ++j)
+                size_t dir_j, dir_k;
+                size_t local_min_k = 0;
+                size_t local_max_k = 0;
+
+                if (dir == 0)
+                {
+                    dir_j = 1;
+                    dir_k = 2;
+                }
+                else if (dir == 1)
+                {
+                    dir_j = 0;
+                    dir_k = 2;
+                }
+                else if (dir == 2)
+                {
+                    dir_j = 0;
+                    dir_k = 1;
+                }
+
+                if (dim == 3)
+                {
+                    local_min_k = min_unknown_index(dir_k);
+                    local_max_k = max_unknown_index(dir_k);
+                }
+
+                for (size_t j = min_unknown_index(dir_j); j <= max_unknown_index(dir_j); ++j)
                 {
                     for (size_t k = local_min_k; k <= local_max_k; ++k)
                     {
-                        size_t r_index = row_index->operator()(j, k);
-
-                        GLOBAL_EQ->compute_product_matrix(A, Ap, comp, dir, field, r_index);
-
-                        LA_SeqMatrix *product_matrix = Ap[dir].ei_ii_ie[comp];
-
-                        A[dir].ee[comp][r_index]->set_item(0, 0, data_for_S[field][dir].send[comp][0][0]);
-
-                        TDMatrix *Schur = GLOBAL_EQ->get_Schur(field);
-                        size_t nb_row = Schur[dir].ii_main[comp][r_index]->nb_rows();
-                        for (int p = 0; p < (int)nb_row; p++)
+                        size_t r_index;
+                        double Aee_diagcoef;
+                        if (field == 0)
                         {
-                            Schur[dir].ii_main[comp][r_index]->set_item(p, A[dir].ee[comp][r_index]->item(p, p) - product_matrix->item(p, p));
-                            if (p < (int)nb_row - 1)
-                                Schur[dir].ii_super[comp][r_index]->set_item(p, -product_matrix->item(p, p + 1));
-                            if (p > 0)
-                                Schur[dir].ii_sub[comp][r_index]->set_item(p - 1, -product_matrix->item(p, p - 1));
+                            r_index = return_row_index(PF, comp, dir, j, k);
+                            Aee_diagcoef = assemble_field_matrix(PF, t_it, gamma, comp, dir, 0, j, k, r_index);
                         }
-                        GLOBAL_EQ->pre_thomas_treatment(comp, dir, Schur, r_index);
+                        else if (field == 1)
+                        {
+                            r_index = return_row_index(UF, comp, dir, j, k);
+                            Aee_diagcoef = assemble_field_matrix(UF, t_it, gamma, comp, dir, 1, j, k, r_index);
+                        }
+                        TDMatrix *A = GLOBAL_EQ->get_A(field);
+                        assemble_field_schur_matrix(A, comp, dir, Aee_diagcoef, field, r_index);
                     }
                 }
             }
         }
     }
-
-    // if ( my_rank == is_master )
-    // 	SCT_get_elapsed_time("Schur");
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_1D_matrices(FV_DiscreteField const *FF, FV_TimeIterator const *t_it)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_1D_matrices");
-
-    // Assemble field matrix
-    assemble_field_matrix(FF, t_it);
-    // Calculate and assemble Schur complement
-    assemble_field_schur_matrix(FF);
 }
 
 //---------------------------------------------------------------------------
@@ -1270,841 +897,105 @@ void DLMFD_DirectionSplitting::NS_first_step(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_first_step");
 
-    sub_prob_number = 1;
+    size_t i, j, k;
 
-    // Compute CFL
-    double computed_CFL = UF->compute_CFL(t_it, 0);
-    size_t n_advection_subtimesteps = unsigned(computed_CFL / imposed_CFL) + 1;
+    double value = 0.;
 
-    if (my_rank == is_master)
-    {
-        MAC::out() << "------------------------------------------------------" << endl;
-        MAC::out() << "Sub-problem " << sub_prob_number
-                   << " : NS_first_step" << endl;
-        MAC::out() << "------------------------------------------------------" << endl;
-        MAC::out() << "CFL : imposed = " << imposed_CFL << " computed = "
-                   << computed_CFL << "  Nb of sub time steps = " << n_advection_subtimesteps << endl;
-    }
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
     // First Equation
 
     // Get local min and max indices
     for (size_t l = 0; l < dim; ++l)
     {
-        min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-        max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
+        min_unknown_index(l) = PF->get_min_index_unknown_on_proc(0, l);
+        max_unknown_index(l) = PF->get_max_index_unknown_on_proc(0, l);
     }
 
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
     {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
         {
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+            if (dim == 2)
             {
+                k = 0;
                 // Set P*_n as sum of P_(n-1/2)+phi_(n-1/2)
-                double value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1);
+                value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1);
                 PF->set_DOF_value(i, j, k, 0, 1, value);
             }
-        }
-    }
-
-    // Synchronize pressure field
-    PF->synchronize(1);
-
-    // if (is_solids)
-    // {
-    //     // allrigidbodies->extrapolate_pressure_inside_RB(PF,1);
-    //     correct_pressure_1st_layer_solid(1);
-    //     correct_pressure_2nd_layer_solid(1);
-    // }
-
-    PF->set_neumann_DOF_values();
-
-    // Calculate pressure forces on the solid particles
-    if (my_rank == is_master)
-        SCT_set_start("Pressure stress");
-    // if (is_stressCal && (t_it->iteration_number() % stressCalFreq == 0))
-    // {
-    //     allrigidbodies->compute_pressure_force_and_torque_for_allRB(PressureStressOrder);
-    // }
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("Pressure stress");
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_velocity_diffusion_terms()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_velocity_diffusion_terms");
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    vector<doubleVector *> vel_diffusion = GLOBAL_EQ->get_velocity_diffusion();
-
-    for (size_t comp = 0; comp < nb_comps[1]; comp++)
-    {
-        // Get local min and max indices
-        for (size_t l = 0; l < dim; ++l)
-        {
-            min_unknown_index(l) =
-                UF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                UF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        {
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+            else
             {
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
                 {
-                    size_t p = UF->DOF_local_number(i, j, k, comp);
-                    // dxx of level3
-                    vel_diffusion[0]->operator()(p) =
-                        compute_un_component(comp, i, j, k, 0, 3);
-                    // dyy of level1(2D) or level4(3D)
-                    if (dim == 2)
-                    {
-                        vel_diffusion[1]->operator()(p) =
-                            compute_un_component(comp, i, j, k, 1, 1);
-                    }
-                    else
-                    {
-                        vel_diffusion[1]->operator()(p) =
-                            compute_un_component(comp, i, j, k, 1, 4);
-                    }
-                    // dzz of level3
-                    if (dim == 3)
-                        vel_diffusion[2]->operator()(p) =
-                            compute_un_component(comp, i, j, k, 2, 1);
+                    // Set P*_n as sum of P_(n-1/2)+phi_(n-1/2)
+                    value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1);
+                    PF->set_DOF_value(i, j, k, 0, 1, value);
                 }
             }
         }
-
-        // Flux redistribution
-        // if (is_solids && (StencilCorrection == "CutCell") && !is_CConlyDivergence)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     intVector *ownerID = allrigidbodies->get_CC_ownerID(UF);
-        //     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        //     {
-        //         for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        //         {
-        //             for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-        //             {
-        //                 size_t p = UF->DOF_local_number(i, j, k, comp);
-        //                 if ((ownerID->operator()(p) != -1) && (void_frac->operator()(p, 0) != 0))
-        //                 {
-        //                     for (size_t dir = 0; dir < dim; dir++)
-        //                     {
-        //                         size_t_vector i0_r(3), i0_l(3);
-        //                         i0_l(0) = i;
-        //                         i0_l(1) = j;
-        //                         i0_l(2) = k;
-        //                         i0_r = i0_l;
-        //                         i0_l(dir) = i0_l(dir) - 1;
-        //                         i0_r(dir) = i0_r(dir) + 1;
-        //                         size_t p_lft = UF->DOF_local_number(i0_l(0), i0_l(1), i0_l(2), comp);
-        //                         size_t p_rht = UF->DOF_local_number(i0_r(0), i0_r(1), i0_r(2), comp);
-        //                         if (vel_diffusion[dir]->operator()(p) != 0.)
-        //                         {
-        //                             if (void_frac->operator()(p_lft, 0) == 0)
-        //                             {
-        //                                 vel_diffusion[dir]->operator()(p_lft) += vel_diffusion[dir]->operator()(p);
-        //                                 vel_diffusion[dir]->operator()(p) = 0.;
-        //                             }
-        //                             else if (vel_diffusion[dir]->operator()(p_rht) == 0)
-        //                             {
-        //                                 vel_diffusion[dir]->operator()(p_rht) += vel_diffusion[dir]->operator()(p);
-        //                                 vel_diffusion[dir]->operator()(p) = 0.;
-        //                             }
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
     }
+
+    PF->set_neumann_DOF_values();
 }
 
 //---------------------------------------------------------------------------
 double
-DLMFD_DirectionSplitting::compute_un_component(size_t const &comp,
-                                               size_t const &i,
-                                               size_t const &j,
-                                               size_t const &k,
-                                               size_t const &dir,
-                                               size_t const &level)
+DLMFD_DirectionSplitting::compute_un_component(size_t const &comp, size_t const &i, size_t const &j, size_t const &k, size_t const &dir, size_t const &level)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: compute_un_component");
 
-    double value = 0.;
-
-    // if ((StencilCorrection == "CutCell") && !is_CConlyDivergence)
-    // {
-    //     value = compute_un_component_FV(comp, i, j, k, dir, level);
-    // }
-    // else
-    // {
-    value = compute_un_component_FD(comp, i, j, k, dir, level);
-    // }
-
-    return (value);
-}
-
-//---------------------------------------------------------------------------
-std::tuple<double, double>
-DLMFD_DirectionSplitting::compute_first_derivative(size_t const &comp,
-                                                   size_t const &i,
-                                                   size_t const &j,
-                                                   size_t const &k,
-                                                   size_t const &dir,
-                                                   size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: compute_first_derivative");
-
-    size_t_array2D *intersect_vector = 0;
-    doubleArray2D *intersect_distance = 0;
-    doubleArray2D *intersect_fieldVal = 0;
-
-    size_t p = UF->DOF_local_number(i, j, k, comp);
-    double value = 0., dC = 1.;
-    double fc = UF->DOF_value(i, j, k, comp, level);
-    double dxl_act = 1., dxr_act = 1.;
-    double dxl = 1., dxr = 1.;
+    double xhr, xhl, xright, xleft, yhr, yhl, yright, yleft;
+    double zhr, zhl, zright, zleft, value = 0.;
 
     if (dir == 0)
     {
-        dC = UF->get_cell_size(i, comp, 0);
-        double xc = UF->get_DOF_coordinate(i, comp, 0);
-        double xl = xc, xr = xc;
-        double fr = fc, fl = fc;
+        xhr = UF->get_DOF_coordinate(i + 1, comp, 0) - UF->get_DOF_coordinate(i, comp, 0);
+        xhl = UF->get_DOF_coordinate(i, comp, 0) - UF->get_DOF_coordinate(i - 1, comp, 0);
+        xright = UF->DOF_value(i + 1, j, k, comp, level) - UF->DOF_value(i, j, k, comp, level);
+        xleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i - 1, j, k, comp, level);
 
-        if (UF->DOF_in_domain((int)i + 1, (int)j, (int)k, comp))
-        {
-            fr = UF->DOF_value(i + 1, j, k, comp, level);
-            xr = UF->get_DOF_coordinate(i + 1, comp, 0);
-        }
-
-        if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp))
-        {
-            fl = UF->DOF_value(i - 1, j, k, comp, level);
-            xl = UF->get_DOF_coordinate(i - 1, comp, 0);
-        }
-
-        dxl_act = xc - xl;
-        dxr_act = xr - xc;
-        dxl = dxl_act;
-        dxr = dxr_act;
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             fl = intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             xl = xc - intersect_distance->operator()(p, 2 * dir + 0);
-        //             dC = ((xc - xl) < 0.5 * dC) ? 0.5 * dC + (xc - xl) : dC;
-        //             dxl = xc - xl;
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             fr = intersect_fieldVal->operator()(p, 2 * dir + 1);
-        //             xr = xc + intersect_distance->operator()(p, 2 * dir + 1);
-        //             dC = ((xr - xc) < 0.5 * dC) ? 0.5 * dC + (xr - xc) : dC;
-        //             dxr = xr - xc;
-        //         }
-        //     }
-        // }
-
-        // Derivative
-        if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp) && UF->DOF_in_domain((int)i + 1, (int)j, (int)k, comp))
-        {
-            if (dxl != dxl_act)
-            {
-                if (dxl < 0.5 * dxl_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl) * (fl - fc));
-                }
-            }
-            else if (dxr != dxr_act)
-            {
-                if (dxr < 0.5 * dxr_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-                }
-            }
-            else
-            {
-                value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-            }
-        }
-        else if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp))
-        {
-            value = -(fl - fc) / dxl;
-        }
-        else if (UF->DOF_in_domain((int)i + 1, (int)j, (int)k, comp))
-        {
-            value = (fr - fc) / dxr;
-        }
+        // xvalue = xright/xhr - xleft/xhl;
+        if (UF->DOF_in_domain(i - 1, j, k, comp) && UF->DOF_in_domain(i + 1, j, k, comp))
+            value = xright / xhr - xleft / xhl;
+        else if (UF->DOF_in_domain(i - 1, j, k, comp))
+            value = -xleft / xhl;
         else
-        {
-            value = 0.;
-        }
+            value = xright / xhr;
     }
     else if (dir == 1)
     {
-        dC = UF->get_cell_size(j, comp, 1);
-        double xc = UF->get_DOF_coordinate(j, comp, 1);
-        double xl = xc, xr = xc;
-        double fr = fc, fl = fc;
+        yhr = UF->get_DOF_coordinate(j + 1, comp, 1) - UF->get_DOF_coordinate(j, comp, 1);
+        yhl = UF->get_DOF_coordinate(j, comp, 1) - UF->get_DOF_coordinate(j - 1, comp, 1);
+        yright = UF->DOF_value(i, j + 1, k, comp, level) - UF->DOF_value(i, j, k, comp, level);
+        yleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i, j - 1, k, comp, level);
 
-        if (UF->DOF_in_domain((int)i, (int)j + 1, (int)k, comp))
-        {
-            fr = UF->DOF_value(i, j + 1, k, comp, level);
-            xr = UF->get_DOF_coordinate(j + 1, comp, 1);
-        }
-
-        if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp))
-        {
-            fl = UF->DOF_value(i, j - 1, k, comp, level);
-            xl = UF->get_DOF_coordinate(j - 1, comp, 1);
-        }
-
-        dxl_act = xc - xl;
-        dxr_act = xr - xc;
-        dxl = dxl_act;
-        dxr = dxr_act;
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             fl = intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             xl = xc - intersect_distance->operator()(p, 2 * dir + 0);
-        //             dC = ((xc - xl) < 0.5 * dC) ? 0.5 * dC + (xc - xl) : dC;
-        //             dxl = xc - xl;
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             fr = intersect_fieldVal->operator()(p, 2 * dir + 1);
-        //             xr = xc + intersect_distance->operator()(p, 2 * dir + 1);
-        //             dC = ((xr - xc) < 0.5 * dC) ? 0.5 * dC + (xr - xc) : dC;
-        //             dxr = xr - xc;
-        //         }
-        //     }
-        // }
-
-        // Derivative
-        if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp) && UF->DOF_in_domain((int)i, (int)j + 1, (int)k, comp))
-        {
-            if (dxl != dxl_act)
-            {
-                if (dxl < 0.5 * dxl_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl) * (fl - fc));
-                }
-            }
-            else if (dxr != dxr_act)
-            {
-                if (dxr < 0.5 * dxr_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-                }
-            }
-            else
-            {
-                value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-            }
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp))
-        {
-            value = -(fl - fc) / dxl;
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j + 1, (int)k, comp))
-        {
-            value = (fr - fc) / dxr;
-        }
+        // yvalue = yright/yhr - yleft/yhl;
+        if (UF->DOF_in_domain(i, j - 1, k, comp) && UF->DOF_in_domain(i, j + 1, k, comp))
+            value = yright / yhr - yleft / yhl;
+        else if (UF->DOF_in_domain(i, j - 1, k, comp))
+            value = -yleft / yhl;
         else
-        {
-            value = 0.;
-        }
+            value = yright / yhr;
     }
     else if (dir == 2)
     {
-        dC = UF->get_cell_size(k, comp, 2);
-        double xc = UF->get_DOF_coordinate(k, comp, 2);
-        double xl = xc, xr = xc;
-        double fr = fc, fl = fc;
-
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k + 1, comp))
-        {
-            fr = UF->DOF_value(i, j, k + 1, comp, level);
-            xr = UF->get_DOF_coordinate(k + 1, comp, 2);
-        }
-
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp))
-        {
-            fl = UF->DOF_value(i, j, k - 1, comp, level);
-            xl = UF->get_DOF_coordinate(k - 1, comp, 2);
-        }
-
-        dxl_act = xc - xl;
-        dxr_act = xr - xc;
-        dxl = dxl_act;
-        dxr = dxr_act;
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             fl = intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             xl = xc - intersect_distance->operator()(p, 2 * dir + 0);
-        //             dC = ((xc - xl) < 0.5 * dC) ? 0.5 * dC + (xc - xl) : dC;
-        //             dxl = xc - xl;
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             fr = intersect_fieldVal->operator()(p, 2 * dir + 1);
-        //             xr = xc + intersect_distance->operator()(p, 2 * dir + 1);
-        //             dC = ((xr - xc) < 0.5 * dC) ? 0.5 * dC + (xr - xc) : dC;
-        //             dxr = xr - xc;
-        //         }
-        //     }
-        // }
-
-        // Derivative
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp) && UF->DOF_in_domain((int)i, (int)j, (int)k + 1, comp))
-        {
-            if (dxl != dxl_act)
-            {
-                if (dxl < 0.5 * dxl_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl) * (fl - fc));
-                }
-            }
-            else if (dxr != dxr_act)
-            {
-                if (dxr < 0.5 * dxr_act)
-                {
-                    value = (fr - fl) / (dxr + dxl);
-                }
-                else
-                {
-                    value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-                }
-            }
-            else
-            {
-                value = 1. / (dxl_act + dxr_act) * ((dxl_act / dxr_act) * (fr - fc) - (dxr_act / dxl_act) * (fl - fc));
-            }
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp))
-        {
-            value = -(fl - fc) / dxl;
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j, (int)k + 1, comp))
-        {
-            value = (fr - fc) / dxr;
-        }
-        else
-        {
-            value = 0.;
-        }
-    }
-
-    if (comp == 0)
-    {
-        // Check of Neumann BC
-        if (((UF->DOF_color(i, j, k, comp) == FV_BC_LEFT) ||
-             (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)) &&
-            (!is_periodic[1][0]))
-            value = 0.;
-    }
-    else if (comp == 1)
-    {
-        // Check of Neumann BC
-        if (((UF->DOF_color(i, j, k, comp) == FV_BC_TOP) ||
-             (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)) &&
-            (!is_periodic[1][1]))
-            value = 0.;
-    }
-    else if (comp == 2)
-    {
-        // Check of Neumann BC
-        if (((UF->DOF_color(i, j, k, comp) == FV_BC_FRONT) ||
-             (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)) &&
-            (!is_periodic[1][2]))
-            value = 0.;
-    }
-
-    return (std::make_tuple(value, dC));
-}
-
-//---------------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::compute_un_component_FD(size_t const &comp,
-                                                  size_t const &i,
-                                                  size_t const &j,
-                                                  size_t const &k,
-                                                  size_t const &dir,
-                                                  size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: compute_un_component_FD");
-
-    double xhr = 1., xhl = 1., xright = 0., xleft = 0., yhr = 1., yhl = 1., yright = 0., yleft = 0.;
-    double zhr = 1., zhl = 1., zright = 0., zleft = 0., value = 0.;
-
-    size_t_array2D *intersect_vector = 0;
-    doubleArray2D *intersect_distance = 0;
-    doubleArray2D *intersect_fieldVal = 0;
-
-    size_t p = UF->DOF_local_number(i, j, k, comp);
-    double dxC = UF->get_cell_size(i, comp, 0);
-    double dyC = UF->get_cell_size(j, comp, 1);
-    double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1.;
-    // double pre_factor = 1.;
-
-    switch (dir)
-    {
-    case 0:
-        if (UF->DOF_in_domain((int)i + 1, (int)j, (int)k, comp))
-        {
-            xright = UF->DOF_value(i + 1, j, k, comp, level) - UF->DOF_value(i, j, k, comp, level);
-            xhr = UF->get_DOF_coordinate(i + 1, comp, 0) - UF->get_DOF_coordinate(i, comp, 0);
-        }
-
-        if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp))
-        {
-            xleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i - 1, j, k, comp, level);
-            xhl = UF->get_DOF_coordinate(i, comp, 0) - UF->get_DOF_coordinate(i - 1, comp, 0);
-        }
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             xleft = UF->DOF_value(i, j, k, comp, level) - intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             xhl = intersect_distance->operator()(p, 2 * dir + 0);
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             xright = intersect_fieldVal->operator()(p, 2 * dir + 1) - UF->DOF_value(i, j, k, comp, level);
-        //             xhr = intersect_distance->operator()(p, 2 * dir + 1);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         xright = 0.;
-        //         xleft = 0.;
-        //     }
-        // }
-
-        // xvalue = xright/xhr - xleft/xhl;
-        if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp) && UF->DOF_in_domain((int)i + 1, (int)j, (int)k, comp))
-        {
-            value = xright / xhr - xleft / xhl;
-            // pre_factor = (2.* dxC) / (xhl + xhr);
-        }
-        else if (UF->DOF_in_domain((int)i - 1, (int)j, (int)k, comp))
-        {
-            value = -xleft / xhl;
-            // pre_factor = dxC / xhl;
-        }
-        else
-        {
-            value = xright / xhr;
-            // pre_factor = dxC/ xhr;
-        }
-        // value *= pre_factor * dyC * dzC;
-
-        if (comp == 0)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_LEFT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)) &&
-                (!is_periodic[1][0]))
-                value = 0.;
-        }
-        else if (comp == 1)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_TOP) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)) &&
-                (!is_periodic[1][1]))
-                value = 0.;
-        }
-        else if (comp == 2)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_FRONT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)) &&
-                (!is_periodic[1][2]))
-                value = 0.;
-        }
-
-        value *= dyC * dzC;
-        break;
-    case 1:
-        if (UF->DOF_in_domain((int)i, (int)j + 1, (int)k, comp))
-        {
-            yright = UF->DOF_value(i, j + 1, k, comp, level) - UF->DOF_value(i, j, k, comp, level);
-            yhr = UF->get_DOF_coordinate(j + 1, comp, 1) - UF->get_DOF_coordinate(j, comp, 1);
-        }
-
-        if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp))
-        {
-            yleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i, j - 1, k, comp, level);
-            yhl = UF->get_DOF_coordinate(j, comp, 1) - UF->get_DOF_coordinate(j - 1, comp, 1);
-        }
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             yleft = UF->DOF_value(i, j, k, comp, level) - intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             yhl = intersect_distance->operator()(p, 2 * dir + 0);
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             yright = intersect_fieldVal->operator()(p, 2 * dir + 1) - UF->DOF_value(i, j, k, comp, level);
-        //             yhr = intersect_distance->operator()(p, 2 * dir + 1);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         yleft = 0.;
-        //         yright = 0.;
-        //     }
-        // }
-
-        // yvalue = yright/yhr - yleft/yhl;
-        if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp) && UF->DOF_in_domain((int)i, (int)j + 1, (int)k, comp))
-        {
-            value = yright / yhr - yleft / yhl;
-            // pre_factor = (2. * dyC) / (yhr + yhl);
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j - 1, (int)k, comp))
-        {
-            value = -yleft / yhl;
-            // pre_factor = dyC / yhl;
-        }
-        else
-        {
-            value = yright / yhr;
-            // pre_factor = dyC / yhr;
-        }
-        // value *= pre_factor * dxC * dzC;
-
-        if (comp == 0)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_LEFT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)) &&
-                (!is_periodic[1][0]))
-                value = 0.;
-        }
-        else if (comp == 1)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_TOP) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)) &&
-                (!is_periodic[1][1]))
-                value = 0.;
-        }
-        else if (comp == 2)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_FRONT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)) &&
-                (!is_periodic[1][2]))
-                value = 0.;
-        }
-
-        value *= dxC * dzC;
-        break;
-    case 2:
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k + 1, comp))
-        {
-            zright = UF->DOF_value(i, j, k + 1, comp, level) - UF->DOF_value(i, j, k, comp, level);
-            zhr = UF->get_DOF_coordinate(k + 1, comp, 2) - UF->get_DOF_coordinate(k, comp, 2);
-        }
-
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp))
-        {
-            zleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i, j, k - 1, comp, level);
-            zhl = UF->get_DOF_coordinate(k, comp, 2) - UF->get_DOF_coordinate(k - 1, comp, 2);
-        }
-
-        // if (is_solids)
-        // {
-        //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //         {
-        //             zleft = UF->DOF_value(i, j, k, comp, level) - intersect_fieldVal->operator()(p, 2 * dir + 0);
-        //             zhl = intersect_distance->operator()(p, 2 * dir + 0);
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //         {
-        //             zright = intersect_fieldVal->operator()(p, 2 * dir + 1) - UF->DOF_value(i, j, k, comp, level);
-        //             zhr = intersect_distance->operator()(p, 2 * dir + 1);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         zleft = 0.;
-        //         zright = 0.;
-        //     }
-        // }
+        zhr = UF->get_DOF_coordinate(k + 1, comp, 2) - UF->get_DOF_coordinate(k, comp, 2);
+        zhl = UF->get_DOF_coordinate(k, comp, 2) - UF->get_DOF_coordinate(k - 1, comp, 2);
+        zright = UF->DOF_value(i, j, k + 1, comp, level) - UF->DOF_value(i, j, k, comp, level);
+        zleft = UF->DOF_value(i, j, k, comp, level) - UF->DOF_value(i, j, k - 1, comp, level);
 
         // zvalue = zright/zhr - zleft/zhl;
-        if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp) && UF->DOF_in_domain((int)i, (int)j, (int)k + 1, comp))
-        {
+        if (UF->DOF_in_domain(i, j, k - 1, comp) && UF->DOF_in_domain(i, j, k + 1, comp))
             value = zright / zhr - zleft / zhl;
-            // pre_factor = (2. * dzC) / (zhl + zhr);
-        }
-        else if (UF->DOF_in_domain((int)i, (int)j, (int)k - 1, comp))
-        {
+        else if (UF->DOF_in_domain(i, j, k - 1, comp))
             value = -zleft / zhl;
-            // pre_factor = dzC / zhl;
-        }
         else
-        {
             value = zright / zhr;
-            // pre_factor = dzC / zhr;
-        }
-        // value *= pre_factor * dxC * dyC;
-
-        if (comp == 0)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_LEFT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)) &&
-                (!is_periodic[1][0]))
-                value = 0.;
-        }
-        else if (comp == 1)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_TOP) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)) &&
-                (!is_periodic[1][1]))
-                value = 0.;
-        }
-        else if (comp == 2)
-        {
-            // Check of Neumann BC
-            if (((UF->DOF_color(i, j, k, comp) == FV_BC_FRONT) ||
-                 (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)) &&
-                (!is_periodic[1][2]))
-                value = 0.;
-        }
-
-        value *= dxC * dyC;
-        break;
     }
 
     return (value);
 }
-
-// //---------------------------------------------------------------------------
-// double
-// DLMFD_DirectionSplitting::compute_un_component_FV(size_t const &comp,
-//                                                   size_t const &i,
-//                                                   size_t const &j,
-//                                                   size_t const &k,
-//                                                   size_t const &dir,
-//                                                   size_t const &level)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_DirectionSplitting:: compute_un_component_FV");
-
-//     intVector *ownerID = allrigidbodies->get_CC_ownerID(UF);
-//     doubleArray3D *CC_face_cen = allrigidbodies->get_CC_face_centroid(UF);
-//     doubleArray2D *CC_face_frac = allrigidbodies->get_CC_face_fraction(UF);
-//     // size_t_array2D* void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-
-//     size_t p = UF->DOF_local_number(i, j, k, comp);
-
-//     geomVector xL(3), xR(3);
-//     xL(0) = CC_face_cen->operator()(p, 2 * dir + 0, 0);
-//     xL(1) = CC_face_cen->operator()(p, 2 * dir + 0, 1);
-//     xL(2) = CC_face_cen->operator()(p, 2 * dir + 0, 2);
-
-//     xR(0) = CC_face_cen->operator()(p, 2 * dir + 1, 0);
-//     xR(1) = CC_face_cen->operator()(p, 2 * dir + 1, 1);
-//     xR(2) = CC_face_cen->operator()(p, 2 * dir + 1, 2);
-
-//     double value = 0.;
-
-//     // if ((ownerID->operator()(p) != -1) && (void_frac->operator()(p) == 0)) {
-//     if (ownerID->operator()(p) != -1)
-//     {
-//         double fleft = 0.;
-//         if (CC_face_frac->operator()(p, 2 * dir + 0) != 0.)
-//         {
-//             fleft = allrigidbodies->calculate_diffusive_flux(p, comp, dir, xL, ownerID->operator()(p), level) * CC_face_frac->operator()(p, 2 * dir + 0);
-//         }
-//         double fright = 0.;
-//         if (CC_face_frac->operator()(p, 2 * dir + 1) != 0.)
-//         {
-//             fright = allrigidbodies->calculate_diffusive_flux(p, comp, dir, xR, ownerID->operator()(p), level) * CC_face_frac->operator()(p, 2 * dir + 1);
-//         }
-
-//         double RBflux = allrigidbodies->calculate_diffusive_flux_fromRB(UF, p, comp, dir, level);
-
-//         value = (fright - fleft + RBflux);
-//     }
-//     else
-//     {
-//         value = compute_un_component_FD(comp, i, j, k, dir, level);
-//     }
-
-//     return (value);
-// }
 
 //---------------------------------------------------------------------------
 double
@@ -2123,92 +1014,65 @@ DLMFD_DirectionSplitting::velocity_local_rhs(size_t const &j, size_t const &k, d
         max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
     }
 
-    // Compute VEC_rhs_x = rhs in x
-    double fe = 0.;
+    size_t i, pos;
+    int m;
 
-    // Since, this function is used in all directions;
-    // ii, jj, and kk are used to convert the passed
-    // arguments corresponding to correct direction
-    size_t ii = 0, jj = 0, kk = 0;
-    size_t level = 0;
+    // Compute VEC_rhs_x = rhs in x
+    double dC, hr = 0, hl = 0;
+
+    double fe = 0.;
 
     // Vector for fi
     LocalVector *VEC = GLOBAL_EQ->get_VEC(1);
 
-    vector<doubleVector *> vel_diffusion = GLOBAL_EQ->get_velocity_diffusion();
-    size_t_array2D *intersect_vector = 0;
-    doubleArray2D *intersect_distance = 0;
-    doubleArray2D *intersect_fieldVal = 0;
-
-    for (size_t i = min_unknown_index(dir); i <= max_unknown_index(dir); ++i)
+    for (i = min_unknown_index(dir); i <= max_unknown_index(dir); ++i)
     {
+        double value = 0.;
+        pos = i - min_unknown_index(dir);
+
+        // Get contribution of un
+        hl = UF->get_DOF_coordinate(i, comp, dir) - UF->get_DOF_coordinate(i - 1, comp, dir);
+        hr = UF->get_DOF_coordinate(i + 1, comp, dir) - UF->get_DOF_coordinate(i, comp, dir);
+
+        dC = UF->get_cell_size(i, comp, dir);
+
+        // x direction
         if (dir == 0)
         {
-            ii = i;
-            jj = j;
-            kk = k;
-            level = 0;
+            value = compute_un_component(comp, i, j, k, dir, 3);
+            // y direction
         }
         else if (dir == 1)
         {
-            ii = j;
-            jj = i;
-            kk = k;
-            level = 3;
+            if (dim == 2)
+            {
+                value = compute_un_component(comp, j, i, k, dir, 1);
+            }
+            else if (dim == 3)
+            {
+                value = compute_un_component(comp, j, i, k, dir, 4);
+            }
+
+            // z direction
         }
         else if (dir == 2)
         {
-            ii = j;
-            jj = k;
-            kk = i;
-            level = 4;
+            value = compute_un_component(comp, j, k, i, dir, 1);
         }
 
-        double dxC = UF->get_cell_size(ii, comp, 0);
-        double dyC = UF->get_cell_size(jj, comp, 1);
-        double dzC = (dim == 3) ? UF->get_cell_size(kk, comp, 2) : 1.;
-        double area = 0.;
-
+        double temp_val = 0.;
         if (dir == 0)
         {
-            area = dyC * dzC;
+            temp_val = (UF->DOF_value(i, j, k, comp, 0) * dC * rho) / (t_it->time_step()) - gamma * value;
         }
         else if (dir == 1)
         {
-            area = dxC * dzC;
+            temp_val = (UF->DOF_value(j, i, k, comp, 3) * dC * rho) / (t_it->time_step()) - gamma * value;
         }
         else if (dir == 2)
         {
-            area = dxC * dyC;
+            temp_val = (UF->DOF_value(j, k, i, comp, 4) * dC * rho) / (t_it->time_step()) - gamma * value;
         }
-
-        size_t pos = i - min_unknown_index(dir);
-        size_t p = UF->DOF_local_number(ii, jj, kk, comp);
-        double dC = UF->get_cell_size(i, comp, dir);
-
-        double value = vel_diffusion[dir]->operator()(p) / area;
-
-        // if (is_solids)
-        // {
-        //     if ((intersect_vector->operator()(p, 2 * dir + 0) == 1) && (intersect_vector->operator()(p, 2 * dir + 1) == 1))
-        //     {
-        //         // double pre_factor = 2 * dC / (intersect_distance->operator()(p,2*dir+0)
-        //         // 								  + intersect_distance->operator()(p,2*dir+1));
-        //         value = value - (intersect_fieldVal->operator()(p, 2 * dir + 0) / intersect_distance->operator()(p, 2 * dir + 0) + intersect_fieldVal->operator()(p, 2 * dir + 1) / intersect_distance->operator()(p, 2 * dir + 1)); // * pre_factor;
-        //     }
-        //     else if (intersect_vector->operator()(p, 2 * dir + 0) == 1)
-        //     {
-        //         // double pre_factor = 2 * dC / (dC + intersect_distance->operator()(p,2*dir+0));
-        //         value = value - intersect_fieldVal->operator()(p, 2 * dir + 0) / intersect_distance->operator()(p, 2 * dir + 0); // * pre_factor;
-        //     }
-        //     else if (intersect_vector->operator()(p, 2 * dir + 1) == 1)
-        //     {
-        //         // double pre_factor = 2 * dC / (dC + intersect_distance->operator()(p,2*dir+1));
-        //         value = value - intersect_fieldVal->operator()(p, 2 * dir + 1) / intersect_distance->operator()(p, 2 * dir + 1); // * pre_factor;
-        //     }
-        // }
-
-        double temp_val = UF->DOF_value(ii, jj, kk, comp, level) * dC * rho / t_it->time_step() - gamma * value;
 
         if (is_periodic[1][dir] == 0)
         {
@@ -2233,8 +1097,12 @@ DLMFD_DirectionSplitting::velocity_local_rhs(size_t const &j, size_t const &k, d
         }
     }
 
+    // Since, this function is used in all directions;
+    // ii, jj, and kk are used to convert the passed arguments corresponding to correct direction
+    size_t ii = 0, jj = 0, kk = 0;
+
     // Effect of boundary conditions in case of non-periodic direction
-    int m = int(min_unknown_index(dir)) - 1;
+    m = int(min_unknown_index(dir)) - 1;
 
     if (dir == 0)
     {
@@ -2250,15 +1118,16 @@ DLMFD_DirectionSplitting::velocity_local_rhs(size_t const &j, size_t const &k, d
     }
     else if (dir == 2)
     {
+
         ii = j;
         jj = k;
         kk = m;
     }
 
-    if (UF->DOF_in_domain((int)ii, (int)jj, (int)kk, comp))
+    if (UF->DOF_in_domain(ii, jj, kk, comp))
         if (UF->DOF_has_imposed_Dirichlet_value(ii, jj, kk, comp))
         {
-            double ai = 1. / (UF->get_DOF_coordinate(m + 1, comp, dir) - UF->get_DOF_coordinate(m, comp, dir));
+            double ai = 1 / (UF->get_DOF_coordinate(m + 1, comp, dir) - UF->get_DOF_coordinate(m, comp, dir));
             double dirichlet_value = UF->DOF_value(ii, jj, kk, comp, 1);
             VEC[dir].local_T[comp]->add_to_item(0, +gamma * ai * dirichlet_value);
         }
@@ -2284,13 +1153,12 @@ DLMFD_DirectionSplitting::velocity_local_rhs(size_t const &j, size_t const &k, d
         kk = m;
     }
 
-    if (UF->DOF_in_domain((int)ii, (int)jj, (int)kk, comp))
+    if (UF->DOF_in_domain(ii, jj, kk, comp))
         if (UF->DOF_has_imposed_Dirichlet_value(ii, jj, kk, comp))
         {
-            double ai = 1. / (UF->get_DOF_coordinate(m, comp, dir) - UF->get_DOF_coordinate(m - 1, comp, dir));
+            double ai = 1 / (UF->get_DOF_coordinate(m, comp, dir) - UF->get_DOF_coordinate(m - 1, comp, dir));
             double dirichlet_value = UF->DOF_value(ii, jj, kk, comp, 1);
-            VEC[dir].local_T[comp]->add_to_item(VEC[dir].local_T[comp]->nb_rows() - 1,
-                                                +gamma * ai * dirichlet_value);
+            VEC[dir].local_T[comp]->add_to_item(VEC[dir].local_T[comp]->nb_rows() - 1, +gamma * ai * dirichlet_value);
         }
 
     return fe;
@@ -2306,77 +1174,63 @@ void DLMFD_DirectionSplitting::unpack_compute_ue_pack(size_t const &comp, size_t
 
     size_t nb_interface_unknowns = VEC[dir].T[comp]->nb_rows();
 
-    VEC[dir].T[comp]->set(0.);
-    VEC[dir].interface_T[comp]->set(0.);
+    for (size_t i = 0; i < nb_interface_unknowns; i++)
+    {
+        VEC[dir].T[comp]->set_item(i, 0);
+        VEC[dir].interface_T[comp]->set_item(i, 0);
+    }
 
     if (is_periodic[field][dir])
-        VEC[dir].T[comp]->set_item(nb_ranks_comm_i[dir] - 1,
-                                   first_pass[field][dir].send[comp][0][3 * p]);
-
-    VEC[dir].T[comp]->set_item(0,
-                               first_pass[field][dir].send[comp][0][3 * p + 1]);
-    VEC[dir].interface_T[comp]->set_item(0,
-                                         first_pass[field][dir].send[comp][0][3 * p + 2]);
+        VEC[dir].T[comp]->set_item(nb_ranks_comm_i[dir] - 1, first_pass[field][dir].send[comp][rank_in_i[dir]][3 * p]);
+    VEC[dir].T[comp]->set_item(0, first_pass[field][dir].send[comp][rank_in_i[dir]][3 * p + 1]);
+    VEC[dir].interface_T[comp]->set_item(0, first_pass[field][dir].send[comp][rank_in_i[dir]][3 * p + 2]);
 
     // Vec_temp might contain previous values
-    for (size_t i = 1; i < (size_t)nb_ranks_comm_i[dir]; i++)
+
+    for (size_t i = 1; i < nb_ranks_comm_i[dir]; i++)
     {
-        if (i != (size_t)nb_ranks_comm_i[dir] - 1)
+        if (i != nb_ranks_comm_i[dir] - 1)
         {
-            VEC[dir].T[comp]->add_to_item(i - 1,
-                                          first_pass[field][dir].receive[comp][i][3 * p]);
-            VEC[dir].T[comp]->add_to_item(i,
-                                          first_pass[field][dir].receive[comp][i][3 * p + 1]);
-            // Assemble the interface rhs fe
-            VEC[dir].interface_T[comp]->set_item(i,
-                                                 first_pass[field][dir].receive[comp][i][3 * p + 2]);
+            VEC[dir].T[comp]->add_to_item(i - 1, first_pass[field][dir].receive[comp][i][3 * p]);
+            VEC[dir].T[comp]->add_to_item(i, first_pass[field][dir].receive[comp][i][3 * p + 1]);
+            VEC[dir].interface_T[comp]->set_item(i, first_pass[field][dir].receive[comp][i][3 * p + 2]); // Assemble the interface rhs fe
         }
         else
         {
             if (is_periodic[field][dir] == 0)
             {
-                VEC[dir].T[comp]->add_to_item(i - 1,
-                                              first_pass[field][dir].receive[comp][i][3 * p]);
+                VEC[dir].T[comp]->add_to_item(i - 1, first_pass[field][dir].receive[comp][i][3 * p]);
             }
             else
             {
-                VEC[dir].T[comp]->add_to_item(i - 1,
-                                              first_pass[field][dir].receive[comp][i][3 * p]);
+                VEC[dir].T[comp]->add_to_item(i - 1, first_pass[field][dir].receive[comp][i][3 * p]);
                 // If periodic in x, last proc has an interface unknown
-                VEC[dir].T[comp]->add_to_item(i,
-                                              first_pass[field][dir].receive[comp][i][3 * p + 1]);
-                VEC[dir].interface_T[comp]->set_item(i,
-                                                     first_pass[field][dir].receive[comp][i][3 * p + 2]);
+                VEC[dir].T[comp]->add_to_item(i, first_pass[field][dir].receive[comp][i][3 * p + 1]);
+                VEC[dir].interface_T[comp]->set_item(i, first_pass[field][dir].receive[comp][i][3 * p + 2]);
             }
         }
     }
 
-    // Get fe - Aei*xi to solve for ue
     for (size_t i = 0; i < nb_interface_unknowns; i++)
     {
-        VEC[dir].interface_T[comp]->set_item(i,
-                                             VEC[dir].interface_T[comp]->item(i) - VEC[dir].T[comp]->item(i));
+        VEC[dir].interface_T[comp]->set_item(i, VEC[dir].interface_T[comp]->item(i) - VEC[dir].T[comp]->item(i)); // Get fe - Aei*xi to solve for ue
     }
 
     // Solve for ue (interface unknowns) in the master proc
     DS_interface_unknown_solver(VEC[dir].interface_T[comp], comp, dir, field, p);
 
-    for (size_t i = 1; i < (size_t)nb_ranks_comm_i[dir]; ++i)
+    for (size_t i = 1; i < nb_ranks_comm_i[dir]; ++i)
     {
-        if (i != (size_t)nb_ranks_comm_i[dir] - 1)
+        if (i != nb_ranks_comm_i[dir] - 1)
         {
-            second_pass[field][dir].send[comp][i][2 * p + 0] =
-                VEC[dir].interface_T[comp]->item(i - 1);
-            second_pass[field][dir].send[comp][i][2 * p + 1] =
-                VEC[dir].interface_T[comp]->item(i);
+            second_pass[field][dir].send[comp][i][2 * p + 0] = VEC[dir].interface_T[comp]->item(i - 1);
+            second_pass[field][dir].send[comp][i][2 * p + 1] = VEC[dir].interface_T[comp]->item(i);
         }
         else
         {
-            second_pass[field][dir].send[comp][i][2 * p + 0] =
-                VEC[dir].interface_T[comp]->item(i - 1);
+            second_pass[field][dir].send[comp][i][2 * p + 0] = VEC[dir].interface_T[comp]->item(i - 1);
             if (is_periodic[field][dir])
-                second_pass[field][dir].send[comp][i][2 * p + 1] =
-                    VEC[dir].interface_T[comp]->item(i);
+                second_pass[field][dir].send[comp][i][2 * p + 1] = VEC[dir].interface_T[comp]->item(i);
             else
                 second_pass[field][dir].send[comp][i][2 * p + 1] = 0;
         }
@@ -2391,8 +1245,7 @@ void DLMFD_DirectionSplitting::DS_interface_unknown_solver(LA_SeqVector *interfa
 
     TDMatrix *Schur = GLOBAL_EQ->get_Schur(field);
 
-    // Condition for variant of Tridiagonal Schur
-    // complement in Perioidic direction with multi-processor
+    // Condition for variant of Tridiagonal Schur complement in Perioidic direction with multi-processor
     if ((is_periodic[field][dir] == 1) && (nb_ranks_comm_i[dir] != 1))
     {
         LocalVector *Schur_VEC = GLOBAL_EQ->get_Schur_VEC(field);
@@ -2410,25 +1263,16 @@ void DLMFD_DirectionSplitting::DS_interface_unknown_solver(LA_SeqVector *interfa
         compute_Aei_ui(Schur, Schur_VEC, comp, dir, r_index);
 
         // Calculate S_fe - Sei*(Sii)-1*S_fi
-        Schur_VEC[dir].interface_T[comp]->set_item(0,
-                                                   Schur_VEC[dir].interface_T[comp]->item(0) - Schur_VEC[dir].T[comp]->item(0));
+        Schur_VEC[dir].interface_T[comp]->set_item(0, Schur_VEC[dir].interface_T[comp]->item(0) - Schur_VEC[dir].T[comp]->item(0));
 
         // Calculate S_ue, using Schur complement of Schur complement
-        GLOBAL_EQ->mod_thomas_algorithm(DoubleSchur,
-                                        Schur_VEC[dir].interface_T[comp],
-                                        comp,
-                                        dir,
-                                        r_index);
+        GLOBAL_EQ->mod_thomas_algorithm(DoubleSchur, Schur_VEC[dir].interface_T[comp], comp, dir, r_index);
 
         // Calculate S_fi-Sie*S_ue
         Schur[dir].ie[comp][r_index]->multiply_vec_then_add(Schur_VEC[dir].interface_T[comp], Schur_VEC[dir].local_T[comp], -1.0, 1.0);
 
         // Calculate S_ui
-        GLOBAL_EQ->mod_thomas_algorithm(Schur,
-                                        Schur_VEC[dir].local_T[comp],
-                                        comp,
-                                        dir,
-                                        r_index);
+        GLOBAL_EQ->mod_thomas_algorithm(Schur, Schur_VEC[dir].local_T[comp], comp, dir, r_index);
 
         // Transfer back the solution to interface_rhs
         for (size_t i = 0; i < nrows; i++)
@@ -2444,7 +1288,8 @@ void DLMFD_DirectionSplitting::DS_interface_unknown_solver(LA_SeqVector *interfa
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::unpack_ue(size_t const &comp, double *received_data, size_t const &dir, size_t const &p, size_t const &field)
+void DLMFD_DirectionSplitting::unpack_ue(size_t const &comp, double *received_data, size_t const &dir, int const &p, size_t const &field)
+
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: unpack_ue");
@@ -2453,100 +1298,143 @@ void DLMFD_DirectionSplitting::unpack_ue(size_t const &comp, double *received_da
 
     if (rank_in_i[dir] != nb_ranks_comm_i[dir] - 1)
     {
-        VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1,
-                                             received_data[2 * p]);
-        VEC[dir].interface_T[comp]->set_item(rank_in_i[dir],
-                                             received_data[2 * p + 1]);
+        VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1, received_data[2 * p]);
+        VEC[dir].interface_T[comp]->set_item(rank_in_i[dir], received_data[2 * p + 1]);
     }
     else
     {
         if (is_periodic[field][dir] == 0)
         {
-            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1,
-                                                 received_data[2 * p]);
+            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1, received_data[2 * p]);
         }
         else
         {
-            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1,
-                                                 received_data[2 * p]);
-            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir],
-                                                 received_data[2 * p + 1]);
+            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir] - 1, received_data[2 * p]);
+            VEC[dir].interface_T[comp]->set_item(rank_in_i[dir], received_data[2 * p + 1]);
         }
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::solve_interface_unknowns(FV_DiscreteField *FF, double const &gamma, FV_TimeIterator const *t_it, size_t const &comp, size_t const &dir, size_t const &level)
+void DLMFD_DirectionSplitting::solve_interface_unknowns(FV_DiscreteField *FF, double const &gamma, FV_TimeIterator const *t_it, size_t const &comp, size_t const &dir, size_t const &field)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: solve_interface_unknowns");
 
-    size_t field = (FF == PF) ? 0 : 1;
+    size_t i, j, p;
+    size_t k = 0;
+
+    // first_pass[field][dir_i].send[comp][rank_in_i[dir_i]], first_pass[field][dir_i].size[comp],
 
     // Get local min and max indices
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
     for (size_t l = 0; l < dim; ++l)
     {
-        min_unknown_index(l) =
-            FF->get_min_index_unknown_handled_by_proc(comp, l);
-        max_unknown_index(l) =
-            FF->get_max_index_unknown_handled_by_proc(comp, l);
+        min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+        max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
     }
 
     TDMatrix *A = GLOBAL_EQ->get_A(field);
     LocalVector *VEC = GLOBAL_EQ->get_VEC(field);
 
     // Array declaration for sending data from master to all slaves
-    size_t local_min_j = (dir == 0) ? min_unknown_index(1) : min_unknown_index(0);
-    size_t local_max_j = (dir == 0) ? max_unknown_index(1) : max_unknown_index(0);
-    size_t local_min_k = (dim == 2) ? 0 : ((dir == 2) ? min_unknown_index(1) : min_unknown_index(2));
-    size_t local_max_k = (dim == 2) ? 0 : ((dir == 2) ? max_unknown_index(1) : max_unknown_index(2));
+    size_t local_length_j = 0, local_length_k = 0;
+    size_t local_min_j = 0, local_max_j = 0;
+    size_t local_min_k = 0, local_max_k = 0;
 
-    size_t_array2D *row_index = GLOBAL_EQ->get_row_indexes(field, dir, comp);
+    if (dir == 0)
+    {
+        local_min_j = min_unknown_index(1);
+        local_max_j = max_unknown_index(1);
+        if (dim == 3)
+        {
+            local_min_k = min_unknown_index(2);
+            local_max_k = max_unknown_index(2);
+        }
+    }
+    else if (dir == 1)
+    {
+        local_min_j = min_unknown_index(0);
+        local_max_j = max_unknown_index(0);
+        if (dim == 3)
+        {
+            local_min_k = min_unknown_index(2);
+            local_max_k = max_unknown_index(2);
+        }
+    }
+    else if (dir == 2)
+    {
+        local_min_j = min_unknown_index(0);
+        local_max_j = max_unknown_index(0);
+        local_min_k = min_unknown_index(1);
+        local_max_k = max_unknown_index(1);
+    }
+
+    local_length_j = (local_max_j - local_min_j + 1);
+    local_length_k = (local_max_k - local_min_k + 1);
 
     // Send and receive the data first pass
     if (rank_in_i[dir] == 0)
     {
         if (nb_ranks_comm_i[dir] != 1)
         {
-            for (size_t i = 1; i < (size_t)nb_ranks_comm_i[dir]; ++i)
+            for (i = 1; i < nb_ranks_comm_i[dir]; ++i)
             {
                 // Receive the data
                 static MPI_Status status;
-                MPI_Recv(first_pass[field][dir].receive[comp][i],
-                         (int)first_pass[field][dir].size[comp],
-                         MPI_DOUBLE, (int)i, 0, DS_Comm_i[dir], &status);
+                MPI_Recv(first_pass[field][dir].receive[comp][i], first_pass[field][dir].size[comp], MPI_DOUBLE, i, 0,
+                         DDS_Comm_i[dir], &status);
             }
         }
 
-        for (size_t j = local_min_j; j <= local_max_j; j++)
+        // Solve system of interface unknowns for each y
+        if (dim == 2)
         {
-            for (size_t k = local_min_k; k <= local_max_k; k++)
+            for (j = local_min_j; j <= local_max_j; j++)
             {
 
-                size_t p = row_index->operator()(j, k);
+                p = j - local_min_j;
 
                 unpack_compute_ue_pack(comp, dir, p, field);
 
-                // Need to have the original rhs function
-                // assembled for corrosponding j,k pair
-                assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
+                // Need to have the original rhs function assembled for corrosponding j,k pair
+                double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
 
                 // Setup RHS = fi - Aie*xe for solving ui
                 A[dir].ie[comp][p]->multiply_vec_then_add(VEC[dir].interface_T[comp], VEC[dir].local_T[comp], -1.0, 1.0);
 
                 // Solve ui and transfer solution into distributed vector
-                GLOBAL_EQ->DLMFD_DirectionSplitting_solver(FF, j, k, min_unknown_index(dir), comp, dir, p, level);
+                GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir), comp, dir, field, p);
+            }
+        }
+        else
+        {
+            for (k = local_min_k; k <= local_max_k; k++)
+            {
+                for (j = local_min_j; j <= local_max_j; j++)
+                {
+
+                    p = (j - local_min_j) + local_length_j * (k - local_min_k);
+
+                    unpack_compute_ue_pack(comp, dir, p, field);
+
+                    // Need to have the original rhs function assembled for corrosponding j,k pair
+                    double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
+
+                    // Setup RHS = fi - Aie*xe for solving ui
+                    A[dir].ie[comp][p]->multiply_vec_then_add(VEC[dir].interface_T[comp], VEC[dir].local_T[comp], -1.0, 1.0);
+
+                    // Solve ui and transfer solution into distributed vector
+                    GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir), comp, dir, field, p);
+                }
             }
         }
     }
     else
     {
         // Send the packed data to master
-        MPI_Send(first_pass[field][dir].send[comp][0],
-                 (int)first_pass[field][dir].size[comp],
-                 MPI_DOUBLE, 0, 0, DS_Comm_i[dir]);
+        MPI_Send(first_pass[field][dir].send[comp][rank_in_i[dir]], first_pass[field][dir].size[comp], MPI_DOUBLE, 0, 0, DDS_Comm_i[dir]);
     }
 
     // Send the data from master iff multi processor are used
@@ -2554,39 +1442,56 @@ void DLMFD_DirectionSplitting::solve_interface_unknowns(FV_DiscreteField *FF, do
     {
         if (rank_in_i[dir] == 0)
         {
-            for (size_t i = 1; i < (size_t)nb_ranks_comm_i[dir]; ++i)
+            for (i = 1; i < nb_ranks_comm_i[dir]; ++i)
             {
-                MPI_Send(second_pass[field][dir].send[comp][i],
-                         (int)second_pass[field][dir].size[comp],
-                         MPI_DOUBLE, (int)i, 0, DS_Comm_i[dir]);
+                MPI_Send(second_pass[field][dir].send[comp][i], second_pass[field][dir].size[comp], MPI_DOUBLE, i, 0, DDS_Comm_i[dir]);
             }
         }
         else
         {
             // Receive the data
             static MPI_Status status;
-            MPI_Recv(second_pass[field][dir].receive[comp][0],
-                     (int)second_pass[field][dir].size[comp],
-                     MPI_DOUBLE, 0, 0, DS_Comm_i[dir], &status);
+            MPI_Recv(second_pass[field][dir].send[comp][rank_in_i[dir]], first_pass[field][dir].size[comp], MPI_DOUBLE, 0, 0, DDS_Comm_i[dir], &status);
 
             // Solve the system of equations in each proc
-            for (size_t j = local_min_j; j <= local_max_j; j++)
+
+            if (dim == 2)
             {
-                for (size_t k = local_min_k; k <= local_max_k; k++)
+                for (j = local_min_j; j <= local_max_j; j++)
                 {
-                    size_t p = row_index->operator()(j, k);
+                    p = j - local_min_j;
 
-                    unpack_ue(comp, second_pass[field][dir].receive[comp][0], dir, p, field);
+                    unpack_ue(comp, second_pass[field][dir].send[comp][rank_in_i[dir]], dir, p, field);
 
-                    // Need to have the original rhs function
-                    // assembled for corrosponding j,k pair
-                    assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
+                    // Need to have the original rhs function assembled for corrosponding j,k pair
+                    double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
 
                     // Setup RHS = fi - Aie*xe for solving ui
                     A[dir].ie[comp][p]->multiply_vec_then_add(VEC[dir].interface_T[comp], VEC[dir].local_T[comp], -1.0, 1.0);
 
                     // Solve ui and transfer solution into distributed vector
-                    GLOBAL_EQ->DLMFD_DirectionSplitting_solver(FF, j, k, min_unknown_index(dir), comp, dir, p, level);
+                    GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir), comp, dir, field, p);
+                }
+            }
+            else
+            {
+                for (k = local_min_k; k <= local_max_k; k++)
+                {
+                    for (j = local_min_j; j <= local_max_j; j++)
+                    {
+                        p = (j - local_min_j) + local_length_j * (k - local_min_k);
+
+                        unpack_ue(comp, second_pass[field][dir].send[comp][rank_in_i[dir]], dir, p, field);
+
+                        // Need to have the original rhs function assembled for corrosponding j,k pair
+                        double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir, field);
+
+                        // Setup RHS = fi - Aie*xe for solving ui
+                        A[dir].ie[comp][p]->multiply_vec_then_add(VEC[dir].interface_T[comp], VEC[dir].local_T[comp], -1.0, 1.0);
+
+                        // Solve ui and transfer solution into distributed vector
+                        GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir), comp, dir, field, p);
+                    }
                 }
             }
         }
@@ -2624,75 +1529,52 @@ DLMFD_DirectionSplitting::compute_p_component(size_t const &comp, size_t const &
 
     double dxC = UF->get_cell_size(i, comp, 0);
     double dyC = UF->get_cell_size(j, comp, 1);
-    double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1;
 
-    switch (comp)
+    if (dim == 2)
     {
-    case 0:
-        value = (PF->DOF_value(shift.i + i, j, k, 0, 1) - PF->DOF_value(shift.i + i - 1, j, k, 0, 1)) * dyC * dzC;
-        break;
-    case 1:
-        value = (PF->DOF_value(i, shift.j + j, k, 0, 1) - PF->DOF_value(i, shift.j + j - 1, k, 0, 1)) * dxC * dzC;
-        break;
-    case 2:
-        value = (PF->DOF_value(i, j, shift.k + k, 0, 1) - PF->DOF_value(i, j, shift.k + k - 1, 0, 1)) * dxC * dyC;
-        break;
-    }
+        if (comp == 0)
+        {
+            value = (PF->DOF_value(shift.i + i, j, 0, 0, 1) - PF->DOF_value(shift.i + i - 1, j, 0, 0, 1)) * dyC;
+        }
+        else
+        {
 
+            value = (PF->DOF_value(i, shift.j + j, 0, 0, 1) - PF->DOF_value(i, shift.j + j - 1, 0, 0, 1)) * dxC;
+        }
+    }
+    else if (dim == 3)
+    {
+        double dzC = UF->get_cell_size(k, comp, 2);
+        if (comp == 0)
+        {
+            value = (PF->DOF_value(shift.i + i, j, k, 0, 1) - PF->DOF_value(shift.i + i - 1, j, k, 0, 1)) * dyC * dzC;
+        }
+        else if (comp == 1)
+        {
+            value = (PF->DOF_value(i, shift.j + j, k, 0, 1) - PF->DOF_value(i, shift.j + j - 1, k, 0, 1)) * dxC * dzC;
+        }
+        else
+        {
+            value = (PF->DOF_value(i, j, shift.k + k, 0, 1) - PF->DOF_value(i, j, shift.k + k - 1, 0, 1)) * dxC * dyC;
+        }
+    }
     return (value);
 }
 
 //---------------------------------------------------------------------------
 double
-DLMFD_DirectionSplitting::compute_adv_component(FV_TimeIterator const *t_it,
-                                                size_t const &comp,
-                                                size_t const &i,
-                                                size_t const &j,
-                                                size_t const &k)
+DLMFD_DirectionSplitting::compute_adv_component(size_t const &comp, size_t const &i, size_t const &j, size_t const &k)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: compute_adv_component");
     double ugradu = 0., value = 0.;
 
-    double dxC = UF->get_cell_size(i, comp, 0);
-    double dyC = UF->get_cell_size(j, comp, 1);
-    double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1.;
-    doubleArray2D *divergence = GLOBAL_EQ->get_node_divergence(1);
-    size_t p = UF->DOF_local_number(i, j, k, comp);
-
     if (AdvectionScheme == "TVD")
-    {
-        ugradu = assemble_advection_TVD(1, rho, 1, i, j, k, comp) - rho * UF->DOF_value(i, j, k, comp, 1) * divergence->operator()(p, 0) * dxC * dyC * dzC;
-    }
-    else if (AdvectionScheme == "Upwind")
-    {
-        ugradu = assemble_advection_Upwind(1, rho, 1, i, j, k, comp) - rho * UF->DOF_value(i, j, k, comp, 1) * divergence->operator()(p, 0) * dxC * dyC * dzC;
-    }
-    else if (AdvectionScheme == "CenteredFD")
-    {
-        // No divergence correction requried as we calculate the u div(u) instead of div(uu)
-        ugradu = assemble_advection_Centered_FD(rho, i, j, k, comp, 1);
-    }
-    else if (AdvectionScheme == "Centered" && StencilCorrection == "FD")
-    {
-        ugradu = assemble_advection_Centered(1, rho, 1, i, j, k, comp) - rho * UF->DOF_value(i, j, k, comp, 1) * divergence->operator()(p, 0) * dxC * dyC * dzC;
-    }
-    // else if (AdvectionScheme == "Centered" && StencilCorrection == "CutCell")
-    // {
-    //     intVector *ownerID = allrigidbodies->get_CC_ownerID(UF);
-    //     doubleArray2D *CC_vol = allrigidbodies->get_CC_cell_volume(UF);
-    //     if (ownerID->operator()(p) != -1)
-    //     {
-    //         ugradu = assemble_advection_Centered_CutCell(t_it, rho, i, j, k, comp, 1);
-    //     }
-    //     else
-    //     {
-    //         ugradu = assemble_advection_Centered(1, rho, 1, i, j, k, comp);
-    //     }
-    //     ugradu -= rho * UF->DOF_value(i, j, k, comp, 1) * divergence->operator()(p, 0) * CC_vol->operator()(p, 0);
-    // }
+        ugradu = assemble_advection_TVD(1, rho, 1, i, j, k, comp);
+    else
+        ugradu = assemble_advection_Upwind(1, rho, 1, i, j, k, comp);
 
-    if ((AdvectionTimeAccuracy == 1))
+    if (AdvectionTimeAccuracy == 1)
     {
         value = ugradu;
     }
@@ -2705,441 +1587,91 @@ DLMFD_DirectionSplitting::compute_adv_component(FV_TimeIterator const *t_it,
     return (value);
 }
 
-//----------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::divergence_of_U_noCorrection(size_t const &i, size_t const &j, size_t const &k, size_t const &component, size_t const &level)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: divergence_of_U_noCorrection");
-
-    // Parameters
-    double flux = 0.;
-    double AdvectorValueC = 0., AdvectorValueRi = 0.,
-           AdvectorValueLe = 0., AdvectorValueTo = 0., AdvectorValueBo = 0.,
-           AdvectorValueFr = 0., AdvectorValueBe = 0, AdvectorValueToLe = 0.,
-           AdvectorValueToRi = 0., AdvectorValueBoLe = 0., AdvectorValueBoRi = 0.,
-           AdvectorValueFrLe = 0., AdvectorValueFrRi = 0., AdvectorValueBeLe = 0.,
-           AdvectorValueBeRi = 0., AdvectorValueFrTo = 0., AdvectorValueFrBo = 0.,
-           AdvectorValueBeTo = 0., AdvectorValueBeBo = 0.,
-           ur = 0., ul = 0., vt = 0., vb = 0., wf = 0., wb = 0.;
-
-    // Comment: staggered unknowns always have a defined value at +1/-1
-    // indices in directions different from their component number,
-    // i.e. u in x, v in y and w in z.
-    // For instance, if u on the right or left boundary is an unknown with
-    // homogeneous Neumann BC, then the flux on the right or left needs special
-    // treatment using the center value.
-    // Otherwise, whether one of the +1/-1 DOF values is on a
-    // boundary or not, and whether that boundary has a Dirichlet or Neumann
-    // condition is irrelevant, this +1/-1 DOF always has the right value.
-    // For Neumann, this is guaranted by
-    // FV_BoundaryCondition:: set_free_DOF_values in
-    // FV_DiscreteField:: update_free_DOFs_value or
-    // FV_DiscreteField:: add_to_free_DOFs_value
-    FV_SHIFT_TRIPLET shift = UF->shift_staggeredToStaggered(component);
-
-    double dxC = UF->get_cell_size(i, component, 0);
-    double dyC = UF->get_cell_size(j, component, 1);
-    double dzC = (dim == 3) ? UF->get_cell_size(k, component, 2) : 0;
-
-    AdvectorValueC = UF->DOF_value(i, j, k, component, level);
-
-    // if (is_solids)
-    // {
-    //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-    //     size_t p = UF->DOF_local_number(i, j, k, component);
-    //     if (void_frac->operator()(p, 0) != 0)
-    //         return (flux);
-    // }
-
-    // The First Component (u)
-    if (component == 0)
-    {
-        // Right (U_X)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_RIGHT)
-            ur = AdvectorValueC;
-        else
-        {
-            AdvectorValueRi = UF->DOF_value(i + 1, j, k, component, level);
-            ur = 0.5 * (AdvectorValueC + AdvectorValueRi);
-        }
-
-        // Left (U_X)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_LEFT)
-            ul = AdvectorValueC;
-        else
-        {
-            AdvectorValueLe = UF->DOF_value(i - 1, j, k, component, level);
-            ul = 0.5 * (AdvectorValueC + AdvectorValueLe);
-        }
-
-        // Top (U_Y)
-        AdvectorValueToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, 1, level);
-        AdvectorValueToRi = UF->DOF_value(i + shift.i, j + shift.j, k, 1, level);
-        vt = 0.5 * (AdvectorValueToLe + AdvectorValueToRi);
-
-        // Bottom (U_Y)
-        AdvectorValueBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, 1, level);
-        AdvectorValueBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, 1, level);
-        vb = 0.5 * (AdvectorValueBoLe + AdvectorValueBoRi);
-
-        if (dim == 3)
-        {
-            // Front (U_Z)
-            AdvectorValueFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, 2, level);
-            AdvectorValueFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, 2, level);
-            wf = 0.5 * (AdvectorValueFrLe + AdvectorValueFrRi);
-
-            // Behind (U_Z)
-            AdvectorValueBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, 2, level);
-            AdvectorValueBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, 2, level);
-            wb = 0.5 * (AdvectorValueBeLe + AdvectorValueBeRi);
-        }
-    }
-    else if (component == 1)
-    {
-        // The second Component (v)
-        // Right (V_X)
-        AdvectorValueToRi = UF->DOF_value(i + shift.i, j + shift.j, k, 0, level);
-        AdvectorValueBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, 0, level);
-        ur = 0.5 * (AdvectorValueToRi + AdvectorValueBoRi);
-
-        // Left (V_X)
-        AdvectorValueToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, 0, level);
-        AdvectorValueBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, 0, level);
-        ul = 0.5 * (AdvectorValueToLe + AdvectorValueBoLe);
-
-        // Top (V_Y)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_TOP)
-            vt = AdvectorValueC;
-        else
-        {
-            AdvectorValueTo = UF->DOF_value(i, j + 1, k, component, level);
-            vt = 0.5 * (AdvectorValueTo + AdvectorValueC);
-        }
-
-        // Bottom (V_Y)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_BOTTOM)
-            vb = AdvectorValueC;
-        else
-        {
-            AdvectorValueBo = UF->DOF_value(i, j - 1, k, component, level);
-            vb = 0.5 * (AdvectorValueBo + AdvectorValueC);
-        }
-
-        if (dim == 3)
-        {
-            // Front (V_Z)
-            AdvectorValueFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, 2, level);
-            AdvectorValueFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, 2, level);
-            wf = 0.5 * (AdvectorValueFrTo + AdvectorValueFrBo);
-
-            // Behind (V_Z)
-            AdvectorValueBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, 2, level);
-            AdvectorValueBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, 2, level);
-            wb = 0.5 * (AdvectorValueBeTo + AdvectorValueBeBo);
-        }
-    }
-    else
-    {
-        // The Third Component (w)
-        // Right (W_X)
-        AdvectorValueFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, 0, level);
-        AdvectorValueBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, 0, level);
-        ur = 0.5 * (AdvectorValueFrRi + AdvectorValueBeRi);
-
-        // Left (W_X)
-        AdvectorValueFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, 0, level);
-        AdvectorValueBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, 0, level);
-        ul = 0.5 * (AdvectorValueFrLe + AdvectorValueBeLe);
-
-        // Top (W_Y)
-        AdvectorValueFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, 1, level);
-        AdvectorValueBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, 1, level);
-        vt = 0.5 * (AdvectorValueFrTo + AdvectorValueBeTo);
-
-        // Bottom (W_Y)
-        AdvectorValueFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, 1, level);
-        AdvectorValueBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, 1, level);
-        vb = 0.5 * (AdvectorValueFrBo + AdvectorValueBeBo);
-
-        // Front (W_Z)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_FRONT)
-            wf = AdvectorValueC;
-        else
-        {
-            AdvectorValueFr = UF->DOF_value(i, j, k + 1, component, level);
-            wf = 0.5 * (AdvectorValueFr + AdvectorValueC);
-        }
-
-        // Behind (W_Z)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_BEHIND)
-            wb = AdvectorValueC;
-        else
-        {
-            AdvectorValueBe = UF->DOF_value(i, j, k - 1, component, level);
-            wb = 0.5 * (AdvectorValueBe + AdvectorValueC);
-        }
-    }
-
-    if (dim == 2)
-    {
-        flux = ((vt - vb) * dxC + (ur - ul) * dyC) / dxC / dyC;
-    }
-    else if (dim == 3)
-    {
-        flux = ((vt - vb) * dxC * dzC + (ur - ul) * dyC * dzC + (wf - wb) * dxC * dyC) / dxC / dyC / dzC;
-    }
-
-    return (flux);
-}
-
 //---------------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::get_current_mean_flow_speed()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_current_mean_flow_speed");
-
-    size_t comp = UF->primary_grid()->get_periodic_flow_direction();
-
-    size_t_vector min_unknown_index(dim, 0);
-    size_t_vector max_unknown_index(dim, 0);
-
-    // Get local min and max indices
-    for (size_t l = 0; l < dim; ++l)
-    {
-        min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
-        max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
-    }
-
-    double value = 0.;
-    double volume = 0.;
-
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-    {
-        double dx = UF->get_cell_size(i, comp, 0);
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        {
-            double dy = UF->get_cell_size(j, comp, 1);
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-            {
-                double dz = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1.;
-                value += UF->DOF_value(i, j, k, comp, 0) * dx * dy * dz;
-                volume += dx * dy * dz;
-            }
-        }
-    }
-
-    value = macCOMM->sum(value);
-    volume = macCOMM->sum(volume);
-
-    return (value / volume);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::predicted_pressure_drop(FV_TimeIterator const *t_it)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: predicted_pressure_drop");
-
-    double Um = get_current_mean_flow_speed();
-    double pressure_drop = UF->primary_grid()->get_periodic_pressure_drop();
-
-    if (macCOMM->rank() == 0)
-    {
-        size_t p_flow_dir = UF->primary_grid()->get_periodic_flow_direction();
-        double Lx = UF->primary_grid()->get_main_domain_max_coordinate(0) - UF->primary_grid()->get_main_domain_min_coordinate(0);
-        double Ly = UF->primary_grid()->get_main_domain_max_coordinate(1) - UF->primary_grid()->get_main_domain_min_coordinate(1);
-        double Lz = (dim == 3)
-                        ? UF->primary_grid()->get_main_domain_max_coordinate(2) - UF->primary_grid()->get_main_domain_min_coordinate(2)
-                        : 1.;
-
-        double cross_sec_area = Lx * Ly * Lz;
-
-        if (p_flow_dir == 0)
-        {
-            cross_sec_area = Ly * Lz;
-        }
-        else if (p_flow_dir == 1)
-        {
-            cross_sec_area = Lx * Lz;
-        }
-        else if (p_flow_dir == 2)
-        {
-            cross_sec_area = Lx * Ly;
-        }
-
-        double Qc = cross_sec_area * Um;
-        double Qset = UF->primary_grid()->get_periodic_flow_rate();
-
-        if ((fabs(Qc - Qset) / Qset > 1e-5) && (t_it->iteration_number() % 1 == 0))
-        {
-            if ((Qc / Qset) > 1.)
-            {
-                exceed = true;
-                // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
-                if (turn == false)
-                {
-                    pressure_drop *= 0.5;
-                    if ((Qc - Qold) < 0.)
-                        turn = true;
-                }
-                else
-                {
-                    if ((Qc / Qold) > 1.)
-                    {
-                        pressure_drop *= (Qset / Qc);
-                    }
-                    else
-                    {
-                        // Threshold controls the oscillation
-                        if (fabs(Qc - Qold) / Qc < 1e-6)
-                            pressure_drop *= (Qset / Qc);
-                    }
-                }
-            }
-            else
-            {
-                if (exceed == true)
-                {
-                    // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
-                    if ((Qc / Qold) < 1.)
-                    {
-                        pressure_drop *= (Qset / Qc);
-                    }
-                    else
-                    {
-                        // Threshold controls the oscillation
-                        if (fabs(Qc - Qold) / Qc < 1e-6)
-                            pressure_drop *= (Qset / Qc);
-                    }
-                }
-            }
-        }
-        Qold = Qc;
-
-        string fileName = "./DS_results/flow_pressure_history.csv";
-        std::ofstream MyFile;
-        MyFile.open(fileName.c_str(), std::ios::app);
-        MyFile << t_it->time() << " " << MAC::doubleToString(ios::scientific, 6, Qc)
-               << " " << MAC::doubleToString(ios::scientific, 6, pressure_drop)
-               << " " << exceed
-               << " " << turn << endl;
-    }
-
-    // Broadcast the new pressure to all procs from master proc
-    macCOMM->broadcast(pressure_drop);
-
-    const_cast<FV_Mesh *>(UF->primary_grid())
-        ->set_periodic_pressure_drop(pressure_drop);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(FV_TimeIterator const *t_it,
-                                                     double const &gamma)
+void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
+    FV_TimeIterator const *t_it, double const &gamma)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: assemble_DS_un_at_rhs");
+    size_t i, j, k;
 
-    // Assemble the diffusive components of velocity once in each iteration
-    assemble_velocity_diffusion_terms();
-    compute_velocity_divergence(UF);
-    assemble_velocity_advection_terms(t_it);
-
-    double bodyterm = 0.;
-    size_t cpp = 10;
+    double dxC, xC, dyC, yC, dzC, zC;
+    double pvalue = 0., xvalue = 0., yvalue = 0., zvalue = 0., rhs = 0., bodyterm = 0., adv_value = 0.;
+    int cpp = -1;
 
     // Periodic pressure gradient
     if (UF->primary_grid()->is_periodic_flow())
     {
         cpp = UF->primary_grid()->get_periodic_flow_direction();
-        if (UF->primary_grid()->is_periodic_pressure_drop() &&
-            !UF->primary_grid()->is_periodic_flow_rate())
-        {
-            bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
-                       (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
-        }
-        else if (UF->primary_grid()->is_periodic_flow_rate())
-        {
-            predicted_pressure_drop(t_it);
-            bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
-                       (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
-        }
+        bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
+                   (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
     }
 
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    doubleArray2D *CC_vol = 0;
-    vector<doubleVector *> advection = GLOBAL_EQ->get_velocity_advection();
-    vector<doubleVector *> vel_diffusion = GLOBAL_EQ->get_velocity_diffusion();
-    size_t_array2D *void_frac = 0;
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
 
     for (size_t comp = 0; comp < nb_comps[1]; comp++)
     {
         // Get local min and max indices
         for (size_t l = 0; l < dim; ++l)
         {
-            min_unknown_index(l) =
-                UF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                UF->get_max_index_unknown_handled_by_proc(comp, l);
+            min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
+            max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
         }
 
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+        for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
         {
-            double dxC = UF->get_cell_size(i, comp, 0);
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+
+            // Compute VEC_rhs_x = rhs in x
+            dxC = UF->get_cell_size(i, comp, 0);
+            xC = UF->get_DOF_coordinate(i, comp, 0);
+            for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
             {
-                double dyC = UF->get_cell_size(j, comp, 1);
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                dyC = UF->get_cell_size(j, comp, 1);
+                yC = UF->get_DOF_coordinate(j, comp, 1);
+                if (dim == 2)
                 {
-                    double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1;
-
-                    size_t p = UF->DOF_local_number(i, j, k, comp);
-                    // Cell volume
-                    double cellV = dxC * dyC * dzC;
-                    // if ((StencilCorrection == "CutCell")
-                    //  && (CC_vol->operator()(p,0) >= FluxRedistThres*cellV)) {
-                    //  	cellV = CC_vol->operator()(p,0);
-                    // }
-
+                    k = 0;
                     // Dxx for un
-                    double xvalue = vel_diffusion[0]->operator()(p);
+                    xvalue = compute_un_component(comp, i, j, k, 0, 3);
                     // Dyy for un
-                    double yvalue = vel_diffusion[1]->operator()(p);
-                    // Dzz for un
-                    double zvalue = (dim == 3) ? vel_diffusion[2]->operator()(p) : 0;
+                    yvalue = compute_un_component(comp, i, j, k, 1, 1);
                     // Pressure contribution
-                    double pvalue = compute_p_component(comp, i, j, k);
+                    pvalue = compute_p_component(comp, i, j, k);
                     // Advection contribution
-                    double adv_value = advection[0]->operator()(p);
-                    //
-                    // if (is_solids)
-                    // {
-                    //     if (void_frac->operator()(p, 0) != 0)
-                    //     {
-                    //         pvalue = 0.;
-                    //     }
-                    // }
+                    adv_value = compute_adv_component(comp, i, j, k);
 
-                    double rhs = gamma * (xvalue + yvalue + zvalue) - pvalue - adv_value + (UF->DOF_value(i, j, k, comp, 1) * cellV * rho) / (t_it->time_step());
+                    rhs = gamma * (xvalue * dyC + yvalue * dxC) - pvalue - adv_value + (UF->DOF_value(i, j, k, comp, 1) * dxC * dyC * rho) / (t_it->time_step());
 
-                    if (cpp == comp)
-                        rhs += -bodyterm * cellV;
+                    if (cpp >= 0 && cpp == comp)
+                        rhs += -bodyterm * dxC * dyC;
 
-                    // if (is_solids)
-                    // {
-                    //     if (void_frac->operator()(p, 0) != 0)
-                    //     {
-                    //         if (cpp == comp)
-                    //             rhs += bodyterm * cellV;
-                    //     }
-                    // }
+                    UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * rho));
+                }
+                else
+                {
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                    {
+                        dzC = UF->get_cell_size(k, comp, 2);
+                        zC = UF->get_DOF_coordinate(k, comp, 2);
+                        // Dxx for un
+                        xvalue = compute_un_component(comp, i, j, k, 0, 3);
+                        // Dyy for un
+                        yvalue = compute_un_component(comp, i, j, k, 1, 4);
+                        // Dzz for un
+                        zvalue = compute_un_component(comp, i, j, k, 2, 1);
+                        // Pressure contribution
+                        pvalue = compute_p_component(comp, i, j, k);
+                        // Advection contribution
+                        adv_value = compute_adv_component(comp, i, j, k);
 
-                    UF->set_DOF_value(i, j, k, comp, 0,
-                                      rhs * (t_it->time_step()) / (cellV * rho));
+                        rhs = gamma * (xvalue * dyC * dzC + yvalue * dxC * dzC + zvalue * dxC * dyC) - pvalue - adv_value + (UF->DOF_value(i, j, k, comp, 1) * dxC * dyC * dzC * rho) / (t_it->time_step());
+
+                        if (cpp >= 0 && cpp == comp)
+                            rhs += -bodyterm * dxC * dyC * dzC;
+
+                        UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * dzC * rho));
+                    }
                 }
             }
         }
@@ -3147,13 +1679,10 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(FV_TimeIterator const *t_it
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterator const *t_it, size_t const &dir_i, size_t const &dir_j, size_t const &dir_k, double const &gamma, size_t const &level)
+void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterator const *t_it, size_t const &dir_i, size_t const &dir_j, size_t const &dir_k, double const &gamma, size_t const &field)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: Solve_i_in_jk");
-
-    size_t field = (FF == PF) ? 0 : 1;
-
     size_t_vector min_unknown_index(dim, 0);
     size_t_vector max_unknown_index(dim, 0);
 
@@ -3162,10 +1691,8 @@ void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterat
         // Get local min and max indices
         for (size_t l = 0; l < dim; ++l)
         {
-            min_unknown_index(l) =
-                FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                FF->get_max_index_unknown_handled_by_proc(comp, l);
+            min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+            max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
         }
 
         size_t local_min_k = 0;
@@ -3173,13 +1700,13 @@ void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterat
 
         if (dim == 3)
         {
+
             local_min_k = min_unknown_index(dir_k);
             local_max_k = max_unknown_index(dir_k);
         }
 
         LocalVector *VEC = GLOBAL_EQ->get_VEC(field);
         TDMatrix *A = GLOBAL_EQ->get_A(field);
-        size_t_array2D *row_index = GLOBAL_EQ->get_row_indexes(field, dir_i, comp);
 
         // Solve in i
         if ((nb_ranks_comm_i[dir_i] > 1) || (is_periodic[field][dir_i] == 1))
@@ -3188,27 +1715,26 @@ void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterat
             {
                 for (size_t k = local_min_k; k <= local_max_k; ++k)
                 {
-                    size_t r_index = row_index->operator()(j, k);
+                    size_t r_index = return_row_index(FF, comp, dir_i, j, k);
                     // Assemble fi and return fe for each proc locally
                     double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir_i, field);
                     // Calculate Aei*ui in each proc locally
                     compute_Aei_ui(A, VEC, comp, dir_i, r_index);
                     // Pack Aei_ui and fe for sending it to master
-                    data_packing(FF, r_index, fe, comp, dir_i);
+                    data_packing(FF, j, k, fe, comp, dir_i, field);
                 }
             }
-            solve_interface_unknowns(FF, gamma, t_it, comp, dir_i, level);
+            solve_interface_unknowns(FF, gamma, t_it, comp, dir_i, field);
         }
         else if (is_periodic[field][dir_i] == 0)
-        {
-            // Serial mode with non-periodic condition
+        { // Serial mode with non-periodic condition
             for (size_t j = min_unknown_index(dir_j); j <= max_unknown_index(dir_j); ++j)
             {
                 for (size_t k = local_min_k; k <= local_max_k; ++k)
                 {
-                    size_t r_index = row_index->operator()(j, k);
-                    assemble_local_rhs(j, k, gamma, t_it, comp, dir_i, field);
-                    GLOBAL_EQ->DLMFD_DirectionSplitting_solver(FF, j, k, min_unknown_index(dir_i), comp, dir_i, r_index, level);
+                    size_t r_index = return_row_index(FF, comp, dir_i, j, k);
+                    double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir_i, field);
+                    GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir_i), comp, dir_i, field, r_index);
                 }
             }
         }
@@ -3216,47 +1742,81 @@ void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterat
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::data_packing(FV_DiscreteField const *FF, size_t const &p, double const &fe, size_t const &comp, size_t const &dir)
+void DLMFD_DirectionSplitting::data_packing(FV_DiscreteField const *FF, size_t const &j, size_t const &k, double const &fe, size_t const &comp, size_t const &dir, size_t const &field)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: data_packing");
-
-    size_t field = (FF == PF) ? 0 : 1;
-
     LocalVector *VEC = GLOBAL_EQ->get_VEC(field);
-    double *packed_data = first_pass[field][dir].send[comp][0];
+
+    double *packed_data = first_pass[field][dir].send[comp][rank_in_i[dir]];
+
+    // Get local min and max indices
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+    for (size_t l = 0; l < dim; ++l)
+    {
+        min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+        max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
+    }
+
+    // Pack the data
+    size_t vec_pos = 0;
+    if (dir == 0)
+    {
+        if (dim == 2)
+        {
+            vec_pos = j - min_unknown_index(1);
+        }
+        else
+        {
+            vec_pos = (j - min_unknown_index(1)) + (max_unknown_index(1) - min_unknown_index(1) + 1) * (k - min_unknown_index(2));
+        }
+    }
+    else if (dir == 1)
+    {
+        if (dim == 2)
+        {
+            vec_pos = j - min_unknown_index(0);
+        }
+        else
+        {
+            vec_pos = (j - min_unknown_index(0)) + (max_unknown_index(0) - min_unknown_index(0) + 1) * (k - min_unknown_index(2));
+        }
+    }
+    else if (dir == 2)
+    {
+        vec_pos = (j - min_unknown_index(0)) + (max_unknown_index(0) - min_unknown_index(0) + 1) * (k - min_unknown_index(1));
+    }
 
     if (rank_in_i[dir] == 0)
     {
         // Check if bc is periodic in x
         // If it is, we need to pack two elements apart from fe
         if (is_periodic[field][dir])
-            packed_data[3 * p + 0] =
-                VEC[dir].T[comp]->item(nb_ranks_comm_i[dir] - 1);
+            packed_data[3 * vec_pos + 0] = VEC[dir].T[comp]->item(nb_ranks_comm_i[dir] - 1);
         else
-            packed_data[3 * p + 0] = 0;
+            packed_data[3 * vec_pos + 0] = 0;
 
-        packed_data[3 * p + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
+        packed_data[3 * vec_pos + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
     }
     else if (rank_in_i[dir] == nb_ranks_comm_i[dir] - 1)
     {
         // Check if bc is periodic in x
         // If it is, we need to pack two elements apart from fe
         if (is_periodic[field][dir])
-            packed_data[3 * p + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
+            packed_data[3 * vec_pos + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
         else
-            packed_data[3 * p + 1] = 0;
+            packed_data[3 * vec_pos + 1] = 0;
 
-        packed_data[3 * p + 0] = VEC[dir].T[comp]->item(rank_in_i[dir] - 1);
+        packed_data[3 * vec_pos + 0] = VEC[dir].T[comp]->item(rank_in_i[dir] - 1);
     }
     else
     {
-        packed_data[3 * p + 0] = VEC[dir].T[comp]->item(rank_in_i[dir] - 1);
-        packed_data[3 * p + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
+        packed_data[3 * vec_pos + 0] = VEC[dir].T[comp]->item(rank_in_i[dir] - 1);
+        packed_data[3 * vec_pos + 1] = VEC[dir].T[comp]->item(rank_in_i[dir]);
     }
 
-    // Send the fe values and 0 for last proc
-    packed_data[3 * p + 2] = fe;
+    packed_data[3 * vec_pos + 2] = fe; // Send the fe values and 0 for last proc
 }
 
 //---------------------------------------------------------------------------
@@ -3302,524 +1862,43 @@ DLMFD_DirectionSplitting::assemble_local_rhs(size_t const &j, size_t const &k, d
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::NS_velocity_update(FV_TimeIterator const *t_it)
+
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_velocity_update");
-
-    sub_prob_number += 1;
 
     double gamma = mu;
 
     assemble_DS_un_at_rhs(t_it, gamma);
     // Update gamma based for invidual direction
     gamma = mu / 2.0;
-    UF->set_neumann_DOF_values();
 
-    Solve_i_in_jk(UF, t_it, 0, 1, 2, gamma, 3);
-    // Synchronize the velocity field
-    UF->synchronize(3);
-    // if (is_solids)
-    //     initialize_grid_nodes_on_rigidbody({3});
-    UF->set_neumann_DOF_values();
+    Solve_i_in_jk(UF, t_it, 0, 1, 2, gamma, 1);
+    // Synchronize the distributed DS solution vector
+    GLOBAL_EQ->synchronize_DS_solution_vec();
+    // Tranfer back to field
+    UF->update_free_DOFs_value(3, GLOBAL_EQ->get_solution_DS_velocity());
 
-    size_t level = (dim == 2) ? 0 : 4;
-    Solve_i_in_jk(UF, t_it, 1, 0, 2, gamma, level);
-    // Synchronize the velocity field
-    UF->synchronize(level);
-    // if (is_solids)
-    //     initialize_grid_nodes_on_rigidbody({level});
-    UF->set_neumann_DOF_values();
+    Solve_i_in_jk(UF, t_it, 1, 0, 2, gamma, 1);
+    // Synchronize the distributed DS solution vector
+    GLOBAL_EQ->synchronize_DS_solution_vec();
+    // Tranfer back to field
+    if (dim == 2)
+    {
+        UF->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_DS_velocity());
+    }
+    else if (dim == 3)
+    {
+        UF->update_free_DOFs_value(4, GLOBAL_EQ->get_solution_DS_velocity());
+    }
 
     if (dim == 3)
     {
-        Solve_i_in_jk(UF, t_it, 2, 0, 1, gamma, 0);
-        // Synchronize the velocity field
-        UF->synchronize(0);
-        // if (is_solids)
-        //     initialize_grid_nodes_on_rigidbody({0});
-        UF->set_neumann_DOF_values();
-    }
-
-    // Compute velocity change over the time step
-    double velocity_time_change = compute_DS_velocity_change() / t_it->time_step();
-    if (my_rank == is_master)
-        cout << "velocity change = " << MAC::doubleToString(ios::scientific, 5, velocity_time_change) << endl;
-
-    compute_velocity_divergence(PF);
-}
-
-// //---------------------------------------------------------------------------
-// void DLMFD_DirectionSplitting::initialize_grid_nodes_on_rigidbody(vector<size_t> const &list)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_DirectionSplitting::initialize_grid_nodes_on_rigidbody");
-
-//     size_t_vector min_unknown_index(3, 0);
-//     size_t_vector max_unknown_index(3, 0);
-
-//     // Vector for solid presence
-//     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-
-//     for (size_t comp = 0; comp < nb_comps[1]; comp++)
-//     {
-//         // Get local min and max indices
-//         for (size_t dir = 0; dir < dim; dir++)
-//         {
-//             if (is_periodic[1][dir])
-//             {
-//                 min_unknown_index(dir) =
-//                     UF->get_min_index_unknown_handled_by_proc(comp, dir) - 1;
-//                 max_unknown_index(dir) =
-//                     UF->get_max_index_unknown_handled_by_proc(comp, dir) + 1;
-//             }
-//             else
-//             {
-//                 min_unknown_index(dir) =
-//                     UF->get_min_index_unknown_handled_by_proc(comp, dir);
-//                 max_unknown_index(dir) =
-//                     UF->get_max_index_unknown_handled_by_proc(comp, dir);
-//             }
-//         }
-
-//         for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-//         {
-//             double xC = UF->get_DOF_coordinate(i, comp, 0);
-//             for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-//             {
-//                 double yC = UF->get_DOF_coordinate(j, comp, 1);
-//                 for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-//                 {
-//                     double zC = (dim == 2) ? 0 : UF->get_DOF_coordinate(k, comp, 2);
-//                     geomVector pt(xC, yC, zC);
-//                     size_t p = UF->DOF_local_number(i, j, k, comp);
-//                     if (void_frac->operator()(p, 0) != 0)
-//                     {
-//                         size_t par_id = void_frac->operator()(p, 0) - 1;
-//                         geomVector rb_vel = allrigidbodies->rigid_body_velocity(par_id, pt);
-//                         // geomVector rb_vel = allrigidbodies->rigid_body_GC_velocity(par_id);
-//                         for (size_t level : list)
-//                             UF->set_DOF_value(i, j, k, comp, level, rb_vel(comp));
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-//---------------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::assemble_velocity_gradients(class doubleVector &grad, size_t const &i, size_t const &j, size_t const &k, size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_velocity_gradients");
-
-    FV_SHIFT_TRIPLET shift = PF->shift_staggeredToCentered();
-
-    size_t comp = 0;
-
-    size_t_array2D *intersect_vector = 0;
-    doubleArray2D *intersect_distance = 0;
-    doubleArray2D *intersect_fieldVal = 0;
-    size_t_array2D *void_frac = 0;
-
-    size_t p = PF->DOF_local_number(i, j, k, comp);
-
-    // Dxx for un
-    double xh = UF->get_DOF_coordinate(shift.i + i, 0, 0) - UF->get_DOF_coordinate(shift.i + i - 1, 0, 0);
-    double xvalue = UF->DOF_value(shift.i + i, j, k, 0, level) - UF->DOF_value(shift.i + i - 1, j, k, 0, level);
-    // Dyy for un
-    double yvalue = UF->DOF_value(i, shift.j + j, k, 1, level) - UF->DOF_value(i, shift.j + j - 1, k, 1, level);
-    double yh = UF->get_DOF_coordinate(shift.j + j, 1, 1) - UF->get_DOF_coordinate(shift.j + j - 1, 1, 1);
-
-    double bx = xh;
-    double by = yh;
-
-    // if (is_solids && StencilCorrection == "FD")
-    // {
-    //     if (void_frac->operator()(p, 0) == 0)
-    //     {
-    //         if (intersect_vector->operator()(p, 2 * 0 + 0) == 1)
-    //         {
-    //             xvalue = UF->DOF_value(shift.i + i, j, k, 0, level) - intersect_fieldVal->operator()(p, 2 * 0 + 0);
-    //             xh = intersect_distance->operator()(p, 2 * 0 + 0) + PF->get_cell_size(i, 0, 0) / 2.;
-    //         }
-    //         if (intersect_vector->operator()(p, 2 * 0 + 1) == 1)
-    //         {
-    //             xvalue = intersect_fieldVal->operator()(p, 2 * 0 + 1) - UF->DOF_value(shift.i + i - 1, j, k, 0, level);
-    //             xh = intersect_distance->operator()(p, 2 * 0 + 1) + PF->get_cell_size(i, 0, 0) / 2.;
-    //         }
-    //         if ((intersect_vector->operator()(p, 2 * 0 + 1) == 1) && (intersect_vector->operator()(p, 2 * 0 + 0) == 1))
-    //         {
-    //             xvalue = intersect_fieldVal->operator()(p, 2 * 0 + 1) - intersect_fieldVal->operator()(p, 2 * 0 + 0);
-    //             xh = intersect_distance->operator()(p, 2 * 0 + 1) + intersect_distance->operator()(p, 2 * 0 + 0);
-    //         }
-    //     }
-    //     else
-    //     {
-    //         xvalue = 0.;
-    //     }
-    // }
-
-    // if (is_solids && StencilCorrection == "FD")
-    // {
-    //     if (void_frac->operator()(p, 0) == 0)
-    //     {
-    //         if (intersect_vector->operator()(p, 2 * 1 + 0) == 1)
-    //         {
-    //             yvalue = UF->DOF_value(i, shift.j + j, k, 1, level) - intersect_fieldVal->operator()(p, 2 * 1 + 0);
-    //             yh = intersect_distance->operator()(p, 2 * 1 + 0) + PF->get_cell_size(j, 0, 1) / 2.;
-    //         }
-    //         if (intersect_vector->operator()(p, 2 * 1 + 1) == 1)
-    //         {
-    //             yvalue = intersect_fieldVal->operator()(p, 2 * 1 + 1) - UF->DOF_value(i, shift.j + j - 1, k, 1, level);
-    //             yh = intersect_distance->operator()(p, 2 * 1 + 1) + PF->get_cell_size(j, 0, 1) / 2.;
-    //         }
-    //         if ((intersect_vector->operator()(p, 2 * 1 + 1) == 1) && (intersect_vector->operator()(p, 2 * 1 + 0) == 1))
-    //         {
-    //             yvalue = intersect_fieldVal->operator()(p, 2 * 1 + 1) - intersect_fieldVal->operator()(p, 2 * 1 + 0);
-    //             yh = intersect_distance->operator()(p, 2 * 1 + 1) + intersect_distance->operator()(p, 2 * 1 + 0);
-    //         }
-    //     }
-    //     else
-    //     {
-    //         yvalue = 0.;
-    //     }
-    // }
-
-    bx = xh / bx;
-    by = yh / by;
-
-    double beta = min(1., min(bx, by));
-
-    if (dim == 3)
-    {
-        // Dzz for un
-        double zh = UF->get_DOF_coordinate(shift.k + k, 2, 2) - UF->get_DOF_coordinate(shift.k + k - 1, 2, 2);
-        double zvalue = UF->DOF_value(i, j, shift.k + k, 2, level) - UF->DOF_value(i, j, shift.k + k - 1, 2, level);
-
-        double bz = zh;
-
-        // if (is_solids && StencilCorrection == "FD")
-        // {
-        //     if (void_frac->operator()(p, 0) == 0)
-        //     {
-        //         if (intersect_vector->operator()(p, 2 * 2 + 0) == 1)
-        //         {
-        //             zvalue = UF->DOF_value(i, j, shift.k + k, 2, level) - intersect_fieldVal->operator()(p, 2 * 2 + 0);
-        //             zh = intersect_distance->operator()(p, 2 * 2 + 0) + PF->get_cell_size(k, 0, 2) / 2.;
-        //         }
-        //         if (intersect_vector->operator()(p, 2 * 2 + 1) == 1)
-        //         {
-        //             zvalue = intersect_fieldVal->operator()(p, 2 * 2 + 1) - UF->DOF_value(i, j, shift.k + k - 1, 2, level);
-        //             zh = intersect_distance->operator()(p, 2 * 2 + 1) + PF->get_cell_size(k, 0, 2) / 2.;
-        //         }
-        //         if ((intersect_vector->operator()(p, 2 * 2 + 1) == 1) && (intersect_vector->operator()(p, 2 * 2 + 0) == 1))
-        //         {
-        //             zvalue = intersect_fieldVal->operator()(p, 2 * 2 + 1) - intersect_fieldVal->operator()(p, 2 * 2 + 0);
-        //             zh = intersect_distance->operator()(p, 2 * 2 + 1) + intersect_distance->operator()(p, 2 * 2 + 0);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         zvalue = 0.;
-        //     }
-        // }
-
-        bz = zh / bz;
-
-        grad(2) = zvalue / zh;
-
-        beta = min(1., min(bx, min(by, bz)));
-    }
-
-    grad(0) = xvalue / xh;
-    grad(1) = yvalue / yh;
-
-    return (beta);
-}
-
-//---------------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::calculate_velocity_divergence_FD(size_t const &i,
-                                                           size_t const &j,
-                                                           size_t const &k,
-                                                           size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: calculate_velocity_divergence");
-
-    doubleVector grad(3, 0);
-
-    double beta = assemble_velocity_gradients(grad, i, j, k, level);
-
-    double value = beta * (grad(0) + grad(1) + grad(2));
-
-    return (value);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::assemble_velocity_advection_terms(FV_TimeIterator const *t_it)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_velocity_advection_terms");
-
-    vector<doubleVector *> advection = GLOBAL_EQ->get_velocity_advection();
-    size_t_array2D *void_frac = 0;
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    for (size_t comp = 0; comp < nb_comps[1]; comp++)
-    {
-        // Get local min and max indices
-        for (size_t l = 0; l < dim; ++l)
-        {
-            min_unknown_index(l) =
-                UF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                UF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        // Compute the advection value and store
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        {
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-            {
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-                {
-                    size_t p = UF->DOF_local_number(i, j, k, comp);
-                    // Advection contribution
-                    advection[0]->operator()(p) = compute_adv_component(t_it, comp, i, j, k);
-                }
-            }
-        }
-
-        // if (is_solids && StencilCorrection == "CutCell" && !is_CConlyDivergence)
-        // {
-        //     size_t UF_UNK_MAX = UF->nb_local_unknowns();
-        //     intVector *ownerID = allrigidbodies->get_CC_ownerID(UF);
-        //     // Flux redistribution
-        //     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        //     {
-        //         for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        //         {
-        //             for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-        //             {
-        //                 size_t p = UF->DOF_local_number(i, j, k, comp);
-        //                 if (ownerID->operator()(p) != -1)
-        //                 {
-        //                     size_t p_lft = UF->DOF_local_number(i - 1, j, k, comp);
-        //                     size_t p_rht = UF->DOF_local_number(i + 1, j, k, comp);
-        //                     size_t p_bot = UF->DOF_local_number(i, j - 1, k, comp);
-        //                     size_t p_top = UF->DOF_local_number(i, j + 1, k, comp);
-        //                     size_t p_bhd = (dim == 2) ? 0 : UF->DOF_local_number(i, j, k - 1, comp);
-        //                     size_t p_frt = (dim == 2) ? 0 : UF->DOF_local_number(i, j, k + 1, comp);
-
-        //                     vector<double> wht = allrigidbodies->flux_redistribution_factor(UF, i, j, k, comp, FluxRedistThres);
-
-        //                     // Flux redistribution
-        //                     double sum = wht[0] + wht[1] + wht[2] + wht[3] + wht[4] + wht[5];
-
-        //                     if (sum > 0.)
-        //                     {
-        //                         if (p_lft <= UF_UNK_MAX)
-        //                             advection[0]->operator()(p_lft) +=
-        //                                 wht[0] / sum * advection[0]->operator()(p);
-        //                         if (p_rht <= UF_UNK_MAX)
-        //                             advection[0]->operator()(p_rht) +=
-        //                                 wht[1] / sum * advection[0]->operator()(p);
-        //                         if (p_bot <= UF_UNK_MAX)
-        //                             advection[0]->operator()(p_bot) +=
-        //                                 wht[2] / sum * advection[0]->operator()(p);
-        //                         if (p_top <= UF_UNK_MAX)
-        //                             advection[0]->operator()(p_top) +=
-        //                                 wht[3] / sum * advection[0]->operator()(p);
-        //                         if (dim == 3)
-        //                         {
-        //                             if (p_bhd <= UF_UNK_MAX)
-        //                                 advection[0]->operator()(p_bhd) +=
-        //                                     wht[4] / sum * advection[0]->operator()(p);
-        //                             if (p_frt <= UF_UNK_MAX)
-        //                                 advection[0]->operator()(p_frt) +=
-        //                                     wht[5] / sum * advection[0]->operator()(p);
-        //                         }
-        //                         advection[0]->operator()(p) = 0.;
-        //                     }
-        //                     else if ((sum == 0.) && (void_frac->operator()(p, 0) != 0))
-        //                     {
-        //                         advection[0]->operator()(p) = 0.;
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-    }
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::compute_velocity_divergence(FV_DiscreteField const *FF)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: compute_velocity_divergence");
-
-    size_t field = (FF == PF) ? 0 : 1;
-    size_t UNK_MAX = FF->nb_local_unknowns();
-    doubleArray2D *divergence = GLOBAL_EQ->get_node_divergence(field);
-    doubleArray2D *CC_vol = 0;
-    intVector *ownerID = 0;
-
-    for (size_t comp = 0; comp < nb_comps[field]; comp++)
-    {
-        // Get local min and max indices
-        size_t_vector min_unknown_index(3, 0);
-        size_t_vector max_unknown_index(3, 0);
-        for (size_t l = 0; l < dim; ++l)
-        {
-            min_unknown_index(l) =
-                FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                FF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        {
-            double dx = FF->get_cell_size(i, comp, 0);
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-            {
-                double dy = FF->get_cell_size(j, comp, 1);
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-                {
-                    double dz = (dim == 3) ? FF->get_cell_size(k, comp, 2) : 1.;
-                    size_t p = FF->DOF_local_number(i, j, k, comp);
-                    // if (is_solids)
-                    // {
-                    //     int ownID = (StencilCorrection == "FD") ? -1
-                    //                                             : ownerID->operator()(p);
-                    //     if (ownID == -1)
-                    //     {
-                    //         double vel_div = (FF == UF) ? divergence_of_U_noCorrection(i, j, k, comp, 0)
-                    //                                     : calculate_velocity_divergence_FD(i, j, k, 0);
-                    //         divergence->operator()(p, 0) = vel_div * dx * dy * dz;
-                    //     }
-                    //     else if (ownID != -1)
-                    //     {
-                    //         double rht_flux = allrigidbodies->velocity_flux(FF, p, 0, 0, 1, 0);
-                    //         double lft_flux = allrigidbodies->velocity_flux(FF, p, 0, 0, 0, 0);
-                    //         double top_flux = allrigidbodies->velocity_flux(FF, p, 1, 1, 1, 0);
-                    //         double bot_flux = allrigidbodies->velocity_flux(FF, p, 1, 1, 0, 0);
-                    //         double fnt_flux = (dim == 2) ? 0.
-                    //                                      : allrigidbodies->velocity_flux(FF, p, 2, 2, 1, 0);
-                    //         double bhd_flux = (dim == 2) ? 0.
-                    //                                      : allrigidbodies->velocity_flux(FF, p, 2, 2, 0, 0);
-
-                    //         double xvalue = (rht_flux - lft_flux);
-                    //         double yvalue = (top_flux - bot_flux);
-                    //         double zvalue = (fnt_flux - bhd_flux);
-                    //         double RB_flux = allrigidbodies->calculate_velocity_flux_fromRB(FF, p);
-                    //         double dFV = 0.; //(CC_vol->operator()(p,0) - CC_vol->operator()(p,1))/0.001;
-
-                    //         double value = xvalue + yvalue + zvalue + RB_flux + dFV;
-
-                    //         // In case of nodes at the boundary of proc, especially
-                    //         // nodes not handled by the proc
-                    //         value = std::isnan(value) ? 0. : value;
-
-                    //         divergence->operator()(p, 0) = value;
-                    //     }
-                    // }
-                    // else
-                    // {
-                    double vel_div = (FF == UF) ? divergence_of_U_noCorrection(i, j, k, comp, 0)
-                                                : calculate_velocity_divergence_FD(i, j, k, 0);
-                    divergence->operator()(p, 0) = vel_div * dx * dy * dz;
-                    // }
-                }
-            }
-        }
-
-        size_t_array2D *void_frac = 0;
-
-        // // Flux redistribution
-        // if ((StencilCorrection == "CutCell"))
-        // { // && (FF == UF)) {
-        //     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        //     {
-        //         for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        //         {
-        //             for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-        //             {
-        //                 size_t p = FF->DOF_local_number(i, j, k, comp);
-        //                 if (ownerID->operator()(p) != -1)
-        //                 {
-        //                     size_t p_lft = FF->DOF_local_number(i - 1, j, k, comp);
-        //                     size_t p_rht = FF->DOF_local_number(i + 1, j, k, comp);
-        //                     size_t p_bot = FF->DOF_local_number(i, j - 1, k, comp);
-        //                     size_t p_top = FF->DOF_local_number(i, j + 1, k, comp);
-        //                     size_t p_bhd = (dim == 2) ? 0 : FF->DOF_local_number(i, j, k - 1, comp);
-        //                     size_t p_frt = (dim == 2) ? 0 : FF->DOF_local_number(i, j, k + 1, comp);
-
-        //                     vector<double> wht = allrigidbodies
-        //                                              ->flux_redistribution_factor(FF, i, j, k, comp, FluxRedistThres);
-
-        //                     // Flux redistribution
-        //                     double sum = wht[0] + wht[1] + wht[2] + wht[3] + wht[4] + wht[5];
-
-        //                     if (sum > 0.)
-        //                     {
-        //                         if (p_lft <= UNK_MAX)
-        //                             divergence->operator()(p_lft, 0) +=
-        //                                 wht[0] / sum * divergence->operator()(p, 0);
-        //                         if (p_rht <= UNK_MAX)
-        //                             divergence->operator()(p_rht, 0) +=
-        //                                 wht[1] / sum * divergence->operator()(p, 0);
-        //                         if (p_bot <= UNK_MAX)
-        //                             divergence->operator()(p_bot, 0) +=
-        //                                 wht[2] / sum * divergence->operator()(p, 0);
-        //                         if (p_top <= UNK_MAX)
-        //                             divergence->operator()(p_top, 0) +=
-        //                                 wht[3] / sum * divergence->operator()(p, 0);
-        //                         if (dim == 3)
-        //                         {
-        //                             if (p_bhd <= UNK_MAX)
-        //                                 divergence->operator()(p_bhd, 0) +=
-        //                                     wht[4] / sum * divergence->operator()(p, 0);
-        //                             if (p_frt <= UNK_MAX)
-        //                                 divergence->operator()(p_frt, 0) +=
-        //                                     wht[5] / sum * divergence->operator()(p, 0);
-        //                         }
-        //                         divergence->operator()(p, 0) = 0.;
-        //                     }
-        //                     else if ((sum == 0.) && (void_frac->operator()(p, 0) != 0))
-        //                     {
-        //                         divergence->operator()(p, 0) = 0.;
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        // Converting flux to divergence
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        {
-            double dx = FF->get_cell_size(i, comp, 0);
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-            {
-                double dy = FF->get_cell_size(j, comp, 1);
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-                {
-                    double dz = (dim == 3) ? FF->get_cell_size(k, comp, 2) : 1.;
-                    size_t p = FF->DOF_local_number(i, j, k, comp);
-                    double volume = dx * dy * dz;
-                    // if (is_solids && (StencilCorrection == "CutCell")
-                    //  && (CC_vol->operator()(p,0) >= FluxRedistThres*volume)) {
-                    //  	volume = CC_vol->operator()(p,0);
-                    // }
-                    divergence->operator()(p, 0) = divergence->operator()(p, 0) / volume;
-                }
-            }
-        }
+        Solve_i_in_jk(UF, t_it, 2, 0, 1, gamma, 1);
+        // Synchronize the distributed DS solution vector
+        GLOBAL_EQ->synchronize_DS_solution_vec();
+        // Tranfer back to field
+        UF->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_DS_velocity());
     }
 }
 
@@ -3839,24 +1918,49 @@ DLMFD_DirectionSplitting::pressure_local_rhs(size_t const &j, size_t const &k, F
         max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
     }
 
-    size_t pos;
+    size_t i, pos;
+    FV_SHIFT_TRIPLET shift = PF->shift_staggeredToCentered();
 
     // Compute VEC_rhs_x = rhs in x
+    double xhr, xright, yhr, yright, dx, zhr, zright;
     double fe = 0.;
-    double value = 0.;
+    double xvalue = 0., yvalue = 0., zvalue = 0., value = 0.;
 
     // Vector for fi
     LocalVector *VEC = GLOBAL_EQ->get_VEC(0);
-    doubleArray2D *divergence = GLOBAL_EQ->get_node_divergence(0);
 
-    for (size_t i = min_unknown_index(dir); i <= max_unknown_index(dir); ++i)
+    for (i = min_unknown_index(dir); i <= max_unknown_index(dir); ++i)
     {
-        double dx = PF->get_cell_size(i, 0, dir);
+        dx = PF->get_cell_size(i, 0, dir);
         if (dir == 0)
         {
-            size_t p = PF->DOF_local_number(i, j, k, 0);
-            double vel_div = divergence->operator()(p, 0);
-            value = -(rho * vel_div * dx) / (t_it->time_step());
+            // Dxx for un
+            xhr = UF->get_DOF_coordinate(shift.i + i, 0, 0) - UF->get_DOF_coordinate(shift.i + i - 1, 0, 0);
+            xright = UF->DOF_value(shift.i + i, j, k, 0, 0) - UF->DOF_value(shift.i + i - 1, j, k, 0, 0);
+            xvalue = xright / xhr;
+
+            // Dyy for un
+            yhr = UF->get_DOF_coordinate(shift.j + j, 1, 1) - UF->get_DOF_coordinate(shift.j + j - 1, 1, 1);
+            yright = UF->DOF_value(i, shift.j + j, k, 1, 0) - UF->DOF_value(i, shift.j + j - 1, k, 1, 0);
+            yvalue = yright / yhr;
+
+            if (dim == 3)
+            {
+                // Dzz for un
+                zhr = UF->get_DOF_coordinate(shift.k + k, 2, 2) - UF->get_DOF_coordinate(shift.k + k - 1, 2, 2);
+                zright = UF->DOF_value(i, j, shift.k + k, 2, 0) - UF->DOF_value(i, j, shift.k + k - 1, 2, 0);
+                zvalue = zright / zhr;
+            }
+
+            // Assemble the bodyterm
+            if (dim == 2)
+            {
+                value = -(rho * (xvalue + yvalue) * dx) / (t_it->time_step());
+            }
+            else
+            {
+                value = -(rho * (xvalue + yvalue + zvalue) * dx) / (t_it->time_step());
+            }
         }
         else if (dir == 1)
         {
@@ -3891,255 +1995,7 @@ DLMFD_DirectionSplitting::pressure_local_rhs(size_t const &j, size_t const &k, F
                 VEC[dir].local_T[0]->set_item(pos, value);
         }
     }
-
     return fe;
-}
-
-// //---------------------------------------------------------------------------
-// void DLMFD_DirectionSplitting::correct_pressure_1st_layer_solid(size_t const &level)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_DirectionSplitting:: correct_pressure_1st_layer_solid");
-
-//     size_t_vector min_unknown_index(3, 0);
-//     size_t_vector max_unknown_index(3, 0);
-
-//     for (size_t l = 0; l < dim; ++l)
-//     {
-//         min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-//         max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
-//     }
-
-//     NodeProp node = GLOBAL_EQ->get_node_property(0, 0);
-//     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(PF);
-
-//     size_t comp = 0;
-
-//     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-//     {
-//         for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-//         {
-//             for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-//             {
-//                 size_t p = PF->DOF_local_number(i, j, k, comp);
-//                 node.bound_cell->set_item(p, 0.);
-//                 if (void_frac->operator()(p, 0) != 0)
-//                 {
-//                     double value = 0., count = 0.;
-//                     size_t p1 = PF->DOF_local_number(i + 1, j, k, comp);
-//                     size_t p2 = PF->DOF_local_number(i - 1, j, k, comp);
-//                     size_t p3 = PF->DOF_local_number(i, j + 1, k, comp);
-//                     size_t p4 = PF->DOF_local_number(i, j - 1, k, comp);
-//                     if (void_frac->operator()(p1, 0) == 0)
-//                     {
-//                         node.bound_cell->set_item(p, 1.);
-//                         value += PF->DOF_value(i + 1, j, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (void_frac->operator()(p2, 0) == 0)
-//                     {
-//                         node.bound_cell->set_item(p, 1.);
-//                         value += PF->DOF_value(i - 1, j, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (void_frac->operator()(p3, 0) == 0)
-//                     {
-//                         node.bound_cell->set_item(p, 1.);
-//                         value += PF->DOF_value(i, j + 1, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (void_frac->operator()(p4, 0) == 0)
-//                     {
-//                         node.bound_cell->set_item(p, 1.);
-//                         value += PF->DOF_value(i, j - 1, k, comp, level);
-//                         count += 1.;
-//                     }
-
-//                     if (dim == 3)
-//                     {
-//                         size_t p5 = PF->DOF_local_number(i, j, k + 1, comp);
-//                         size_t p6 = PF->DOF_local_number(i, j, k - 1, comp);
-
-//                         if (void_frac->operator()(p5, 0) == 0)
-//                         {
-//                             node.bound_cell->set_item(p, 1.);
-//                             value += PF->DOF_value(i, j, k + 1, comp, level);
-//                             count += 1.;
-//                         }
-//                         if (void_frac->operator()(p6, 0) == 0)
-//                         {
-//                             node.bound_cell->set_item(p, 1.);
-//                             value += PF->DOF_value(i, j, k - 1, comp, level);
-//                             count += 1.;
-//                         }
-//                     }
-
-//                     if (count != 0.)
-//                         value = value / count;
-//                     PF->set_DOF_value(i, j, k, comp, level, value);
-//                 }
-//             }
-//         }
-//     }
-
-//     // Synchronize the pressure field
-//     PF->synchronize(level);
-// }
-
-// //---------------------------------------------------------------------------
-// void DLMFD_DirectionSplitting::correct_pressure_2nd_layer_solid(size_t const &level)
-// //---------------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_DirectionSplitting:: correct_pressure_2nd_layer_solid");
-
-//     size_t_vector min_unknown_index(3, 0);
-//     size_t_vector max_unknown_index(3, 0);
-
-//     for (size_t l = 0; l < dim; ++l)
-//     {
-//         min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-//         max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
-//     }
-
-//     NodeProp node = GLOBAL_EQ->get_node_property(0, 0);
-//     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(PF);
-
-//     size_t comp = 0;
-
-//     for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-//     {
-//         for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-//         {
-//             for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-//             {
-//                 size_t p = PF->DOF_local_number(i, j, k, comp);
-//                 if ((void_frac->operator()(p, 0) != 0) && (node.bound_cell->item(p) == 0))
-//                 {
-//                     double value = 0., count = 0.;
-//                     size_t p1 = PF->DOF_local_number(i + 1, j, k, comp);
-//                     size_t p2 = PF->DOF_local_number(i - 1, j, k, comp);
-//                     size_t p3 = PF->DOF_local_number(i, j + 1, k, comp);
-//                     size_t p4 = PF->DOF_local_number(i, j - 1, k, comp);
-//                     if (node.bound_cell->item(p1) == 1.)
-//                     {
-//                         node.bound_cell->set_item(p, 2.);
-//                         value += PF->DOF_value(i + 1, j, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (node.bound_cell->item(p2) == 1.)
-//                     {
-//                         node.bound_cell->set_item(p, 2.);
-//                         value += PF->DOF_value(i - 1, j, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (node.bound_cell->item(p3) == 1.)
-//                     {
-//                         node.bound_cell->set_item(p, 2.);
-//                         value += PF->DOF_value(i, j + 1, k, comp, level);
-//                         count += 1.;
-//                     }
-//                     if (node.bound_cell->item(p4) == 1.)
-//                     {
-//                         node.bound_cell->set_item(p, 2.);
-//                         value += PF->DOF_value(i, j - 1, k, comp, level);
-//                         count += 1.;
-//                     }
-
-//                     if (dim == 3)
-//                     {
-//                         size_t p5 = PF->DOF_local_number(i, j, k + 1, comp);
-//                         size_t p6 = PF->DOF_local_number(i, j, k - 1, comp);
-//                         if (node.bound_cell->item(p5) == 1.)
-//                         {
-//                             node.bound_cell->set_item(p, 2.);
-//                             value += PF->DOF_value(i, j, k + 1, comp, level);
-//                             count += 1.;
-//                         }
-//                         if (node.bound_cell->item(p6) == 1.)
-//                         {
-//                             node.bound_cell->set_item(p, 2.);
-//                             value += PF->DOF_value(i, j, k - 1, comp, level);
-//                             count += 1.;
-//                         }
-//                     }
-
-//                     if (count != 0.)
-//                         value = value / count;
-//                     PF->set_DOF_value(i, j, k, comp, level, value);
-//                 }
-//             }
-//         }
-//     }
-
-//     // Synchronize the pressure field
-//     PF->synchronize(level);
-// }
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::correct_mean_pressure(size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: correct_mean_pressure");
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    for (size_t l = 0; l < dim; ++l)
-    {
-        min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-        max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
-    }
-
-    size_t_array2D *void_frac = 0;
-    size_t comp = 0;
-
-    double mean = 0., nb_global_unknown = 0.;
-
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-    {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        {
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-            {
-                // if (is_solids)
-                // {
-                //     size_t p = PF->DOF_local_number(i, j, k, comp);
-                //     if (void_frac->operator()(p, 0) == 0)
-                //     {
-                //         mean += PF->DOF_value(i, j, k, comp, level);
-                //         nb_global_unknown += 1.;
-                //     }
-                // }
-            }
-        }
-    }
-
-    mean = macCOMM->sum(mean);
-    nb_global_unknown = macCOMM->sum(nb_global_unknown);
-
-    mean = mean / nb_global_unknown;
-
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-    {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
-        {
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
-            {
-                // if (is_solids)
-                // {
-                //     size_t p = PF->DOF_local_number(i, j, k, comp);
-                //     if (void_frac->operator()(p, 0) == 0)
-                //     {
-                //         double value = PF->DOF_value(i, j, k, comp, level);
-                //         PF->set_DOF_value(i, j, k, comp, level, value - mean);
-                //     }
-                // }
-            }
-        }
-    }
-
-    // Synchronize the pressure field
-    PF->synchronize(level);
 }
 
 //---------------------------------------------------------------------------
@@ -4148,282 +2004,333 @@ void DLMFD_DirectionSplitting::NS_pressure_update(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_pressure_update");
 
-    sub_prob_number += 1;
-
     double gamma = mu / 2.0;
 
-    Solve_i_in_jk(PF, t_it, 0, 1, 2, gamma, 1);
-    // Synchronize the pressure field
-    PF->synchronize(1);
+    Solve_i_in_jk(PF, t_it, 0, 1, 2, gamma, 0);
+    // Synchronize the distributed DS solution vector
+    GLOBAL_EQ->synchronize_DS_solution_vec_P();
+    // Tranfer back to field
+    PF->update_free_DOFs_value(1, GLOBAL_EQ->get_solution_DS_pressure());
 
-    Solve_i_in_jk(PF, t_it, 1, 0, 2, gamma, 1);
-    // Synchronize the pressure field
-    PF->synchronize(1);
+    Solve_i_in_jk(PF, t_it, 1, 0, 2, gamma, 0);
+    // Synchronize the distributed DS solution vector
+    GLOBAL_EQ->synchronize_DS_solution_vec_P();
+    // Tranfer back to field
+    PF->update_free_DOFs_value(1, GLOBAL_EQ->get_solution_DS_pressure());
 
     if (dim == 3)
     {
-        Solve_i_in_jk(PF, t_it, 2, 0, 1, gamma, 1);
-        // Synchronize the pressure field
-        PF->synchronize(1);
-    }
+        Solve_i_in_jk(PF, t_it, 2, 0, 1, gamma, 0);
+        // Synchronize the distributed DS solution vector
 
-    if (PF->all_BCs_nonDirichlet(0))
-    {
-        correct_mean_pressure(1);
+        GLOBAL_EQ->synchronize_DS_solution_vec_P();
+        // Tranfer back to field
+        PF->update_free_DOFs_value(1, GLOBAL_EQ->get_solution_DS_pressure());
     }
-
-    // if (is_solids)
-    // {
-    //     // allrigidbodies->extrapolate_pressure_inside_RB(PF,1);
-    //     correct_pressure_1st_layer_solid(1);
-    //     correct_pressure_2nd_layer_solid(1);
-    // }
 }
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::NS_final_step(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplitting:: NS_final_step");
+    MAC_LABEL(
+        "DLMFD_DirectionSplitting:: NS_final_step");
 
-    sub_prob_number += 1;
+    size_t i, j, k;
 
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
+    double value = 0.;
 
-    doubleArray2D *divergencePF = GLOBAL_EQ->get_node_divergence(0);
-    doubleArray2D *divergenceUF = GLOBAL_EQ->get_node_divergence(1);
-    doubleArray2D *CC_volPF = 0;
-    doubleArray2D *CC_volUF = 0;
-    size_t_array2D *void_fracPF = 0;
-    size_t_array2D *void_fracUF = 0;
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+
+    double xhr, xright, xvalue1 = 0., xvalue2 = 0., xvalue = 0.;
+    double yhr, yright, yvalue1 = 0., yvalue2 = 0., yvalue = 0.;
+    FV_SHIFT_TRIPLET shift = PF->shift_staggeredToCentered();
+
+    // Get local min and max indices
+    // When we are running in parallel, the unknowns in the overlapping region are not solved. So we need to include
+    // them here by calling get_min_index_unknown_on_proc() instead of get_min_index_unknown_handled_by_proc().
 
     for (size_t l = 0; l < dim; ++l)
     {
-        min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-        max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
+        min_unknown_index(l) = PF->get_min_index_unknown_on_proc(0, l);
+        max_unknown_index(l) = PF->get_max_index_unknown_on_proc(0, l);
     }
 
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
     {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
         {
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+            if (dim == 2)
             {
-                size_t p = PF->DOF_local_number(i, j, k, 0);
-                double vel_div0 = divergencePF->operator()(p, 0);
-                double vel_div1 = divergencePF->operator()(p, 1);
+                k = 0;
+
+                xhr = UF->get_DOF_coordinate(shift.i + i, 0, 0) - UF->get_DOF_coordinate(shift.i + i - 1, 0, 0);
+                // Divergence of un+1 (x component)
+                xright = UF->DOF_value(shift.i + i, j, k, 0, 0) - UF->DOF_value(shift.i + i - 1, j, k, 0, 0);
+                xvalue1 = xright / xhr;
+                // Divergence of un (x component)
+                xright = UF->DOF_value(shift.i + i, j, k, 0, 1) - UF->DOF_value(shift.i + i - 1, j, k, 0, 1);
+                xvalue2 = xright / xhr;
+                xvalue = xvalue1 + xvalue2;
+
+                yhr = UF->get_DOF_coordinate(shift.j + j, 1, 1) - UF->get_DOF_coordinate(shift.j + j - 1, 1, 1);
+                // Divergence of un+1 (y component)
+                yright = UF->DOF_value(i, shift.j + j, k, 1, 0) - UF->DOF_value(i, shift.j + j - 1, k, 1, 0);
+                yvalue1 = yright / yhr;
+                // Divergence of un (y component)
+                yright = UF->DOF_value(i, shift.j + j, k, 1, 1) - UF->DOF_value(i, shift.j + j - 1, k, 1, 1);
+                yvalue2 = yright / yhr;
+                yvalue = yvalue1 + yvalue2;
 
                 // Assemble the bodyterm
-                double value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1) - 0.5 * kai * mu * (vel_div0 + vel_div1);
+                value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1) - 0.5 * kai * mu * (xvalue + yvalue);
+
                 PF->set_DOF_value(i, j, k, 0, 0, value);
             }
-        }
-    }
-
-    // Synchronize the pressure field
-    PF->synchronize(0);
-
-    if (PF->all_BCs_nonDirichlet(0))
-    {
-        correct_mean_pressure(0);
-    }
-
-    // Store the divergence to be used in the next time iteration
-    for (size_t i = 0; i < PF->nb_local_unknowns(); i++)
-    {
-        divergencePF->operator()(i, 1) = divergencePF->operator()(i, 0);
-        // if (is_solids)
-        // {
-        //     if (StencilCorrection == "CutCell")
-        //         CC_volPF->operator()(i, 1) = CC_volPF->operator()(i, 0);
-        //     void_fracPF->operator()(i, 1) = void_fracPF->operator()(i, 0);
-        // }
-    }
-
-    // Store the divergence to be used in the next time iteration
-    for (size_t i = 0; i < UF->nb_local_unknowns(); i++)
-    {
-        divergenceUF->operator()(i, 1) = divergenceUF->operator()(i, 0);
-        // if (is_solids)
-        // {
-        //     if (StencilCorrection == "CutCell")
-        //         CC_volUF->operator()(i, 1) = CC_volUF->operator()(i, 0);
-        //     void_fracUF->operator()(i, 1) = void_fracUF->operator()(i, 0);
-        // }
-    }
-
-    // if (is_solids)
-    // {
-    //     // allrigidbodies->extrapolate_pressure_inside_RB(PF,0);
-    //     correct_pressure_1st_layer_solid(0);
-    //     correct_pressure_2nd_layer_solid(0);
-    // }
-    // Propagate values to the boundaries depending on BC conditions
-    PF->set_neumann_DOF_values();
-}
-
-//----------------------------------------------------------------------
-void DLMFD_DirectionSplitting::write_output_field(FV_DiscreteField const *FF)
-//----------------------------------------------------------------------
-{
-    ofstream outputFile;
-
-    std::ostringstream os2;
-    os2 << "./DS_results/intersection_data_" << my_rank << ".csv";
-    std::string filename = os2.str();
-    outputFile.open(filename.c_str());
-
-    size_t field = (FF == UF) ? 1 : 0;
-
-    size_t i, j, k;
-    outputFile << "x,y,z,id,void_frac,div,left,lv"
-               << ",right,rv"
-               << ",bottom,bov"
-               << ",top,tv"
-               << ",behind,bev"
-               << ",front,fv"
-               << ",fresh"
-               << ",field"
-               << endl;
-
-    size_t_vector min_index(dim, 0);
-    size_t_vector max_index(dim, 0);
-
-    boolVector *fresh_node = 0;
-    size_t_array2D *void_frac = 0;
-    size_t_array2D *intersect_vector = 0;
-    doubleArray2D *intersect_distance = 0;
-
-    doubleArray2D *divergence = GLOBAL_EQ->get_node_divergence(field);
-
-    for (size_t comp = 0; comp < nb_comps[field]; comp++)
-    {
-        // Get local min and max indices
-        for (size_t l = 0; l < dim; ++l)
-        {
-            min_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        size_t local_min_k = 0;
-        size_t local_max_k = 0;
-
-        if (dim == 3)
-        {
-            local_min_k = min_index(2);
-            local_max_k = max_index(2);
-        }
-
-        for (i = min_index(0); i <= max_index(0); ++i)
-        {
-            double xC = FF->get_DOF_coordinate(i, comp, 0);
-            for (j = min_index(1); j <= max_index(1); ++j)
+            else
             {
-                double yC = FF->get_DOF_coordinate(j, comp, 1);
-                for (k = local_min_k; k <= local_max_k; ++k)
+                for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
                 {
-                    double zC = 0.;
-                    if (dim == 3)
-                        zC = FF->get_DOF_coordinate(k, comp, 2);
-                    size_t p = FF->DOF_local_number(i, j, k, comp);
+                    xhr = UF->get_DOF_coordinate(shift.i + i, 0, 0) - UF->get_DOF_coordinate(shift.i + i - 1, 0, 0);
+                    // Divergence of un+1 (x component)
+                    xright = UF->DOF_value(shift.i + i, j, k, 0, 0) - UF->DOF_value(shift.i + i - 1, j, k, 0, 0);
+                    xvalue1 = xright / xhr;
 
-                    outputFile << xC << "," << yC << "," << zC
-                               << "," << p
-                               << "," << void_frac->operator()(p, 0)
-                               << "," << divergence->operator()(p, 0)
-                               << "," << intersect_vector->operator()(p, 0)
-                               << "," << intersect_distance->operator()(p, 0)
-                               << "," << intersect_vector->operator()(p, 1)
-                               << "," << intersect_distance->operator()(p, 1)
-                               << "," << intersect_vector->operator()(p, 2)
-                               << "," << intersect_distance->operator()(p, 2)
-                               << "," << intersect_vector->operator()(p, 3)
-                               << "," << intersect_distance->operator()(p, 3)
-                               << "," << intersect_vector->operator()(p, 4)
-                               << "," << intersect_distance->operator()(p, 4)
-                               << "," << intersect_vector->operator()(p, 5)
-                               << "," << intersect_distance->operator()(p, 5)
-                               << "," << fresh_node->operator()(p)
-                               << "," << FF->DOF_value(i, j, k, comp, 0)
-                               << endl;
+                    // Divergence of un (x component)
+                    xright = UF->DOF_value(shift.i + i, j, k, 0, 1) - UF->DOF_value(shift.i + i - 1, j, k, 0, 1);
+                    xvalue2 = xright / xhr;
+                    xvalue = xvalue1 + xvalue2;
+
+                    yhr = UF->get_DOF_coordinate(shift.j + j, 1, 1) - UF->get_DOF_coordinate(shift.j + j - 1, 1, 1);
+                    // Divergence of un+1 (y component)
+                    yright = UF->DOF_value(i, shift.j + j, k, 1, 0) - UF->DOF_value(i, shift.j + j - 1, k, 1, 0);
+                    yvalue1 = yright / yhr;
+                    // Divergence of un (y component)
+                    yright = UF->DOF_value(i, shift.j + j, k, 1, 1) - UF->DOF_value(i, shift.j + j - 1, k, 1, 1);
+                    yvalue2 = yright / yhr;
+                    yvalue = yvalue1 + yvalue2;
+
+                    double zhr, zright, zvalue1 = 0., zvalue2 = 0., zvalue = 0.;
+                    zhr = UF->get_DOF_coordinate(shift.k + k, 2, 2) - UF->get_DOF_coordinate(shift.k + k - 1, 2, 2);
+                    // Divergence of un+1 (z component)
+                    zright = UF->DOF_value(i, j, shift.k + k, 2, 0) - UF->DOF_value(i, j, shift.k + k - 1, 2, 0);
+                    zvalue1 = zright / zhr;
+                    // Divergence of un (z component)
+                    zright = UF->DOF_value(i, j, shift.k + k, 2, 1) - UF->DOF_value(i, j, shift.k + k - 1, 2, 1);
+                    zvalue2 = zright / zhr;
+                    zvalue = zvalue1 + zvalue2;
+
+                    // Assemble the bodyterm
+                    value = PF->DOF_value(i, j, k, 0, 0) + PF->DOF_value(i, j, k, 0, 1) - 0.5 * kai * mu * (xvalue + yvalue + zvalue);
+                    PF->set_DOF_value(i, j, k, 0, 0, value);
                 }
             }
         }
     }
-    outputFile.close();
+
+    // Propagate values to the boundaries depending on BC conditions
+    PF->set_neumann_DOF_values();
+
+    UF->copy_DOFs_value(0, 1);
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplitting::output_L2norm_divergence()
+void DLMFD_DirectionSplitting::write_pressure_field(FV_TimeIterator const *t_it)
 //----------------------------------------------------------------------
 {
     size_t_vector min_unknown_index(dim, 0);
     size_t_vector max_unknown_index(dim, 0);
-    double div_velocity = 0.;
-    double max_divu = 0.;
-
-    doubleArray2D *divergence = GLOBAL_EQ->get_node_divergence(0);
-
+    size_t i, j, k;
     for (size_t l = 0; l < dim; ++l)
-    {
-        min_unknown_index(l) = PF->get_min_index_unknown_handled_by_proc(0, l);
-        max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
-    }
+        min_unknown_index(l) =
+            PF->get_min_index_unknown_on_proc(0, l);
+    for (size_t l = 0; l < dim; ++l)
+        max_unknown_index(l) =
+            PF->get_max_index_unknown_on_proc(0, l);
 
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    double value;
+    ofstream pressureFile;
+
+    ostringstream fileNameStream; // let this be empty
+
+    fileNameStream << "/home/arun95/NS_2D_lidCavity_results/" << t_it->time_step() << "output_pressure.csv"; // and pass "dice_" here
+    string fileName = fileNameStream.str();
+
+    MAC::out() << "The file name is " << fileName << endl;
+
+    pressureFile.open(fileName.c_str(), std::ios_base::out | std::ios_base::trunc);
+
+    for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+
     {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
         {
-            double dx = PF->get_cell_size(i, 0, 0);
-            double dy = PF->get_cell_size(j, 0, 1);
             if (dim == 2)
             {
-                size_t p = PF->DOF_local_number(i, j, 0, 0);
-                double vel_div = divergence->operator()(p, 0);
-                max_divu = MAC::max(MAC::abs(vel_div), max_divu);
-                div_velocity += vel_div * vel_div * (dx * dy);
+                k = 0;
+                value = PF->DOF_value(i, j, k, 0, 0);
+                pressureFile << value << endl;
             }
             else
             {
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
                 {
-                    double dz = PF->get_cell_size(k, 0, 2);
-                    size_t p = PF->DOF_local_number(i, j, k, 0);
-                    double vel_div = divergence->operator()(p, 0);
-                    max_divu = MAC::max(MAC::abs(vel_div), max_divu);
-                    div_velocity += vel_div * vel_div * (dx * dy * dz);
+                    value = PF->DOF_value(i, j, k, 0, 0);
+                    pressureFile << value << endl;
+                }
+            }
+        }
+    }
+    pressureFile.close();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplitting::write_velocity_field(FV_TimeIterator const *t_it)
+//----------------------------------------------------------------------
+{
+
+    double value;
+    ofstream velocityFile;
+
+    ostringstream fileNameStream;                                                                            // let this be empty
+    fileNameStream << "/home/arun95/NS_2D_lidCavity_results/" << t_it->time_step() << "output_velocity.csv"; // and pass "dice_" here
+    string fileName = fileNameStream.str();
+
+    velocityFile.open(fileName.c_str(), std::ios_base::out | std::ios_base::trunc);
+    size_t i, j, k;
+
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+
+    for (size_t comp = 0; comp < nb_comps[1]; comp++)
+    {
+        // Get local min and max indices
+        for (size_t l = 0; l < dim; ++l)
+            min_unknown_index(l) =
+                UF->get_min_index_unknown_handled_by_proc(comp, l);
+        for (size_t l = 0; l < dim; ++l)
+            max_unknown_index(l) =
+                UF->get_max_index_unknown_handled_by_proc(comp, l);
+
+        for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+        {
+            for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+            {
+                if (dim == 2)
+                {
+                    k = 0;
+                    value = UF->DOF_value(i, j, k, comp, 0);
+                    velocityFile << value << endl;
+                }
+                else
+                {
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                    {
+                        value = UF->DOF_value(i, j, k, comp, 0);
+                        velocityFile << value << endl;
+                    }
+                }
+            }
+        }
+    }
+    velocityFile.close();
+}
+
+//----------------------------------------------------------------------
+double
+DLMFD_DirectionSplitting::get_velocity_divergence(void)
+//----------------------------------------------------------------------
+{
+
+    size_t i, j, k;
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+    double dux, duy, dx, dy, dz, duz = 0.;
+    double div_velocity = 0.;
+    double cell_div = 0., max_divu = 0.;
+
+    FV_SHIFT_TRIPLET shift = PF->shift_staggeredToCentered();
+    for (size_t l = 0; l < dim; ++l)
+        min_unknown_index(l) =
+            PF->get_min_index_unknown_handled_by_proc(0, l);
+    for (size_t l = 0; l < dim; ++l)
+        max_unknown_index(l) =
+            PF->get_max_index_unknown_handled_by_proc(0, l);
+
+    for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    {
+        dx = PF->get_cell_size(i, 0, 0);
+        for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        {
+            dy = PF->get_cell_size(j, 0, 1);
+            if (dim == 2)
+            {
+                k = 0;
+
+                // Divergence of u (x component)
+                dux = UF->DOF_value(shift.i + i, j, k, 0, 0) - UF->DOF_value(shift.i + i - 1, j, k, 0, 0);
+
+                // Divergence of u (y component)
+                duy = UF->DOF_value(i, shift.j + j, k, 1, 0) - UF->DOF_value(i, shift.j + j - 1, k, 1, 0);
+
+                cell_div = dux * dy + duy * dx;
+                max_divu = MAC::max(MAC::abs(cell_div) / (dx * dy), max_divu);
+                div_velocity += cell_div * cell_div / (dx * dy);
+            }
+            else
+            {
+                for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                {
+                    dz = PF->get_cell_size(k, 0, 2);
+
+                    // Divergence of u (x component)
+                    dux = UF->DOF_value(shift.i + i, j, k, 0, 0) - UF->DOF_value(shift.i + i - 1, j, k, 0, 0);
+
+                    // Divergence of u (y component)
+                    duy = UF->DOF_value(i, shift.j + j, k, 1, 0) - UF->DOF_value(i, shift.j + j - 1, k, 1, 0);
+
+                    // Divergence of u(z component)
+                    duz = UF->DOF_value(i, j, shift.k + k, 2, 0) - UF->DOF_value(i, j, shift.k + k - 1, 2, 0);
+
+                    cell_div = dux * dy * dz + duy * dx * dz + duz * dx * dy;
+
+                    max_divu = MAC::max(MAC::abs(cell_div) / (dx * dy * dz),
+                                        max_divu);
+                    div_velocity += cell_div * cell_div / (dx * dy * dz);
                 }
             }
         }
     }
 
-    div_velocity = macCOMM->sum(div_velocity);
-    div_velocity = MAC::sqrt(div_velocity);
-    max_divu = macCOMM->max(max_divu);
-    if (my_rank == is_master)
-        MAC::out() << "Norm L2 div(u) = "
-                   << MAC::doubleToString(ios::scientific, 12, div_velocity)
-                   << " Max div(u) = "
-                   << MAC::doubleToString(ios::scientific, 12, max_divu)
-                   << endl;
+    FV_Mesh const *primary_mesh = UF->primary_grid();
+    /*  double domain_measure = dim == 2 ?
+        primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+        * primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 1 ):
+        primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+        * ( primary_mesh->get_main_domain_max_coordinate(2)
+            - primary_mesh->get_main_domain_min_coordinate(2) );*/
 
+    div_velocity = pelCOMM->sum(div_velocity);
+    //  div_velocity = MAC::sqrt( div_velocity / domain_measure );
+    div_velocity = MAC::sqrt(div_velocity);
+    max_divu = pelCOMM->max(max_divu);
     if (my_rank == is_master)
-    {
-        string fileName = "./DS_results/max_divergence.csv";
-        ofstream MyFile(fileName.c_str(), ios::app);
-        MyFile << div_velocity << "," << max_divu << endl;
-        MyFile.close();
-    }
+        MAC::out() << "Norm L2 div(u) = " << MAC::doubleToString(ios::scientific, 12, div_velocity) << " Max div(u) = " << MAC::doubleToString(ios::scientific, 12, max_divu) << endl;
+
+    return (max_divu);
 }
 
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting::output_L2norm_pressure(size_t const &level)
 //----------------------------------------------------------------------
 {
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
+    size_t i, j, k;
 
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+
+    double dx, dy;
     double L2normP = 0.;
     double cell_P = 0., max_P = 0.;
 
@@ -4433,158 +2340,128 @@ void DLMFD_DirectionSplitting::output_L2norm_pressure(size_t const &level)
         max_unknown_index(l) = PF->get_max_index_unknown_handled_by_proc(0, l);
     }
 
-    size_t_array2D *void_frac = 0;
-
-    for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+    for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
     {
-        for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+        for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
         {
-            for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+            if (dim == 2)
             {
-                double dx = PF->get_cell_size(i, 0, 0);
-                double dy = PF->get_cell_size(j, 0, 1);
-                double dz = (dim == 3) ? PF->get_cell_size(k, 0, 2) : 1;
+                k = 0;
+                dx = PF->get_cell_size(i, 0, 0);
+                dy = PF->get_cell_size(j, 0, 1);
                 cell_P = PF->DOF_value(i, j, k, 0, level);
                 max_P = MAC::max(MAC::abs(cell_P), max_P);
-                // if (is_solids)
-                // {
-                //     size_t p = PF->DOF_local_number(i, j, k, 0);
-                //     if (void_frac->operator()(p, 0) == 0)
-                //     {
-                //         L2normP += cell_P * cell_P * dx * dy * dz;
-                //     }
-                // }
-                // else
-                // {
-                L2normP += cell_P * cell_P * dx * dy * dz;
-                // }
+                L2normP += cell_P * cell_P * dx * dy;
             }
-        }
-    }
-
-    L2normP = macCOMM->sum(L2normP);
-    L2normP = MAC::sqrt(L2normP);
-    max_P = macCOMM->max(max_P);
-    if (my_rank == is_master)
-        MAC::out() << "Norm L2 P = "
-                   << MAC::doubleToString(ios::scientific, 12, L2normP)
-                   << " Max P = "
-                   << MAC::doubleToString(ios::scientific, 12, max_P) << endl;
-}
-
-//----------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::compute_DS_velocity_change(void)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: compute_DS_velocity_change");
-
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
-
-    double sum_sq_U = 0., sum_sq_dU = 0.;
-
-    for (size_t comp = 0; comp < nb_comps[1]; comp++)
-    {
-        for (size_t l = 0; l < dim; ++l)
-        {
-            min_unknown_index(l) =
-                UF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                UF->get_max_index_unknown_handled_by_proc(comp, l);
-        }
-
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
-        {
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+            else
             {
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                double dz = 0.;
+                for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
                 {
-                    sum_sq_U += pow(UF->DOF_value(i, j, k, comp, 0), 2.);
-                    sum_sq_dU += pow(UF->DOF_value(i, j, k, comp, 0) - UF->DOF_value(i, j, k, comp, 1), 2.);
+                    dx = PF->get_cell_size(i, 0, 0);
+                    dy = PF->get_cell_size(j, 0, 1);
+                    dz = PF->get_cell_size(k, 0, 2);
+                    cell_P = PF->DOF_value(i, j, k, 0, level);
+                    max_P = MAC::max(MAC::abs(cell_P), max_P);
+                    L2normP += cell_P * cell_P * dx * dy * dz;
                 }
             }
         }
     }
 
-    sum_sq_U = macCOMM->sum(sum_sq_U);
-    sum_sq_dU = macCOMM->sum(sum_sq_dU);
+    FV_Mesh const *primary_mesh = UF->primary_grid();
+    /*  double domain_measure = dim == 2 ?
+                              primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+                            * primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 1 ):
+                              primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+                          * ( primary_mesh->get_main_domain_max_coordinate(2)
+                            - primary_mesh->get_main_domain_min_coordinate(2) );*/
 
-    return (MAC::sqrt(sum_sq_dU / sum_sq_U));
+    L2normP = pelCOMM->sum(L2normP);
+    //  L2normP = MAC::sqrt( L2normP / domain_measure );
+    L2normP = MAC::sqrt(L2normP);
+    max_P = pelCOMM->max(max_P);
+    if (my_rank == is_master)
+        MAC::out() << "Norm L2 P = " << MAC::doubleToString(ios::scientific, 12, L2normP) << " Max P = " << MAC::doubleToString(ios::scientific, 12, max_P) << endl;
 }
 
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting::output_L2norm_velocity(size_t const &level)
 //----------------------------------------------------------------------
 {
-    size_t_vector min_unknown_index(3, 0);
-    size_t_vector max_unknown_index(3, 0);
+    size_t i, j, k;
 
-    size_t_array2D *void_frac = 0;
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+
+    double dx, dy;
 
     for (size_t comp = 0; comp < nb_comps[1]; comp++)
     {
         for (size_t l = 0; l < dim; ++l)
         {
-            min_unknown_index(l) =
-                UF->get_min_index_unknown_handled_by_proc(comp, l);
-            max_unknown_index(l) =
-                UF->get_max_index_unknown_handled_by_proc(comp, l);
+            min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
+            max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
         }
 
         double L2normU = 0.;
         double cell_U = 0., max_U = 0.;
 
-        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+        for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
         {
-            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+            for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
             {
-                for (size_t k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                if (dim == 2)
                 {
-                    double dx = UF->get_cell_size(i, comp, 0);
-                    double dy = UF->get_cell_size(j, comp, 1);
-                    double dz = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1;
+                    k = 0;
+                    dx = UF->get_cell_size(i, comp, 0);
+                    dy = UF->get_cell_size(j, comp, 1);
                     cell_U = UF->DOF_value(i, j, k, comp, level);
                     max_U = MAC::max(MAC::abs(cell_U), max_U);
-                    // if (is_solids)
-                    // {
-                    //     size_t p = UF->DOF_local_number(i, j, k, comp);
-                    //     if (void_frac->operator()(p, 0) == 0)
-                    //     {
-                    //         L2normU += cell_U * cell_U * dx * dy * dz;
-                    //     }
-                    // }
-                    // else
-                    // {
-                    L2normU += cell_U * cell_U * dx * dy * dz;
-                    // }
+                    L2normU += cell_U * cell_U * dx * dy;
+                }
+                else
+                {
+                    double dz = 0.;
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                    {
+                        dx = UF->get_cell_size(i, comp, 0);
+                        dy = UF->get_cell_size(j, comp, 1);
+                        dz = UF->get_cell_size(k, comp, 2);
+                        cell_U = UF->DOF_value(i, j, k, comp, level);
+                        max_U = MAC::max(MAC::abs(cell_U), max_U);
+                        L2normU += cell_U * cell_U * dx * dy * dz;
+                    }
                 }
             }
         }
 
-        L2normU = macCOMM->sum(L2normU);
+        FV_Mesh const *primary_mesh = UF->primary_grid();
+        /*     double domain_measure = dim == 2 ?
+                                     primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+                                   * primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 1 ):
+                                     primary_mesh->get_main_domain_boundary_perp_to_direction_measure( 0 )
+                                 * ( primary_mesh->get_main_domain_max_coordinate(2)
+                                   - primary_mesh->get_main_domain_min_coordinate(2) );*/
+
+        L2normU = pelCOMM->sum(L2normU);
+        //     L2normP = MAC::sqrt( L2normP / domain_measure );
         L2normU = MAC::sqrt(L2normU);
-        max_U = macCOMM->max(max_U);
+        max_U = pelCOMM->max(max_U);
         if (my_rank == is_master)
-            MAC::out() << "Component: " << comp
-                       << " Norm L2 U = "
-                       << MAC::doubleToString(ios::scientific, 12, L2normU)
-                       << " Max U = "
-                       << MAC::doubleToString(ios::scientific, 12, max_U) << endl;
+            MAC::out() << "Component: " << comp << " Norm L2 U = " << MAC::doubleToString(ios::scientific, 12, L2normU) << " Max U = " << MAC::doubleToString(ios::scientific, 12, max_U) << endl;
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::create_DS_subcommunicators(void)
+void DLMFD_DirectionSplitting::create_DDS_subcommunicators(void)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplitting:: create_DS_subcommunicators");
+    MAC_LABEL("DDS_HeatEquation:: create_DDS_subcommunicators");
 
     int color = 0, key = 0;
-    int const *MPI_coordinates_world =
-        UF->primary_grid()->get_MPI_coordinates();
-    int const *MPI_number_of_coordinates =
-        UF->primary_grid()->get_domain_decomposition();
+    int const *MPI_coordinates_world = UF->primary_grid()->get_MPI_coordinates();
+    int const *MPI_number_of_coordinates = UF->primary_grid()->get_domain_decomposition();
 
     if (dim == 2)
     {
@@ -4628,44 +2505,64 @@ void DLMFD_DirectionSplitting::create_DS_subcommunicators(void)
 void DLMFD_DirectionSplitting::processor_splitting(int const &color, int const &key, size_t const &dir)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplitting:: processor_splitting");
+    MAC_LABEL("DDS_HeatEquation:: processor_splitting");
 
-    MPI_Comm_split(MPI_COMM_WORLD, color, key, &DS_Comm_i[dir]);
-    MPI_Comm_size(DS_Comm_i[dir], &nb_ranks_comm_i[dir]);
-    MPI_Comm_rank(DS_Comm_i[dir], &rank_in_i[dir]);
+    MPI_Comm_split(MPI_COMM_WORLD, color, key, &DDS_Comm_i[dir]);
+    MPI_Comm_size(DDS_Comm_i[dir], &nb_ranks_comm_i[dir]);
+    MPI_Comm_rank(DDS_Comm_i[dir], &rank_in_i[dir]);
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::allocate_mpi_variables(FV_DiscreteField const *FF)
+void DLMFD_DirectionSplitting::allocate_mpi_variables(FV_DiscreteField const *FF, size_t const &field)
+
 //---------------------------------------------------------------------------
 {
 
-    size_t field = (FF == PF) ? 0 : 1;
-
     for (size_t dir = 0; dir < dim; dir++)
     {
-        first_pass[field][dir].size = new size_t[nb_comps[field]];
-        second_pass[field][dir].size = new size_t[nb_comps[field]];
-        data_for_S[field][dir].size = new size_t[nb_comps[field]];
+        first_pass[field][dir].size = new int[nb_comps[field]];
+        second_pass[field][dir].size = new int[nb_comps[field]];
         for (size_t comp = 0; comp < nb_comps[field]; comp++)
         {
+            size_t local_min_j = 0, local_max_j = 0;
+            size_t local_min_k = 0, local_max_k = 0;
+
             // Get local min and max indices
             size_t_vector min_unknown_index(dim, 0);
             size_t_vector max_unknown_index(dim, 0);
             for (size_t l = 0; l < dim; ++l)
             {
-                min_unknown_index(l) =
-                    FF->get_min_index_unknown_handled_by_proc(comp, l);
-                max_unknown_index(l) =
-                    FF->get_max_index_unknown_handled_by_proc(comp, l);
+                min_unknown_index(l) = FF->get_min_index_unknown_handled_by_proc(comp, l);
+                max_unknown_index(l) = FF->get_max_index_unknown_handled_by_proc(comp, l);
             }
 
-            size_t local_min_j = (dir == 0) ? min_unknown_index(1)
-                                            : min_unknown_index(0);
-            size_t local_max_j = (dir == 0) ? max_unknown_index(1)
-                                            : max_unknown_index(0);
-            size_t local_min_k = (dim == 2) ? 0 : ((dir == 2) ? min_unknown_index(1) : min_unknown_index(2));
-            size_t local_max_k = (dim == 2) ? 0 : ((dir == 2) ? max_unknown_index(1) : max_unknown_index(2));
+            if (dir == 0)
+            {
+                local_min_j = min_unknown_index(1);
+                local_max_j = max_unknown_index(1);
+                if (dim == 3)
+                {
+                    local_min_k = min_unknown_index(2);
+                    local_max_k = max_unknown_index(2);
+                }
+            }
+            else if (dir == 1)
+            {
+                local_min_j = min_unknown_index(0);
+                local_max_j = max_unknown_index(0);
+                if (dim == 3)
+                {
+                    local_min_k = min_unknown_index(2);
+                    local_max_k = max_unknown_index(2);
+                }
+            }
+            else if (dir == 2)
+            {
+                local_min_j = min_unknown_index(0);
+                local_max_j = max_unknown_index(0);
+                local_min_k = min_unknown_index(1);
+                local_max_k = max_unknown_index(1);
+            }
 
             size_t local_length_j = (local_max_j - local_min_j + 1);
             size_t local_length_k = (local_max_k - local_min_k + 1);
@@ -4674,17 +2571,11 @@ void DLMFD_DirectionSplitting::allocate_mpi_variables(FV_DiscreteField const *FF
             {
                 first_pass[field][dir].size[comp] = 3 * local_length_j;
                 second_pass[field][dir].size[comp] = 2 * local_length_j;
-                data_for_S[field][dir].size[comp] = is_periodic[field][dir] ? (size_t)(pow(nb_ranks_comm_i[dir], 2) + 1) * local_length_j
-                                                                            : (size_t)(pow(nb_ranks_comm_i[dir] - 1, 2) + 1) * local_length_j;
             }
             else if (dim == 3)
             {
-                first_pass[field][dir].size[comp] =
-                    3 * local_length_j * local_length_k;
-                second_pass[field][dir].size[comp] =
-                    2 * local_length_j * local_length_k;
-                data_for_S[field][dir].size[comp] = is_periodic[field][dir] ? (size_t)(pow(nb_ranks_comm_i[dir], 2) + 1) * local_length_j * local_length_k
-                                                                            : (size_t)(pow(nb_ranks_comm_i[dir] - 1, 2) + 1) * local_length_j * local_length_k;
+                first_pass[field][dir].size[comp] = 3 * local_length_j * local_length_k;
+                second_pass[field][dir].size[comp] = 2 * local_length_j * local_length_k;
             }
         }
     }
@@ -4692,826 +2583,69 @@ void DLMFD_DirectionSplitting::allocate_mpi_variables(FV_DiscreteField const *FF
     // Array declarations
     for (size_t dir = 0; dir < dim; dir++)
     {
-        first_pass[field][dir].send =
-            new double **[nb_comps[field]];
-        first_pass[field][dir].receive =
-            new double **[nb_comps[field]];
-        second_pass[field][dir].send =
-            new double **[nb_comps[field]];
-        second_pass[field][dir].receive =
-            new double **[nb_comps[field]];
-        data_for_S[field][dir].send =
-            new double **[nb_comps[field]];
-        data_for_S[field][dir].receive =
-            new double **[nb_comps[field]];
+        first_pass[field][dir].send = new double **[nb_comps[field]];
+        first_pass[field][dir].receive = new double **[nb_comps[field]];
+        second_pass[field][dir].send = new double **[nb_comps[field]];
+        second_pass[field][dir].receive = new double **[nb_comps[field]];
         for (size_t comp = 0; comp < nb_comps[field]; comp++)
         {
-            first_pass[field][dir].send[comp] =
-                new double *[1];
-            first_pass[field][dir].receive[comp] =
-                new double *[nb_ranks_comm_i[dir]];
-            second_pass[field][dir].send[comp] =
-                new double *[nb_ranks_comm_i[dir]];
-            second_pass[field][dir].receive[comp] =
-                new double *[1];
-            data_for_S[field][dir].send[comp] =
-                new double *[1];
-            data_for_S[field][dir].receive[comp] =
-                new double *[1];
-            data_for_S[field][dir].send[comp][0] =
-                new double[data_for_S[field][dir].size[comp]];
-            data_for_S[field][dir].receive[comp][0] =
-                new double[data_for_S[field][dir].size[comp]];
-            first_pass[field][dir].send[comp][0] =
-                new double[first_pass[field][dir].size[comp]];
-            second_pass[field][dir].receive[comp][0] =
-                new double[second_pass[field][dir].size[comp]];
-            for (size_t i = 0; i < (size_t)nb_ranks_comm_i[dir]; i++)
+            first_pass[field][dir].send[comp] = new double *[nb_ranks_comm_i[dir]];
+            first_pass[field][dir].receive[comp] = new double *[nb_ranks_comm_i[dir]];
+            second_pass[field][dir].send[comp] = new double *[nb_ranks_comm_i[dir]];
+            second_pass[field][dir].receive[comp] = new double *[nb_ranks_comm_i[dir]];
+            for (size_t i = 0; i < nb_ranks_comm_i[dir]; i++)
             {
-                first_pass[field][dir].receive[comp][i] =
-                    new double[first_pass[field][dir].size[comp]];
-                second_pass[field][dir].send[comp][i] =
-                    new double[second_pass[field][dir].size[comp]];
+                first_pass[field][dir].send[comp][i] = new double[first_pass[field][dir].size[comp]];
+                first_pass[field][dir].receive[comp][i] = new double[first_pass[field][dir].size[comp]];
+                second_pass[field][dir].send[comp][i] = new double[second_pass[field][dir].size[comp]];
+                second_pass[field][dir].receive[comp][i] = new double[second_pass[field][dir].size[comp]];
             }
         }
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::deallocate_mpi_variables()
+void DLMFD_DirectionSplitting::deallocate_mpi_variables(size_t const &field)
 //---------------------------------------------------------------------------
 {
     // Array declarations
-    for (size_t field = 0; field < 2; field++)
+    for (size_t dir = 0; dir < dim; dir++)
     {
-        for (size_t dir = 0; dir < dim; dir++)
+        for (size_t comp = 0; comp < nb_comps[field]; comp++)
         {
-            for (size_t comp = 0; comp < nb_comps[field]; comp++)
+            for (size_t i = 0; i < nb_ranks_comm_i[dir]; i++)
             {
-                delete[] data_for_S[field][dir].send[comp][0];
-                delete[] data_for_S[field][dir].receive[comp][0];
-                delete[] first_pass[field][dir].send[comp][0];
-                delete[] second_pass[field][dir].receive[comp][0];
-                for (size_t i = 0; i < (size_t)nb_ranks_comm_i[dir]; i++)
-                {
-                    delete[] first_pass[field][dir].receive[comp][i];
-                    delete[] second_pass[field][dir].send[comp][i];
-                }
-                delete[] first_pass[field][dir].send[comp];
-                delete[] first_pass[field][dir].receive[comp];
-                delete[] second_pass[field][dir].send[comp];
-                delete[] second_pass[field][dir].receive[comp];
-                delete[] data_for_S[field][dir].send[comp];
-                delete[] data_for_S[field][dir].receive[comp];
+                delete[] first_pass[field][dir].send[comp][i];
+                delete[] first_pass[field][dir].receive[comp][i];
+                delete[] second_pass[field][dir].send[comp][i];
+                delete[] second_pass[field][dir].receive[comp][i];
             }
-            delete[] first_pass[field][dir].send;
-            delete[] first_pass[field][dir].receive;
-            delete[] second_pass[field][dir].send;
-            delete[] second_pass[field][dir].receive;
-            delete[] data_for_S[field][dir].send;
-            delete[] data_for_S[field][dir].receive;
-            delete[] first_pass[field][dir].size;
-            delete[] second_pass[field][dir].size;
-            delete[] data_for_S[field][dir].size;
+            delete[] first_pass[field][dir].send[comp];
+            delete[] first_pass[field][dir].receive[comp];
+            delete[] second_pass[field][dir].send[comp];
+            delete[] second_pass[field][dir].receive[comp];
         }
+        delete[] first_pass[field][dir].send;
+        delete[] first_pass[field][dir].receive;
+        delete[] second_pass[field][dir].send;
+        delete[] second_pass[field][dir].receive;
+        delete[] first_pass[field][dir].size;
+        delete[] second_pass[field][dir].size;
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::free_DS_subcommunicators(void)
+void DLMFD_DirectionSplitting::free_DDS_subcommunicators(void)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplitting:: free_DS_subcommunicators");
+    MAC_LABEL("DLMFD_DirectionSplitting:: free_DDS_subcommunicators");
 }
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::build_links_translation()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: build_links_translation");
-
-    UF->create_transproj_interpolation();
-    PF->create_transproj_interpolation();
-
-    double translation_magnitude =
-        UF->primary_grid()->get_translation_magnitude();
-    size_t translation_direction =
-        UF->primary_grid()->get_translation_direction();
-
-    string outOfDomain_boundaryName;
-    switch (translation_direction)
-    {
-    case 0:
-        if (translation_magnitude > 0.)
-            outOfDomain_boundaryName = "right";
-        else
-            outOfDomain_boundaryName = "left";
-        break;
-    case 1:
-        if (translation_magnitude > 0.)
-            outOfDomain_boundaryName = "top";
-        else
-            outOfDomain_boundaryName = "bottom";
-        break;
-    case 2:
-        if (translation_magnitude > 0.)
-            outOfDomain_boundaryName = "front";
-        else
-            outOfDomain_boundaryName = "behind";
-        break;
-    }
-
-    outOfDomain_boundaryID = int(FV_DomainBuilder::get_color_number(
-        outOfDomain_boundaryName));
-}
-
-//---------------------------------------------------------------------------
-doubleVector
-DLMFD_DirectionSplitting::compute_outOfDomain_Pressure(size_t const &level)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: compute_outOfDomain_Pressure");
-
-    size_t_vector nb_local_dof(dim, 0);
-    doubleVector Pref(1, 0.);
-    for (size_t l = 0; l < dim; l++)
-        nb_local_dof(l) = PF->get_local_nb_dof(0, l);
-
-    bool b_gotIt = false;
-
-    for (size_t i = 0; (i <= nb_local_dof(0)) && (!b_gotIt); i++)
-    {
-        for (size_t j = 0; (j <= nb_local_dof(1)) && (!b_gotIt); j++)
-        {
-            for (size_t k = 0; (k <= nb_local_dof(2)) && (!b_gotIt); k++)
-            {
-                if (PF->DOF_color(i, j, k, 0) == outOfDomain_boundaryID)
-                {
-                    Pref(0) = PF->DOF_value(i, j, k, 0, level);
-                    b_gotIt = true;
-                }
-            }
-        }
-    }
-
-    Pref(0) = macCOMM->sum(Pref(0));
-
-    return (Pref);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_DirectionSplitting::fields_projection()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: fields_projection");
-
-    FV_Mesh *pmesh = const_cast<FV_Mesh *>(UF->primary_grid());
-
-    pmesh->translation();
-
-    UF->translation_projection(0, 5, 0);
-    UF->synchronize(0);
-
-    UF->translation_projection(1, 5, 0);
-    UF->synchronize(1);
-
-    UF->translation_projection(2, 5, 0);
-    UF->synchronize(2);
-
-    UF->translation_projection(3, 5, 0);
-    UF->synchronize(3);
-
-    UF->translation_projection(4, 5, 1);
-    UF->synchronize(4);
-
-    // doubleVector POut = compute_outOfDomain_Pressure(0);
-    PF->translation_projection(0, 2, 0); //, &POut ) ;
-    PF->synchronize(0);
-
-    // POut = compute_outOfDomain_Pressure(1);
-    PF->translation_projection(1, 2, 1); //, &POut ) ;
-    PF->synchronize(1);
-}
-
-//----------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::assemble_advection_Centered(size_t const &advecting_level,
-                                                      double const &coef,
-                                                      size_t const &advected_level,
-                                                      size_t const &i,
-                                                      size_t const &j,
-                                                      size_t const &k,
-                                                      size_t const &component)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_advection_Centered");
-
-    // Parameters
-    double dxC = 0., dyC = 0., dzC = 0.;
-    double AdvectedValueC = 0., AdvectedValueRi = 0., AdvectedValueLe = 0.,
-           AdvectedValueTo = 0., AdvectedValueBo = 0., AdvectedValueFr = 0.,
-           AdvectedValueBe = 0, AdvectorValueC = 0., AdvectorValueRi = 0.,
-           AdvectorValueLe = 0., AdvectorValueTo = 0., AdvectorValueBo = 0.,
-           AdvectorValueFr = 0., AdvectorValueBe = 0, AdvectorValueToLe = 0.,
-           AdvectorValueToRi = 0., AdvectorValueBoLe = 0., AdvectorValueBoRi = 0.,
-           AdvectorValueFrLe = 0., AdvectorValueFrRi = 0., AdvectorValueBeLe = 0.,
-           AdvectorValueBeRi = 0., AdvectorValueFrTo = 0., AdvectorValueFrBo = 0.,
-           AdvectorValueBeTo = 0., AdvectorValueBeBo = 0.,
-           ur = 0., ul = 0., vt = 0., vb = 0., wf = 0., wb = 0.,
-           fri = 0., fle = 0., fto = 0., fbo = 0., ffr = 0., fbe = 0., flux = 0.;
-
-    // Comment: staggered unknowns always have a defined value at +1/-1
-    // indices in directions different from their component number,
-    // i.e. u in x, v in y and w in z.
-    // For instance, if u on the right or left boundary is an unknown with
-    // homogeneous Neumann BC, then the flux on the right or left needs special
-    // treatment using the center value.
-    // Otherwise, whether one of the +1/-1 DOF values is on a
-    // boundary or not, and whether that boundary has a Dirichlet or Neumann
-    // condition is irrelevant, this +1/-1 DOF always has the right value.
-    // For Neumann, this is guaranted by
-    // FV_BoundaryCondition:: set_free_DOF_values in
-    // FV_DiscreteField:: update_free_DOFs_value or
-    // FV_DiscreteField:: add_to_free_DOFs_value
-    FV_SHIFT_TRIPLET shift = UF->shift_staggeredToStaggered(component);
-
-    dxC = UF->get_cell_size(i, component, 0);
-    dyC = UF->get_cell_size(j, component, 1);
-    if (dim == 3)
-        dzC = UF->get_cell_size(k, component, 2);
-
-    AdvectedValueC = UF->DOF_value(i, j, k, component, advected_level);
-    AdvectorValueC = UF->DOF_value(i, j, k, component, advecting_level);
-
-    // The First Component (u)
-    if (component == 0)
-    {
-        // Right (U_X)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_RIGHT)
-            fri = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueRi = UF->DOF_value(i + 1, j, k, component, advected_level);
-            AdvectorValueRi = UF->DOF_value(i + 1, j, k, component, advecting_level);
-            ur = 0.5 * (AdvectorValueC + AdvectorValueRi);
-            fri = ur * ur;
-        }
-
-        // Left (U_X)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_LEFT)
-            fle = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueLe = UF->DOF_value(i - 1, j, k, component, advected_level);
-            AdvectorValueLe = UF->DOF_value(i - 1, j, k, component, advecting_level);
-            ul = 0.5 * (AdvectorValueC + AdvectorValueLe);
-            fle = ul * ul;
-        }
-
-        // Top (U_Y)
-        AdvectedValueTo = UF->DOF_value(i, j + 1, k, component, advected_level);
-        AdvectorValueToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, 1, advecting_level);
-        AdvectorValueToRi = UF->DOF_value(i + shift.i, j + shift.j, k, 1, advecting_level);
-        vt = 0.5 * (AdvectorValueToLe + AdvectorValueToRi);
-        fto = vt * 0.5 * (AdvectedValueC + AdvectedValueTo);
-
-        // Bottom (U_Y)
-        AdvectedValueBo = UF->DOF_value(i, j - 1, k, component, advected_level);
-        AdvectorValueBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, 1, advecting_level);
-        AdvectorValueBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, 1, advecting_level);
-        vb = 0.5 * (AdvectorValueBoLe + AdvectorValueBoRi);
-        fbo = vb * 0.5 * (AdvectedValueBo + AdvectedValueC);
-
-        if (dim == 3)
-        {
-            // Front (U_Z)
-            AdvectedValueFr = UF->DOF_value(i, j, k + 1, component, advected_level);
-            AdvectorValueFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, 2, advecting_level);
-            AdvectorValueFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, 2, advecting_level);
-            wf = 0.5 * (AdvectorValueFrLe + AdvectorValueFrRi);
-            ffr = wf * 0.5 * (AdvectedValueC + AdvectedValueFr);
-
-            // Behind (U_Z)
-            AdvectedValueBe = UF->DOF_value(i, j, k - 1, component, advected_level);
-            AdvectorValueBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, 2, advecting_level);
-            AdvectorValueBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, 2, advecting_level);
-            wb = 0.5 * (AdvectorValueBeLe + AdvectorValueBeRi);
-            fbe = wb * 0.5 * (AdvectedValueBe + AdvectedValueC);
-        }
-    }
-    else if (component == 1)
-    {
-        // The second Component (v)
-        // Right (V_X)
-        AdvectedValueRi = UF->DOF_value(i + 1, j, k, component, advected_level);
-        AdvectorValueToRi = UF->DOF_value(i + shift.i, j + shift.j, k, 0, advecting_level);
-        AdvectorValueBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, 0, advecting_level);
-        ur = 0.5 * (AdvectorValueToRi + AdvectorValueBoRi);
-        fri = ur * 0.5 * (AdvectedValueC + AdvectedValueRi);
-
-        // Left (V_X)
-        AdvectedValueLe = UF->DOF_value(i - 1, j, k, component, advected_level);
-        AdvectorValueToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, 0, advecting_level);
-        AdvectorValueBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, 0, advecting_level);
-        ul = 0.5 * (AdvectorValueToLe + AdvectorValueBoLe);
-        fle = ul * 0.5 * (AdvectedValueLe + AdvectedValueC);
-
-        // Top (V_Y)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_TOP)
-            fto = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueTo = UF->DOF_value(i, j + 1, k, component, advected_level);
-            AdvectorValueTo = UF->DOF_value(i, j + 1, k, component, advecting_level);
-            vt = 0.5 * (AdvectorValueTo + AdvectorValueC);
-            fto = vt * 0.5 * (AdvectedValueC + AdvectedValueTo);
-        }
-
-        // Bottom (V_Y)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_BOTTOM)
-            fbo = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueBo = UF->DOF_value(i, j - 1, k, component, advected_level);
-            AdvectorValueBo = UF->DOF_value(i, j - 1, k, component, advecting_level);
-            vb = 0.5 * (AdvectorValueBo + AdvectorValueC);
-            fbo = vb * 0.5 * (AdvectedValueBo + AdvectedValueC);
-        }
-
-        if (dim == 3)
-        {
-            // Front (V_Z)
-            AdvectedValueFr = UF->DOF_value(i, j, k + 1, component, advected_level);
-            AdvectorValueFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, 2, advecting_level);
-            AdvectorValueFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, 2, advecting_level);
-            wf = 0.5 * (AdvectorValueFrTo + AdvectorValueFrBo);
-            ffr = wf * 0.5 * (AdvectedValueC + AdvectedValueFr);
-
-            // Behind (V_Z)
-            AdvectedValueBe = UF->DOF_value(i, j, k - 1, component, advected_level);
-            AdvectorValueBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, 2, advecting_level);
-            AdvectorValueBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, 2, advecting_level);
-            wb = 0.5 * (AdvectorValueBeTo + AdvectorValueBeBo);
-            fbe = wb * 0.5 * (AdvectedValueBe + AdvectedValueC);
-        }
-    }
-    else
-    {
-        // The Third Component (w)
-        // Right (W_X)
-        AdvectedValueRi = UF->DOF_value(i + 1, j, k, component, advected_level);
-        AdvectorValueFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, 0, advecting_level);
-        AdvectorValueBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, 0, advecting_level);
-        ur = 0.5 * (AdvectorValueFrRi + AdvectorValueBeRi);
-        fri = ur * 0.5 * (AdvectedValueC + AdvectedValueRi);
-
-        // Left (W_X)
-        AdvectedValueLe = UF->DOF_value(i - 1, j, k, component, advected_level);
-        AdvectorValueFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, 0, advecting_level);
-        AdvectorValueBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, 0, advecting_level);
-        ul = 0.5 * (AdvectorValueFrLe + AdvectorValueBeLe);
-        fle = ul * 0.5 * (AdvectedValueLe + AdvectedValueC);
-
-        // Top (W_Y)
-        AdvectedValueTo = UF->DOF_value(i, j + 1, k, component, advected_level);
-        AdvectorValueFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, 1, advecting_level);
-        AdvectorValueBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, 1, advecting_level);
-        vt = 0.5 * (AdvectorValueFrTo + AdvectorValueBeTo);
-        fto = vt * 0.5 * (AdvectedValueC + AdvectedValueTo);
-
-        // Bottom (W_Y)
-        AdvectedValueBo = UF->DOF_value(i, j - 1, k, component, advected_level);
-        AdvectorValueFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, 1, advecting_level);
-        AdvectorValueBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, 1, advecting_level);
-        vb = 0.5 * (AdvectorValueFrBo + AdvectorValueBeBo);
-        fbo = vb * 0.5 * (AdvectedValueBo + AdvectedValueC);
-
-        // Front (W_Z)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_FRONT)
-            ffr = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueFr = UF->DOF_value(i, j, k + 1, component, advected_level);
-            AdvectorValueFr = UF->DOF_value(i, j, k + 1, component, advecting_level);
-            wf = 0.5 * (AdvectorValueFr + AdvectorValueC);
-            ffr = wf * 0.5 * (AdvectedValueC + AdvectedValueFr);
-        }
-
-        // Behind (W_Z)
-        if (UF->DOF_color(i, j, k, component) == FV_BC_BEHIND)
-            fbe = AdvectorValueC * AdvectedValueC;
-        else
-        {
-            AdvectedValueBe = UF->DOF_value(i, j, k - 1, component, advected_level);
-            AdvectorValueBe = UF->DOF_value(i, j, k - 1, component, advecting_level);
-            wb = 0.5 * (AdvectorValueBe + AdvectorValueC);
-            fbe = wb * 0.5 * (AdvectedValueBe + AdvectedValueC);
-        }
-    }
-
-    if (dim == 2)
-    {
-        flux = ((fto - fbo) * dxC + (fri - fle) * dyC);
-    }
-    else if (dim == 3)
-    {
-        flux = (fto - fbo) * dxC * dzC + (fri - fle) * dyC * dzC + (ffr - fbe) * dxC * dyC;
-    }
-    return (coef * flux);
-}
-
-//----------------------------------------------------------------------
-double
-DLMFD_DirectionSplitting::assemble_advection_Centered_FD(double const &coef,
-                                                         size_t const &i,
-                                                         size_t const &j,
-                                                         size_t const &k,
-                                                         size_t const &comp,
-                                                         size_t const &level)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplitting:: assemble_advection_Centered_FD");
-
-    double dh = UF->primary_grid()->get_smallest_grid_size();
-    double threshold = 0.0001 * dh;
-    FV_SHIFT_TRIPLET shift = UF->shift_staggeredToStaggered(comp);
-
-    double dxC = UF->get_cell_size(i, comp, 0);
-    double dyC = UF->get_cell_size(j, comp, 1);
-    double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1.;
-
-    geomVector pt(3, 0.);
-    pt(0) = UF->get_DOF_coordinate(i, comp, 0);
-    pt(1) = UF->get_DOF_coordinate(j, comp, 1);
-    pt(2) = (dim == 3) ? UF->get_DOF_coordinate(k, comp, 2) : 0.;
-
-    size_t_vector face_vector(3, 0);
-    face_vector(0) = 1;
-    face_vector(1) = 1;
-    face_vector(2) = 0;
-
-    doubleVector ui(3, 0.);
-    doubleVector dui(3, 0.);
-    doubleVector dC(3, 1.);
-
-    dC(0) = dxC;
-    dC(1) = dyC;
-    dC(2) = dzC;
-
-    size_t p = UF->DOF_local_number(i, j, k, comp);
-
-    size_t_array2D *intersect_vector = 0;
-
-    bool nearRB = false;
-    // if (is_solids)
-    // {
-    //     for (size_t dir = 0; dir < dim && !nearRB; dir++)
-    //     {
-    //         nearRB = (intersect_vector->operator()(p, 2 * dir + 0) == 1) || (intersect_vector->operator()(p, 2 * dir + 1) == 1);
-    //     }
-    //     size_t_array2D *void_frac = allrigidbodies->get_void_fraction_on_grid(UF);
-    //     if (void_frac->operator()(p, 0) != 0)
-    //         return (0.);
-    // }
-
-    for (size_t cpt = 0; cpt < dim; cpt++)
-    {
-        auto value = compute_first_derivative(comp, i, j, k, cpt, level);
-        dui(cpt) = std::get<0>(value);
-        dC(cpt) = std::get<1>(value);
-
-        // if (is_solids && nearRB)
-        // {
-        //     if (cpt != comp)
-        //     {
-        //         size_t_vector i0(3);
-        //         for (size_t l = 0; l < dim; l++)
-        //         {
-        //             size_t i0_temp;
-        //             bool found = FV_Mesh::between(UF->get_DOF_coordinates_vector(cpt, l),
-        //                                           pt(l) + threshold, i0_temp);
-        //             if (found)
-        //                 i0(l) = i0_temp;
-        //         }
-        //         ui(cpt) = (dim == 2) ? allrigidbodies->Bilinear_interpolation(UF, cpt, &pt, i0, face_vector, {level})
-        //                              : allrigidbodies->Trilinear_interpolation(UF, cpt, &pt, i0, {level});
-        //     }
-        //     else
-        //     {
-        //         ui(cpt) = UF->DOF_value(i, j, k, comp, level);
-        //     }
-        //     // if (p == 10584) {
-        //     // 	cout << cpt << "," << dui(cpt) << "," << dC(cpt) << "," << ui(cpt) << endl;
-        //     // }
-        // }
-        // else
-        // {
-        if (comp == 0)
-        {
-            if (cpt == 0)
-            {
-                ui(cpt) = UF->DOF_value(i, j, k, comp, level);
-            }
-            else if (cpt == 1)
-            {
-                double uToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, cpt, level);
-                double uToRi = UF->DOF_value(i + shift.i, j + shift.j, k, cpt, level);
-                double uBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, cpt, level);
-                double uBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)
-                {
-                    ui(cpt) = 0.5 * (uToLe + uBoLe);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_LEFT)
-                {
-                    ui(cpt) = 0.5 * (uToRi + uBoRi);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uToLe + uToRi + uBoLe + uBoRi);
-                }
-            }
-            else if (cpt == 2)
-            {
-                double uFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, cpt, level);
-                double uFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, cpt, level);
-                double uBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, cpt, level);
-                double uBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_RIGHT)
-                {
-                    ui(cpt) = 0.5 * (uFrLe + uBeLe);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_LEFT)
-                {
-                    ui(cpt) = 0.5 * (uFrRi + uBeRi);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uFrLe + uFrRi + uBeLe + uBeRi);
-                }
-            }
-        }
-        else if (comp == 1)
-        {
-            if (cpt == 0)
-            {
-                double uToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, cpt, level);
-                double uToRi = UF->DOF_value(i + shift.i, j + shift.j, k, cpt, level);
-                double uBoLe = UF->DOF_value(i + shift.i - 1, j + shift.j - 1, k, cpt, level);
-                double uBoRi = UF->DOF_value(i + shift.i, j + shift.j - 1, k, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_TOP)
-                {
-                    ui(cpt) = 0.5 * (uBoLe + uBoRi);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)
-                {
-                    ui(cpt) = 0.5 * (uToLe + uToRi);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uToLe + uToRi + uBoLe + uBoRi);
-                }
-            }
-            else if (cpt == 1)
-            {
-                ui(cpt) = UF->DOF_value(i, j, k, comp, level);
-            }
-            else if (cpt == 2)
-            {
-                double uFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, cpt, level);
-                double uFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, cpt, level);
-                double uBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, cpt, level);
-                double uBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_TOP)
-                {
-                    ui(cpt) = 0.5 * (uFrBo + uBeBo);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_BOTTOM)
-                {
-                    ui(cpt) = 0.5 * (uFrTo + uBeTo);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uFrBo + uFrTo + uBeBo + uBeTo);
-                }
-            }
-        }
-        else if (comp == 2)
-        {
-            if (cpt == 0)
-            {
-                double uFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, cpt, level);
-                double uFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, cpt, level);
-                double uBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, cpt, level);
-                double uBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_FRONT)
-                {
-                    ui(cpt) = 0.5 * (uBeLe + uBeRi);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)
-                {
-                    ui(cpt) = 0.5 * (uFrLe + uFrRi);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uFrLe + uFrRi + uBeLe + uBeRi);
-                }
-            }
-            else if (cpt == 1)
-            {
-                double uFrBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k, cpt, level);
-                double uFrTo = UF->DOF_value(i, j + shift.j, k + shift.k, cpt, level);
-                double uBeBo = UF->DOF_value(i, j + shift.j - 1, k + shift.k - 1, cpt, level);
-                double uBeTo = UF->DOF_value(i, j + shift.j, k + shift.k - 1, cpt, level);
-                if (UF->DOF_color(i, j, k, comp) == FV_BC_FRONT)
-                {
-                    ui(cpt) = 0.5 * (uBeBo + uBeTo);
-                }
-                else if (UF->DOF_color(i, j, k, comp) == FV_BC_BEHIND)
-                {
-                    ui(cpt) = 0.5 * (uFrBo + uFrTo);
-                }
-                else
-                {
-                    ui(cpt) = 0.25 * (uFrBo + uFrTo + uBeBo + uBeTo);
-                }
-            }
-            else if (cpt == 2)
-            {
-                ui(cpt) = UF->DOF_value(i, j, k, comp, level);
-            }
-        }
-        // }
-    }
-
-    double beta = 1.;
-
-    beta = MAC::min(dC(0) / dxC, dC(1) / dyC);
-    if (dim == 3)
-        beta = MAC::min(beta, dC(2) / dzC);
-    beta *= dxC * dyC * dzC;
-
-    return (coef * (ui(0) * dui(0) + ui(1) * dui(1) + ui(2) * dui(2)) * beta);
-}
-
-// //----------------------------------------------------------------------
-// double
-// DLMFD_DirectionSplitting::assemble_advection_Centered_CutCell(FV_TimeIterator const *t_it,
-//                                                               double const &coef,
-//                                                               size_t const &i,
-//                                                               size_t const &j,
-//                                                               size_t const &k,
-//                                                               size_t const &comp,
-//                                                               size_t const &level)
-// //----------------------------------------------------------------------
-// {
-//     MAC_LABEL("DLMFD_DirectionSplitting:: assemble_advection_Centered_CutCell");
-
-//     double dh = UF->primary_grid()->get_smallest_grid_size();
-//     double threshold = 0.0001 * dh;
-
-//     intVector color(6);
-//     color(0) = FV_BC_LEFT;
-//     color(1) = FV_BC_RIGHT;
-//     color(2) = FV_BC_BOTTOM;
-//     color(3) = FV_BC_TOP;
-//     if (dim == 3)
-//     {
-//         color(4) = FV_BC_BEHIND;
-//         color(5) = FV_BC_FRONT;
-//     }
-
-//     doubleArray2D *face_fraction = allrigidbodies->get_CC_face_fraction(UF);
-//     doubleArray3D *face_centroid = allrigidbodies->get_CC_face_centroid(UF);
-
-//     doubleVector flux(6, 0.);
-
-//     // Area of the faces without even considering the RB
-//     doubleVector GridfaceArea(3, 0.);
-//     double dxC = UF->get_cell_size(i, comp, 0);
-//     double dyC = UF->get_cell_size(j, comp, 1);
-//     double dzC = (dim == 3) ? UF->get_cell_size(k, comp, 2) : 1.;
-//     GridfaceArea(0) = dyC * dzC;
-//     GridfaceArea(1) = dxC * dzC;
-//     GridfaceArea(2) = dxC * dyC;
-
-//     double ValueC = UF->DOF_value(i, j, k, comp, level);
-
-//     size_t_vector face_vector(3, 0);
-//     face_vector(0) = 1;
-//     face_vector(1) = 1;
-//     face_vector(2) = 0;
-
-//     size_t p = UF->DOF_local_number(i, j, k, comp);
-
-//     for (size_t dir = 0; dir < dim; dir++)
-//     {
-//         for (size_t side = 0; side < 2; side++)
-//         {
-//             if (comp == dir)
-//             {
-//                 if (UF->DOF_color(i, j, k, comp) == color(2 * dir + side))
-//                 {
-//                     flux(2 * dir + side) = ValueC * ValueC * GridfaceArea(dir);
-//                 }
-//                 else
-//                 {
-//                     if ((face_fraction->operator()(p, 2 * dir + side) <= GridfaceArea(dir) + threshold) && (face_fraction->operator()(p, 2 * dir + side) != 0.))
-//                     {
-//                         geomVector pt(3);
-//                         pt(0) = face_centroid->operator()(p, 2 * dir + side, 0);
-//                         pt(1) = face_centroid->operator()(p, 2 * dir + side, 1);
-//                         pt(2) = face_centroid->operator()(p, 2 * dir + side, 2);
-
-//                         size_t_vector i0(3);
-//                         for (size_t l = 0; l < dim; l++)
-//                         {
-//                             size_t i0_temp;
-//                             bool found = FV_Mesh::between(UF->get_DOF_coordinates_vector(comp, l),
-//                                                           pt(l) + threshold, i0_temp);
-//                             if (found)
-//                                 i0(l) = i0_temp;
-//                         }
-//                         double uface = (dim == 2) ? allrigidbodies->Bilinear_interpolation(UF, comp, &pt, i0, face_vector, {level})
-//                                                   : allrigidbodies->Trilinear_interpolation(UF, comp, &pt, i0, {level});
-//                         flux(2 * dir + side) = uface * uface * face_fraction->operator()(p, 2 * dir + side);
-//                     }
-//                 }
-//             }
-//             else
-//             {
-//                 if ((face_fraction->operator()(p, 2 * dir + side) <= GridfaceArea(dir) + threshold) && (face_fraction->operator()(p, 2 * dir + side) != 0.))
-//                 {
-//                     geomVector pt(3);
-//                     pt(0) = face_centroid->operator()(p, 2 * dir + side, 0);
-//                     pt(1) = face_centroid->operator()(p, 2 * dir + side, 1);
-//                     pt(2) = face_centroid->operator()(p, 2 * dir + side, 2);
-
-//                     size_t_vector i0(3);
-//                     // Advector value
-//                     for (size_t l = 0; l < dim; l++)
-//                     {
-//                         size_t i0_temp;
-//                         bool found = FV_Mesh::between(UF->get_DOF_coordinates_vector(dir, l),
-//                                                       pt(l) + threshold, i0_temp);
-//                         if (found)
-//                             i0(l) = i0_temp;
-//                     }
-//                     double uAdvector = (dim == 2) ? allrigidbodies->Bilinear_interpolation(UF, dir, &pt, i0, face_vector, {level})
-//                                                   : allrigidbodies->Trilinear_interpolation(UF, dir, &pt, i0, {level});
-//                     // Advected value
-//                     for (size_t l = 0; l < dim; l++)
-//                     {
-//                         size_t i0_temp;
-//                         bool found = FV_Mesh::between(UF->get_DOF_coordinates_vector(comp, l),
-//                                                       pt(l) + threshold, i0_temp);
-//                         if (found)
-//                             i0(l) = i0_temp;
-//                     }
-//                     double uAdvected = (dim == 2) ? allrigidbodies->Bilinear_interpolation(UF, comp, &pt, i0, face_vector, {level})
-//                                                   : allrigidbodies->Trilinear_interpolation(UF, comp, &pt, i0, {level});
-//                     flux(2 * dir + side) = uAdvected * uAdvector * face_fraction->operator()(p, 2 * dir + side);
-//                 }
-//             }
-//         }
-//     }
-
-//     // RB contribution
-//     intVector *ownerID = allrigidbodies->get_CC_ownerID(UF);
-//     doubleArray2D *normalRB = allrigidbodies->get_CC_RB_normal(UF);
-//     doubleVector *RBarea = allrigidbodies->get_CC_RB_area(UF);
-//     double fsurf = 0.;
-//     // // Effect of volume change, based on Seo and Mittal 2011; and Arthur Ghigo CutCell
-//     doubleArray2D *CC_vol = allrigidbodies->get_CC_cell_volume(UF);
-//     double dFV = 0.;
-
-//     if ((ownerID->operator()(p) != -1) && (RBarea->operator()(p) != 0.))
-//     {
-//         size_t local_parID = (size_t)ownerID->operator()(p);
-//         geomVector const *pgc = allrigidbodies->get_gravity_centre(local_parID);
-//         geomVector pt(pgc->operator()(0),
-//                       pgc->operator()(1),
-//                       pgc->operator()(2));
-//         geomVector rbVel = allrigidbodies->rigid_body_velocity(local_parID, pt);
-//         geomVector normVec(normalRB->operator()(p, 0),
-//                            normalRB->operator()(p, 1),
-//                            normalRB->operator()(p, 2));
-//         normVec *= 1. / normVec.calcNorm();
-
-//         fsurf = rbVel(comp) * rbVel.operator,(normVec) * RBarea->operator()(p);
-
-//         dFV = 0.; //(CC_vol->operator()(p,0) - CC_vol->operator()(p,1))
-//                   // * (ValueC - rbVel(comp)) / t_it->time_step();
-//     }
-
-//     return (coef * ((flux(3) - flux(2)) + (flux(1) - flux(0)) + (flux(5) - flux(4)) - fsurf + dFV));
-// }
 
 //----------------------------------------------------------------------
 double
 DLMFD_DirectionSplitting::assemble_advection_Upwind(
     size_t const &advecting_level, double const &coef, size_t const &advected_level,
-    size_t const &i, size_t const &j, size_t const &k, size_t const &component)
+    size_t const &i, size_t const &j, size_t const &k, size_t const &component) const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: assemble_advection_Upwind");
@@ -5538,6 +2672,7 @@ DLMFD_DirectionSplitting::assemble_advection_Upwind(
     // treatment using the center value.
     // Otherwise, whether one of the +1/-1 DOF values is on a
     // boundary or not, and whether that boundary has a Dirichlet or Neumann
+
     // condition is irrelevant, this +1/-1 DOF always has the right value.
     // For Neumann, this is guaranted by
     // FV_BoundaryCondition:: set_free_DOF_values in
@@ -5716,6 +2851,7 @@ DLMFD_DirectionSplitting::assemble_advection_Upwind(
 
         // Left (W_X)
         AdvectedValueLe = UF->DOF_value(i - 1, j, k, component, advected_level);
+
         AdvectorValueFrLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k, 0, advecting_level);
         AdvectorValueBeLe = UF->DOF_value(i + shift.i - 1, j, k + shift.k - 1, 0, advecting_level);
         ul = 0.5 * (AdvectorValueFrLe + AdvectorValueBeLe);
@@ -5775,7 +2911,7 @@ DLMFD_DirectionSplitting::assemble_advection_Upwind(
 
     if (dim == 2)
     {
-        flux = ((fto - fbo) * dxC + (fri - fle) * dyC);
+        flux = (fto - fbo) * dxC + (fri - fle) * dyC;
     }
     else if (dim == 3)
     {
@@ -5801,6 +2937,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
            zf = 0., zF = 0., zb = 0., zB = 0.;
     double dxC = 0., dyC = 0., dzC = 0., dxr = 0., dxl = 0., dxCr = 0.,
            dxCl = 0., dxRr = 0., dxR = 0., dxLl = 0., dyt = 0., dyb = 0.,
+
            dyCt = 0., dyCb = 0., dyTt = 0., dyT = 0., dyBb = 0., dzf = 0.,
            dzb = 0., dzCf = 0., dzCb = 0., dzFf = 0., dzF = 0., dzBb = 0.;
 
@@ -5884,6 +3021,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
                 xr = UF->get_DOF_coordinate(i + shift.i, 1, 0);
                 xR = UF->get_DOF_coordinate(i + 1, component, 0);
                 dxCr = xr - xC;
+
                 dxr = xR - xC;
                 cLip12 = AdvectedValueC + (dxCr / dxr) * FV_DiscreteField::SuperBee_phi(thetaC) * (AdvectedValueRi - AdvectedValueC);
 
@@ -5960,7 +3098,10 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
             AdvectedValueBo = UF->DOF_value(i, j - 1, k, component, advected_level);
         }
 
-        thetaC = fabs(AdvectedValueTo - AdvectedValueC) > 1.e-20 ? (AdvectedValueC - AdvectedValueBo) / (AdvectedValueTo - AdvectedValueC) : 1.e20;
+        thetaC = fabs(AdvectedValueTo - AdvectedValueC) > 1.e-20 ?
+
+                                                                 (AdvectedValueC - AdvectedValueBo) / (AdvectedValueTo - AdvectedValueC)
+                                                                 : 1.e20;
 
         // Top (Y)
         AdvectorValueToLe = UF->DOF_value(i + shift.i - 1, j + shift.j, k, 1, advecting_level);
@@ -6033,6 +3174,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
             if (UF->DOF_color(i, j, k, component) == FV_BC_FRONT)
             {
                 AdvectorValueFr = AdvectorValueC;
+
                 AdvectedValueFr = AdvectedValueC;
             }
             else
@@ -6109,7 +3251,10 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
                 dzBb = zb - zB;
                 AdvectedValueBeBe = UF->DOF_value(i, j, k - 2, component, advected_level);
 
-                thetaBe = fabs(AdvectedValueC - AdvectedValueBe) > 1.e-20 ? (AdvectedValueBe - AdvectedValueBeBe) / (AdvectedValueC - AdvectedValueBe) : 1.e20;
+                thetaBe = fabs(AdvectedValueC - AdvectedValueBe) > 1.e-20 ?
+
+                                                                          (AdvectedValueBe - AdvectedValueBeBe) / (AdvectedValueC - AdvectedValueBe)
+                                                                          : 1.e20;
                 cLim12 = AdvectedValueBe + (dzBb / dzb) * FV_DiscreteField::SuperBee_phi(thetaBe) * (AdvectedValueC - AdvectedValueBe);
                 fbe = 0.5 * (wb * (cRim12 + cLim12) - fabs(wb) * (cRim12 - cLim12));
             }
@@ -6188,6 +3333,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
         {
             xl = UF->get_DOF_coordinate(i + shift.i - 1, 0, 0);
             xL = UF->get_DOF_coordinate(i - 1, component, 0);
+
             dxl = xC - xL;
             if (UF->DOF_color(i, j, k, component) == FV_BC_RIGHT)
                 cRim12 = AdvectedValueC;
@@ -6264,6 +3410,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
         }
 
         // Bottom (Y)
+
         if (UF->DOF_color(i, j, k, component) == FV_BC_BOTTOM)
             fbo = AdvectorValueC * AdvectedValueC;
         else
@@ -6346,7 +3493,9 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
                 zF = UF->get_DOF_coordinate(k + 1, component, 2);
                 dzCf = zf - zC;
                 dzf = zF - zC;
-                cLip12 = AdvectedValueC + (dzCf / dzf) * FV_DiscreteField::SuperBee_phi(thetaC) * (AdvectedValueFr - AdvectedValueC);
+                cLip12 = AdvectedValueC + (dzCf / dzf) * FV_DiscreteField::SuperBee_phi(thetaC)
+
+                                              * (AdvectedValueFr - AdvectedValueC);
                 dzFf = zF - zf;
                 dzF = UF->get_cell_size(k + 1, component, 2);
                 AdvectedValueFrFr = UF->DOF_value(i, j, k + 2, component, advected_level);
@@ -6422,6 +3571,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
         // Right (X)
         AdvectorValueFrRi = UF->DOF_value(i + shift.i, j, k + shift.k, 0, advecting_level);
         AdvectorValueBeRi = UF->DOF_value(i + shift.i, j, k + shift.k - 1, 0, advecting_level);
+
         ur = 0.5 * (AdvectorValueFrRi + AdvectorValueBeRi);
         if (UF->DOF_color(i + 1, j, k, component) == FV_BC_RIGHT || UF->DOF_color(i + 1, j, k, component) == FV_BC_BEHIND_RIGHT || UF->DOF_color(i + 1, j, k, component) == FV_BC_FRONT_RIGHT)
         {
@@ -6497,6 +3647,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
         if (UF->DOF_color(i, j, k, component) == FV_BC_BOTTOM)
         {
             AdvectorValueBo = AdvectorValueC;
+
             AdvectedValueBo = AdvectedValueC;
         }
         else
@@ -6569,6 +3720,7 @@ DLMFD_DirectionSplitting::assemble_advection_TVD(
 
         // Front and Behind
         // ----------------
+
         if (UF->DOF_color(i, j, k, component) == FV_BC_FRONT)
         {
             AdvectorValueFr = AdvectorValueC;
