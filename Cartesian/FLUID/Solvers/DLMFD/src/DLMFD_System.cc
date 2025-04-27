@@ -15,6 +15,15 @@ DLMFD_System::DLMFD_System(MAC_Object *a_owner,
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: DLMFD_System");
+
+    // DLMFD Uzawa convergence criterions
+    Uzawa_DLMFD_precision = 1.e-5;
+    if (exp->has_entry("Uzawa_DLMFD_precision"))
+        Uzawa_DLMFD_precision = exp->double_data("Uzawa_DLMFD_precision");
+
+    Uzawa_DLMFD_maxiter = 100;
+    if (exp->has_entry("Uzawa_DLMFD_maxiter"))
+        Uzawa_DLMFD_maxiter = exp->int_data("Uzawa_DLMFD_maxiter");
 }
 
 //----------------------------------------------------------------------
@@ -434,69 +443,12 @@ bool DLMFD_System::VelocityAdvection_solver(void)
 // --------------------------- DLMFD FRAMEWORK ------------------------------
 
 //----------------------------------------------------------------------
-void DLMFD_System::updateFluid_DLMFD_rhs()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::updateFluid_DLMFD_rhs");
-
-    string error_message = "DLMFD_System::updateFluid_DLMFD_rhs ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::nullify_QUvector()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::nullify_QUvector");
-
-    string error_message = "DLMFD_System::nullify_QUvector ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::assemble_inQUvector(double transferVal, size_t index, double coef)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::assemble_inQUvector");
-
-    string error_message = "DLMFD_System::assemble_inQUvector ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::solve_FluidVel_DLMFD_Init(const double &time)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::solve_FluidVel_DLMFD_Init");
-
-    string error_message = "DLMFD_System::solve_FluidVel_DLMFD_Init ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-LA_SeqVector const *DLMFD_System::get_solution_U() const
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::get_solution_U");
-
-    string error_message = "DLMFD_System::get_solution_U ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
 double const DLMFD_System::get_DLMFD_convergence_criterion() const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System::get_DLMFD_convergence_criterion");
 
-    string error_message = "DLMFD_System::get_DLMFD_convergence_criterion ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
+    return Uzawa_DLMFD_precision;
 }
 
 //----------------------------------------------------------------------
@@ -505,9 +457,7 @@ int const DLMFD_System::get_DLMFD_maxiter() const
 {
     MAC_LABEL("DLMFD_System::get_DLMFD_convergence_criterion");
 
-    string error_message = "DLMFD_System::get_DLMFD_maxiter ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
+    return Uzawa_DLMFD_maxiter;
 }
 
 //----------------------------------------------------------------------
@@ -517,39 +467,6 @@ void DLMFD_System::initialize_QUvector_with_divv_rhs()
     MAC_LABEL("DLMFD_System::initialize_QUvector_with_divv_rhs");
 
     string error_message = "DLMFD_System::initialize_QUvector_with_divv_rhs ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::solve_FluidVel_DLMFD_Iter(const double &time)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::initialize_QUvector_with_divv_rhs");
-
-    string error_message = "DLMFD_System::solve_FluidVel_DLMFD_Iter ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-LA_SeqVector const *DLMFD_System::get_tVector_U() const
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::get_tVector_U");
-
-    string error_message = "DLMFD_System::get_tVector_U ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::update_FluidVel_OneUzawaIter(const double &alpha)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::update_FluidVel_OneUzawaIter");
-
-    string error_message = "DLMFD_System::update_FluidVel_OneUzawaIter ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }

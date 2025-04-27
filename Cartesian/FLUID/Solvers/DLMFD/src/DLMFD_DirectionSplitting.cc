@@ -63,8 +63,11 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
       mu(1.),
       kai(1.),
       AdvectionScheme("TVD"),
+      resultsDirectory("Res"),
       AdvectionTimeAccuracy(1),
-      rho(1.)
+      rho(1.),
+      translation_direction(0),
+      translated_distance(0.)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: DLMFD_DirectionSplitting");
     MAC_ASSERT(UF->discretization_type() == "staggered");
@@ -83,6 +86,7 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
     is_periodic[1][0] = false;
     is_periodic[1][1] = false;
     is_periodic[1][2] = false;
+
     // Timing routines
     if (my_rank == is_master)
     {
@@ -90,11 +94,14 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         SCT_insert_app("Objects_Creation");
         SCT_set_start("Objects_Creation");
     }
+
     // Is the run a follow up of a previous job
     b_restart = MAC_Application::is_follow();
+
     // Clear results directory in case of a new run
     if (!b_restart)
         PAC_Misc::clearAllFiles("Res", "Savings", my_rank);
+
     // Get space dimension
     dim = UF->primary_grid()->nb_space_dimensions();
     nb_comps[0] = PF->nb_components();
@@ -106,14 +113,17 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
                                                   "nb_space_dimensions",
                                                   error_message);
     }
+
     // Create the Direction Splitting subcommunicators
     create_DDS_subcommunicators();
+
     // Read Density
     if (exp->has_entry("Density"))
     {
         rho = exp->double_data("Density");
         exp->test_data("Density", "Density>0.");
     }
+
     // Read Viscosity
     if (exp->has_entry("Viscosity"))
 
@@ -121,66 +131,125 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         mu = exp->double_data("Viscosity");
         exp->test_data("Viscosity", "Viscosity>0.");
     }
+
     // Read Kai
     if (exp->has_entry("Kai"))
     {
         kai = exp->double_data("Kai");
         exp->test_data("Kai", "Kai>=0.");
     }
+
     // Advection scheme
     if (exp->has_entry("AdvectionScheme"))
         AdvectionScheme = exp->string_data("AdvectionScheme");
+
     if (AdvectionScheme != "Upwind" && AdvectionScheme != "TVD")
     {
         string error_message = "   - Upwind\n   - TVD";
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "AdvectionScheme", error_message);
     }
+
     if (AdvectionScheme == "TVD" && UF->primary_grid()->get_security_bandwidth() < 2)
     {
         string error_message = "   >= 2 with TVD scheme";
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "security_bandwidth", error_message);
     }
+
     // Advection term time accuracy
     if (exp->has_entry("AdvectionTimeAccuracy"))
         AdvectionTimeAccuracy = exp->int_data("AdvectionTimeAccuracy");
+
     if (AdvectionTimeAccuracy != 1 && AdvectionTimeAccuracy != 2)
     {
         string error_message = "   - 1\n   - 2\n   ";
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "AdvectionTimeAccuracy", error_message);
     }
+
     // Periodic boundary condition check for velocity
     U_periodic_comp = UF->primary_grid()->get_periodic_directions();
     is_periodic[1][0] = U_periodic_comp->operator()(0);
     is_periodic[1][1] = U_periodic_comp->operator()(1);
     if (dim > 2)
         is_periodic[1][2] = U_periodic_comp->operator()(2);
+
     // Periodic boundary condition check for pressure
     P_periodic_comp = PF->primary_grid()->get_periodic_directions();
     is_periodic[0][0] = P_periodic_comp->operator()(0);
     is_periodic[0][1] = P_periodic_comp->operator()(1);
     if (dim > 2)
         is_periodic[0][2] = P_periodic_comp->operator()(2);
+
     // Build the matrix system
     MAC_ModuleExplorer *se = exp->create_subexplorer(0, "DLMFD_DirectionSplittingSystem");
     GLOBAL_EQ = DLMFD_DirectionSplittingSystem::create(this, se, UF, PF);
     se->destroy();
+
+    // DLMFD solver
+    // Set the split gravity vector
+    split_gravity_vector.resize(dim);
+    split_gravity_vector.setVecZero();
+    if (exp->has_entry("Split_gravity_vector"))
+    {
+        doubleVector *grav = new doubleVector(dim);
+        *grav = exp->doubleVector_data("Split_gravity_vector");
+        for (size_t idx = 0; idx < dim; ++idx)
+            split_gravity_vector(idx) = (*grav)(idx);
+        delete grav;
+    }
+
+    // Set the geometric gravity vector
+    // Set the gravity vector
+    gravity_vector_geom.resize(dim);
+    gravity_vector_geom.setVecZero();
+    if (exp->has_entry("Gravity_vector"))
+    {
+        doubleVector *grav = new doubleVector(dim);
+        *grav = exp->doubleVector_data("Gravity_vector");
+        for (size_t idx = 0; idx < dim; ++idx)
+            gravity_vector_geom(idx) = (*grav)(idx);
+        delete grav;
+    }
+
+    // Set the output frequency
+    size_t output_frequency = 1;
+    if (exp->has_entry("Output_frequency"))
+        output_frequency = size_t(exp->int_data("Output_frequency"));
+
+    // Results directory
+    if (exp->has_entry("Results_directory"))
+        resultsDirectory = exp->string_data("Results_directory");
+
+    // Create Fictitious Domain solver
+    struct NavierStokes2FluidSolid transfert;
+    transfert.solid_resDir = resultsDirectory;
+    transfert.rho_f = rho;
+    transfert.gravity_vector = gravity_vector_geom;
+    transfert.split_gravity_vector = split_gravity_vector;
+    transfert.GLOBAL_EQ = GLOBAL_EQ;
+    transfert.velocitylevelDiscrField = 0;
+    transfert.b_restart = b_restart;
+    transfert.output_frequency = output_frequency;
+    transfert.UU = UF;
+    transfert.PP = PF;
+
+    dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
+
+    // Explicit DLMFD treatment
+    b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+
     // Timing routines
     if (my_rank == is_master)
     {
         SCT_insert_app("Matrix_Assembly&Initialization");
         SCT_insert_app("Pressure predictor");
-        //     SCT_insert_app("Explicit Velocity step");
-        //     SCT_insert_app("Velocity x update");
-        //     SCT_insert_app("Velocity y update");
-        //     SCT_insert_app("Velocity z update");
         SCT_insert_app("Velocity update");
         SCT_insert_app("Penalty Step");
-
         SCT_insert_app("Pressure Update");
         SCT_insert_app("Writing CSV");
+        SCT_insert_app("FluidSolid_CorrectionStep");
         SCT_get_elapsed_time("Objects_Creation");
     }
 }
@@ -201,27 +270,50 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
 
     start_total_timer("DLMFD_DirectionSplitting:: do_one_inner_iteration");
     start_solving_timer();
+
+    // ------- Directions Splitting algorithm -------
     if (my_rank == is_master)
         SCT_set_start("Pressure predictor");
+
     NS_first_step(t_it);
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure predictor");
+
     if (my_rank == is_master)
         SCT_set_start("Velocity update");
+
     NS_velocity_update(t_it);
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Velocity update");
+
     if (my_rank == is_master)
         SCT_set_start("Penalty Step");
+
     NS_pressure_update(t_it);
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Penalty Step");
 
     if (my_rank == is_master)
         SCT_set_start("Pressure Update");
+
     NS_final_step(t_it);
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
+
+    // GLOBAL_EQ->initialize_DS_velocity();
+
+    // ------- DLMFD algorithm -------
+    if (my_rank == is_master)
+        SCT_set_start("FluidSolid_CorrectionStep");
+
+    dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+
+    if (my_rank == is_master)
+        SCT_get_elapsed_time("FluidSolid_CorrectionStep");
 
     stop_solving_timer();
     stop_total_timer();
@@ -232,19 +324,36 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_before_time_stepping");
+
     start_total_timer("DLMFD_DirectionSplitting:: do_before_time_stepping");
+
     if (my_rank == is_master)
         SCT_set_start("Matrix_Assembly&Initialization");
+
     FV_OneStepIteration::do_before_time_stepping(t_it, basename);
 
     allocate_mpi_variables(PF, 0);
     allocate_mpi_variables(UF, 1);
+
+    // Synchronize and finalize matrices
+    GLOBAL_EQ->finalize_constant_matrices();
+
     // Initialize velocity vector at the matrix level
     GLOBAL_EQ->initialize_DS_velocity();
     GLOBAL_EQ->initialize_DS_pressure();
+
     // Direction splitting
     // Assemble 1D tridiagonal matrices
     assemble_1D_matrices(t_it);
+
+    // Velocity unsteady matrix
+    if (my_rank == is_master)
+        MAC::out() << "            Velocity unsteady matrix" << endl;
+    GLOBAL_EQ->assemble_velocity_unsteady_matrix(rho / t_it->time_step());
+
+    // DLMFD
+    dlmfd_solver->do_before_time_stepping(t_it);
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
     stop_total_timer();
@@ -280,8 +389,11 @@ void DLMFD_DirectionSplitting::do_before_inner_iterations_stage(
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_before_inner_iterations_stage");
+
     start_total_timer("DLMFD_DirectionSplitting:: do_before_inner_iterations_stage");
+
     FV_OneStepIteration::do_before_inner_iterations_stage(t_it);
+
     // Perform matrix level operations before each time step
     GLOBAL_EQ->at_each_time_step();
     stop_total_timer();
@@ -294,15 +406,23 @@ void DLMFD_DirectionSplitting::do_after_inner_iterations_stage(
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_after_inner_iterations_stage");
     start_total_timer("DLMFD_DirectionSplitting:: do_after_inner_iterations_stage");
+
     FV_OneStepIteration::do_after_inner_iterations_stage(t_it);
+
     // Compute velocity change over the time step
     double velocity_time_change = GLOBAL_EQ->compute_DS_velocity_change() / t_it->time_step();
+
     if (my_rank == is_master)
         cout << "velocity change = " << MAC::doubleToString(ios::scientific, 5, velocity_time_change) << endl;
+
     double vel_divergence = get_velocity_divergence();
     double cfl = UF->compute_CFL(t_it, 0);
+
     if (my_rank == is_master)
         MAC::out() << "CFL: " << cfl << endl;
+
+    // DLMFD computation
+    dlmfd_solver->do_after_inner_iterations_stage(t_it);
     stop_total_timer();
 }
 //---------------------------------------------------------------------------
@@ -311,8 +431,14 @@ void DLMFD_DirectionSplitting::do_additional_savings(FV_TimeIterator const *t_it
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_additional_savings");
+
     start_total_timer("DLMFD_DirectionSplitting:: do_additional_savings");
+
+    // DLMFD additional savings
+    dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
+
     stop_total_timer();
+
     GLOBAL_EQ->display_debug();
 }
 //---------------------------------------------------------------------------
@@ -897,6 +1023,16 @@ void DLMFD_DirectionSplitting::NS_first_step(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_first_step");
 
+    sub_prob_number = 1;
+
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : Navier-Stokes first step" << endl;
+        MAC::out() << "------------------------------------------------------" << endl;
+    }
+
     size_t i, j, k;
 
     double value = 0.;
@@ -936,6 +1072,11 @@ void DLMFD_DirectionSplitting::NS_first_step(FV_TimeIterator const *t_it)
     }
 
     PF->set_neumann_DOF_values();
+
+    if (my_rank == is_master)
+        MAC::out() << "Navier-Stokes first step completed" << endl;
+
+    ++sub_prob_number;
 }
 
 //---------------------------------------------------------------------------
@@ -1867,6 +2008,14 @@ void DLMFD_DirectionSplitting::NS_velocity_update(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_velocity_update");
 
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : Navier-Stokes velocity update" << endl;
+        MAC::out() << "------------------------------------------------------" << endl;
+    }
+
     double gamma = mu;
 
     assemble_DS_un_at_rhs(t_it, gamma);
@@ -1900,6 +2049,10 @@ void DLMFD_DirectionSplitting::NS_velocity_update(FV_TimeIterator const *t_it)
         // Tranfer back to field
         UF->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_DS_velocity());
     }
+
+    if (my_rank == is_master)
+        MAC::out() << "Navier-Stokes velocity update completed" << endl;
+    ++sub_prob_number;
 }
 
 //---------------------------------------------------------------------------
@@ -2004,6 +2157,14 @@ void DLMFD_DirectionSplitting::NS_pressure_update(FV_TimeIterator const *t_it)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: NS_pressure_update");
 
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : Navier-Stokes pressure update" << endl;
+        MAC::out() << "------------------------------------------------------" << endl;
+    }
+
     double gamma = mu / 2.0;
 
     Solve_i_in_jk(PF, t_it, 0, 1, 2, gamma, 0);
@@ -2027,14 +2188,25 @@ void DLMFD_DirectionSplitting::NS_pressure_update(FV_TimeIterator const *t_it)
         // Tranfer back to field
         PF->update_free_DOFs_value(1, GLOBAL_EQ->get_solution_DS_pressure());
     }
+
+    if (my_rank == is_master)
+        MAC::out() << "Navier-Stokes pressure update completed" << endl;
+    ++sub_prob_number;
 }
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::NS_final_step(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_DirectionSplitting:: NS_final_step");
+    MAC_LABEL("DLMFD_DirectionSplitting:: NS_final_step");
+
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------" << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : Navier-Stokes final step" << endl;
+        MAC::out() << "------------------------------------------------------" << endl;
+    }
 
     size_t i, j, k;
 
@@ -2133,6 +2305,10 @@ void DLMFD_DirectionSplitting::NS_final_step(FV_TimeIterator const *t_it)
     PF->set_neumann_DOF_values();
 
     UF->copy_DOFs_value(0, 1);
+
+    if (my_rank == is_master)
+        MAC::out() << "Navier-Stokes final step completed" << endl;
+    ++sub_prob_number;
 }
 
 //----------------------------------------------------------------------

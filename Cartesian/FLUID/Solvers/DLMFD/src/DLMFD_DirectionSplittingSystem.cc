@@ -63,7 +63,14 @@ DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplittingSystem(
                    false),
       UF(mac_UF),
       PF(mac_PF),
-      MAT_velocityUnsteadyPlusDiffusion_1D(0)
+      MAT_velocityUnsteadyPlusDiffusion_1D(0),
+      VEC_t(0),
+      VEC_q(0),
+      VEC_r(0),
+      VEC_w(0),
+      T_LOC(0),
+      SOLVER_A_VelocityUnsteady(0),
+      b_NS_ExplicitDLMFD(false)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplittingSystem");
     int const *MPI_coordinates_world = UF->primary_grid()->get_MPI_coordinates();
@@ -117,6 +124,10 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
     MAT_D_velocityUnsteadyPlusDiffusion = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_D_velocityDiffusion"));
     VEC_rhs_D_velocityDiffusionPlusBodyTerm = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
+    // Unsteady velocity matrix
+    MAT_A_VelocityUnsteady = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_A_VelocityUnsteady"));
+    VEC_rhs_A_Velocity = MAT_A_VelocityUnsteady->create_vector(this);
+
     // Unknowns vectors
     VEC_DS_UF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
     VEC_DS_UF_previoustime = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
@@ -124,9 +135,21 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
 
     VEC_DS_PF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
+    // Work vectors
+    //-- Unknown vectors
+    VEC_t = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    //-- Rhs vectors
+    VEC_q = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_r = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_w = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+
+    // Solver
+    SOLVER_A_VelocityUnsteady = LA_Solver::make(this, exp->create_subexplorer(this, "SOLVER_A_VelocityUnsteady"));
+
     // Local vector
     UF_DS_LOC = LA_SeqVector::create(this, 0);
     PF_DS_LOC = LA_SeqVector::create(this, 0);
+    T_LOC = LA_SeqVector::create(this, 0);
 
     // velocity numbering
     UF_NUM = FV_SystemNumbering::create(this, UF);
@@ -312,6 +335,10 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
     MAT_D_velocityUnsteadyPlusDiffusion->re_initialize(UF_glob, UF_glob);
     VEC_rhs_D_velocityDiffusionPlusBodyTerm->re_initialize(UF_glob);
 
+    // Velocity unsteady matrix and rhs
+    MAT_A_VelocityUnsteady->re_initialize(UF_glob, UF_glob);
+    VEC_rhs_A_Velocity->re_initialize(UF_glob);
+
     // Unknowns vectors
     VEC_DS_UF->re_initialize(UF_glob);
     VEC_DS_UF_previoustime->re_initialize(UF_glob);
@@ -319,10 +346,18 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
 
     VEC_DS_PF->re_initialize(pf_glob);
 
+    // Work vectors
+    // Unknown vectors
+    VEC_t->re_initialize(UF_glob);
+    // Rhs vectors
+    VEC_q->re_initialize(UF_glob);
+    VEC_r->re_initialize(pf_glob);
+    VEC_w->re_initialize(pf_glob);
+
     // Local vector
     UF_DS_LOC->re_initialize(UF_loc);
-
     PF_DS_LOC->re_initialize(pf_loc);
+    T_LOC->re_initialize(UF_loc);
 
     // velocity numbering
     UF_NUM->define_scatter(VEC_DS_UF);
@@ -926,4 +961,122 @@ void DLMFD_DirectionSplittingSystem::display_debug(void)
 //----------------------------------------------------------------------
 {
     // VEC_DS_UF->print_items(MAC::out(),0);
+}
+
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// --------------------------- DLMFD FRAMEWORK ------------------------------
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::finalize_constant_matrices()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: finalize_constant_matrices");
+
+    // Set the solver
+    SOLVER_A_VelocityUnsteady->set_matrix(MAT_A_VelocityUnsteady);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::assemble_velocity_unsteady_matrix(
+    double const &coef)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem:: assemble_velocity_unsteady_matrix");
+
+    UF->assemble_mass_matrix(coef, MAT_A_VelocityUnsteady);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::updateFluid_DLMFD_rhs()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::updateFluid_DLMFD_rhs");
+
+    // Compute unsteady rhs
+    MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_DS_UF, VEC_rhs_A_Velocity);
+
+    // Add explicit DLMFD forcing term
+    if (b_NS_ExplicitDLMFD)
+        VEC_rhs_A_Velocity->sum(VEC_rhs_VelocityDLMFD_Nm1, -1.);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::nullify_QUvector()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::nullify_QUvector");
+
+    VEC_q->nullify();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::assemble_inQUvector(double transferVal, size_t index, double coef)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::assemble_inQUvector");
+
+    VEC_q->add_to_item(index, coef * transferVal);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Init(const double &time)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Init");
+
+    VEC_q->synchronize();
+    VEC_q->sum(VEC_rhs_A_Velocity);
+
+    SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_DS_UF);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *DLMFD_DirectionSplittingSystem::get_solution_U() const
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::get_solution_U");
+
+    UF_NUM->scatter()->get(VEC_DS_UF, UF_DS_LOC);
+
+    LA_SeqVector const *result = UF_DS_LOC;
+
+    return result;
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Iter(const double &time)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_divv_rhs");
+
+    // Has to be done before, for the sake of well understanding
+    VEC_q->synchronize();
+
+    // Solution of A.t=q
+    SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_t);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *DLMFD_DirectionSplittingSystem::get_tVector_U() const
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::get_tVector_U");
+
+    UF_NUM->scatter()->get(VEC_t, T_LOC);
+
+    LA_SeqVector const *result = T_LOC;
+
+    return result;
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem::update_FluidVel_OneUzawaIter(const double &alpha)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem::update_FluidVel_OneUzawaIter");
+
+    // Update u+=alpha.t
+    VEC_DS_UF->sum(VEC_t, alpha);
 }

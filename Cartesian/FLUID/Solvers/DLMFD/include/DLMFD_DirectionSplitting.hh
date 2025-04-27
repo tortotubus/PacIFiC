@@ -12,7 +12,9 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+#include <DLMFD_FictitiousDomain.hh>
 using namespace std;
+
 class MAC_Communicator;
 class FV_DiscreteField;
 class LA_Vector;
@@ -254,6 +256,24 @@ private: //----------------------------------------------------------------
     boolVector const *P_periodic_comp;
     boolVector const *U_periodic_comp;
     bool is_periodic[2][3];
+
+    //-- DLMFD solver
+    DLMFD_FictitiousDomain *dlmfd_solver;
+
+    // Grid motion TODO: Put this in a fluid section
+    size_t translation_direction;
+    double translated_distance;
+
+    // Physical inputs
+    geomVector split_gravity_vector;
+    geomVector gravity_vector_geom;
+
+    // Boolean
+    bool b_ExplicitDLMFD;
+
+    // Post processing
+    size_t sub_prob_number;
+    string resultsDirectory;
 };
 
 #endif

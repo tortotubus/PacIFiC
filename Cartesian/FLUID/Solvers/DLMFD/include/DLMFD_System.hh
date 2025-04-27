@@ -203,10 +203,10 @@ public: //-----------------------------------------------------------------
     /** @brief Initialize the velocity right hand side of momentum equations
     in the DLM/FD problem i.e. compute (ro/dt)*U(n-1) before the DLM/FD
     solution */
-    virtual void updateFluid_DLMFD_rhs();
+    virtual void updateFluid_DLMFD_rhs() = 0;
 
     /** @brief Nullify q vector */
-    virtual void nullify_QUvector();
+    virtual void nullify_QUvector() = 0;
 
     /** @brief Add the contribution coef*<lambda,v> to the q
     vector i.e. the DLM right hand side of momentum equations in the DLM/FD
@@ -214,28 +214,28 @@ public: //-----------------------------------------------------------------
     @param transferVec the entry
     @param index the position in the vector
     @param coef parameter */
-    virtual void assemble_inQUvector(double transferVal, size_t index, double coef);
+    virtual void assemble_inQUvector(double transferVal, size_t index, double coef) = 0;
 
     /** @brief Solve the fluid system at the matrix level */
-    virtual void solve_FluidVel_DLMFD_Init(const double &time);
+    virtual void solve_FluidVel_DLMFD_Init(const double &time) = 0;
 
-    virtual LA_SeqVector const *get_solution_U() const;
+    virtual LA_SeqVector const *get_solution_U() const = 0;
 
-    virtual double const get_DLMFD_convergence_criterion() const;
+    double const get_DLMFD_convergence_criterion() const;
 
-    virtual int const get_DLMFD_maxiter() const;
+    int const get_DLMFD_maxiter() const;
 
     /** @brief Initialize Qu vector as Bt*w, with w the pressure descent direction */
     virtual void initialize_QUvector_with_divv_rhs();
 
     /** @brief solve A.tu = quf = <w,v> */
-    virtual void solve_FluidVel_DLMFD_Iter(const double &time);
+    virtual void solve_FluidVel_DLMFD_Iter(const double &time) = 0;
 
     /** @brief Return the velocity solution vector t */
-    virtual LA_SeqVector const *get_tVector_U() const;
+    virtual LA_SeqVector const *get_tVector_U() const = 0;
 
     /** @brief Update u+=alpha.t */
-    virtual void update_FluidVel_OneUzawaIter(const double &alpha);
+    virtual void update_FluidVel_OneUzawaIter(const double &alpha) = 0;
 
     virtual void store_DLMFD_rhs();
 
@@ -244,7 +244,11 @@ public: //-----------------------------------------------------------------
     /** @brief Reload other data than FV fields for restart  */
     virtual void do_additional_savings(string const &rootfilename_dlm);
 
-private:   //-----------------------------------------------------------------
+private: //-----------------------------------------------------------------
+    // Uzawa algorithm
+    double Uzawa_DLMFD_precision;
+    int Uzawa_DLMFD_maxiter;
+
 protected: //-----------------------------------------------------------------
 };
 

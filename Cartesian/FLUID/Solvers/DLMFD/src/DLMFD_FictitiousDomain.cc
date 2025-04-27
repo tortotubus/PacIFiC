@@ -572,8 +572,9 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it,
 
     ++sub_prob_number;
 
-    if (my_rank == is_master)
-        MAC::out() << "Uzawa problem completed" << endl;
+   if (my_rank == is_master)
+      MAC::out() << "Uzawa problem completed" << endl
+                 << " " << endl;
 }
 
 

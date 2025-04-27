@@ -6,7 +6,6 @@
 #include <boolVector.hh>
 using namespace std;
 
-
 class MAC_ModuleExplorer;
 class MAC_Communicator;
 class MAC_Timer;
@@ -23,6 +22,7 @@ class LA_CRSmatrix;
 class FV_SystemNumbering;
 class FV_DiscreteField;
 class FV_TimeIterator;
+
 /** @brief TDMatrix include all elements of block matrices (ii,ie,ei,ee) */
 struct TDMatrix
 {
@@ -171,6 +171,48 @@ public: //-----------------------------------------------------------
     void pre_thomas_treatment(size_t const &comp, size_t const &dir, struct TDMatrix *arr, size_t const &r_index);
     //@}
 
+    // --------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
+    // --------------------------------------------------------------------------
+    // --------------------------- DLMFD FRAMEWORK ------------------------------
+
+    /** @brief Finalize constant matrices */
+    void finalize_constant_matrices();
+
+    /** @brief Assemble velocity unsteady matrix for DLMFD workflow
+    @param coef_lap mass coefficient */
+    void assemble_velocity_unsteady_matrix(double const &coef);
+
+    /** @brief Initialize the velocity right hand side of momentum equations
+    in the DLM/FD problem i.e. compute (ro/dt)*U(n-1) before the DLM/FD
+    solution */
+    void updateFluid_DLMFD_rhs();
+
+    /** @brief Nullify q vector */
+    void nullify_QUvector();
+
+    /** @brief Add the contribution coef*<lambda,v> to the q
+    vector i.e. the DLM right hand side of momentum equations in the DLM/FD
+    problem
+    @param transferVec the entry
+    @param index the position in the vector
+    @param coef parameter */
+    void assemble_inQUvector(double transferVal, size_t index, double coef);
+
+    /** @brief Solve the fluid system at the matrix level */
+    void solve_FluidVel_DLMFD_Init(const double &time);
+
+    LA_SeqVector const *get_solution_U() const;
+
+    /** @brief solve A.tu = quf = <w,v> */
+    void solve_FluidVel_DLMFD_Iter(const double &time);
+
+    /** @brief Return the velocity solution vector t */
+    LA_SeqVector const *get_tVector_U() const;
+
+    /** @brief Update u+=alpha.t */
+    void update_FluidVel_OneUzawaIter(const double &alpha);
+
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
     /** @name Initialize matrices & vectors */
@@ -190,17 +232,31 @@ private:   //----------------------------------------------------------
     // Local vectors
     LA_SeqVector *UF_DS_LOC;
     LA_SeqVector *PF_DS_LOC;
+    LA_SeqVector *T_LOC;
 
     // Global velocity solution vectors
     LA_Vector *VEC_DS_UF;
     LA_Vector *VEC_DS_UF_previoustime;
-
     LA_Vector *VEC_DS_UF_timechange;
+
     // Global pressure solution vectors
     LA_Vector *VEC_DS_PF;
+
+    // Work vectors
+    LA_Vector *VEC_q;
+    LA_Vector *VEC_t;
+    LA_Vector *VEC_r;
+    LA_Vector *VEC_w;
+
+    // Solvers
+    LA_Solver *SOLVER_A_VelocityUnsteady;
+
     // Matrices & rhs
     LA_Matrix *MAT_D_velocityUnsteadyPlusDiffusion;
+    LA_Matrix *MAT_A_VelocityUnsteady;
+
     LA_Vector *VEC_rhs_D_velocityDiffusionPlusBodyTerm;
+    LA_Vector *VEC_rhs_A_Velocity;
 
     // Unknowns numbering
     FV_SystemNumbering *UF_NUM;
@@ -234,6 +290,12 @@ private:   //----------------------------------------------------------
     bool is_periodic[2][3];
     boolVector const *U_periodic_comp;
     boolVector const *P_periodic_comp;
+
+    //-- DLMFD objects
+
+    // Explicit treatment
+    LA_Vector *VEC_rhs_VelocityDLMFD_Nm1;
+    bool b_NS_ExplicitDLMFD;
 };
 
 #endif
