@@ -230,6 +230,9 @@ void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField *pField, double cri
     for (size_t i = 0; i < nIPHZ; ++i)
         iphz++;
 
+    size_t __nip = interior_points.size(),
+           __niphz = halozone_interior_points.size();
+
     for (size_t comp = 0; comp < ncomps; ++comp)
         for (size_t i = (*index_min)(comp, 0); i <= (*index_max)(comp, 0); ++i)
         {
@@ -251,11 +254,11 @@ void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField *pField, double cri
                             pField->set_DOF_constrained(i, j, k, comp);
                             if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
                             {
-                                set_interior_point(comp, point, i, j, k, ip);
+                                set_interior_point(comp, point, i, j, k, ip, __nip);
                             }
                             else
                             {
-                                set_halozone_interior_point(comp, point, i, j, k, iphz);
+                                set_halozone_interior_point(comp, point, i, j, k, iphz, __niphz);
                             }
                         }
                     }

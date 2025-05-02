@@ -271,14 +271,15 @@ void DLMFD_RigidBody::set_halozone_boundary_point(const geomVector &point, list<
 void DLMFD_RigidBody::set_interior_point(const size_t &comp,
                                          const geomVector &point,
                                          size_t i, size_t j, size_t k,
-                                         list<DLMFD_InteriorMultiplierPoint *>::iterator &ip)
+                                         list<DLMFD_InteriorMultiplierPoint *>::iterator &ip,
+                                         size_t __nip)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
 
     (*ip)->set(comp, point, i, j, k, gravity_center);
     ++nIP;
-    if (nIP == interior_points.size())
+    if (nIP == __nip)
         extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
     ip++;
 }
@@ -287,14 +288,15 @@ void DLMFD_RigidBody::set_interior_point(const size_t &comp,
 void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
                                                   const geomVector &point,
                                                   size_t i, size_t j, size_t k,
-                                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &iphz)
+                                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &iphz,
+                                                  size_t __niphz)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
 
     (*iphz)->set(comp, point, i, j, k, gravity_center);
     ++nIPHZ;
-    if (nIPHZ == halozone_interior_points.size())
+    if (nIPHZ == __niphz)
         extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
     iphz++;
 }

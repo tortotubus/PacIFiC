@@ -88,14 +88,16 @@ public: //-----------------------------------------------------------------
     void set_interior_point(const size_t &comp,
                             const geomVector &point,
                             size_t i, size_t j, size_t k,
-                            list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
+                            list<DLMFD_InteriorMultiplierPoint *>::iterator &ip,
+                            size_t __nip);
 
     /** @brief Set DLMFD halozone interior point in the list
     @param TO Write */
     void set_halozone_interior_point(const size_t &comp,
                                      const geomVector &point,
                                      size_t i, size_t j, size_t k,
-                                     list<DLMFD_InteriorMultiplierPoint *>::iterator &ip);
+                                     list<DLMFD_InteriorMultiplierPoint *>::iterator &ip,
+                                     size_t __niphz);
 
     void setBndPoint(geomVector const &point,
                      FV_Mesh const *primary_grid,
