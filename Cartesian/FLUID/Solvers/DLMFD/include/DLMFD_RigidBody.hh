@@ -442,6 +442,17 @@ public: //-----------------------------------------------------------------
     //@}
 
 protected: //--------------------------------------------------------------
+    //-- Static attributes
+    static size_t BlockSize_InteriorPoints;    /**< number of points the interior
+    points list is extended by in case of optimized memory handling */
+    static size_t BlockSize_BoundaryPoints;    /**< number of points the boundary
+        points list is extended by in case of optimized memory handling */
+    static size_t BlockSize_HZ_InteriorPoints; /**< number of points the
+     halozone interior points list is extended by in case of
+    optimized memory handling */
+    static size_t BlockSize_HZ_BoundaryPoints; /**< number of points the
+     halozone boundary points list is extended by in case of
+    optimized memory handling */
     //-- Attributes
 
     FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */

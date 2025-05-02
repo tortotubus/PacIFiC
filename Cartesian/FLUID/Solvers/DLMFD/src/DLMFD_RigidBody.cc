@@ -9,6 +9,10 @@
 using namespace std;
 
 size_t_array3D *DLMFD_RigidBody::Q2numb = NULL;
+size_t DLMFD_RigidBody::BlockSize_InteriorPoints = 1;
+size_t DLMFD_RigidBody::BlockSize_BoundaryPoints = 1;
+size_t DLMFD_RigidBody::BlockSize_HZ_InteriorPoints = 1;
+size_t DLMFD_RigidBody::BlockSize_HZ_BoundaryPoints = 1;
 
 //---------------------------------------------------------------------------
 DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
@@ -246,7 +250,7 @@ void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_Bou
     (*bp)->set(0, point, gravity_center);
     ++nBP;
     if (nBP == boundary_points.size())
-        extend_bp_list(nBP);
+        extend_bp_list(DLMFD_RigidBody::BlockSize_BoundaryPoints);
     bp++;
 }
 
@@ -259,7 +263,7 @@ void DLMFD_RigidBody::set_halozone_boundary_point(const geomVector &point, list<
     (*bphz)->set(0, point, gravity_center);
     ++nBPHZ;
     if (nBPHZ == halozone_boundary_points.size())
-        extend_bphz_list(nBPHZ);
+        extend_bphz_list(DLMFD_RigidBody::BlockSize_HZ_BoundaryPoints);
     bphz++;
 }
 
@@ -275,7 +279,7 @@ void DLMFD_RigidBody::set_interior_point(const size_t &comp,
     (*ip)->set(comp, point, i, j, k, gravity_center);
     ++nIP;
     if (nIP == interior_points.size())
-        extend_ip_list(nIP);
+        extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
     ip++;
 }
 
@@ -291,7 +295,7 @@ void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
     (*iphz)->set(comp, point, i, j, k, gravity_center);
     ++nIPHZ;
     if (nIPHZ == halozone_interior_points.size())
-        extend_iphz_list(nIPHZ);
+        extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
     iphz++;
 }
 

@@ -272,7 +272,7 @@ void DLMFD_Sphere::allocate_default_listOfPointsAndVectors_Sphere(const double &
 
     double pi = acos(-1.);
     double mesh_size = critical_distance / sqrt(3.);
-    double spacing = critical_distance;
+    double spacing = DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef * critical_distance;
 
     size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
 
