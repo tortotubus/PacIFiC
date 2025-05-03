@@ -101,10 +101,9 @@ private:   //----------------------------------------------------------------
     @param dom mesh and fields
     @param prms set of parameters
     @param exp to read the data file */
-    virtual DLMFD_DirectionSplitting *create_replica(
-        MAC_Object *a_owner,
-        FV_DomainAndFields const *dom,
-        MAC_ModuleExplorer *exp) const;
+    virtual DLMFD_DirectionSplitting *create_replica(MAC_Object *a_owner,
+                                                     FV_DomainAndFields const *dom,
+                                                     MAC_ModuleExplorer *exp) const;
     //@}
 
     //-- Basic discrete system building

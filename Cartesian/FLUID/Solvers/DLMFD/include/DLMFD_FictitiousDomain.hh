@@ -33,6 +33,7 @@ struct NavierStokes2FluidSolid
    // Linear resolution
    DLMFD_System *GLOBAL_EQ;
    size_t velocitylevelDiscrField;
+   size_t nb_levels;
 
     // Booleans
     bool b_restart;
@@ -161,6 +162,7 @@ class DLMFD_FictitiousDomain : public MAC_Object,
   protected: //----------------------------------------------------------------
     //-- Class attributes
     size_t levelDiscrField;
+   size_t nb_levels;
 
   private: //----------------------------------------------------------------
     /** @name Constructors & Destructor */

@@ -285,6 +285,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(
     transfert.split_gravity_vector = split_gravity_vector;
     transfert.GLOBAL_EQ = GLOBAL_EQ;
     transfert.velocitylevelDiscrField = 0;
+  transfert.nb_levels = 1;
     transfert.b_restart = b_restart;
     transfert.output_frequency = output_frequency;
     transfert.UU = UU;

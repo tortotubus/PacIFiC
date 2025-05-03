@@ -230,6 +230,7 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
     transfert.split_gravity_vector = split_gravity_vector;
     transfert.GLOBAL_EQ = GLOBAL_EQ;
     transfert.velocitylevelDiscrField = 0;
+    transfert.nb_levels = 2;
     transfert.b_restart = b_restart;
     transfert.output_frequency = output_frequency;
     transfert.UU = UF;
@@ -304,7 +305,7 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
 
-    // GLOBAL_EQ->initialize_DS_velocity();
+    GLOBAL_EQ->initialize_DS_velocity();
 
     // ------- DLMFD algorithm -------
     if (my_rank == is_master)
@@ -335,6 +336,11 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
     allocate_mpi_variables(PF, 0);
     allocate_mpi_variables(UF, 1);
 
+    // Velocity unsteady matrix
+    if (my_rank == is_master)
+        MAC::out() << "            Velocity unsteady matrix" << endl;
+    GLOBAL_EQ->assemble_velocity_unsteady_matrix(rho / t_it->time_step());
+
     // Synchronize and finalize matrices
     GLOBAL_EQ->finalize_constant_matrices();
 
@@ -345,11 +351,6 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
     // Direction splitting
     // Assemble 1D tridiagonal matrices
     assemble_1D_matrices(t_it);
-
-    // Velocity unsteady matrix
-    if (my_rank == is_master)
-        MAC::out() << "            Velocity unsteady matrix" << endl;
-    GLOBAL_EQ->assemble_velocity_unsteady_matrix(rho / t_it->time_step());
 
     // DLMFD
     dlmfd_solver->do_before_time_stepping(t_it);

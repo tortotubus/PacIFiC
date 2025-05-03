@@ -139,6 +139,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(
     // Create the instances of resolution objects
     GLOBAL_EQ = transfert.GLOBAL_EQ;
     levelDiscrField = transfert.velocitylevelDiscrField;
+   nb_levels = transfert.nb_levels;
 
     // Get the DLMFD convergence criterion and maximum iterations allowed
     Uzawa_DLMFD_precision = GLOBAL_EQ->get_DLMFD_convergence_criterion();
@@ -803,6 +804,10 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
 
     // Copy back the fluid velocity values to the field
     UU->update_free_DOFs_value(levelDiscrField, GLOBAL_EQ->get_solution_U());
+
+   // Transfer values from the level of computation to additional levels if needed
+   for (size_t i = 1; i < nb_levels; i++)
+      UU->copy_DOFs_value(levelDiscrField, i);
 
     if ((my_rank == is_master) && (b_particles_verbose))
     {
