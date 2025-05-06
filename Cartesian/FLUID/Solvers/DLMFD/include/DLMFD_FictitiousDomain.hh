@@ -1,6 +1,8 @@
 #ifndef DLMFD_FictitiousDomain_HH
 #define DLMFD_FictitiousDomain_HH
 
+#include <PAC_computingtime.hh>
+#include <PAC_solvercomputingtime.hh>
 #include <MAC_DoubleVector.hh>
 #include <FS_SolidPlugIn.hh>
 #include <DLMFD_AllRigidBodies.hh>
@@ -42,7 +44,7 @@ struct NavierStokes2FluidSolid
    FV_DiscreteField *PP;
 };
 
-class DLMFD_FictitiousDomain : public MAC_Object
+class DLMFD_FictitiousDomain : public MAC_Object, public PAC_ComputingTime, public PAC_SolverComputingTime
 {
 public: //-----------------------------------------------------------------
    //-- Public class attributes
@@ -253,10 +255,10 @@ private: //----------------------------------------------------------------
    bool b_ExplicitDLMFD;
 
    // MPI data
-   MAC_Communicator const *pelCOMM;
+   MAC_Communicator const *macCOMM;
    size_t size_proc;
-   size_t rank;
-   size_t master;
+   size_t my_rank;
+   size_t is_master;
    string *transferString;
 
    // Output

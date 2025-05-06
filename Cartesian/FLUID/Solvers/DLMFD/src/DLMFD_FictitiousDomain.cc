@@ -16,13 +16,27 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
                                                FV_DomainAndFields const *dom,
                                                MAC_ModuleExplorer const *exp,
                                                NavierStokes2FluidSolid transfert) : MAC_Object(a_owner),
-                                                                                    master(0),
+                                                                                    PAC_ComputingTime("Solver"),
                                                                                     solidSolver(NULL),
                                                                                     solidFluid_transferStream(NULL),
                                                                                     transferString(NULL)
 //--------------------------------------------------------------------------
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: DLMFD_FictitiousDomain");
+
+   // MPI data
+   macCOMM = MAC_Exec::communicator();
+   my_rank = macCOMM->rank();
+   size_proc = macCOMM->nb_ranks();
+   is_master = 0;
+
+   // Timing routines
+   if (my_rank == is_master)
+   {
+      CT_set_start();
+      SCT_insert_app("Objects_Creation");
+      SCT_set_start("Objects_Creation");
+   }
 
    // -- Read the data from the explorer
 
@@ -62,11 +76,6 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    if (exp->has_entry("BPSpacingCoef"))
       DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef = exp->double_data("BPSpacingCoef");
-
-   // MPI data
-   pelCOMM = MAC_Exec::communicator();
-   rank = pelCOMM->rank();
-   size_proc = pelCOMM->nb_ranks();
 
    // Output objects
    SolidSolverResultsDirectory = transfert.solid_resDir;
@@ -138,6 +147,15 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
    Uzawa_DLMFD_maxiter = GLOBAL_EQ->get_DLMFD_maxiter();
 
    finalize_construction(exp);
+
+   // Timing routines
+   if (my_rank == is_master)
+   {
+      SCT_insert_app("update_rigid_bodies");
+      SCT_insert_app("DLMFD_construction");
+      SCT_insert_app("DLMFD_solving");
+      SCT_get_elapsed_time("Objects_Creation");
+   }
 }
 
 //---------------------------------------------------------------------------
@@ -170,7 +188,13 @@ void DLMFD_FictitiousDomain::do_one_inner_iteration(FV_TimeIterator const *t_it,
    MAC_LABEL("DLMFD_FictitiousDomain:: do_one_inner_iteration");
 
    // Newtons's law -- Prediction step
+   if (my_rank == is_master)
+      SCT_set_start("update_rigid_bodies");
+
    update_rigid_bodies(t_it, sub_prob_number);
+
+   if (my_rank == is_master)
+      SCT_get_elapsed_time("update_rigid_bodies");
 
    // DLMFD process -- Correction step
    run_DLMFD_UzawaSolver(t_it, sub_prob_number);
@@ -186,7 +210,7 @@ void DLMFD_FictitiousDomain::do_after_inner_iterations_stage(FV_TimeIterator con
    MAC_LABEL("DLMFD_FictitiousDomain::do_after_inner_iterations_stage");
 
    if (!are_particles_fixed)
-      if (rank == master)
+      if (my_rank == is_master)
       {
          // Update velocity on the solid side
          allrigidbodies->particles_velocities_output(velocitiesVecGrains);
@@ -194,7 +218,7 @@ void DLMFD_FictitiousDomain::do_after_inner_iterations_stage(FV_TimeIterator con
       }
 
    // Write output files
-   if (rank == master && !are_particles_fixed)
+   if (my_rank == is_master && !are_particles_fixed)
       allrigidbodies->particles_features_output(SolidSolverResultsDirectory + "/", b_restart, t_it->time());
 
    allrigidbodies->particles_hydrodynamic_force_output(SolidSolverResultsDirectory + "/",
@@ -244,7 +268,7 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
 
    filename = "saveMultipliersT" + MAC::intToString(cycleNumber);
 
-   if (rank == master)
+   if (my_rank == is_master)
    {
       Paraview_saveMultipliers_pvd << "<DataSet timestep=\"" << t_it->time()
                                    << "\" " << "group=\"\" part=\"0\" file=\"" << filename << ".pvtu\"/>"
@@ -265,8 +289,18 @@ void DLMFD_FictitiousDomain::do_additional_savings(int const &cycleNumber,
    allrigidbodies->output_DLMFDPoints_PARAVIEW(SolidSolverResultsDirectory + "/" + filename,
                                                &Paraview_translated_distance_vector,
                                                true);
-   if (rank == master)
+   if (my_rank == is_master)
       solidSolver->saveResults("", t_it->time(), cycleNumber);
+
+   // Elapsed time by sub-problems
+   if (my_rank == is_master)
+   {
+      double cputime = CT_get_elapsed_time();
+      MAC::out() << endl
+                 << "DLMFD problem" << endl;
+      write_elapsed_time_smhd(MAC::out(), cputime, "Computation time");
+      SCT_get_summary(MAC::out(), cputime);
+   }
 }
 
 //---------------------------------------------------------------------------
@@ -324,7 +358,7 @@ void DLMFD_FictitiousDomain::translate_all(const geomVector &translation_vector,
    allrigidbodies->translate_geometricBoundaries(translation_vector, translation_direction);
 
    double trans_dist = UU->primary_grid()->get_translation_distance();
-   if (rank == master)
+   if (my_rank == is_master)
       solidSolver->setParaviewPostProcessingTranslationVector(translation_direction == 0 ? -trans_dist : 0.,
                                                               translation_direction == 1 ? -trans_dist : 0.,
                                                               translation_direction == 2 ? -trans_dist : 0.);
@@ -375,7 +409,7 @@ void DLMFD_FictitiousDomain::finalize_construction(MAC_ModuleExplorer const *exp
 {
    MAC_LABEL("DLMFD_FictitiousDomain::finalize_construction");
 
-   pelCOMM->barrier();
+   macCOMM->barrier();
 
    allrigidbodies->read_particles_outputs(exp);
 
@@ -383,7 +417,7 @@ void DLMFD_FictitiousDomain::finalize_construction(MAC_ModuleExplorer const *exp
    Paraview_translated_distance_vector.resize(dim);
 
    // Set Iw_Idw and velocitiesVecGrains
-   if (rank == master)
+   if (my_rank == is_master)
    {
       if (allrigidbodies->is_hydro_forceTorque_postprocessed())
       {
@@ -396,7 +430,7 @@ void DLMFD_FictitiousDomain::finalize_construction(MAC_ModuleExplorer const *exp
          velocitiesVecGrains.push_back(vector<double>(6, 0.));
    }
 
-   pelCOMM->barrier();
+   macCOMM->barrier();
 }
 
 //---------------------------------------------------------------------------
@@ -407,7 +441,7 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it, si
 
    if (!are_particles_fixed)
    {
-      if (rank == master)
+      if (my_rank == is_master)
       {
          MAC::out() << "------------------------------------------------------" << endl;
          MAC::out() << "Sub-problem " << sub_prob_number
@@ -416,7 +450,7 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it, si
       }
 
       solidFluid_transferStream = new istringstream;
-      if (rank == master)
+      if (my_rank == is_master)
       {
          // Update the Rigid Bodies (Prediction problem)
          solidSolver->Simulation(t_it->time_step(),
@@ -426,12 +460,12 @@ void DLMFD_FictitiousDomain::update_rigid_bodies(FV_TimeIterator const *t_it, si
                                  b_explicit_added_mass);
       }
       solidSolver->getSolidBodyFeatures(solidFluid_transferStream);
-      if (rank == master)
+      if (my_rank == is_master)
          MAC::out() << "Solid components written in stream by solid solver" << endl;
 
       ++sub_prob_number;
 
-      pelCOMM->barrier();
+      macCOMM->barrier();
    }
 }
 
@@ -441,7 +475,7 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it, 
 {
    MAC_LABEL("DLMFD_FictitiousDomain:: run_DLMFD_UzawaSolver");
 
-   if (rank == master)
+   if (my_rank == is_master)
    {
       if (are_particles_fixed)
       {
@@ -460,14 +494,26 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it, 
    }
 
    // Initialize the DLMFD correction problem
+   if (my_rank == is_master)
+      SCT_set_start("DLMFD_construction");
+
    DLMFD_construction(t_it);
 
+   if (my_rank == is_master)
+      SCT_get_elapsed_time("DLMFD_construction");
+
    // Solve the DLMFD correction problem
+   if (my_rank == is_master)
+      SCT_set_start("DLMFD_solving");
+
    DLMFD_solving(t_it);
+
+   if (my_rank == is_master)
+      SCT_get_elapsed_time("DLMFD_solving");
 
    ++sub_prob_number;
 
-   if (rank == master)
+   if (my_rank == is_master)
       MAC::out() << "Uzawa problem completed" << endl;
 }
 
@@ -511,8 +557,8 @@ void DLMFD_FictitiousDomain::DLMFD_construction(FV_TimeIterator const *t_it)
    // Nullify Uzawa vectors in particles
    allrigidbodies->nullify_all_Uzawa_vectors();
 
-   pelCOMM->barrier();
-   if (rank == master)
+   macCOMM->barrier();
+   if (my_rank == is_master)
       MAC::out() << "Update of DLMFD_AllRigidBodies completed on all processes" << endl;
 }
 
@@ -544,7 +590,7 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
    struct timeval total_start, start, start_iter;
    struct timeval total_end, end, end_iter;
    double elapsed_time = 0.;
-   if (rank == master)
+   if (my_rank == is_master)
       gettimeofday(&total_start, &tz);
 
    // Assemble fluid velocity RHS vector i.e. compute fu = A.u(n-1) where A is
@@ -598,7 +644,7 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
    // Compute nr = r.r
    nr = allrigidbodies->compute_r_dot_r();
 
-   if (rank == master && b_particles_verbose)
+   if (my_rank == is_master && b_particles_verbose)
       MAC::out() << "Residuals = " << MAC::doubleToString(ios::scientific, 14, sqrt(nr))
                  << " " << MAC::doubleToString(ios::scientific, 14, nr) << "  Iterations = 0" << endl;
 
@@ -667,12 +713,12 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
       // Update w = r + beta.w
       allrigidbodies->update_w(beta);
 
-      if (rank == master && b_particles_verbose)
+      if (my_rank == is_master && b_particles_verbose)
          MAC::out() << "Residuals = " << MAC::doubleToString(ios::scientific, 14, sqrt(nr))
                     << " " << MAC::doubleToString(ios::scientific, 14, nr) << "  Iterations = " << iter << endl;
    }
 
-   if (rank == master)
+   if (my_rank == is_master)
       MAC::out() << "Residuals = " << MAC::doubleToString(ios::scientific, 14, sqrt(nr))
                  << "  Nb iterations = " << iter << endl;
 
@@ -682,7 +728,7 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
    // Copy back the fluid velocity values to the field
    UU->update_free_DOFs_value(levelDiscrField, GLOBAL_EQ->get_solution_U());
 
-   if ((rank == master) && (b_particles_verbose))
+   if ((my_rank == is_master) && (b_particles_verbose))
    {
       gettimeofday(&total_end, &tz);
       double total_elapsed_time = total_end.tv_sec - total_start.tv_sec + double(total_end.tv_usec - total_start.tv_usec) / 1e6;
@@ -707,7 +753,7 @@ void DLMFD_FictitiousDomain::calculate_ReductionFor_qtranAndqrot(FV_TimeIterator
    size_t i, k, indexcomp, nsolid;
    geomVector tempqtran(dim), tempqrot(dim);
 
-   if (rank != master)
+   if (my_rank != is_master)
    {
       list<int> const *plistShared = allrigidbodies->get_SharedOnProc();
       list<int>::const_iterator il;
@@ -725,7 +771,7 @@ void DLMFD_FictitiousDomain::calculate_ReductionFor_qtranAndqrot(FV_TimeIterator
             sendbuf((2 * i + 1) * dim + indexcomp) = tempqrot(indexcomp);
          }
       }
-      pelCOMM->send(master, sendbuf);
+      macCOMM->send(is_master, sendbuf);
    }
    else
    {
@@ -734,7 +780,7 @@ void DLMFD_FictitiousDomain::calculate_ReductionFor_qtranAndqrot(FV_TimeIterator
       {
          nsolid = (*pallshared)[k].size();
          doubleVector recvbuf(2 * nsolid * dim);
-         pelCOMM->receive(k, recvbuf);
+         macCOMM->receive(k, recvbuf);
          for (i = 0; i < nsolid; ++i)
          {
             for (indexcomp = 0; indexcomp < dim; ++indexcomp)
@@ -787,7 +833,7 @@ void DLMFD_FictitiousDomain::Broadcast_tVectors_sharedParticles_MasterToAll(FV_T
    geomVector trot(dim);
    size_t i, k, nsolid, indexcomp;
 
-   if (rank == master)
+   if (my_rank == is_master)
    {
       vector<size_t_vector> const *pallshared = allrigidbodies->get_v_AllSharedOnProcs();
       for (k = 1; k < size_proc; ++k)
@@ -805,7 +851,7 @@ void DLMFD_FictitiousDomain::Broadcast_tVectors_sharedParticles_MasterToAll(FV_T
                sendbuf((2 * i + 1) * dim + indexcomp) = trot(indexcomp);
             }
          }
-         pelCOMM->send(k, sendbuf);
+         macCOMM->send(k, sendbuf);
       }
    }
    else
@@ -816,7 +862,7 @@ void DLMFD_FictitiousDomain::Broadcast_tVectors_sharedParticles_MasterToAll(FV_T
       nsolid = pshared->size();
 
       doubleVector recvbuf(2 * nsolid * dim);
-      pelCOMM->receive(master, recvbuf);
+      macCOMM->receive(is_master, recvbuf);
       i = 0;
       for (il = pshared->begin(); il != pshared->end(); il++, ++i)
       {
@@ -855,9 +901,9 @@ void DLMFD_FictitiousDomain::Set_Velocity_AllParticles_Master(FV_TimeIterator co
    list<int>::const_iterator il;
    npart = plistOnProc->size();
    intVector numberOfParticlesSent(size_proc);
-   pelCOMM->gather(npart, numberOfParticlesSent, master);
+   macCOMM->gather(npart, numberOfParticlesSent, is_master);
 
-   if (rank != master)
+   if (my_rank != is_master)
    {
       intVector sendbuf_id(npart);
       doubleVector sendbuf_vel(2 * npart * dim);
@@ -873,8 +919,8 @@ void DLMFD_FictitiousDomain::Set_Velocity_AllParticles_Master(FV_TimeIterator co
             sendbuf_vel((2 * i + 1) * dim + indexcomp) = vrot(indexcomp);
          }
       }
-      pelCOMM->send(master, sendbuf_id);
-      pelCOMM->send(master, sendbuf_vel);
+      macCOMM->send(is_master, sendbuf_id);
+      macCOMM->send(is_master, sendbuf_vel);
    }
    else
    {
@@ -883,8 +929,8 @@ void DLMFD_FictitiousDomain::Set_Velocity_AllParticles_Master(FV_TimeIterator co
          npart = numberOfParticlesSent(k);
          intVector recvbuf_id(npart);
          doubleVector recvbuf_vel(2 * npart * dim);
-         pelCOMM->receive(k, recvbuf_id);
-         pelCOMM->receive(k, recvbuf_vel);
+         macCOMM->receive(k, recvbuf_id);
+         macCOMM->receive(k, recvbuf_vel);
          for (i = 0; i < npart; ++i)
          {
             for (indexcomp = 0; indexcomp < dim; ++indexcomp)
