@@ -1221,8 +1221,7 @@ void DLMFD_ProjectionNavierStokesSystem::store_DLMFD_rhs()
 
 
 //----------------------------------------------------------------------
-void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD(
-    bool const &restart, string const &rootfilename_dlm)
+void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD(bool const &restart)
 //----------------------------------------------------------------------
 {
     MAC_LABEL(

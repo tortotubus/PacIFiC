@@ -152,8 +152,6 @@ public: //-----------------------------------------------------------
 
     /** @name Output methods */
     //@{
-    /** @brief Display matrices and vectors for debugging purposes */
-    void display_debug(void);
     //@}
 
     /** @brief Calls interior function for different conditions to compute the product of Aei*inv(Aii)*Aie */
@@ -191,6 +189,9 @@ public: //-----------------------------------------------------------
     /** @brief Nullify q vector */
     void nullify_QUvector();
 
+    /** @brief Nullify Explicit DLMFD vector */
+    void nullify_Explicit_DLMFD_Cvector();
+
     /** @brief Add the contribution coef*<lambda,v> to the q
     vector i.e. the DLM right hand side of momentum equations in the DLM/FD
     problem
@@ -198,6 +199,12 @@ public: //-----------------------------------------------------------
     @param index the position in the vector
     @param coef parameter */
     void assemble_inQUvector(double transferVal, size_t index, double coef);
+
+    /** @brief Assemble the explicit DLMFD C vector
+    @param transferVec the entry
+    @param index the position in the vector
+    @param coef parameter */
+    void assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef);
 
     /** @brief Solve the fluid system at the matrix level */
     void solve_FluidVel_DLMFD_Init(const double &time);
@@ -212,6 +219,12 @@ public: //-----------------------------------------------------------
 
     /** @brief Update u+=alpha.t */
     void update_FluidVel_OneUzawaIter(const double &alpha);
+
+    void store_DLMFD_rhs();
+
+    void re_initialize_explicit_DLMFD(bool const &restart);
+
+    double get_explicit_DLMFD_at_index(size_t index) const;
 
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
@@ -244,6 +257,7 @@ private:   //----------------------------------------------------------
 
     // Work vectors
     LA_Vector *VEC_q;
+    double *vector_rhs_VelocityDLMFD_Nm1;
     LA_Vector *VEC_t;
     LA_Vector *VEC_r;
     LA_Vector *VEC_w;

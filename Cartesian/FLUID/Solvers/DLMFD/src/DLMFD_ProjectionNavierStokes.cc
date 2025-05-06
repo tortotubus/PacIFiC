@@ -293,11 +293,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(
 
     dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 
-    // Use explicit DLMFD in N&S advection-diffusion equation
-    b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
-    if (b_ExplicitDLMFD)
-        GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart,
-                                                explicitDLMFD_restartFilename);
+  // Use explicit DLMFD in N&S advection-diffusion equation
+  b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+  if (b_ExplicitDLMFD)
+    GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
 }
 
 

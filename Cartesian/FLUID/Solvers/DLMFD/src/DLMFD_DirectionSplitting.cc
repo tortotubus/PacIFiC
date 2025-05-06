@@ -238,8 +238,10 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
 
     dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 
-    // Explicit DLMFD treatment
+    // Use explicit DLMFD in N&S advection-diffusion equation
     b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+    if (b_ExplicitDLMFD)
+        GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
 
     // Timing routines
     if (my_rank == is_master)
@@ -249,7 +251,6 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         SCT_insert_app("Velocity update");
         SCT_insert_app("Penalty Step");
         SCT_insert_app("Pressure Update");
-        SCT_insert_app("Writing CSV");
         SCT_insert_app("FluidSolid_CorrectionStep");
         SCT_get_elapsed_time("Objects_Creation");
     }
@@ -364,12 +365,8 @@ void DLMFD_DirectionSplitting::do_after_time_stepping(void)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: do_after_time_stepping");
-    // Elapsed time by sub-problems
 
-    // SCT_set_start( "Writing CSV" );
-    // write_pressure_field(t_it);
-    // write_velocity_field(t_it);
-    // SCT_get_elapsed_time( "Writing CSV" );
+    // Elapsed time by sub-problems
     output_L2norm_velocity(0);
     output_L2norm_pressure(0);
     // error_with_analytical_solution();
@@ -438,9 +435,17 @@ void DLMFD_DirectionSplitting::do_additional_savings(FV_TimeIterator const *t_it
     // DLMFD additional savings
     dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 
-    stop_total_timer();
+    // Elapsed time by sub-problems
+    if (my_rank == is_master)
+    {
+        double cputime = CT_get_elapsed_time();
+        MAC::out() << endl
+                   << "Full problem" << endl;
+        write_elapsed_time_smhd(MAC::out(), cputime, "Computation time");
+        SCT_get_summary(MAC::out(), cputime);
+    }
 
-    GLOBAL_EQ->display_debug();
+    stop_total_timer();
 }
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::error_with_analytical_solution()
@@ -1741,6 +1746,10 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
     double pvalue = 0., xvalue = 0., yvalue = 0., zvalue = 0., rhs = 0., bodyterm = 0., adv_value = 0.;
     int cpp = -1;
 
+    // DLMFD explicit
+    size_t global_numbering_index = 0;
+    double dlmfd_explicit_value = 0.;
+
     // Periodic pressure gradient
     if (UF->primary_grid()->is_periodic_flow())
     {
@@ -1788,6 +1797,13 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
                     if (cpp >= 0 && cpp == comp)
                         rhs += -bodyterm * dxC * dyC;
 
+                    if (b_ExplicitDLMFD)
+                    {
+                        string error_message = "Explicit DLMFD && dim = 2 : ";
+                        error_message += "Check implementation";
+                        MAC_Error::object()->raise_plain(error_message);
+                    }
+
                     UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * rho));
                 }
                 else
@@ -1811,6 +1827,13 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
 
                         if (cpp >= 0 && cpp == comp)
                             rhs += -bodyterm * dxC * dyC * dzC;
+
+                        if (b_ExplicitDLMFD)
+                        {
+                            global_numbering_index = UF->DOF_global_number(i, j, k, comp);
+                            dlmfd_explicit_value = GLOBAL_EQ->get_explicit_DLMFD_at_index(global_numbering_index);
+                            rhs += dlmfd_explicit_value * dxC * dyC * dzC;
+                        }
 
                         UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * dzC * rho));
                     }

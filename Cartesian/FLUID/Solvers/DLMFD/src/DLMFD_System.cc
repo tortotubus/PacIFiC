@@ -251,6 +251,20 @@ void DLMFD_System::add_storable_objects(
 }
 
 //----------------------------------------------------------------------
+void DLMFD_System::nullify_Explicit_DLMFD_Cvector()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_System::nullify_Explicit_DLMFD_Cvector");
+}
+
+//----------------------------------------------------------------------
+void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_System::assemble_inExplicit_DLMFDvector");
+}
+
+//----------------------------------------------------------------------
 bool DLMFD_System::VelocityDiffusion_solver(void)
 //----------------------------------------------------------------------
 {
@@ -467,28 +481,6 @@ void DLMFD_System::initialize_QUvector_with_divv_rhs()
     MAC_LABEL("DLMFD_System::initialize_QUvector_with_divv_rhs");
 
     string error_message = "DLMFD_System::initialize_QUvector_with_divv_rhs ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::store_DLMFD_rhs()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::store_DLMFD_rhs");
-
-    string error_message = "DLMFD_System::store_DLMFD_rhs ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::re_initialize_explicit_DLMFD(bool const &restart, string const &rootfilename_dlm)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::re_initialize_explicit_DLMFD");
-
-    string error_message = "DLMFD_System::re_initialize_explicit_DLMFD ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
