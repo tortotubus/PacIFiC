@@ -33,6 +33,7 @@ struct TDMatrix
     LA_SeqMatrix ***ei;
     LA_SeqMatrix ***ee;
 };
+
 /** @brief Product matrix is composed of products elements of block matrices (ii,ie,ei,ee) */
 struct ProdMatrix
 {
@@ -40,6 +41,7 @@ struct ProdMatrix
     LA_SeqVector **ii_ie;
     LA_SeqVector **result;
 };
+
 /** @brief LocalVector to be used in storing the local values and interface values of DOF */
 struct LocalVector
 {
@@ -48,9 +50,11 @@ struct LocalVector
     LA_SeqVector **T;
     LA_SeqVector **interface_T;
 };
+
 /** @brief The Class DLMFD_DirectionSplittingSystem.
 Matrix systems for the resolution of the heat equation.
 @author A. Wachs - Pacific project 2017 */
+
 class DLMFD_DirectionSplittingSystem : public MAC_Object, public DLMFD_System
 {
 private: //----------------------------------------------------------

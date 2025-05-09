@@ -22,6 +22,8 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <GrainsExec.hh>
+
 DLMFD_DirectionSplitting const *DLMFD_DirectionSplitting::PROTOTYPE = new DLMFD_DirectionSplitting();
 
 //---------------------------------------------------------------------------
@@ -66,13 +68,26 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
       resultsDirectory("Res"),
       AdvectionTimeAccuracy(1),
       rho(1.),
+      b_projection_translation(dom->primary_grid()->is_translation_active()),
+      primary_grid(dom->primary_grid()),
+      critical_distance_translation(0.),
       translation_direction(0),
+      bottom_coordinate(0.),
       translated_distance(0.)
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: DLMFD_DirectionSplitting");
     MAC_ASSERT(UF->discretization_type() == "staggered");
     MAC_ASSERT(PF->discretization_type() == "centered");
-    MAC_ASSERT(UF->storage_depth() == 5);
+    if (b_projection_translation)
+    {
+        MAC_ASSERT(PF->storage_depth() == 3);
+        MAC_ASSERT(UF->storage_depth() == 6);
+    }
+    else
+    {
+        MAC_ASSERT(PF->storage_depth() == 2);
+        MAC_ASSERT(UF->storage_depth() == 5);
+    }
 
     // Call of MAC_Communicator routine to set the rank of each proces and
     // the number of processes during execution
@@ -166,6 +181,19 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         string error_message = "   - 1\n   - 2\n   ";
         MAC_Error::object()->raise_bad_data_value(exp,
                                                   "AdvectionTimeAccuracy", error_message);
+    }
+
+    // Critical distance
+    if (b_projection_translation)
+    {
+        if (exp->has_entry("Critical_Distance_Translation"))
+            critical_distance_translation = exp->double_data("Critical_Distance_Translation");
+        else
+        {
+            string error_message = " Projection-Translation is active but ";
+            error_message += "Critical_Distance_Translation is NOT defined.";
+            MAC_Error::object()->raise_bad_data_value(exp, "Projection_Translation", error_message);
+        }
     }
 
     // Periodic boundary condition check for velocity
@@ -263,6 +291,18 @@ DLMFD_DirectionSplitting::~DLMFD_DirectionSplitting(void)
     MAC_LABEL("DLMFD_DirectionSplitting:: ~DLMFD_DirectionSplitting");
     free_DDS_subcommunicators();
 }
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting::set_translation_vector()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: set_translation_vector");
+
+    MVQ_translation_vector.resize(primary_grid->nb_space_dimensions());
+    translation_direction = primary_grid->get_translation_direction();
+    MVQ_translation_vector(translation_direction) = primary_grid->get_translation_magnitude();
+}
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_it)
 //---------------------------------------------------------------------------
@@ -306,7 +346,6 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
 
-    GLOBAL_EQ->initialize_DS_velocity();
 
     // ------- DLMFD algorithm -------
     if (my_rank == is_master)
@@ -336,6 +375,25 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
 
     allocate_mpi_variables(PF, 0);
     allocate_mpi_variables(UF, 1);
+
+    // Projection-Translation
+    if (b_projection_translation)
+    {
+        set_translation_vector();
+
+        if (MVQ_translation_vector(translation_direction) < 0.)
+            bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                [translation_direction](0);
+        else
+            bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+
+        geomVector vt(dim);
+        vt(translation_direction) = primary_grid->get_translation_distance();
+        dlmfd_solver->setParaviewPostProcessingTranslationVector(-vt(0), -vt(1), -vt(2));
+
+        build_links_translation();
+    }
 
     // Velocity unsteady matrix
     if (my_rank == is_master)
@@ -421,6 +479,43 @@ void DLMFD_DirectionSplitting::do_after_inner_iterations_stage(
 
     // DLMFD computation
     dlmfd_solver->do_after_inner_iterations_stage(t_it);
+
+    // Projection translation
+    if (b_projection_translation)
+    {
+        double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
+
+        if (my_rank == is_master)
+            MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
+                       << endl;
+
+        if (distance_to_bottom < critical_distance_translation)
+        {
+
+            if (my_rank == is_master)
+                MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                           << endl
+                           << "         !!!     Domain Translation      !!!"
+                           << endl
+                           << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                           << endl;
+
+            translated_distance += MVQ_translation_vector(translation_direction);
+            if (my_rank == is_master)
+                MAC::out() << "         Translated distance = " << translated_distance << endl;
+
+            fields_projection();
+
+            dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
+
+            if (MVQ_translation_vector(translation_direction) < 0.)
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction](0);
+            else
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+        }
+    }
     stop_total_timer();
 }
 //---------------------------------------------------------------------------
@@ -1830,6 +1925,10 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
 
                         if (b_ExplicitDLMFD)
                         {
+                            string error_message = "Explicit DLMFD : ";
+                            error_message += "Not working yet";
+                            MAC_Error::object()->raise_plain(error_message);
+
                             global_numbering_index = UF->DOF_global_number(i, j, k, comp);
                             dlmfd_explicit_value = GLOBAL_EQ->get_explicit_DLMFD_at_index(global_numbering_index);
                             rhs += dlmfd_explicit_value * dxC * dyC * dzC;
@@ -2839,6 +2938,58 @@ void DLMFD_DirectionSplitting::free_DDS_subcommunicators(void)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting:: free_DDS_subcommunicators");
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting::build_links_translation()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: build_links_translation");
+
+    UF->create_transproj_interpolation();
+    PF->create_transproj_interpolation();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting::fields_projection()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: fields_projection");
+
+    FV_Mesh *pmesh = const_cast<FV_Mesh *>(primary_grid);
+    pmesh->translation();
+
+    // TODO : Add the explicit correction from projection
+
+    if (b_ExplicitDLMFD)
+    {
+        string error_message = "Translation-Projection + Explicit DLMFD : ";
+        error_message += "Not implemented yet";
+        MAC_Error::object()->raise_plain(error_message);
+    }
+
+    // Velocity 
+    UF->translation_projection(0, 5, 0);
+    UF->synchronize(0);
+
+    UF->translation_projection(1, 5, 0);
+    UF->synchronize(1);
+
+    UF->translation_projection(2, 5, 0);
+    UF->synchronize(2);
+
+    UF->translation_projection(3, 5, 0);
+    UF->synchronize(3);
+
+    UF->translation_projection(4, 5, 1);
+    UF->synchronize(4);
+
+    // Pressure
+    PF->translation_projection(0, 2, 0);
+    PF->synchronize(0);
+
+    PF->translation_projection(1, 2, 1);
+    PF->synchronize(1);
 }
 
 //----------------------------------------------------------------------

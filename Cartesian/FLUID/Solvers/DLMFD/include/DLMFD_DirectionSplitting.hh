@@ -106,6 +106,15 @@ private:   //----------------------------------------------------------------
                                                      MAC_ModuleExplorer *exp) const;
     //@}
 
+    //-- Set methods
+    /** @name Set methods */
+    //@{
+
+    /** @brief Setting the translation vector */
+    void set_translation_vector();
+
+    //@}
+
     //-- Basic discrete system building
 
     /** @name Basic discrete system building */
@@ -215,6 +224,18 @@ private:   //----------------------------------------------------------------
 
     //@}
 
+    //-- Utilities
+    /** @name Utilities */
+    //@{
+
+    /** @brief Creation of Translation-Projection interpolations */
+    void build_links_translation();
+
+    /** @brief Fields projection, called in case of Translation-Projection */
+    void fields_projection();
+
+    //@}
+
 private: //----------------------------------------------------------------
          //-- Class attributes
     static DLMFD_DirectionSplitting const *PROTOTYPE;
@@ -259,8 +280,13 @@ private: //----------------------------------------------------------------
     //-- DLMFD solver
     DLMFD_FictitiousDomain *dlmfd_solver;
 
-    // Grid motion TODO: Put this in a fluid section
+    // Grid motion
+    bool b_projection_translation;
+    FV_Mesh const *primary_grid;
+    double critical_distance_translation;
+    geomVector MVQ_translation_vector;
     size_t translation_direction;
+    double bottom_coordinate;
     double translated_distance;
 
     // Physical inputs
