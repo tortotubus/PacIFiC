@@ -7,9 +7,6 @@
 #include "BVolume.hh"
 #include "GrainsExec.hh"
 
-#include <fstream>
-static std::ofstream res_out("res_output.txt");
-
 
 // ----------------------------------------------------------------------------
 // Default constructor (forbidden)
@@ -536,7 +533,6 @@ double closest_points( Convex const& a, Convex const& b,
 	Transform const& a2w, Transform const& b2w, 
 	Point3& pa, Point3& pb, int& nbIter )
 {
-  extern std::ofstream res_out;
   // GJK variables
   unsigned int bits = 0;           // identifies current simplex
   unsigned int last = 0;           // identifies last found support point
@@ -623,8 +619,6 @@ double closest_points( Convex const& a, Convex const& b,
     catch_me();
   else // otherwise, report the No. iterations
     nbIter = numIterations;
-
-  res_out << mu << std::endl;
   return ( dist );
 }
 
@@ -639,7 +633,6 @@ double closest_points( Convex const& a, Convex const& b,
 	Transform const& a2w, Transform const& b2w, Vector3& v, 
 	Point3& pa, Point3& pb, int& nbIter )
 {
-  extern std::ofstream res_out;
   // GJK variables
   unsigned int bits = 0;           // identifies current simplex
   unsigned int last = 0;           // identifies last found support point
@@ -732,8 +725,6 @@ double closest_points( Convex const& a, Convex const& b,
     catch_me();
   else // otherwise, report the No. iterations
     nbIter = numIterations;
-
-  res_out << mu << std::endl;
   return ( dist );
 }
 

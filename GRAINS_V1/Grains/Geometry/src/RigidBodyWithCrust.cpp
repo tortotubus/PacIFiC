@@ -13,7 +13,6 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
-static std::ofstream dist_out("dist_output.txt");
 
 // ----------------------------------------------------------------------------
 // Default constructor
@@ -205,7 +204,6 @@ BBox RigidBodyWithCrust::BoxRigidBody() const
 // between the shrunk rigid bodies < sum of the crust thicknesses
 PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
 {
-  extern std::ofstream dist_out;
   try 
   {
     Convex const* convexA = m_convex;
@@ -346,7 +344,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
       // If actual overlap distance < 0 => contact
       // otherwise no contact
       distance -= m_crustThickness + neighbor.m_crustThickness;
-      dist_out << distance << std::endl;
+
       return ( PointContact( contact, overlap_vector, distance, nbIterGJK ) );
     }
     else
@@ -364,7 +362,6 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor )
 PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
 	Vector3& initialDirection )
 {
-  extern std::ofstream dist_out;
   try 
   {
     Convex const* convexA = m_convex;
@@ -508,7 +505,7 @@ PointContact RigidBodyWithCrust::ClosestPoint( RigidBodyWithCrust &neighbor,
       // If actual overlap distance < 0 => contact
       // otherwise no contact
       distance -= m_crustThickness + neighbor.m_crustThickness;
-      dist_out << distance << std::endl;
+
       return ( PointContact( contact, overlap_vector, distance, nbIterGJK ) );
     }
     else
