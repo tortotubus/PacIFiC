@@ -91,6 +91,15 @@ void DLMFD_Sphere::set_all_MAC(FV_DiscreteField *pField, double critical_distanc
 
         set_all_points(pField, critical_distance);
     }
+
+    // This method must be called once, and only once.
+    // When temperature and particle_as_fixed_obtacle are combined, set_all_MAC
+    // is called at each time step while allocate_exact_listOfPointInfosAndVectors
+    // must be called only once. The boolean b_exactAllocation_done prevents from
+    // performing the allocation twice as the return value of the method
+    // allocate_exact_listOfPointInfosAndVectors is true
+    if (is_particle_fixed && !b_exactAllocation_done)
+        b_exactAllocation_done = allocate_exact_listOfPointInfosAndVectors();
 }
 
 //---------------------------------------------------------------------------
@@ -254,11 +263,25 @@ void DLMFD_Sphere::set_interior_points_list(FV_DiscreteField *pField, double cri
                             pField->set_DOF_constrained(i, j, k, comp);
                             if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
                             {
-                                set_interior_point(comp, point, i, j, k, ip, __nip);
+                                (*ip)->set(comp, point, i, j, k, gravity_center);
+                                ++nIP;
+                                if (nIP == __nip)
+                                {
+                                    extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
+                                    __nip = interior_points.size();
+                                }
+                                ip++;
                             }
                             else
                             {
-                                set_halozone_interior_point(comp, point, i, j, k, iphz, __niphz);
+                                (*iphz)->set(comp, point, i, j, k, gravity_center);
+                                ++nIPHZ;
+                                if (nIPHZ == __niphz)
+                                {
+                                    extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
+                                    __niphz = halozone_interior_points.size();
+                                }
+                                iphz++;
                             }
                         }
                     }
@@ -273,23 +296,29 @@ void DLMFD_Sphere::allocate_default_listOfPointsAndVectors_Sphere(const double &
 {
     MAC_LABEL("DS_Sphere::allocate_default_listOfPointsAndVectors_Sphere()");
 
-    double pi = acos(-1.);
-    double mesh_size = critical_distance / sqrt(3.);
-    double spacing = DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef * critical_distance;
+    if (is_particle_fixed)
+        initialize_listOfDLMFDPoints();
+    else
+    {
 
-    size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
+        double pi = acos(-1.);
+        double mesh_size = critical_distance / sqrt(3.);
+        double spacing = DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef * critical_distance;
 
-    size_t n = size_t(2. * radius / mesh_size) + 1;
+        size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
 
-    size_t nb = size_t(pi * radius / spacing);
-    size_t nbIPdef = size_t(3.2 * pi * n * n * n / 6.);
-    size_t nbIPHZdef = security_bandwidth * n * n * 3 * 2;
+        size_t n = size_t(2. * radius / mesh_size) + 1;
 
-    size_t nbBPdef = size_t(pow(3.809 * radius / spacing, 2.));
+        size_t nb = size_t(pi * radius / spacing);
+        size_t nbIPdef = size_t(3.2 * pi * n * n * n / 6.);
+        size_t nbIPHZdef = security_bandwidth * n * n * 3 * 2;
 
-    size_t nbBPHZdef = size_t(0.25 * nbBPdef);
+        size_t nbBPdef = size_t(pow(3.809 * radius / spacing, 2.));
 
-    allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
+        size_t nbBPHZdef = size_t(0.25 * nbBPdef);
+
+        allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
+    }
 }
 
 //---------------------------------------------------------------------------

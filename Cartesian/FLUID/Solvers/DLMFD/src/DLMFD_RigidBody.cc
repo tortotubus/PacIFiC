@@ -30,6 +30,7 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
                                  FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
                                                               pField_(pField_),
                                                               is_particle_fixed(are_particles_fixed),
+                                                              b_exactAllocation_done(false),
                                                               VEC_r(*DLMFD_FictitiousDomain::dbnull),
                                                               VEC_x(*DLMFD_FictitiousDomain::dbnull),
                                                               VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
@@ -206,42 +207,6 @@ void DLMFD_RigidBody::set_ptr_periodic_directions()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody::initialize_listOfDLMFDPoints");
-
-    DLMFD_InteriorMultiplierPoint *imp = NULL;
-    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
-
-    geomVector virtual_point = geomVector(0., 0., 0.);
-
-    if (interior_points.empty())
-    {
-        interior_points.push_back(imp);
-        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
-    }
-
-    if (halozone_interior_points.empty())
-    {
-        halozone_interior_points.push_back(imp);
-        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
-    }
-
-    if (boundary_points.empty())
-    {
-        boundary_points.push_back(bmp);
-        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
-    }
-
-    if (halozone_boundary_points.empty())
-    {
-        halozone_boundary_points.push_back(bmp);
-        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
-    }
-}
-
-//---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
@@ -280,7 +245,10 @@ void DLMFD_RigidBody::set_interior_point(const size_t &comp,
     (*ip)->set(comp, point, i, j, k, gravity_center);
     ++nIP;
     if (nIP == __nip)
+    {
         extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
+        __nip = interior_points.size();
+    }
     ip++;
 }
 
@@ -297,7 +265,10 @@ void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
     (*iphz)->set(comp, point, i, j, k, gravity_center);
     ++nIPHZ;
     if (nIPHZ == __niphz)
+    {
         extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
+        __niphz = halozone_interior_points.size();
+    }
     iphz++;
 }
 
@@ -1292,6 +1263,63 @@ void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(size_t const &nbIP
     VEC_x.re_initialize(ndofdef, 0.);
     VEC_lambda.re_initialize(ndofdef, 0.);
     VEC_w.re_initialize(ndofdef, 0.);
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::initialize_listOfDLMFDPoints");
+
+    DLMFD_InteriorMultiplierPoint *imp = NULL;
+    DLMFD_BoundaryMultiplierPoint *bmp = NULL;
+
+    geomVector virtual_point = geomVector(0., 0., 0.);
+
+    if (interior_points.empty())
+    {
+        interior_points.push_back(imp);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    if (halozone_interior_points.empty())
+    {
+        halozone_interior_points.push_back(imp);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+    }
+
+    if (boundary_points.empty())
+    {
+        boundary_points.push_back(bmp);
+        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+
+    if (halozone_boundary_points.empty())
+    {
+        halozone_boundary_points.push_back(bmp);
+        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+    }
+}
+
+//---------------------------------------------------------------------------
+bool DLMFD_RigidBody::allocate_exact_listOfPointInfosAndVectors()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody::allocate_exact_listOfPointInfosAndVectors");
+
+    size_t ndofdef = nIP + nBP * gravity_center.getVecSize();
+    struct ULBD_RHSInfos OnePointInfos;
+    OnePointInfos.ptr_point = NULL;
+    OnePointInfos.compIdx = 0;
+    for (size_t i = 0; i < ndofdef; ++i)
+        points_infos.push_back(OnePointInfos);
+
+    VEC_r.re_initialize(ndofdef, 0.);
+    VEC_x.re_initialize(ndofdef, 0.);
+    VEC_lambda.re_initialize(ndofdef, 0.);
+    VEC_w.re_initialize(ndofdef, 0.);
+
+    return (true);
 }
 
 //---------------------------------------------------------------------------

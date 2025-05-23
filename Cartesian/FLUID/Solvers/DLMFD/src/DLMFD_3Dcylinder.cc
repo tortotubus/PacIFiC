@@ -121,6 +121,15 @@ void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField, double critical_dis
 
         set_all_points(pField, critical_distance);
     }
+
+    // This method must be called once, and only once.
+    // When temperature and particle_as_fixed_obtacle are combined, set_all_MAC
+    // is called at each time step while allocate_exact_listOfPointInfosAndVectors
+    // must be called only once. The boolean b_exactAllocation_done prevents from
+    // performing the allocation twice as the return value of the method
+    // allocate_exact_listOfPointInfosAndVectors is true
+    if (is_particle_fixed && !b_exactAllocation_done)
+        b_exactAllocation_done = allocate_exact_listOfPointInfosAndVectors();
 }
 
 //---------------------------------------------------------------------------
@@ -287,11 +296,25 @@ void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double
                             pField->set_DOF_constrained(i, j, k, comp);
                             if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
                             {
-                                set_interior_point(comp, node, i, j, k, ip, __nip);
+                                (*ip)->set(comp, node, i, j, k, gravity_center);
+                                ++nIP;
+                                if (nIP == __nip)
+                                {
+                                    extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
+                                    __nip = interior_points.size();
+                                }
+                                ip++;
                             }
                             else
                             {
-                                set_halozone_interior_point(comp, node, i, j, k, iphz, __niphz);
+                                (*iphz)->set(comp, node, i, j, k, gravity_center);
+                                ++nIPHZ;
+                                if (nIPHZ == __niphz)
+                                {
+                                    extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
+                                    __niphz = halozone_interior_points.size();
+                                }
+                                iphz++;
                             }
                         }
                     }
@@ -338,48 +361,53 @@ void DLMFD_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder(const 
 {
     MAC_LABEL("DS_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder()");
 
-    double pi = acos(-1.);
-    double spacing = critical_distance;
-    double mesh_size = critical_distance / sqrt(3.);
-    size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
-    size_t nSI = size_t(2. * cylinder_radius / mesh_size) + 1;
-    size_t nHI = size_t(cylinder_height / mesh_size) + 1;
-    size_t nbIPdef = size_t(3.2 * nHI * pi * nSI * nSI / 4.);
-    size_t nbIPHZdef = security_bandwidth * 3 * nSI * nSI;
-
-    // Exterior
-    size_t npts_radius = size_t(cylinder_radius / critical_distance) + 1;
-    double delta_radius = cylinder_radius / (npts_radius - 1);
-    size_t npts_height = size_t(cylinder_height / sqrt(3) * 2 / spacing) + 1;
-    double local_radius;
-    size_t npts_local_radius;
-    size_t nbBPdef = 0;
-
-    // Bottom and Top centers
-    nbBPdef += 2;
-
-    // Cylinder height
-    npts_local_radius = size_t(2. * pi * cylinder_radius / critical_distance);
-    nbBPdef += npts_local_radius * npts_height;
-
-    // Spiralling distribution
-    double goldenAngle = pi * (3 - sqrt(5));
-    size_t nPtsDisk;
-    double theoreticalPacking = pi / 2 / sqrt(3);
-    double nPtsDiski = 4. * cylinder_radius * cylinder_radius / (spacing * spacing) * theoreticalPacking;
-    double nPtsDiskOld = 0;
-
-    // Loop giving the optimal number of points on the disk (converge in 4-5 iterations)
-    while (fabs(nPtsDiski - nPtsDiskOld) > 1e-2)
+    if (is_particle_fixed)
+        initialize_listOfDLMFDPoints();
+    else
     {
-        nPtsDiskOld = nPtsDiski;
-        nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) * (theoreticalPacking - 1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
+        double pi = acos(-1.);
+        double spacing = critical_distance * DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef;
+        double mesh_size = critical_distance / sqrt(3.);
+        size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
+        size_t nSI = size_t(2. * cylinder_radius / mesh_size) + 1;
+        size_t nHI = size_t(cylinder_height / mesh_size) + 1;
+        size_t nbIPdef = size_t(3.2 * nHI * pi * nSI * nSI / 4.);
+        size_t nbIPHZdef = security_bandwidth * 3 * nSI * nSI;
+
+        // Exterior
+        size_t npts_radius = size_t(cylinder_radius / critical_distance) + 1;
+        double delta_radius = cylinder_radius / (npts_radius - 1);
+        size_t npts_height = size_t(cylinder_height / sqrt(3) * 2 / spacing) + 1;
+        double local_radius;
+        size_t npts_local_radius;
+        size_t nbBPdef = 0;
+
+        // Bottom and Top centers
+        nbBPdef += 2;
+
+        // Cylinder height
+        npts_local_radius = size_t(2. * pi * cylinder_radius / critical_distance);
+        nbBPdef += npts_local_radius * npts_height;
+
+        // Spiralling distribution
+        double goldenAngle = pi * (3 - sqrt(5));
+        size_t nPtsDisk;
+        double theoreticalPacking = pi / 2 / sqrt(3);
+        double nPtsDiski = 4. * cylinder_radius * cylinder_radius / (spacing * spacing) * theoreticalPacking;
+        double nPtsDiskOld = 0;
+
+        // Loop giving the optimal number of points on the disk (converge in 4-5 iterations)
+        while (fabs(nPtsDiski - nPtsDiskOld) > 1e-2)
+        {
+            nPtsDiskOld = nPtsDiski;
+            nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) * (theoreticalPacking - 1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
+        }
+        nbBPdef += 2 * size_t(nPtsDiski);
+
+        size_t nbBPHZdef = size_t(0.5 * nbBPdef);
+
+        allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
     }
-    nbBPdef += 2 * size_t(nPtsDiski);
-
-    size_t nbBPHZdef = size_t(0.5 * nbBPdef);
-
-    allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
 }
 
 //---------------------------------------------------------------------------

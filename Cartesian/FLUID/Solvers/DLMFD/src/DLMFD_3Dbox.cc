@@ -105,6 +105,15 @@ void DLMFD_3Dbox::set_all_MAC(FV_DiscreteField *pField, double critical_distance
 
         set_all_points(pField, critical_distance);
     }
+
+    // This method must be called once, and only once.
+    // When temperature and particle_as_fixed_obtacle are combined, set_all_MAC
+    // is called at each time step while allocate_exact_listOfPointInfosAndVectors
+    // must be called only once. The boolean b_exactAllocation_done prevents from
+    // performing the allocation twice as the return value of the method
+    // allocate_exact_listOfPointInfosAndVectors is true
+    if (is_particle_fixed && !b_exactAllocation_done)
+        b_exactAllocation_done = allocate_exact_listOfPointInfosAndVectors();
 }
 
 //---------------------------------------------------------------------------
@@ -295,11 +304,25 @@ void DLMFD_3Dbox::set_interior_points_list(FV_DiscreteField *pField, double crit
                             pField->set_DOF_constrained(i, j, k, comp);
                             if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
                             {
-                                set_interior_point(comp, node, i, j, k, ip, __nip);
+                                (*ip)->set(comp, node, i, j, k, gravity_center);
+                                ++nIP;
+                                if (nIP == __nip)
+                                {
+                                    extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
+                                    __nip = interior_points.size();
+                                }
+                                ip++;
                             }
                             else
                             {
-                                set_halozone_interior_point(comp, node, i, j, k, iphz, __niphz);
+                                (*iphz)->set(comp, node, i, j, k, gravity_center);
+                                ++nIPHZ;
+                                if (nIPHZ == __niphz)
+                                {
+                                    extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
+                                    __niphz = halozone_interior_points.size();
+                                }
+                                iphz++;
                             }
                         }
                     }
@@ -340,35 +363,40 @@ FS_3Dbox_Additional_Param const *DLMFD_3Dbox::get_ptr_FS_3Dbox_Additional_Param(
 void DLMFD_3Dbox::allocate_default_listOfPointsAndVectors_3Dbox(const double &critical_distance, FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DS_3Dbox::allocate_default_listOfPointsAndVectors_3Dbox()");
+    MAC_LABEL("DLMFD_3Dbox::allocate_default_listOfPointsAndVectors_3Dbox()");
 
-    coor_min.set(1.e20);
-    coor_max.set(-1.e20);
-    for (size_t m = 0; m < 3; ++m)
-        for (vector<geomVector>::iterator cornIter = corners.begin();
-             cornIter != corners.end(); cornIter++)
-        {
-            coor_min(m) = (*cornIter)(m) < coor_min(m) ? (*cornIter)(m) : coor_min(m);
-            coor_max(m) = (*cornIter)(m) > coor_max(m) ? (*cornIter)(m) : coor_max(m);
-        }
+    if (is_particle_fixed)
+        initialize_listOfDLMFDPoints();
+    else
+    {
+        coor_min.set(1.e20);
+        coor_max.set(-1.e20);
+        for (size_t m = 0; m < 3; ++m)
+            for (vector<geomVector>::iterator cornIter = corners.begin();
+                 cornIter != corners.end(); cornIter++)
+            {
+                coor_min(m) = (*cornIter)(m) < coor_min(m) ? (*cornIter)(m) : coor_min(m);
+                coor_max(m) = (*cornIter)(m) > coor_max(m) ? (*cornIter)(m) : coor_max(m);
+            }
 
-    double mesh_size = critical_distance / sqrt(3.);
-    size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
+        double mesh_size = critical_distance / sqrt(3.);
+        size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
 
-    size_t nxI = size_t((coor_max(0) - coor_min(0)) / mesh_size) + 1;
-    size_t nyI = size_t((coor_max(1) - coor_min(1)) / mesh_size) + 1;
-    size_t nzI = size_t((coor_max(2) - coor_min(2)) / mesh_size) + 1;
+        size_t nxI = size_t((coor_max(0) - coor_min(0)) / mesh_size) + 1;
+        size_t nyI = size_t((coor_max(1) - coor_min(1)) / mesh_size) + 1;
+        size_t nzI = size_t((coor_max(2) - coor_min(2)) / mesh_size) + 1;
 
-    size_t nxB = size_t((coor_max(0) - coor_min(0)) / critical_distance) + 1;
-    size_t nyB = size_t((coor_max(1) - coor_min(1)) / critical_distance) + 1;
-    size_t nzB = size_t((coor_max(2) - coor_min(2)) / critical_distance) + 1;
+        size_t nxB = size_t((coor_max(0) - coor_min(0)) / critical_distance) + 1;
+        size_t nyB = size_t((coor_max(1) - coor_min(1)) / critical_distance) + 1;
+        size_t nzB = size_t((coor_max(2) - coor_min(2)) / critical_distance) + 1;
 
-    size_t nbIPdef = 3 * nxI * nyI * nzI;
-    size_t nbBPdef = 2 * (nxB * nyB + nxB * nzB + nyB * nzB);
-    size_t nbIPHZdef = security_bandwidth * (nxI * nyI + nxI * nzI + nyI * nzI);
-    size_t nbBPHZdef = size_t(0.5 * nbBPdef);
+        size_t nbIPdef = 3 * nxI * nyI * nzI;
+        size_t nbBPdef = 2 * (nxB * nyB + nxB * nzB + nyB * nzB);
+        size_t nbIPHZdef = security_bandwidth * (nxI * nyI + nxI * nzI + nyI * nzI);
+        size_t nbBPHZdef = size_t(0.5 * nbBPdef);
 
-    allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
+        allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
+    }
 }
 
 //---------------------------------------------------------------------------

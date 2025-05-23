@@ -63,8 +63,6 @@ public: //-----------------------------------------------------------------
 
     void set_ptr_periodic_directions();
 
-    void initialize_listOfDLMFDPoints();
-
     /** @brief Set MAC
     @param critical_distance Critical distance
     @param pField Constrained field */
@@ -276,6 +274,14 @@ public: //-----------------------------------------------------------------
                                                  size_t const &nbBPdef,
                                                  size_t const &nbIPHZdef,
                                                  size_t const &nbBPHZdef);
+
+    /** @brief Initialize the list of DLM/FD points to a single element each */
+    void initialize_listOfDLMFDPoints();
+
+    /** @brief Allocate the list of point infos and the Uzawa
+    vectors with exact lengthes once the lists of DLM/FD points have been
+    created */
+    bool allocate_exact_listOfPointInfosAndVectors();
 
     //@}
 
@@ -500,6 +506,12 @@ protected: //--------------------------------------------------------------
     solid component circumscribing box */
     size_t_array2D *index_max; /**< upper bound index in the mesh related to the
      solid component circumscribing box */
+
+    bool b_exactAllocation_done; /**< in case of particle treated as fixed
+                                obstacle, exact allocation of point infos and vectors must
+                                be done only once; as this boolean is true, the method
+                                allocate_exact_listOfPointInfosAndVectors
+                                is not called anymore */
 
     size_t *NDOF_comp;       /**< vector of component number of constrained DOF */
     double *NDOF_leverage;   /**< vector of leverage of constrained velocity
