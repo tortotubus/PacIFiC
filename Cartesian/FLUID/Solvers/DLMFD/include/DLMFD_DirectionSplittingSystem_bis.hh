@@ -8,9 +8,12 @@
 #include <size_t_array2D.hh>
 #include <doubleArray2D.hh>
 #include <vector>
+#include <LA_StorableVectors.hh>
+#include <LA_SeqVector.hh>
 using namespace std;
 
 class MAC_ModuleExplorer;
+class MAC_ListIdentity;
 class MAC_Communicator;
 class MAC_Timer;
 class size_t_vector;
@@ -217,9 +220,6 @@ public: //-----------------------------------------------------------
     /** @brief Nullify q vector */
     void nullify_QUvector();
 
-    /** @brief Nullify Explicit DLMFD vector */
-    void nullify_Explicit_DLMFD_Cvector();
-
     /** @brief Add the contribution coef*<lambda,v> to the q
     vector i.e. the DLM right hand side of momentum equations in the DLM/FD
     problem
@@ -227,12 +227,6 @@ public: //-----------------------------------------------------------
     @param index the position in the vector
     @param coef parameter */
     void assemble_inQUvector(double transferVal, size_t index, double coef);
-
-    /** @brief Assemble the explicit DLMFD C vector
-    @param transferVec the entry
-    @param index the position in the vector
-    @param coef parameter */
-    void assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef);
 
     /** @brief Solve the fluid system at the matrix level */
     void solve_FluidVel_DLMFD_Init(const double &time);
@@ -252,7 +246,24 @@ public: //-----------------------------------------------------------
 
     void re_initialize_explicit_DLMFD(bool const &restart);
 
-    double get_explicit_DLMFD_at_index(size_t index) const;
+    /** @name Translation projection from peligriff */
+    //@{
+
+    void set_velocity_unknown(size_t i_row, double xx);
+
+    void synchronize_velocity_unknown_vector();
+
+    void nullify_DLMFD_Nm1_rhs();
+
+    void set_rhs_DLMFD_Nm1(size_t i_row, double xx);
+
+    LA_SeqVector const *get_rhs_DLMFD_Nm1();
+
+    void synchronize_rhs_DLMFD_Nm1_vector();
+
+    //@}
+
+    void add_storable_objects(MAC_ListIdentity *list) const;
 
 protected: //--------------------------------------------------------
 private:   //----------------------------------------------------------
@@ -333,7 +344,6 @@ private:   //----------------------------------------------------------
 
     // Work vectors
     LA_Vector *VEC_q;
-    double *vector_rhs_VelocityDLMFD_Nm1;
     LA_Vector *VEC_t;
     LA_Vector *VEC_r;
     LA_Vector *VEC_w;
@@ -348,6 +358,9 @@ private:   //----------------------------------------------------------
     // Explicit treatment
     LA_Vector *VEC_rhs_VelocityDLMFD_Nm1;
     bool b_NS_ExplicitDLMFD;
+
+    // Storing vectors for reload
+    LA_StorableVectors *VECS_Storage;
 
     // Global velocity solution vectors
     LA_Vector *VEC_DS_UF;

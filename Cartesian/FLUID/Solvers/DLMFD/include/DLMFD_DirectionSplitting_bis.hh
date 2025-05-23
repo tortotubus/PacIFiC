@@ -19,6 +19,7 @@
 using namespace std;
 
 class MAC_Communicator;
+class MAC_ListIdentity;
 class FV_DiscreteField;
 class LA_Vector;
 class LA_SeqVector;
@@ -80,9 +81,12 @@ public: //-----------------------------------------------------------------
 
     /** @name Projection-Translation methods */
     //@{
-    /** @brief Projection of the field on the translated position of the grid
-     */
+    /** @brief Projection of the field on the translated position of the grid */
     void fields_projection();
+
+    void synchronize_velocity_field(size_t level);
+
+    void synchronize_DLMFD_Nm1_rhs(size_t level);
 
     //@}
 
@@ -103,8 +107,8 @@ private:   //----------------------------------------------------------------
     @param a_owner the MAC-based object
     @param exp to read the data file */
     DLMFD_DirectionSplitting_bis(MAC_Object *a_owner,
-                             FV_DomainAndFields const *dom,
-                             MAC_ModuleExplorer const *exp);
+                                 FV_DomainAndFields const *dom,
+                                 MAC_ModuleExplorer const *exp);
 
     /** @brief Constructor without argument */
     DLMFD_DirectionSplitting_bis();
@@ -115,8 +119,8 @@ private:   //----------------------------------------------------------------
     @param prms set of parameters
     @param exp to read the data file */
     virtual DLMFD_DirectionSplitting_bis *create_replica(MAC_Object *a_owner,
-                                                     FV_DomainAndFields const *dom,
-                                                     MAC_ModuleExplorer *exp) const;
+                                                         FV_DomainAndFields const *dom,
+                                                         MAC_ModuleExplorer *exp) const;
 
     //@}
 
@@ -250,6 +254,12 @@ private:   //----------------------------------------------------------------
 
     void output_L2norm_divergence();
 
+    void compute_flow_rate(FV_TimeIterator const *t_it, bool check_restart);
+
+    /** @brief Periodic flow rate update
+    @param t_it time iterator */
+    void periodic_flow_rate_update(FV_TimeIterator const *t_it);
+
     void output_L2norm_pressure(size_t const &level);
 
     void output_L2norm_velocity(size_t const &level);
@@ -288,8 +298,10 @@ private:   //----------------------------------------------------------------
     void build_links_translation();
     //@}
 
+    void add_storable_objects(MAC_ListIdentity *list);
+
 private: //----------------------------------------------------------------
-         //-- Class attributes
+    //-- Class attributes
     //-- Attributes
 
     FV_DiscreteField *UF;
@@ -366,6 +378,9 @@ private: //----------------------------------------------------------------
 
     // Post-processing
     string resultsDirectory;
+    string compute_flow_rate_on;
+    double flow_rate;
+    size_t flow_rate_frequency;
 };
 
 #endif

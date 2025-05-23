@@ -4,6 +4,7 @@
 #include <DLMFD_System.hh>
 #include <utility>
 #include <boolVector.hh>
+#include <LA_StorableVectors.hh>
 using namespace std;
 
 class MAC_ModuleExplorer;

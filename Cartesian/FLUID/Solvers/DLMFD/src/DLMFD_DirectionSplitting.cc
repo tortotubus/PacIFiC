@@ -89,6 +89,11 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
         MAC_ASSERT(UF->storage_depth() == 5);
     }
 
+    // Read is_solids
+    is_solids = true;
+    if (exp->has_entry("Is_solids"))
+        is_solids = exp->bool_data("Is_solids");
+
     // Call of MAC_Communicator routine to set the rank of each proces and
     // the number of processes during execution
     pelCOMM = MAC_Exec::communicator();
@@ -264,12 +269,16 @@ DLMFD_DirectionSplitting::DLMFD_DirectionSplitting(MAC_Object *a_owner,
     transfert.UU = UF;
     transfert.PP = PF;
 
-    dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
+    if (is_solids)
+        dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 
-    // Use explicit DLMFD in N&S advection-diffusion equation
-    b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
-    if (b_ExplicitDLMFD)
-        GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
+    if (is_solids)
+    {
+        // Use explicit DLMFD in N&S advection-diffusion equation
+        b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+        if (b_ExplicitDLMFD)
+            GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
+    }
 
     // Timing routines
     if (my_rank == is_master)
@@ -346,12 +355,11 @@ void DLMFD_DirectionSplitting::do_one_inner_iteration(FV_TimeIterator const *t_i
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
 
-
     // ------- DLMFD algorithm -------
     if (my_rank == is_master)
         SCT_set_start("FluidSolid_CorrectionStep");
-
-    dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+    if (is_solids)
+        dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
 
     if (my_rank == is_master)
         SCT_get_elapsed_time("FluidSolid_CorrectionStep");
@@ -377,23 +385,24 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
     allocate_mpi_variables(UF, 1);
 
     // Projection-Translation
-    if (b_projection_translation)
-    {
-        set_translation_vector();
+    if (is_solids)
+        if (b_projection_translation)
+        {
+            set_translation_vector();
 
-        if (MVQ_translation_vector(translation_direction) < 0.)
-            bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                [translation_direction](0);
-        else
-            bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+            if (MVQ_translation_vector(translation_direction) < 0.)
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction](0);
+            else
+                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                    [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
 
-        geomVector vt(dim);
-        vt(translation_direction) = primary_grid->get_translation_distance();
-        dlmfd_solver->setParaviewPostProcessingTranslationVector(-vt(0), -vt(1), -vt(2));
+            geomVector vt(dim);
+            vt(translation_direction) = primary_grid->get_translation_distance();
+            dlmfd_solver->setParaviewPostProcessingTranslationVector(-vt(0), -vt(1), -vt(2));
 
-        build_links_translation();
-    }
+            build_links_translation();
+        }
 
     // Velocity unsteady matrix
     if (my_rank == is_master)
@@ -411,8 +420,9 @@ void DLMFD_DirectionSplitting::do_before_time_stepping(FV_TimeIterator const *t_
     // Assemble 1D tridiagonal matrices
     assemble_1D_matrices(t_it);
 
-    // DLMFD
-    dlmfd_solver->do_before_time_stepping(t_it);
+    if (is_solids)
+        // DLMFD
+        dlmfd_solver->do_before_time_stepping(t_it);
 
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
@@ -477,45 +487,47 @@ void DLMFD_DirectionSplitting::do_after_inner_iterations_stage(
     if (my_rank == is_master)
         MAC::out() << "CFL: " << cfl << endl;
 
-    // DLMFD computation
-    dlmfd_solver->do_after_inner_iterations_stage(t_it);
+    if (is_solids)
+        // DLMFD computation
+        dlmfd_solver->do_after_inner_iterations_stage(t_it);
 
-    // Projection translation
-    if (b_projection_translation)
-    {
-        double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
-
-        if (my_rank == is_master)
-            MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
-                       << endl;
-
-        if (distance_to_bottom < critical_distance_translation)
+    if (is_solids)
+        // Projection translation
+        if (b_projection_translation)
         {
+            double distance_to_bottom = dlmfd_solver->Compute_distance_to_bottom(bottom_coordinate, translation_direction);
 
             if (my_rank == is_master)
-                MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
-                           << endl
-                           << "         !!!     Domain Translation      !!!"
-                           << endl
-                           << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                MAC::out() << "         Distance to bottom = " << MAC::doubleToString(ios::scientific, 5, distance_to_bottom)
                            << endl;
 
-            translated_distance += MVQ_translation_vector(translation_direction);
-            if (my_rank == is_master)
-                MAC::out() << "         Translated distance = " << translated_distance << endl;
+            if (distance_to_bottom < critical_distance_translation)
+            {
 
-            fields_projection();
+                if (my_rank == is_master)
+                    MAC::out() << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                               << endl
+                               << "         !!!     Domain Translation      !!!"
+                               << endl
+                               << "         -> -> -> -> -> -> -> -> -> -> -> ->"
+                               << endl;
 
-            dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
+                translated_distance += MVQ_translation_vector(translation_direction);
+                if (my_rank == is_master)
+                    MAC::out() << "         Translated distance = " << translated_distance << endl;
 
-            if (MVQ_translation_vector(translation_direction) < 0.)
-                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                    [translation_direction](0);
-            else
-                bottom_coordinate = (*primary_grid->get_global_main_coordinates())
-                    [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+                fields_projection();
+
+                dlmfd_solver->translate_all(MVQ_translation_vector, translation_direction);
+
+                if (MVQ_translation_vector(translation_direction) < 0.)
+                    bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                        [translation_direction](0);
+                else
+                    bottom_coordinate = (*primary_grid->get_global_main_coordinates())
+                        [translation_direction]((*primary_grid->get_global_max_index())(translation_direction));
+            }
         }
-    }
     stop_total_timer();
 }
 //---------------------------------------------------------------------------
@@ -527,8 +539,9 @@ void DLMFD_DirectionSplitting::do_additional_savings(FV_TimeIterator const *t_it
 
     start_total_timer("DLMFD_DirectionSplitting:: do_additional_savings");
 
-    // DLMFD additional savings
-    dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
+    if (is_solids)
+        // DLMFD additional savings
+        dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 
     // Elapsed time by sub-problems
     if (my_rank == is_master)
@@ -1171,6 +1184,9 @@ void DLMFD_DirectionSplitting::NS_first_step(FV_TimeIterator const *t_it)
             }
         }
     }
+
+    // Synchronize pressure field
+    PF->synchronize(1);
 
     PF->set_neumann_DOF_values();
 
@@ -1923,16 +1939,17 @@ void DLMFD_DirectionSplitting::assemble_DS_un_at_rhs(
                         if (cpp >= 0 && cpp == comp)
                             rhs += -bodyterm * dxC * dyC * dzC;
 
-                        if (b_ExplicitDLMFD)
-                        {
-                            string error_message = "Explicit DLMFD : ";
-                            error_message += "Not working yet";
-                            MAC_Error::object()->raise_plain(error_message);
+                        // if (b_ExplicitDLMFD)
+                        // {
+                        //     // string error_message = "Explicit DLMFD : ";
+                        //     // error_message += "Not working yet";
+                        //     // MAC_Error::object()->raise_plain(error_message);
 
-                            global_numbering_index = UF->DOF_global_number(i, j, k, comp);
-                            dlmfd_explicit_value = GLOBAL_EQ->get_explicit_DLMFD_at_index(global_numbering_index);
-                            rhs += dlmfd_explicit_value * dxC * dyC * dzC;
-                        }
+                        //     global_numbering_index = UF->DOF_global_number(i, j, k, comp);
+                        //     dlmfd_explicit_value = GLOBAL_EQ->get_explicit_DLMFD_at_index(global_numbering_index);
+                        //     cout << dlmfd_explicit_value << endl;
+                        //     rhs += dlmfd_explicit_value * dxC * dyC * dzC;
+                        // }
 
                         UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * dzC * rho));
                     }
@@ -1999,6 +2016,69 @@ void DLMFD_DirectionSplitting::Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterat
                     size_t r_index = return_row_index(FF, comp, dir_i, j, k);
                     double fe = assemble_local_rhs(j, k, gamma, t_it, comp, dir_i, field);
                     GLOBAL_EQ->DS_NavierStokes_solver(FF, j, k, min_unknown_index(dir_i), comp, dir_i, field, r_index);
+                }
+            }
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting::update_velocity_DLMFD_explicit(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting:: update_velocity_DLMFD_explicit");
+
+    size_t i, j, k;
+
+    double dxC, xC, dyC, yC, dzC, zC;
+
+    double rhs;
+
+    // DLMFD explicit
+    size_t global_numbering_index = 0;
+    double dlmfd_explicit_value = 0.;
+
+    size_t_vector min_unknown_index(dim, 0);
+    size_t_vector max_unknown_index(dim, 0);
+
+    for (size_t comp = 0; comp < nb_comps[1]; comp++)
+    {
+        // Get local min and max indices
+        for (size_t l = 0; l < dim; ++l)
+        {
+            min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
+            max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
+        }
+
+        for (i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+        {
+            dxC = UF->get_cell_size(i, comp, 0);
+            xC = UF->get_DOF_coordinate(i, comp, 0);
+            for (j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+            {
+                dyC = UF->get_cell_size(j, comp, 1);
+                yC = UF->get_DOF_coordinate(j, comp, 1);
+                if (dim == 2)
+                {
+                    string error_message = "Explicit DLMFD && dim = 2 : ";
+                    error_message += "Check implementation";
+                    MAC_Error::object()->raise_plain(error_message);
+                }
+                else
+                {
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                    {
+                        dzC = UF->get_cell_size(k, comp, 2);
+                        zC = UF->get_DOF_coordinate(k, comp, 2);
+
+                        rhs = (UF->DOF_value(i, j, k, comp, 0) * dxC * dyC * dzC * rho) / (t_it->time_step());
+
+                        global_numbering_index = UF->DOF_global_number(i, j, k, comp);
+                        dlmfd_explicit_value = GLOBAL_EQ->get_explicit_DLMFD_at_index(global_numbering_index);
+                        rhs += dlmfd_explicit_value * dxC * dyC * dzC;
+
+                        UF->set_DOF_value(i, j, k, comp, 0, rhs * (t_it->time_step()) / (dxC * dyC * dzC * rho));
+                    }
                 }
             }
         }
@@ -2172,6 +2252,13 @@ void DLMFD_DirectionSplitting::NS_velocity_update(FV_TimeIterator const *t_it)
         // Tranfer back to field
         UF->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_DS_velocity());
     }
+
+    // // Update velocity field in case of explicit DLMFD treatment
+    // if (b_ExplicitDLMFD)
+    // {
+    //     cout << "test" << endl;
+    //     update_velocity_DLMFD_explicit(t_it);
+    // }
 
     if (my_rank == is_master)
         MAC::out() << "Navier-Stokes velocity update completed" << endl;
@@ -2968,7 +3055,7 @@ void DLMFD_DirectionSplitting::fields_projection()
         MAC_Error::object()->raise_plain(error_message);
     }
 
-    // Velocity 
+    // Velocity
     UF->translation_projection(0, 5, 0);
     UF->synchronize(0);
 

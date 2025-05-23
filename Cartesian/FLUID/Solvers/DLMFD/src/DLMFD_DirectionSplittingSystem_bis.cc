@@ -11,6 +11,7 @@
 #include <MAC.hh>
 #include <MAC_Error.hh>
 #include <MAC_ModuleExplorer.hh>
+#include <MAC_ListIdentity.hh>
 #include <MAC_Timer.hh>
 #include <MAC_Vector.hh>
 #include <MAC_Communicator.hh>
@@ -72,11 +73,11 @@ DLMFD_DirectionSplittingSystem_bis::DLMFD_DirectionSplittingSystem_bis(
       is_stressCal(is_stressCal_),
       VEC_t(0),
       VEC_q(0),
-      vector_rhs_VelocityDLMFD_Nm1(0),
       VEC_r(0),
       VEC_w(0),
       T_LOC(0),
       SOLVER_A_VelocityUnsteady(0),
+      VECS_Storage(0),
       b_NS_ExplicitDLMFD(false)
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem_bis:: DLMFD_DirectionSplittingSystem_bis");
@@ -180,6 +181,9 @@ void DLMFD_DirectionSplittingSystem_bis::build_system(MAC_ModuleExplorer const *
 
     // Direction splitting matrices
     MAT_velocityUnsteadyPlusDiffusion_1D = LA_SeqMatrix::make(this, exp->create_subexplorer(this, "MAT_1DLAP_generic"));
+
+    // Vectors storage for reload
+    VECS_Storage = LA_StorableVectors::create(this);
 
     for (size_t field = 0; field < 2; field++)
     {
@@ -372,8 +376,6 @@ void DLMFD_DirectionSplittingSystem_bis::re_initialize(void)
     VEC_t->re_initialize(UF_glob);
     // Rhs vectors
     VEC_q->re_initialize(UF_glob);
-
-    vector_rhs_VelocityDLMFD_Nm1 = new double[UF_glob];
 
     VEC_r->re_initialize(pf_glob);
     VEC_w->re_initialize(pf_glob);
@@ -947,6 +949,21 @@ void DLMFD_DirectionSplittingSystem_bis::display_debug(void)
 // --------------------------- DLMFD FRAMEWORK ------------------------------
 
 //----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem_bis::add_storable_objects(MAC_ListIdentity *list) const
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis:: add_storable_objects");
+
+    list->extend(VECS_Storage);
+
+    if (b_NS_ExplicitDLMFD)
+    {
+        VEC_rhs_VelocityDLMFD_Nm1->set_name("ExplicitDLMFD_nm1");
+        VECS_Storage->add_vector_to_store(VEC_rhs_VelocityDLMFD_Nm1);
+    }
+}
+
+//----------------------------------------------------------------------
 void DLMFD_DirectionSplittingSystem_bis::finalize_constant_matrices()
 //----------------------------------------------------------------------
 {
@@ -1000,31 +1017,12 @@ void DLMFD_DirectionSplittingSystem_bis::nullify_QUvector()
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem_bis::nullify_Explicit_DLMFD_Cvector()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::nullify_Explicit_DLMFD_Cvector");
-
-    for (size_t i = 0; i < UF->nb_global_unknowns(); i++)
-        vector_rhs_VelocityDLMFD_Nm1[i] = 0.;
-}
-
-//----------------------------------------------------------------------
 void DLMFD_DirectionSplittingSystem_bis::assemble_inQUvector(double transferVal, size_t index, double coef)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::assemble_inQUvector");
 
     VEC_q->add_to_item(index, coef * transferVal);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem_bis::assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::assemble_inExplicit_DLMFDvector");
-
-    vector_rhs_VelocityDLMFD_Nm1[index] += coef * transferVal;
 }
 
 //----------------------------------------------------------------------
@@ -1111,10 +1109,59 @@ void DLMFD_DirectionSplittingSystem_bis::re_initialize_explicit_DLMFD(bool const
 }
 
 //----------------------------------------------------------------------
-double DLMFD_DirectionSplittingSystem_bis::get_explicit_DLMFD_at_index(size_t index) const
+void DLMFD_DirectionSplittingSystem_bis::set_velocity_unknown(size_t i_row, double xx)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::get_explicit_DLMFD_at_index");
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::set_velocity_unknown");
 
-    return vector_rhs_VelocityDLMFD_Nm1[index];
+    VEC_DS_UF->set_item(i_row, xx);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem_bis::synchronize_velocity_unknown_vector()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::synchronize_velocity_unknown_vector");
+
+    VEC_DS_UF->synchronize();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem_bis::nullify_DLMFD_Nm1_rhs()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::nullify_DLMFD_Nm1_rhs");
+
+    VEC_rhs_VelocityDLMFD_Nm1->nullify();
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem_bis::set_rhs_DLMFD_Nm1(size_t i_row, double xx)
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::set_rhs_DLMFD_Nm1");
+
+    VEC_rhs_VelocityDLMFD_Nm1->set_item(i_row, xx);
+}
+
+//----------------------------------------------------------------------
+LA_SeqVector const *DLMFD_DirectionSplittingSystem_bis::get_rhs_DLMFD_Nm1()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::get_rhs_DLMFD_Nm1");
+
+    UF_NUM->scatter()->get(VEC_rhs_VelocityDLMFD_Nm1, UF_DS_LOC);
+
+    LA_SeqVector const *result = UF_DS_LOC;
+
+    return (result);
+}
+
+//----------------------------------------------------------------------
+void DLMFD_DirectionSplittingSystem_bis::synchronize_rhs_DLMFD_Nm1_vector()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplittingSystem_bis::synchronize_rhs_DLMFD_Nm1_vector");
+
+    VEC_rhs_VelocityDLMFD_Nm1->synchronize();
 }

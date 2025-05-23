@@ -24,6 +24,8 @@
 #include <sys/time.h>
 #include <math.h>
 #include <algorithm>
+#include <GrainsExec.hh>
+#include <MAC_ListIdentity.hh>
 
 DLMFD_DirectionSplitting_bis const *DLMFD_DirectionSplitting_bis::PROTOTYPE = new DLMFD_DirectionSplitting_bis();
 
@@ -88,7 +90,8 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(MAC_Object *a_owner,
       translated_distance(0.),
       gravity_vector(0),
       exceed(false),
-      turn(false)
+      turn(false),
+      compute_flow_rate_on("none")
 {
     // CREATE ALL THE OBJECTS ABOVE FROM DS_DirectionSplitting !!!!!!!
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: DLMFD_DirectionSplitting_bis");
@@ -259,6 +262,19 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(MAC_Object *a_owner,
     inputData.is_solids_ = is_solids;
     inputData.is_stressCal_ = is_stressCal;
 
+    // Flow rate
+    if (exp->has_entry("Flow_rate"))
+    {
+        compute_flow_rate_on = exp->string_data("Flow_rate");
+        if (compute_flow_rate_on != "none")
+            PAC_Misc::is_main_boundary(compute_flow_rate_on, dim, "Flow_rate", exp);
+
+        if (exp->has_entry("Flow_rate_Frequency"))
+            flow_rate_frequency = exp->int_data("Flow_rate_Frequency");
+        else
+            flow_rate_frequency = 1;
+    }
+
     // Build the matrix system
     MAC_ModuleExplorer *se = exp->create_subexplorer(0, "DLMFD_DirectionSplittingSystem_bis");
     GLOBAL_EQ = DLMFD_DirectionSplittingSystem_bis::create(this, se, UF, PF, is_stressCal);
@@ -427,6 +443,7 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(FV_TimeIterator const 
 
     // Initialize velocity vector at the matrix level to use in the DLMFD framework
     GLOBAL_EQ->initialize_DS_velocity();
+    GLOBAL_EQ->synchronize_velocity_unknown_vector();
 
     // Fictitous Domain workflow
     if (my_rank == is_master)
@@ -550,6 +567,25 @@ void DLMFD_DirectionSplitting_bis::do_before_time_stepping(FV_TimeIterator const
     // DLMFD
     dlmfd_solver->do_before_time_stepping(t_it);
 
+    // Flow rate
+    if (compute_flow_rate_on != "none")
+    {
+        if (my_rank == is_master)
+        {
+            MAC::out() << endl
+                       << "   +++ Flow rate ++++++"
+                       << endl
+                       << endl;
+            MAC::out() << "      Output every " << flow_rate_frequency
+                       << " time steps" << endl;
+            MAC::out() << "      Boundary name = "
+                       << compute_flow_rate_on << endl;
+            MAC::out() << endl
+                       << endl;
+        }
+        compute_flow_rate(t_it, b_restart);
+    }
+
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
 }
@@ -643,6 +679,10 @@ void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
 
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_RE_Assembly&Initialization");
+
+    // Correct periodic pressure drop in case of periodic imposed flow rate
+    if (UF->primary_grid()->is_periodic_flow_rate())
+        predicted_pressure_drop(t_it);
 }
 
 //---------------------------------------------------------------------------
@@ -664,6 +704,9 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
 
     // L2 divergence of u
     output_L2norm_divergence();
+
+    // Flow rate
+    compute_flow_rate(t_it, false);
 
     // DLMFD
     dlmfd_solver->do_after_inner_iterations_stage(t_it);
@@ -731,6 +774,15 @@ void DLMFD_DirectionSplitting_bis::do_additional_savings(FV_TimeIterator const *
     }
 
     GLOBAL_EQ->display_debug();
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting_bis::add_storable_objects(MAC_ListIdentity *list)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting_bis:: add_storable_objects");
+
+    GLOBAL_EQ->add_storable_objects(list);
 }
 
 //---------------------------------------------------------------------------
@@ -2991,96 +3043,131 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(FV_TimeIterator const
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: predicted_pressure_drop");
 
-    double Um = get_current_mean_flow_speed();
-    double pressure_drop = UF->primary_grid()->get_periodic_pressure_drop();
+    FV_Mesh const *primary_mesh = UF->primary_grid();
+    size_t periodic_flow_direction = primary_mesh->get_periodic_flow_direction();
 
-    if (macCOMM->rank() == 0)
-    {
-        size_t p_flow_dir = UF->primary_grid()->get_periodic_flow_direction();
-        double Lx = UF->primary_grid()->get_main_domain_max_coordinate(0) - UF->primary_grid()->get_main_domain_min_coordinate(0);
-        double Ly = UF->primary_grid()->get_main_domain_max_coordinate(1) - UF->primary_grid()->get_main_domain_min_coordinate(1);
-        double Lz = (dim == 3)
-                        ? UF->primary_grid()->get_main_domain_max_coordinate(2) - UF->primary_grid()->get_main_domain_min_coordinate(2)
-                        : 1.;
+    // Area of boundary face perpendicular to periodic flow direction
+    double face_area =
+        primary_mesh->get_main_domain_boundary_perp_to_direction_measure(periodic_flow_direction);
 
-        double cross_sec_area = Lx * Ly * Lz;
+    // Length of domain in the periodic direction
+    double periodic_length =
+        UF->primary_grid()->get_main_domain_max_coordinate(
+            periodic_flow_direction) -
+        UF->primary_grid()->get_main_domain_min_coordinate(
+            periodic_flow_direction);
 
-        if (p_flow_dir == 0)
-        {
-            cross_sec_area = Ly * Lz;
-        }
-        else if (p_flow_dir == 1)
-        {
-            cross_sec_area = Lx * Lz;
-        }
-        else if (p_flow_dir == 2)
-        {
-            cross_sec_area = Lx * Ly;
-        }
+    // Imposed flow rate
+    double imposed_periodic_flow_rate = primary_mesh->get_periodic_flow_rate();
 
-        double Qc = cross_sec_area * Um;
-        double Qset = UF->primary_grid()->get_periodic_flow_rate();
+    // Velocity correction and nominal flow rate
+    double per_vel = -t_it->time_step() / (rho * periodic_length);
+    double nominal_flow_rate = per_vel * face_area;
 
-        if ((fabs(Qc - Qset) / Qset > 1e-5) && (t_it->iteration_number() % 1 == 0))
-        {
-            if ((Qc / Qset) > 1.)
-            {
-                exceed = true;
-                // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
-                if (turn == false)
-                {
-                    pressure_drop *= 0.5;
-                    if ((Qc - Qold) < 0.)
-                        turn = true;
-                }
-                else
-                {
-                    if ((Qc / Qold) > 1.)
-                    {
-                        pressure_drop *= (Qset / Qc);
-                    }
-                    else
-                    {
-                        // Threshold controls the oscillation
-                        if (fabs(Qc - Qold) / Qc < 1e-6)
-                            pressure_drop *= (Qset / Qc);
-                    }
-                }
-            }
-            else
-            {
-                if (exceed == true)
-                {
-                    // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
-                    if ((Qc / Qold) < 1.)
-                    {
-                        pressure_drop *= (Qset / Qc);
-                    }
-                    else
-                    {
-                        // Threshold controls the oscillation
-                        if (fabs(Qc - Qold) / Qc < 1e-6)
-                            pressure_drop *= (Qset / Qc);
-                    }
-                }
-            }
-        }
-        Qold = Qc;
+    // Compute flow rate difference and updated pressure drop
+    string boundary_name = periodic_flow_direction == 0 ? "right" : periodic_flow_direction == 1 ? "top"
+                                                                                                 : "front";
+    double delta_q = imposed_periodic_flow_rate - PAC_Misc::compute_flow_rate(UF, 0, boundary_name);
 
-        string fileName = "./DS_results/flow_pressure_history.csv";
-        std::ofstream MyFile;
-        MyFile.open(fileName.c_str(), std::ios::app);
-        MyFile << t_it->time() << " " << MAC::doubleToString(ios::scientific, 6, Qc)
-               << " " << MAC::doubleToString(ios::scientific, 6, pressure_drop)
-               << " " << exceed
-               << " " << turn << endl;
-    }
+    double ppd = delta_q / nominal_flow_rate;
 
-    // Broadcast the new pressure to all procs from master proc
-    macCOMM->broadcast(pressure_drop);
+    if (my_rank == is_master)
+        MAC::out() << "Periodic pressure drop = " << MAC::doubleToString(ios::scientific, 14, ppd) << endl
+                   << endl;
+    const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(ppd);
 
-    const_cast<FV_Mesh *>(UF->primary_grid())
-        ->set_periodic_pressure_drop(pressure_drop);
+    // double Um = get_current_mean_flow_speed();
+    // double pressure_drop = UF->primary_grid()->get_periodic_pressure_drop();
+
+    // if (macCOMM->rank() == 0)
+    // {
+    //     size_t p_flow_dir = UF->primary_grid()->get_periodic_flow_direction();
+    //     double Lx = UF->primary_grid()->get_main_domain_max_coordinate(0) - UF->primary_grid()->get_main_domain_min_coordinate(0);
+    //     double Ly = UF->primary_grid()->get_main_domain_max_coordinate(1) - UF->primary_grid()->get_main_domain_min_coordinate(1);
+    //     double Lz = (dim == 3)
+    //                     ? UF->primary_grid()->get_main_domain_max_coordinate(2) - UF->primary_grid()->get_main_domain_min_coordinate(2)
+    //                     : 1.;
+
+    //     double cross_sec_area = Lx * Ly * Lz;
+
+    //     if (p_flow_dir == 0)
+    //     {
+    //         cross_sec_area = Ly * Lz;
+    //     }
+    //     else if (p_flow_dir == 1)
+    //     {
+    //         cross_sec_area = Lx * Lz;
+    //     }
+    //     else if (p_flow_dir == 2)
+    //     {
+    //         cross_sec_area = Lx * Ly;
+    //     }
+
+    //     double Qc = cross_sec_area * Um;
+    //     double Qset = UF->primary_grid()->get_periodic_flow_rate();
+
+    //     if ((fabs(Qc - Qset) / Qset > 1e-5) && (t_it->iteration_number() % 1 == 0))
+    //     {
+    //         if ((Qc / Qset) > 1.)
+    //         {
+    //             exceed = true;
+    //             // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
+    //             if (turn == false)
+    //             {
+    //                 pressure_drop *= 0.5;
+    //                 if ((Qc - Qold) < 0.)
+    //                     turn = true;
+    //             }
+    //             else
+    //             {
+    //                 if ((Qc / Qold) > 1.)
+    //                 {
+    //                     pressure_drop *= (Qset / Qc);
+    //                 }
+    //                 else
+    //                 {
+    //                     // Threshold controls the oscillation
+    //                     if (fabs(Qc - Qold) / Qc < 1e-6)
+    //                         pressure_drop *= (Qset / Qc);
+    //                 }
+    //             }
+    //         }
+    //         else
+    //         {
+    //             if (exceed == true)
+    //             {
+    //                 // pressure_drop -= controller->calculate(Qset,Qc,t_it->time_step());
+    //                 if ((Qc / Qold) < 1.)
+    //                 {
+    //                     pressure_drop *= (Qset / Qc);
+    //                 }
+    //                 else
+    //                 {
+    //                     // Threshold controls the oscillation
+    //                     if (fabs(Qc - Qold) / Qc < 1e-6)
+    //                         pressure_drop *= (Qset / Qc);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     Qold = Qc;
+
+    //     string fileName = "./DS_results/flow_pressure_history.csv";
+    //     std::ofstream MyFile;
+    //     MyFile.open(fileName.c_str(), std::ios::app);
+    //     MyFile << t_it->time() << " " << MAC::doubleToString(ios::scientific, 6, Qc)
+    //            << " " << MAC::doubleToString(ios::scientific, 6, pressure_drop)
+    //            << " " << exceed
+    //            << " " << turn << endl;
+    // }
+
+    // // Broadcast the new pressure to all procs from master proc
+    // macCOMM->broadcast(pressure_drop);
+
+    // if (my_rank == is_master)
+    //     MAC::out() << "Periodic pressure drop = " << MAC::doubleToString(ios::scientific, 14, pressure_drop) << endl;
+
+    // const_cast<FV_Mesh *>(UF->primary_grid())->set_periodic_pressure_drop(pressure_drop);
 }
 
 //---------------------------------------------------------------------------
@@ -3098,19 +3185,38 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(FV_TimeIterator const *
     double bodyterm = 0.;
     size_t cpp = 10;
 
+    // DLMFD explicit
+    size_t local_numbering_index = 0;
+    double dlmfd_explicit_value = 0.;
+
+    LA_SeqVector const *VEC_rhs_VelocityDLMFD_Nm1_local = NULL;
+    if (b_ExplicitDLMFD)
+        VEC_rhs_VelocityDLMFD_Nm1_local = GLOBAL_EQ->get_rhs_DLMFD_Nm1();
+
+    // // Periodic pressure gradient
+    // if (UF->primary_grid()->is_periodic_flow())
+    // {
+    //     cpp = UF->primary_grid()->get_periodic_flow_direction();
+    //     if (UF->primary_grid()->is_periodic_pressure_drop() &&
+    //         !UF->primary_grid()->is_periodic_flow_rate())
+    //     {
+    //         bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
+    //                    (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
+    //     }
+    //     else if (UF->primary_grid()->is_periodic_flow_rate())
+    //     {
+    //         // predicted_pressure_drop(t_it);
+    //         bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
+    //                    (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
+    //     }
+    // }
+
     // Periodic pressure gradient
     if (UF->primary_grid()->is_periodic_flow())
     {
         cpp = UF->primary_grid()->get_periodic_flow_direction();
-        if (UF->primary_grid()->is_periodic_pressure_drop() &&
-            !UF->primary_grid()->is_periodic_flow_rate())
+        if (UF->primary_grid()->is_periodic_pressure_drop())
         {
-            bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
-                       (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
-        }
-        else if (UF->primary_grid()->is_periodic_flow_rate())
-        {
-            predicted_pressure_drop(t_it);
             bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
                        (UF->primary_grid()->get_main_domain_max_coordinate(cpp) - UF->primary_grid()->get_main_domain_min_coordinate(cpp));
         }
@@ -3185,6 +3291,13 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(FV_TimeIterator const *
                     //             rhs += bodyterm * cellV;
                     //     }
                     // }
+
+                    if (b_ExplicitDLMFD)
+                    {
+                        local_numbering_index = UF->DOF_local_number(i, j, k, comp);
+                        dlmfd_explicit_value = VEC_rhs_VelocityDLMFD_Nm1_local->item(local_numbering_index);
+                        rhs += dlmfd_explicit_value;
+                    }
 
                     UF->set_DOF_value(i, j, k, comp, 0,
                                       rhs * (t_it->time_step()) / (cellV * rho));
@@ -3397,7 +3510,7 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(FV_TimeIterator const *t_i
     // Compute velocity change over the time step
     double velocity_time_change = compute_DS_velocity_change() / t_it->time_step();
     if (my_rank == is_master)
-        cout << "velocity change = " << MAC::doubleToString(ios::scientific, 5, velocity_time_change) << endl;
+        cout << "Velocity change = " << MAC::doubleToString(ios::scientific, 5, velocity_time_change) << endl;
 
     compute_velocity_divergence(PF);
 
@@ -4495,6 +4608,89 @@ void DLMFD_DirectionSplitting_bis::output_L2norm_divergence()
     // }
 }
 
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting_bis::compute_flow_rate(FV_TimeIterator const *t_it,
+                                                     bool check_restart)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting_bis:: compute_flow_rate");
+
+    static size_t flow_rate_counter = 0;
+
+    if (compute_flow_rate_on != "none")
+    {
+        if (!flow_rate_counter)
+        {
+            flow_rate = PAC_Misc::compute_flow_rate(UF, 0, compute_flow_rate_on);
+            if (my_rank == is_master)
+            {
+                MAC::out() << "         Flow rate through "
+                           << compute_flow_rate_on
+                           << " boundary = "
+                           << MAC::doubleToString(ios::scientific, 6, flow_rate)
+                           << endl;
+                string filename = resultsDirectory + "/" + "flowrate_" + compute_flow_rate_on + ".res";
+                if (check_restart)
+                    GrainsExec::checkTime_outputFile(filename, t_it->time());
+                else
+                {
+                    ofstream flfile(filename.c_str(), ios::app);
+                    flfile << MAC::doubleToString(ios::scientific, 6, t_it->time())
+                           << " " << MAC::doubleToString(ios::scientific, 6, flow_rate) << endl;
+                    flfile.close();
+                }
+            }
+        }
+        ++flow_rate_counter;
+        if (flow_rate_counter == flow_rate_frequency)
+            flow_rate_counter = 0;
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting_bis::periodic_flow_rate_update(FV_TimeIterator const *t_it)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting_bis:: periodic_flow_rate_update");
+
+    FV_Mesh const *primary_mesh = UF->primary_grid();
+    size_t periodic_flow_direction = primary_mesh->get_periodic_flow_direction();
+
+    // Area of boundary face perpendicular to periodic flow direction
+    double face_area =
+        primary_mesh->get_main_domain_boundary_perp_to_direction_measure(periodic_flow_direction);
+
+    // Length of domain in the periodic direction
+    double periodic_length =
+        UF->primary_grid()->get_main_domain_max_coordinate(
+            periodic_flow_direction) -
+        UF->primary_grid()->get_main_domain_min_coordinate(
+            periodic_flow_direction);
+
+    // Imposed flow rate
+    double imposed_periodic_flow_rate = primary_mesh->get_periodic_flow_rate();
+
+    // Velocity correction and nominal flow rate
+    double per_vel = -t_it->time_step() / (rho * periodic_length);
+    double nominal_flow_rate = per_vel * face_area;
+
+    // Compute flow rate difference and updated pressure drop
+    string boundary_name = periodic_flow_direction == 0 ? "right" : periodic_flow_direction == 1 ? "top"
+                                                                                                 : "front";
+    double delta_q = imposed_periodic_flow_rate - PAC_Misc::compute_flow_rate(UF, 0, boundary_name);
+
+    double ppd = delta_q / nominal_flow_rate;
+
+    if (my_rank == is_master)
+        MAC::out() << "Periodic pressure drop = " << MAC::doubleToString(ios::scientific, 14, ppd) << endl
+                   << endl;
+    const_cast<FV_Mesh *>(primary_mesh)->set_periodic_pressure_drop(ppd);
+
+    // Correct velocity field
+    UF->add_to_DOFs_value(periodic_flow_direction, 0, ppd * per_vel);
+    GLOBAL_EQ->initialize_DS_velocity();
+}
+
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::output_L2norm_pressure(size_t const &level)
 //----------------------------------------------------------------------
@@ -4898,15 +5094,15 @@ void DLMFD_DirectionSplitting_bis::build_links_translation()
         break;
     case 1:
         if (translation_magnitude > 0.)
-            outOfDomain_boundaryName = "top";
-        else
-            outOfDomain_boundaryName = "bottom";
-        break;
-    case 2:
-        if (translation_magnitude > 0.)
             outOfDomain_boundaryName = "front";
         else
             outOfDomain_boundaryName = "behind";
+        break;
+    case 2:
+        if (translation_magnitude > 0.)
+            outOfDomain_boundaryName = "top";
+        else
+            outOfDomain_boundaryName = "bottom";
         break;
     }
 
@@ -4954,17 +5150,18 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: fields_projection");
 
-    if (b_ExplicitDLMFD)
-    {
-        string error_message = "Translation-Projection + Explicit DLMFD : ";
-        error_message += "Not implemented yet";
-        MAC_Error::object()->raise_plain(error_message);
-    }
+    // if (b_ExplicitDLMFD)
+    // {
+    //     string error_message = "Translation-Projection + Explicit DLMFD : ";
+    //     error_message += "Not implemented yet";
+    //     MAC_Error::object()->raise_plain(error_message);
+    // }
 
     FV_Mesh *pmesh = const_cast<FV_Mesh *>(UF->primary_grid());
 
     pmesh->translation();
 
+    // Velocity Translation-Projection
     UF->translation_projection(0, 5, 0);
     UF->synchronize(0);
 
@@ -4977,14 +5174,118 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
     UF->translation_projection(3, 5, 0);
     UF->synchronize(3);
 
-    UF->translation_projection(4, 5, 1);
+    UF->translation_projection(4, 5, !b_ExplicitDLMFD);
     UF->synchronize(4);
 
+    // GLOBAL_EQ->initialize_DS_velocity();
+
+    // Synchronize velocity field at grid and matrix levels
+    synchronize_velocity_field(0);
+
+    // Pressure Translation-Projection
     PF->translation_projection(0, 2, 0);
     PF->synchronize(0);
 
     PF->translation_projection(1, 2, 1);
     PF->synchronize(1);
+
+    if (b_ExplicitDLMFD)
+    {
+        // Copy back DLMFD vector on velocity field
+        UF->update_free_DOFs_value(0, GLOBAL_EQ->get_rhs_DLMFD_Nm1());
+
+        // Projection-translation at the level of the field
+        UF->translation_projection(0, 5, 1);
+
+        // Synchronize the DLMFD forcing term at previous time
+        synchronize_DLMFD_Nm1_rhs(0);
+
+        // Re-assign velocity field from vector
+        UF->update_free_DOFs_value(0, GLOBAL_EQ->get_solution_U());
+    }
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting_bis::synchronize_velocity_field(size_t level)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_ProjectionNavierStokes:: synchronize_velocity_field");
+
+    size_t nb_comps = UF->nb_components();
+
+    // Transfer field values owned by the proc only to the global vector
+    for (size_t comp = 0; comp < nb_comps; ++comp)
+    {
+        // Get local min and max indices
+        size_t_vector min_unknown_index(dim, 0);
+        for (size_t l = 0; l < dim; ++l)
+            min_unknown_index(l) = UF->get_min_index_unknown_handled_by_proc(comp, l);
+
+        size_t_vector max_unknown_index(dim, 0);
+        for (size_t l = 0; l < dim; ++l)
+            max_unknown_index(l) = UF->get_max_index_unknown_handled_by_proc(comp, l);
+
+        // Set value in global vector
+        size_t k = 0;
+        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+                if (dim == 2)
+                    GLOBAL_EQ->set_velocity_unknown(
+                        UF->DOF_global_number(i, j, k, comp),
+                        UF->DOF_value(i, j, k, comp, level));
+                else
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                        GLOBAL_EQ->set_velocity_unknown(
+                            UF->DOF_global_number(i, j, k, comp),
+                            UF->DOF_value(i, j, k, comp, level));
+    }
+
+    // Transfer back values from the global vector to the field
+    GLOBAL_EQ->synchronize_velocity_unknown_vector();
+    UF->update_free_DOFs_value(level, GLOBAL_EQ->get_solution_U());
+}
+
+//---------------------------------------------------------------------------
+void DLMFD_DirectionSplitting_bis::synchronize_DLMFD_Nm1_rhs(size_t level)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_DirectionSplitting_bis:: synchronize_DLMFD_Nm1_rhs");
+
+    size_t nb_comps = UF->nb_components();
+
+    // Nullify the DLMFD forcing term at previous time at the matrix level
+    GLOBAL_EQ->nullify_DLMFD_Nm1_rhs();
+
+    // Transfer field values owned by the proc only to the global vector
+    for (size_t comp = 0; comp < nb_comps; ++comp)
+    {
+        // Get local min and max indices
+        size_t_vector min_unknown_index(dim, 0);
+        for (size_t l = 0; l < dim; ++l)
+            min_unknown_index(l) =
+                UF->get_min_index_unknown_handled_by_proc(comp, l);
+        size_t_vector max_unknown_index(dim, 0);
+        for (size_t l = 0; l < dim; ++l)
+            max_unknown_index(l) =
+                UF->get_max_index_unknown_handled_by_proc(comp, l);
+
+        // Set value in global vector
+        size_t k = 0;
+        for (size_t i = min_unknown_index(0); i <= max_unknown_index(0); ++i)
+            for (size_t j = min_unknown_index(1); j <= max_unknown_index(1); ++j)
+                if (dim == 2)
+                    GLOBAL_EQ->set_rhs_DLMFD_Nm1(
+                        UF->DOF_global_number(i, j, k, comp),
+                        UF->DOF_value(i, j, k, comp, level));
+                else
+                    for (k = min_unknown_index(2); k <= max_unknown_index(2); ++k)
+                        GLOBAL_EQ->set_rhs_DLMFD_Nm1(
+                            UF->DOF_global_number(i, j, k, comp),
+                            UF->DOF_value(i, j, k, comp, level));
+    }
+
+    // Transfer back values from the global vector to the field
+    GLOBAL_EQ->synchronize_rhs_DLMFD_Nm1_vector();
 }
 
 //----------------------------------------------------------------------

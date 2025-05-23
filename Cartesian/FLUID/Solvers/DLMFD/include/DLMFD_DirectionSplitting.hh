@@ -186,6 +186,9 @@ private:   //----------------------------------------------------------------
     /** @brief Solve i in j and k; e.g. solve x in y ank z */
     void Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterator const *t_it, size_t const &dir_i, size_t const &dir_j, size_t const &dir_k, double const &gamma, size_t const &field);
 
+    /** @brief Update velocity field in case of explicit DLMFD treatment */
+    void update_velocity_DLMFD_explicit(FV_TimeIterator const *t_it);
+
     /** Pressure predictor */
     void NS_first_step(FV_TimeIterator const *t_it);
 
@@ -299,6 +302,9 @@ private: //----------------------------------------------------------------
     // Post processing
     size_t sub_prob_number;
     string resultsDirectory;
+
+    // TOD DELETE
+    bool is_solids;
 };
 
 #endif
