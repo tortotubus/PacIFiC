@@ -1,23 +1,23 @@
 #include <DLMFD_DirectionSplittingSystem.hh>
-#include <LA_Matrix.hh>
-#include <LA_Vector.hh>
-#include <LA_Scatter.hh>
-#include <LA_SeqVector.hh>
-#include <LA_SeqMatrix.hh>
-#include <LA_Solver.hh>
-#include <LA_MatrixIterator.hh>
+#include <FV_DiscreteField.hh>
+#include <FV_Mesh.hh>
+#include <FV_SystemNumbering.hh>
 #include <LA_CRSmatrix.hh>
-#include <intVector.hh>
+#include <LA_Matrix.hh>
+#include <LA_MatrixIterator.hh>
+#include <LA_Scatter.hh>
+#include <LA_SeqMatrix.hh>
+#include <LA_SeqVector.hh>
+#include <LA_Solver.hh>
+#include <LA_Vector.hh>
 #include <MAC.hh>
+#include <MAC_Communicator.hh>
 #include <MAC_Error.hh>
+#include <MAC_Exec.hh>
 #include <MAC_ModuleExplorer.hh>
 #include <MAC_Timer.hh>
 #include <MAC_Vector.hh>
-#include <MAC_Communicator.hh>
-#include <MAC_Exec.hh>
-#include <FV_DiscreteField.hh>
-#include <FV_SystemNumbering.hh>
-#include <FV_Mesh.hh>
+#include <intVector.hh>
 #include <iostream>
 #include <math.h>
 // Additions
@@ -25,11 +25,9 @@
 #include <stdlib.h>
 
 //----------------------------------------------------------------------
-DLMFD_DirectionSplittingSystem *
-DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
-                                       MAC_ModuleExplorer const *exp,
-                                       FV_DiscreteField *mac_UF,
-                                       FV_DiscreteField *mac_PF)
+DLMFD_DirectionSplittingSystem *DLMFD_DirectionSplittingSystem::create(
+    MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
+    FV_DiscreteField *mac_UF, FV_DiscreteField *mac_PF)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: create");
@@ -46,37 +44,21 @@ DLMFD_DirectionSplittingSystem::create(MAC_Object *a_owner,
 
 //----------------------------------------------------------------------
 DLMFD_DirectionSplittingSystem::DLMFD_DirectionSplittingSystem(
-    MAC_Object *a_owner,
-    MAC_ModuleExplorer const *exp,
-    FV_DiscreteField *mac_UF,
-    FV_DiscreteField *mac_PF)
+    MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
+    FV_DiscreteField *mac_UF, FV_DiscreteField *mac_PF)
     //----------------------------------------------------------------------
-    : MAC_Object(a_owner),
-      DLMFD_System(a_owner,
-                   exp,
-                   mac_UF,
-                   mac_PF,
-                   0,
-                   0,
-                   false,
-                   false,
-                   false,
-                   false),
-      UF(mac_UF),
-      PF(mac_PF),
-      MAT_velocityUnsteadyPlusDiffusion_1D(0),
-      VEC_t(0),
-      VEC_q(0),
-      vector_rhs_VelocityDLMFD_Nm1(0),
-      VEC_r(0),
-      VEC_w(0),
-      T_LOC(0),
-      SOLVER_A_VelocityUnsteady(0),
-      b_NS_ExplicitDLMFD(false)
+    : MAC_Object(a_owner), DLMFD_System(a_owner, exp, mac_UF, mac_PF, 0, 0,
+                                        false, false, false, false),
+      UF(mac_UF), PF(mac_PF), MAT_velocityUnsteadyPlusDiffusion_1D(0), VEC_t(0),
+      VEC_q(0), vector_rhs_VelocityDLMFD_Nm1(0), VEC_r(0), VEC_w(0), T_LOC(0),
+      SOLVER_A_VelocityUnsteady(0), b_NS_ExplicitDLMFD(false)
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplittingSystem");
-    int const *MPI_coordinates_world = UF->primary_grid()->get_MPI_coordinates();
-    int const *MPI_max_coordinates_world = UF->primary_grid()->get_domain_decomposition();
+    MAC_LABEL(
+        "DLMFD_DirectionSplittingSystem:: DLMFD_DirectionSplittingSystem");
+    int const *MPI_coordinates_world =
+        UF->primary_grid()->get_MPI_coordinates();
+    int const *MPI_max_coordinates_world =
+        UF->primary_grid()->get_domain_decomposition();
     is_periodic[0][0] = false;
 
     is_periodic[0][1] = false;
@@ -123,17 +105,22 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: build_system");
 
     // velocity Laplacian
-    MAT_D_velocityUnsteadyPlusDiffusion = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_D_velocityDiffusion"));
-    VEC_rhs_D_velocityDiffusionPlusBodyTerm = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    MAT_D_velocityUnsteadyPlusDiffusion = LA_Matrix::make(
+        this, exp->create_subexplorer(this, "MAT_D_velocityDiffusion"));
+    VEC_rhs_D_velocityDiffusionPlusBodyTerm =
+        MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
     // Unsteady velocity matrix
-    MAT_A_VelocityUnsteady = LA_Matrix::make(this, exp->create_subexplorer(this, "MAT_A_VelocityUnsteady"));
+    MAT_A_VelocityUnsteady = LA_Matrix::make(
+        this, exp->create_subexplorer(this, "MAT_A_VelocityUnsteady"));
     VEC_rhs_A_Velocity = MAT_A_VelocityUnsteady->create_vector(this);
 
     // Unknowns vectors
     VEC_DS_UF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
-    VEC_DS_UF_previoustime = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
-    VEC_DS_UF_timechange = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_DS_UF_previoustime =
+        MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
+    VEC_DS_UF_timechange =
+        MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
     VEC_DS_PF = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
@@ -146,7 +133,8 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
     VEC_w = MAT_D_velocityUnsteadyPlusDiffusion->create_vector(this);
 
     // Solver
-    SOLVER_A_VelocityUnsteady = LA_Solver::make(this, exp->create_subexplorer(this, "SOLVER_A_VelocityUnsteady"));
+    SOLVER_A_VelocityUnsteady = LA_Solver::make(
+        this, exp->create_subexplorer(this, "SOLVER_A_VelocityUnsteady"));
 
     // Local vector
     UF_DS_LOC = LA_SeqVector::create(this, 0);
@@ -158,52 +146,81 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
     PF_NUM = FV_SystemNumbering::create(this, PF);
 
     // Direction splitting matrices
-    MAT_velocityUnsteadyPlusDiffusion_1D = LA_SeqMatrix::make(this, exp->create_subexplorer(this, "MAT_1DLAP_generic"));
+    MAT_velocityUnsteadyPlusDiffusion_1D = LA_SeqMatrix::make(
+        this, exp->create_subexplorer(this, "MAT_1DLAP_generic"));
 
     for (size_t field = 0; field < 2; field++)
     {
         for (size_t dir = 0; dir < dim; dir++)
         {
             // Spacial discretization matrices
-            A[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            A[field][dir].ii_super = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            A[field][dir].ii_sub = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            A[field][dir].ie = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
-            A[field][dir].ei = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
-            A[field][dir].ee = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
+            A[field][dir].ii_main = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            A[field][dir].ii_super = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            A[field][dir].ii_sub = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            A[field][dir].ie = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
+            A[field][dir].ei = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
+            A[field][dir].ee = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
 
             // Product matrices of spacial discretization
-            Ap[field][dir].ei_ii_ie = (LA_SeqMatrix **)malloc(nb_comps[field] * sizeof(LA_SeqMatrix *));
-            Ap[field][dir].result = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            Ap[field][dir].ii_ie = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
+            Ap[field][dir].ei_ii_ie = (LA_SeqMatrix **)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix *));
+            Ap[field][dir].result = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            Ap[field][dir].ii_ie = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
 
             // VEC to store local/interface solution and RHS
-            VEC[field][dir].local_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            VEC[field][dir].local_solution_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            VEC[field][dir].T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            VEC[field][dir].interface_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
+            VEC[field][dir].local_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            VEC[field][dir].local_solution_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            VEC[field][dir].T = (LA_SeqVector **)malloc(nb_comps[field] *
+                                                        sizeof(LA_SeqVector *));
+            VEC[field][dir].interface_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
 
             // Schur complement matrices
-            Schur[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            Schur[field][dir].ii_super = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            Schur[field][dir].ii_sub = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
-            Schur[field][dir].ie = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
-            Schur[field][dir].ei = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
-            Schur[field][dir].ee = (LA_SeqMatrix ***)malloc(nb_comps[field] * sizeof(LA_SeqMatrix **));
+            Schur[field][dir].ii_main = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            Schur[field][dir].ii_super = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            Schur[field][dir].ii_sub = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
+            Schur[field][dir].ie = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
+            Schur[field][dir].ei = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
+            Schur[field][dir].ee = (LA_SeqMatrix ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix **));
 
             // Product of Schur complement matrices
-            SchurP[field][dir].ei_ii_ie = (LA_SeqMatrix **)malloc(nb_comps[field] * sizeof(LA_SeqMatrix *));
-            SchurP[field][dir].result = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            SchurP[field][dir].ii_ie = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
+            SchurP[field][dir].ei_ii_ie = (LA_SeqMatrix **)malloc(
+                nb_comps[field] * sizeof(LA_SeqMatrix *));
+            SchurP[field][dir].result = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            SchurP[field][dir].ii_ie = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
 
-            // VEC to store local/interface solution and RHS for Schur complement
-            Schur_VEC[field][dir].local_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            Schur_VEC[field][dir].local_solution_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            Schur_VEC[field][dir].T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
-            Schur_VEC[field][dir].interface_T = (LA_SeqVector **)malloc(nb_comps[field] * sizeof(LA_SeqVector *));
+            // VEC to store local/interface solution and RHS for Schur
+            // complement
+            Schur_VEC[field][dir].local_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            Schur_VEC[field][dir].local_solution_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            Schur_VEC[field][dir].T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
+            Schur_VEC[field][dir].interface_T = (LA_SeqVector **)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector *));
 
             // Matrix for Schur complement of Schur complement
-            DoubleSchur[field][dir].ii_main = (LA_SeqVector ***)malloc(nb_comps[field] * sizeof(LA_SeqVector **));
+            DoubleSchur[field][dir].ii_main = (LA_SeqVector ***)malloc(
+                nb_comps[field] * sizeof(LA_SeqVector **));
 
             for (size_t comp = 0; comp < nb_comps[field]; comp++)
             {
@@ -214,12 +231,16 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
                     if (field == 0)
                     {
                         nb_unknowns_handled_by_proc(l) =
-                            1 + PF->get_max_index_unknown_handled_by_proc(comp, l) - PF->get_min_index_unknown_handled_by_proc(comp, l);
+                            1 +
+                            PF->get_max_index_unknown_handled_by_proc(comp, l) -
+                            PF->get_min_index_unknown_handled_by_proc(comp, l);
                     }
                     else if (field == 1)
                     {
                         nb_unknowns_handled_by_proc(l) =
-                            1 + UF->get_max_index_unknown_handled_by_proc(comp, l) - UF->get_min_index_unknown_handled_by_proc(comp, l);
+                            1 +
+                            UF->get_max_index_unknown_handled_by_proc(comp, l) -
+                            UF->get_min_index_unknown_handled_by_proc(comp, l);
                     }
                 }
                 if (dir == 0)
@@ -230,7 +251,8 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
                     }
                     else if (dim == 3)
                     {
-                        nb_index = nb_unknowns_handled_by_proc(1) * nb_unknowns_handled_by_proc(2);
+                        nb_index = nb_unknowns_handled_by_proc(1) *
+                                   nb_unknowns_handled_by_proc(2);
                     }
                 }
                 else if (dir == 1)
@@ -241,49 +263,90 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
                     }
                     else if (dim == 3)
                     {
-                        nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(2);
+                        nb_index = nb_unknowns_handled_by_proc(0) *
+                                   nb_unknowns_handled_by_proc(2);
                     }
                 }
                 else if (dir == 2)
                 {
-                    nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(1);
+                    nb_index = nb_unknowns_handled_by_proc(0) *
+                               nb_unknowns_handled_by_proc(1);
                 }
 
-                A[field][dir].ii_main[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                A[field][dir].ii_super[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                A[field][dir].ii_sub[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                A[field][dir].ie[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
-                A[field][dir].ei[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
-                A[field][dir].ee[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                A[field][dir].ii_main[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                A[field][dir].ii_super[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                A[field][dir].ii_sub[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                A[field][dir].ie[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                A[field][dir].ei[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                A[field][dir].ee[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
 
-                Schur[field][dir].ii_main[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                Schur[field][dir].ii_super[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                Schur[field][dir].ii_sub[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
-                Schur[field][dir].ie[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
-                Schur[field][dir].ei[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
-                Schur[field][dir].ee[comp] = (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                Schur[field][dir].ii_main[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                Schur[field][dir].ii_super[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                Schur[field][dir].ii_sub[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                Schur[field][dir].ie[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                Schur[field][dir].ei[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
+                Schur[field][dir].ee[comp] =
+                    (LA_SeqMatrix **)malloc(nb_index * sizeof(LA_SeqMatrix *));
 
-                DoubleSchur[field][dir].ii_main[comp] = (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
+                DoubleSchur[field][dir].ii_main[comp] =
+                    (LA_SeqVector **)malloc(nb_index * sizeof(LA_SeqVector *));
 
                 for (size_t index = 0; index < nb_index; index++)
                 {
-                    A[field][dir].ii_main[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    A[field][dir].ii_super[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    A[field][dir].ii_sub[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    A[field][dir].ie[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                    A[field][dir].ei[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                    A[field][dir].ii_main[comp][index] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    A[field][dir].ii_super[comp][index] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    A[field][dir].ii_sub[comp][index] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    A[field][dir].ie[comp][index] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                            this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                    A[field][dir].ei[comp][index] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                            this, MAT_velocityUnsteadyPlusDiffusion_1D);
 
                     if (proc_pos_in_i[dir] == 0)
                     {
-                        A[field][dir].ee[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                        Schur[field][dir].ii_main[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                        Schur[field][dir].ii_super[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                        Schur[field][dir].ii_sub[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                        Schur[field][dir].ie[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                        Schur[field][dir].ei[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                        Schur[field][dir].ee[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                        A[field][dir].ee[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                                this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                        Schur[field][dir].ii_main[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                                this);
+                        Schur[field][dir].ii_super[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                                this);
+                        Schur[field][dir].ii_sub[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                                this);
+                        Schur[field][dir].ie[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                                this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                        Schur[field][dir].ei[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                                this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                        Schur[field][dir].ee[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                                this, MAT_velocityUnsteadyPlusDiffusion_1D);
 
-                        DoubleSchur[field][dir].ii_main[comp][index] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                        DoubleSchur[field][dir].ii_main[comp][index] =
+                            MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                                this);
                     }
                 }
             }
@@ -296,25 +359,47 @@ void DLMFD_DirectionSplittingSystem::build_system(MAC_ModuleExplorer const *exp)
         {
             for (size_t comp = 0; comp < nb_comps[field]; ++comp)
             {
-                Ap[field][dir].ei_ii_ie[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                Ap[field][dir].result[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                Ap[field][dir].ii_ie[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                Ap[field][dir].ei_ii_ie[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                        this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                Ap[field][dir].result[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                Ap[field][dir].ii_ie[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
 
-                VEC[field][dir].local_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                VEC[field][dir].local_solution_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                VEC[field][dir].T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                VEC[field][dir].interface_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                VEC[field][dir].local_T[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                VEC[field][dir].local_solution_T[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                VEC[field][dir].T[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                VEC[field][dir].interface_T[comp] =
+                    MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
 
                 if (proc_pos_in_i[dir] == 0)
                 {
-                    SchurP[field][dir].ei_ii_ie[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(this, MAT_velocityUnsteadyPlusDiffusion_1D);
-                    SchurP[field][dir].result[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    SchurP[field][dir].ii_ie[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                    SchurP[field][dir].ei_ii_ie[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_copy(
+                            this, MAT_velocityUnsteadyPlusDiffusion_1D);
+                    SchurP[field][dir].result[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    SchurP[field][dir].ii_ie[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
 
-                    Schur_VEC[field][dir].local_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    Schur_VEC[field][dir].local_solution_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    Schur_VEC[field][dir].T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
-                    Schur_VEC[field][dir].interface_T[comp] = MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(this);
+                    Schur_VEC[field][dir].local_T[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    Schur_VEC[field][dir].local_solution_T[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    Schur_VEC[field][dir].T[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
+                    Schur_VEC[field][dir].interface_T[comp] =
+                        MAT_velocityUnsteadyPlusDiffusion_1D->create_vector(
+                            this);
                 }
             }
         }
@@ -381,11 +466,15 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
             {
                 if (field == 0)
                 {
-                    nb_unknowns_handled_by_proc(l) = 1 + PF->get_max_index_unknown_handled_by_proc(comp, l) - PF->get_min_index_unknown_handled_by_proc(comp, l);
+                    nb_unknowns_handled_by_proc(l) =
+                        1 + PF->get_max_index_unknown_handled_by_proc(comp, l) -
+                        PF->get_min_index_unknown_handled_by_proc(comp, l);
                 }
                 else if (field == 1)
                 {
-                    nb_unknowns_handled_by_proc(l) = 1 + UF->get_max_index_unknown_handled_by_proc(comp, l) - UF->get_min_index_unknown_handled_by_proc(comp, l);
+                    nb_unknowns_handled_by_proc(l) =
+                        1 + UF->get_max_index_unknown_handled_by_proc(comp, l) -
+                        UF->get_min_index_unknown_handled_by_proc(comp, l);
                 }
             }
 
@@ -400,7 +489,8 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                     }
                     else if (dim == 3)
                     {
-                        nb_index = nb_unknowns_handled_by_proc(1) * nb_unknowns_handled_by_proc(2);
+                        nb_index = nb_unknowns_handled_by_proc(1) *
+                                   nb_unknowns_handled_by_proc(2);
                     }
                 }
                 else if (l == 1)
@@ -411,12 +501,14 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                     }
                     else if (dim == 3)
                     {
-                        nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(2);
+                        nb_index = nb_unknowns_handled_by_proc(0) *
+                                   nb_unknowns_handled_by_proc(2);
                     }
                 }
                 else if (l == 2)
                 {
-                    nb_index = nb_unknowns_handled_by_proc(0) * nb_unknowns_handled_by_proc(1);
+                    nb_index = nb_unknowns_handled_by_proc(0) *
+                               nb_unknowns_handled_by_proc(1);
                 }
 
                 nb_procs = nb_procs_in_i[l];
@@ -429,39 +521,61 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                         // Non-periodic and last processor
                         for (size_t index = 0; index < nb_index; index++)
                         {
-                            A[field][l].ii_main[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l));
-                            A[field][l].ii_super[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                            A[field][l].ii_sub[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                            A[field][l].ie[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l), nb_procs - 1);
-                            A[field][l].ei[comp][index]->re_initialize(nb_procs - 1, nb_unknowns_handled_by_proc(l));
+                            A[field][l].ii_main[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l));
+                            A[field][l].ii_super[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 1);
+                            A[field][l].ii_sub[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 1);
+                            A[field][l].ie[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l), nb_procs - 1);
+                            A[field][l].ei[comp][index]->re_initialize(
+                                nb_procs - 1, nb_unknowns_handled_by_proc(l));
                         }
 
-                        Ap[field][l].result[comp]->re_initialize(nb_unknowns_handled_by_proc(l));
-                        VEC[field][l].local_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l));
-                        VEC[field][l].local_solution_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l));
+                        Ap[field][l].result[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l));
+                        VEC[field][l].local_T[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l));
+                        VEC[field][l].local_solution_T[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l));
                     }
                     else
                     {
                         // Non-periodic for processor expect last
                         for (size_t index = 0; index < nb_index; index++)
                         {
-                            A[field][l].ii_main[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                            A[field][l].ii_super[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 2);
-                            A[field][l].ii_sub[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 2);
-                            A[field][l].ie[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1, nb_procs - 1);
-                            A[field][l].ei[comp][index]->re_initialize(nb_procs - 1, nb_unknowns_handled_by_proc(l) - 1);
+                            A[field][l].ii_main[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 1);
+                            A[field][l].ii_super[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 2);
+                            A[field][l].ii_sub[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 2);
+                            A[field][l].ie[comp][index]->re_initialize(
+                                nb_unknowns_handled_by_proc(l) - 1,
+                                nb_procs - 1);
+                            A[field][l].ei[comp][index]->re_initialize(
+                                nb_procs - 1,
+                                nb_unknowns_handled_by_proc(l) - 1);
                         }
 
-                        Ap[field][l].result[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                        VEC[field][l].local_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                        VEC[field][l].local_solution_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
+                        Ap[field][l].result[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 1);
+                        VEC[field][l].local_T[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 1);
+                        VEC[field][l].local_solution_T[comp]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 1);
                     }
 
                     if (l == 1)
-                        MAT_velocityUnsteadyPlusDiffusion_1D->re_initialize(nb_unknowns_handled_by_proc(l), nb_unknowns_handled_by_proc(l));
+                        MAT_velocityUnsteadyPlusDiffusion_1D->re_initialize(
+                            nb_unknowns_handled_by_proc(l),
+                            nb_unknowns_handled_by_proc(l));
                     Ap[field][l].ii_ie[comp]->re_initialize(nb_procs - 1);
-                    Ap[field][l].ei_ii_ie[comp]->re_initialize(nb_procs - 1, nb_procs - 1);
-                    VEC[field][l].interface_T[comp]->re_initialize(nb_procs - 1);
+                    Ap[field][l].ei_ii_ie[comp]->re_initialize(nb_procs - 1,
+                                                               nb_procs - 1);
+                    VEC[field][l].interface_T[comp]->re_initialize(nb_procs -
+                                                                   1);
                     VEC[field][l].T[comp]->re_initialize(nb_procs - 1);
 
                     if (proc_pos == 0)
@@ -469,12 +583,19 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                         // Master processor
                         for (size_t index = 0; index < nb_index; index++)
                         {
-                            A[field][l].ee[comp][index]->re_initialize(nb_procs - 1, nb_procs - 1);
+                            A[field][l].ee[comp][index]->re_initialize(
+                                nb_procs - 1, nb_procs - 1);
                             if (nb_procs != 1)
                             {
-                                Schur[field][l].ii_main[comp][index]->re_initialize(nb_procs - 1);
-                                Schur[field][l].ii_super[comp][index]->re_initialize(nb_procs - 2);
-                                Schur[field][l].ii_sub[comp][index]->re_initialize(nb_procs - 2);
+                                Schur[field][l]
+                                    .ii_main[comp][index]
+                                    ->re_initialize(nb_procs - 1);
+                                Schur[field][l]
+                                    .ii_super[comp][index]
+                                    ->re_initialize(nb_procs - 2);
+                                Schur[field][l]
+                                    .ii_sub[comp][index]
+                                    ->re_initialize(nb_procs - 2);
                             }
                         }
                     }
@@ -484,19 +605,28 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                     // Periodic domain
                     for (size_t index = 0; index < nb_index; index++)
                     {
-                        A[field][l].ii_main[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                        A[field][l].ii_super[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 2);
-                        A[field][l].ii_sub[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 2);
-                        A[field][l].ie[comp][index]->re_initialize(nb_unknowns_handled_by_proc(l) - 1, nb_procs);
-                        A[field][l].ei[comp][index]->re_initialize(nb_procs, nb_unknowns_handled_by_proc(l) - 1);
+                        A[field][l].ii_main[comp][index]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 1);
+                        A[field][l].ii_super[comp][index]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 2);
+                        A[field][l].ii_sub[comp][index]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 2);
+                        A[field][l].ie[comp][index]->re_initialize(
+                            nb_unknowns_handled_by_proc(l) - 1, nb_procs);
+                        A[field][l].ei[comp][index]->re_initialize(
+                            nb_procs, nb_unknowns_handled_by_proc(l) - 1);
                     }
 
-                    Ap[field][l].result[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
+                    Ap[field][l].result[comp]->re_initialize(
+                        nb_unknowns_handled_by_proc(l) - 1);
                     Ap[field][l].ii_ie[comp]->re_initialize(nb_procs);
-                    Ap[field][l].ei_ii_ie[comp]->re_initialize(nb_procs, nb_procs);
+                    Ap[field][l].ei_ii_ie[comp]->re_initialize(nb_procs,
+                                                               nb_procs);
 
-                    VEC[field][l].local_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
-                    VEC[field][l].local_solution_T[comp]->re_initialize(nb_unknowns_handled_by_proc(l) - 1);
+                    VEC[field][l].local_T[comp]->re_initialize(
+                        nb_unknowns_handled_by_proc(l) - 1);
+                    VEC[field][l].local_solution_T[comp]->re_initialize(
+                        nb_unknowns_handled_by_proc(l) - 1);
                     VEC[field][l].interface_T[comp]->re_initialize(nb_procs);
                     VEC[field][l].T[comp]->re_initialize(nb_procs);
 
@@ -506,30 +636,50 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
 
                         for (size_t index = 0; index < nb_index; index++)
                         {
-                            A[field][l].ee[comp][index]->re_initialize(nb_procs, nb_procs);
+                            A[field][l].ee[comp][index]->re_initialize(
+                                nb_procs, nb_procs);
                         }
                         if (nb_procs != 1)
                         {
                             // Mutli processor with periodic domain
-                            // Condition where schur complement won't be a standard tridiagonal matrix but a variation
+                            // Condition where schur complement won't be a
+                            // standard tridiagonal matrix but a variation
                             for (size_t index = 0; index < nb_index; index++)
                             {
-                                Schur[field][l].ii_main[comp][index]->re_initialize(nb_procs - 1);
-                                Schur[field][l].ii_super[comp][index]->re_initialize(nb_procs - 2);
-                                Schur[field][l].ii_sub[comp][index]->re_initialize(nb_procs - 2);
-                                Schur[field][l].ie[comp][index]->re_initialize(nb_procs - 1, 1);
-                                Schur[field][l].ei[comp][index]->re_initialize(1, nb_procs - 1);
-                                Schur[field][l].ee[comp][index]->re_initialize(1, 1);
-                                DoubleSchur[field][l].ii_main[comp][index]->re_initialize(1);
+                                Schur[field][l]
+                                    .ii_main[comp][index]
+                                    ->re_initialize(nb_procs - 1);
+                                Schur[field][l]
+                                    .ii_super[comp][index]
+                                    ->re_initialize(nb_procs - 2);
+                                Schur[field][l]
+                                    .ii_sub[comp][index]
+                                    ->re_initialize(nb_procs - 2);
+                                Schur[field][l].ie[comp][index]->re_initialize(
+                                    nb_procs - 1, 1);
+                                Schur[field][l].ei[comp][index]->re_initialize(
+                                    1, nb_procs - 1);
+                                Schur[field][l].ee[comp][index]->re_initialize(
+                                    1, 1);
+                                DoubleSchur[field][l]
+                                    .ii_main[comp][index]
+                                    ->re_initialize(1);
                             }
 
-                            SchurP[field][l].result[comp]->re_initialize(nb_procs - 1);
+                            SchurP[field][l].result[comp]->re_initialize(
+                                nb_procs - 1);
                             SchurP[field][l].ii_ie[comp]->re_initialize(1);
-                            SchurP[field][l].ei_ii_ie[comp]->re_initialize(1, 1);
+                            SchurP[field][l].ei_ii_ie[comp]->re_initialize(1,
+                                                                           1);
 
-                            Schur_VEC[field][l].local_T[comp]->re_initialize(nb_procs - 1);
-                            Schur_VEC[field][l].local_solution_T[comp]->re_initialize(nb_procs - 1);
-                            Schur_VEC[field][l].interface_T[comp]->re_initialize(1);
+                            Schur_VEC[field][l].local_T[comp]->re_initialize(
+                                nb_procs - 1);
+                            Schur_VEC[field][l]
+                                .local_solution_T[comp]
+                                ->re_initialize(nb_procs - 1);
+                            Schur_VEC[field][l]
+                                .interface_T[comp]
+                                ->re_initialize(1);
                             Schur_VEC[field][l].T[comp]->re_initialize(1);
                         }
                         else
@@ -537,9 +687,15 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
                             // Serial mode with periodic domain
                             for (size_t index = 0; index < nb_index; index++)
                             {
-                                Schur[field][l].ii_main[comp][index]->re_initialize(nb_procs);
-                                Schur[field][l].ii_super[comp][index]->re_initialize(nb_procs - 1);
-                                Schur[field][l].ii_sub[comp][index]->re_initialize(nb_procs - 1);
+                                Schur[field][l]
+                                    .ii_main[comp][index]
+                                    ->re_initialize(nb_procs);
+                                Schur[field][l]
+                                    .ii_super[comp][index]
+                                    ->re_initialize(nb_procs - 1);
+                                Schur[field][l]
+                                    .ii_sub[comp][index]
+                                    ->re_initialize(nb_procs - 1);
                             }
                         }
                     }
@@ -553,7 +709,8 @@ void DLMFD_DirectionSplittingSystem::re_initialize(void)
 DLMFD_DirectionSplittingSystem::~DLMFD_DirectionSplittingSystem(void)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: ~DLMFD_DirectionSplittingSystem");
+    MAC_LABEL(
+        "DLMFD_DirectionSplittingSystem:: ~DLMFD_DirectionSplittingSystem");
 
     if (vector_rhs_VelocityDLMFD_Nm1)
         delete[] vector_rhs_VelocityDLMFD_Nm1;
@@ -620,8 +777,7 @@ void DLMFD_DirectionSplittingSystem::at_each_time_step(void)
 }
 
 //----------------------------------------------------------------------
-double
-DLMFD_DirectionSplittingSystem::compute_DS_velocity_change(void)
+double DLMFD_DirectionSplittingSystem::compute_DS_velocity_change(void)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: compute_DS_velocity_change");
@@ -639,7 +795,10 @@ DLMFD_DirectionSplittingSystem::compute_DS_velocity_change(void)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp, size_t const &dir, struct TDMatrix *arr, size_t const &r_index)
+void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp,
+                                                          size_t const &dir,
+                                                          struct TDMatrix *arr,
+                                                          size_t const &r_index)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: pre_thomas_treatment");
@@ -648,7 +807,8 @@ void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp, si
 
     double temp = arr[dir].ii_main[comp][r_index]->item(0);
     if (nrows > 1)
-        arr[dir].ii_super[comp][r_index]->set_item(0, arr[dir].ii_super[comp][r_index]->item(0) / temp);
+        arr[dir].ii_super[comp][r_index]->set_item(
+            0, arr[dir].ii_super[comp][r_index]->item(0) / temp);
 
     //  // Perform Forward Elimination
     size_t m;
@@ -670,7 +830,11 @@ void DLMFD_DirectionSplittingSystem::pre_thomas_treatment(size_t const &comp, si
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(TDMatrix *arr, LA_SeqVector *rhs, size_t const &comp, size_t const &dir, size_t const &r_index)
+void DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(TDMatrix *arr,
+                                                          LA_SeqVector *rhs,
+                                                          size_t const &comp,
+                                                          size_t const &dir,
+                                                          size_t const &r_index)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DDS_HeatEquationSystem:: mod_thomas_algorithm");
@@ -709,8 +873,7 @@ void DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(TDMatrix *arr, LA_SeqV
 }
 
 //----------------------------------------------------------------------
-TDMatrix *
-DLMFD_DirectionSplittingSystem::get_A(size_t const &field)
+TDMatrix *DLMFD_DirectionSplittingSystem::get_A(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_A");
@@ -719,8 +882,7 @@ DLMFD_DirectionSplittingSystem::get_A(size_t const &field)
 
 //----------------------------------------------------------------------
 
-TDMatrix *
-DLMFD_DirectionSplittingSystem::get_Schur(size_t const &field)
+TDMatrix *DLMFD_DirectionSplittingSystem::get_Schur(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_Schur");
@@ -728,8 +890,7 @@ DLMFD_DirectionSplittingSystem::get_Schur(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-TDMatrix *
-DLMFD_DirectionSplittingSystem::get_DoubleSchur(size_t const &field)
+TDMatrix *DLMFD_DirectionSplittingSystem::get_DoubleSchur(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_DoubleSchur");
@@ -737,8 +898,7 @@ DLMFD_DirectionSplittingSystem::get_DoubleSchur(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-ProdMatrix *
-DLMFD_DirectionSplittingSystem::get_Ap(size_t const &field)
+ProdMatrix *DLMFD_DirectionSplittingSystem::get_Ap(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_Ap");
@@ -746,8 +906,7 @@ DLMFD_DirectionSplittingSystem::get_Ap(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-ProdMatrix *
-DLMFD_DirectionSplittingSystem::get_SchurP(size_t const &field)
+ProdMatrix *DLMFD_DirectionSplittingSystem::get_SchurP(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_SchurP");
@@ -755,8 +914,7 @@ DLMFD_DirectionSplittingSystem::get_SchurP(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-LocalVector *
-DLMFD_DirectionSplittingSystem::get_Schur_VEC(size_t const &field)
+LocalVector *DLMFD_DirectionSplittingSystem::get_Schur_VEC(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_Schur_VEC");
@@ -764,8 +922,7 @@ DLMFD_DirectionSplittingSystem::get_Schur_VEC(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-LocalVector *
-DLMFD_DirectionSplittingSystem::get_VEC(size_t const &field)
+LocalVector *DLMFD_DirectionSplittingSystem::get_VEC(size_t const &field)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: get_VEC");
@@ -773,7 +930,10 @@ DLMFD_DirectionSplittingSystem::get_VEC(size_t const &field)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(FV_DiscreteField *FF, size_t const &j, size_t const &k, size_t const &min_i, size_t const &comp, size_t const &dir, size_t const &field, size_t const &r_index)
+void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(
+    FV_DiscreteField *FF, size_t const &j, size_t const &k, size_t const &min_i,
+    size_t const &comp, size_t const &dir, size_t const &field,
+    size_t const &r_index)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: DS_NavierStokes_solver");
@@ -788,12 +948,14 @@ void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(FV_DiscreteField *FF
 
     // Solve the DS splitting problem in
 
-    DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(arr, rhs[dir].local_T[comp], comp, dir, r_index);
+    DLMFD_DirectionSplittingSystem::mod_thomas_algorithm(
+        arr, rhs[dir].local_T[comp], comp, dir, r_index);
 
     // Transfer in the distributed vector
     size_t nb_local_unk = rhs[dir].local_T[comp]->nb_rows();
     // Since, this function is used in all directions;
-    // ii, jj, and kk are used to convert the passed arguments corresponding to correct direction
+    // ii, jj, and kk are used to convert the passed arguments corresponding to
+    // correct direction
     size_t ii = 0, jj = 0, kk = 0;
 
     size_t m, i, global_number_in_distributed_vector;
@@ -821,14 +983,17 @@ void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(FV_DiscreteField *FF
             kk = i;
         }
 
-        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        global_number_in_distributed_vector =
+            FF->DOF_global_number(ii, jj, kk, comp);
         if (field == 0)
         {
-            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].local_T[comp]->item(m));
+            VEC_DS_PF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].local_T[comp]->item(m));
         }
         else if (field == 1)
         {
-            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].local_T[comp]->item(m));
+            VEC_DS_UF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].local_T[comp]->item(m));
         }
     }
 
@@ -855,26 +1020,32 @@ void DLMFD_DirectionSplittingSystem::DS_NavierStokes_solver(FV_DiscreteField *FF
 
     if ((is_periodic[field][dir] == 1))
     {
-        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        global_number_in_distributed_vector =
+            FF->DOF_global_number(ii, jj, kk, comp);
         if (field == 0)
         {
-            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+            VEC_DS_PF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].interface_T[comp]->item(proc_pos));
         }
         else if (field == 1)
         {
-            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+            VEC_DS_UF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].interface_T[comp]->item(proc_pos));
         }
     }
     else if ((is_periodic[field][dir] == 0) && (proc_pos != nb_procs - 1))
     {
-        global_number_in_distributed_vector = FF->DOF_global_number(ii, jj, kk, comp);
+        global_number_in_distributed_vector =
+            FF->DOF_global_number(ii, jj, kk, comp);
         if (field == 0)
         {
-            VEC_DS_PF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+            VEC_DS_PF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].interface_T[comp]->item(proc_pos));
         }
         else if (field == 1)
         {
-            VEC_DS_UF->set_item(global_number_in_distributed_vector, rhs[dir].interface_T[comp]->item(proc_pos));
+            VEC_DS_UF->set_item(global_number_in_distributed_vector,
+                                rhs[dir].interface_T[comp]->item(proc_pos));
         }
     }
 }
@@ -899,11 +1070,14 @@ void DLMFD_DirectionSplittingSystem::synchronize_DS_solution_vec_P(void)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::compute_product_matrix_interior(struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp, size_t const &column, size_t const &dir, size_t const &r_index)
+void DLMFD_DirectionSplittingSystem::compute_product_matrix_interior(
+    struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp,
+    size_t const &column, size_t const &dir, size_t const &r_index)
 //----------------------------------------------------------------------
 {
 
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: compute_product_matrix_interior");
+    MAC_LABEL(
+        "DLMFD_DirectionSplittingSystem:: compute_product_matrix_interior");
 
     // Get appropriate column of Aie
     arr[dir].ie[comp][r_index]->extract_col(column, prr[dir].result[comp]);
@@ -912,7 +1086,8 @@ void DLMFD_DirectionSplittingSystem::compute_product_matrix_interior(struct TDMa
     mod_thomas_algorithm(arr, prr[dir].result[comp], comp, dir, r_index);
 
     // Get product of Aei*inv(Aii)*Aie for appropriate column
-    arr[dir].ei[comp][r_index]->multiply_vec_then_add(prr[dir].result[comp], prr[dir].ii_ie[comp]);
+    arr[dir].ei[comp][r_index]->multiply_vec_then_add(prr[dir].result[comp],
+                                                      prr[dir].ii_ie[comp]);
 
     size_t nb_procs;
 
@@ -922,12 +1097,15 @@ void DLMFD_DirectionSplittingSystem::compute_product_matrix_interior(struct TDMa
 
     for (size_t i = 0; i < int_unknown; i++)
     {
-        prr[dir].ei_ii_ie[comp]->set_item(i, column, prr[dir].ii_ie[comp]->item(i));
+        prr[dir].ei_ii_ie[comp]->set_item(i, column,
+                                          prr[dir].ii_ie[comp]->item(i));
     }
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::compute_product_matrix(struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp, size_t const &dir, size_t const &field, size_t const &r_index)
+void DLMFD_DirectionSplittingSystem::compute_product_matrix(
+    struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp,
+    size_t const &dir, size_t const &field, size_t const &r_index)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem:: compute_product_matrix");
@@ -942,24 +1120,29 @@ void DLMFD_DirectionSplittingSystem::compute_product_matrix(struct TDMatrix *arr
         // Condition for serial processor and multi processor
         if (proc_pos == 0)
         {
-            compute_product_matrix_interior(arr, prr, comp, proc_pos, dir, r_index);
+            compute_product_matrix_interior(arr, prr, comp, proc_pos, dir,
+                                            r_index);
         }
         else
         {
-            compute_product_matrix_interior(arr, prr, comp, proc_pos - 1, dir, r_index);
+            compute_product_matrix_interior(arr, prr, comp, proc_pos - 1, dir,
+                                            r_index);
             if (is_periodic[field][dir] == 1)
-                compute_product_matrix_interior(arr, prr, comp, proc_pos, dir, r_index);
+                compute_product_matrix_interior(arr, prr, comp, proc_pos, dir,
+                                                r_index);
         }
     }
     else if (proc_pos == 0)
     {
         compute_product_matrix_interior(arr, prr, comp, proc_pos, dir, r_index);
         if (is_periodic[field][dir] == 1)
-            compute_product_matrix_interior(arr, prr, comp, nb_procs - 1, dir, r_index);
+            compute_product_matrix_interior(arr, prr, comp, nb_procs - 1, dir,
+                                            r_index);
     }
     else
     {
-        compute_product_matrix_interior(arr, prr, comp, proc_pos - 1, dir, r_index);
+        compute_product_matrix_interior(arr, prr, comp, proc_pos - 1, dir,
+                                        r_index);
         compute_product_matrix_interior(arr, prr, comp, proc_pos, dir, r_index);
     }
 }
@@ -984,7 +1167,8 @@ void DLMFD_DirectionSplittingSystem::assemble_velocity_unsteady_matrix(
     double const &coef)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem:: assemble_velocity_unsteady_matrix");
+    MAC_LABEL(
+        "DLMFD_DirectionSplittingSystem:: assemble_velocity_unsteady_matrix");
 
     UF->assemble_mass_matrix(coef, MAT_A_VelocityUnsteady);
 }
@@ -996,7 +1180,8 @@ void DLMFD_DirectionSplittingSystem::updateFluid_DLMFD_rhs()
     MAC_LABEL("DLMFD_DirectionSplittingSystem::updateFluid_DLMFD_rhs");
 
     // Compute unsteady rhs
-    MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_DS_UF, VEC_rhs_A_Velocity);
+    MAT_A_VelocityUnsteady->multiply_vec_then_add(VEC_DS_UF,
+                                                  VEC_rhs_A_Velocity);
 
     // Add explicit DLMFD forcing term
     if (b_NS_ExplicitDLMFD)
@@ -1023,7 +1208,9 @@ void DLMFD_DirectionSplittingSystem::nullify_Explicit_DLMFD_Cvector()
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::assemble_inQUvector(double transferVal, size_t index, double coef)
+void DLMFD_DirectionSplittingSystem::assemble_inQUvector(double transferVal,
+                                                         size_t index,
+                                                         double coef)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem::assemble_inQUvector");
@@ -1032,16 +1219,19 @@ void DLMFD_DirectionSplittingSystem::assemble_inQUvector(double transferVal, siz
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef)
+void DLMFD_DirectionSplittingSystem::assemble_inExplicit_DLMFD_Cvector(
+    double transferVal, size_t index, double coef)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_DirectionSplittingSystem::assemble_inExplicit_DLMFDvector");
+    MAC_LABEL(
+        "DLMFD_DirectionSplittingSystem::assemble_inExplicit_DLMFDvector");
 
     vector_rhs_VelocityDLMFD_Nm1[index] += coef * transferVal;
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Init(const double &time)
+void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Init(
+    const double &time)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Init");
@@ -1066,10 +1256,12 @@ LA_SeqVector const *DLMFD_DirectionSplittingSystem::get_solution_U() const
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Iter(const double &time)
+void DLMFD_DirectionSplittingSystem::solve_FluidVel_DLMFD_Iter(
+    const double &time)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_divv_rhs");
+    MAC_LABEL("DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_"
+              "divv_rhs");
 
     // Has to be done before, for the sake of well understanding
     VEC_q->synchronize();
@@ -1092,7 +1284,8 @@ LA_SeqVector const *DLMFD_DirectionSplittingSystem::get_tVector_U() const
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::update_FluidVel_OneUzawaIter(const double &alpha)
+void DLMFD_DirectionSplittingSystem::update_FluidVel_OneUzawaIter(
+    const double &alpha)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem::update_FluidVel_OneUzawaIter");
@@ -1112,7 +1305,8 @@ void DLMFD_DirectionSplittingSystem::store_DLMFD_rhs()
 }
 
 //----------------------------------------------------------------------
-void DLMFD_DirectionSplittingSystem::re_initialize_explicit_DLMFD(bool const &restart)
+void DLMFD_DirectionSplittingSystem::re_initialize_explicit_DLMFD(
+    bool const &restart)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem::re_initialize_explicit_DLMFD");
@@ -1124,7 +1318,8 @@ void DLMFD_DirectionSplittingSystem::re_initialize_explicit_DLMFD(bool const &re
 }
 
 //----------------------------------------------------------------------
-double DLMFD_DirectionSplittingSystem::get_explicit_DLMFD_at_index(size_t index) const
+double
+DLMFD_DirectionSplittingSystem::get_explicit_DLMFD_at_index(size_t index) const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplittingSystem::get_explicit_DLMFD_at_index");

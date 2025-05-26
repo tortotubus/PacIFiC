@@ -285,7 +285,7 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(
     transfert.split_gravity_vector = split_gravity_vector;
     transfert.GLOBAL_EQ = GLOBAL_EQ;
     transfert.velocitylevelDiscrField = 0;
-  transfert.nb_levels = 1;
+    transfert.nb_levels = 1;
     transfert.b_restart = b_restart;
     transfert.output_frequency = output_frequency;
     transfert.UU = UU;
@@ -293,10 +293,10 @@ DLMFD_ProjectionNavierStokes::DLMFD_ProjectionNavierStokes(
 
     dlmfd_solver = DLMFD_FictitiousDomain::create(a_owner, dom, exp, transfert);
 
-  // Use explicit DLMFD in N&S advection-diffusion equation
-  b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
-  if (b_ExplicitDLMFD)
-    GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
+    // Use explicit DLMFD in N&S advection-diffusion equation
+    b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
+    if (b_ExplicitDLMFD)
+        GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
 }
 
 

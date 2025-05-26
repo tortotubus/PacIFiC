@@ -2,10 +2,8 @@
 #include <MAC_Error.hh>
 
 //----------------------------------------------------------------------
-DLMFD_System::DLMFD_System(MAC_Object *a_owner,
-                           MAC_ModuleExplorer const *exp,
-                           FV_DiscreteField *mac_UF,
-                           FV_DiscreteField *mac_PF,
+DLMFD_System::DLMFD_System(MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
+                           FV_DiscreteField *mac_UF, FV_DiscreteField *mac_PF,
                            size_t const &NS_Viscous_TimeAccuracy_,
                            size_t const &NS_Advection_TimeAccuracy_,
                            bool const &b_pressure_rescaling_,
@@ -52,8 +50,7 @@ void DLMFD_System::at_each_time_step(void)
 }
 
 //----------------------------------------------------------------------
-double
-DLMFD_System::compute_velocity_change(void)
+double DLMFD_System::compute_velocity_change(void)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: compute_velocity_change");
@@ -64,8 +61,7 @@ DLMFD_System::compute_velocity_change(void)
 }
 
 //----------------------------------------------------------------------
-double
-DLMFD_System::compute_velocity_divergence_norm(void)
+double DLMFD_System::compute_velocity_divergence_norm(void)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: compute_velocity_divergence_norm");
@@ -87,8 +83,7 @@ void DLMFD_System::nullify_velocity_advection_rhs(void)
 }
 
 //----------------------------------------------------------------------
-LA_SeqVector const *
-DLMFD_System::get_solution_velocity(void) const
+LA_SeqVector const *DLMFD_System::get_solution_velocity(void) const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: get_solution_U");
@@ -99,8 +94,7 @@ DLMFD_System::get_solution_velocity(void) const
 }
 
 //----------------------------------------------------------------------
-LA_SeqVector const *
-DLMFD_System::get_solution_pressure(void) const
+LA_SeqVector const *DLMFD_System::get_solution_pressure(void) const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: get_solution_pressure");
@@ -136,8 +130,7 @@ void DLMFD_System::initialize_pressure(void)
 void DLMFD_System::finalize_constant_matrices(void)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: finalize_constant_matrices");
+    MAC_LABEL("DLMFD_System:: finalize_constant_matrices");
 
     string error_message = "DLMFD_System::finalize_constant_matrices ";
     error_message += "should not be called !! Check implementation";
@@ -146,40 +139,36 @@ void DLMFD_System::finalize_constant_matrices(void)
 
 //----------------------------------------------------------------------
 void DLMFD_System::compute_velocityAdvectionDiffusion_rhs(
-    bool const &b_restart,
-    size_t const &iteration_number,
-    bool const &b_with_advection,
-    double const &dpdl)
+    bool const &b_restart, size_t const &iteration_number,
+    bool const &b_with_advection, double const &dpdl)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: "
               "compute_velocityAdvectionDiffusion_rhs");
 
-    string error_message = "DLMFD_System::compute_velocityAdvectionDiffusion_rhs ";
+    string error_message =
+        "DLMFD_System::compute_velocityAdvectionDiffusion_rhs ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::assemble_velocity_viscous_matrix_rhs(
-    double const &coef_lap)
+void DLMFD_System::assemble_velocity_viscous_matrix_rhs(double const &coef_lap)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: assemble_velocity_viscous_matrix_rhs");
+    MAC_LABEL("DLMFD_System:: assemble_velocity_viscous_matrix_rhs");
 
-    string error_message = "DLMFD_System::assemble_velocity_viscous_matrix_rhs ";
+    string error_message =
+        "DLMFD_System::assemble_velocity_viscous_matrix_rhs ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::assemble_velocity_unsteady_matrix(
-    double const &coef)
+void DLMFD_System::assemble_velocity_unsteady_matrix(double const &coef)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: assemble_velocity_unsteady_matrix");
+    MAC_LABEL("DLMFD_System:: assemble_velocity_unsteady_matrix");
 
     string error_message = "DLMFD_System::assemble_velocity_unsteady_matrix ";
     error_message += "should not be called !! Check implementation";
@@ -187,8 +176,7 @@ void DLMFD_System::assemble_velocity_unsteady_matrix(
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::assemble_pdivv_matrix_rhs(
-    double const &coef)
+void DLMFD_System::assemble_pdivv_matrix_rhs(double const &coef)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: assemble_pdivv_matrix_rhs");
@@ -199,14 +187,13 @@ void DLMFD_System::assemble_pdivv_matrix_rhs(
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::assemble_velocity_advection(
-    string const &AdvectionScheme,
-    size_t advecting_level, double const &coef,
-    size_t advected_level)
+void DLMFD_System::assemble_velocity_advection(string const &AdvectionScheme,
+                                               size_t advecting_level,
+                                               double const &coef,
+                                               size_t advected_level)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: assemble_velocity_advection");
+    MAC_LABEL("DLMFD_System:: assemble_velocity_advection");
 
     string error_message = "DLMFD_System::assemble_velocity_advection ";
     error_message += "should not be called !! Check implementation";
@@ -218,10 +205,10 @@ void DLMFD_System::assemble_pressure_laplacian_matrix_rhs(
     double const &coef_lap)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: assemble_pressure_laplacian_matrix_rhs");
+    MAC_LABEL("DLMFD_System:: assemble_pressure_laplacian_matrix_rhs");
 
-    string error_message = "DLMFD_System::assemble_pressure_laplacian_matrix_rhs ";
+    string error_message =
+        "DLMFD_System::assemble_pressure_laplacian_matrix_rhs ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
@@ -230,8 +217,7 @@ void DLMFD_System::assemble_pressure_laplacian_matrix_rhs(
 void DLMFD_System::pressure_laplacian_correction(void)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: pressure_laplacian_correction");
+    MAC_LABEL("DLMFD_System:: pressure_laplacian_correction");
 
     string error_message = "DLMFD_System::pressure_laplacian_correction ";
     error_message += "should not be called !! Check implementation";
@@ -239,8 +225,7 @@ void DLMFD_System::pressure_laplacian_correction(void)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::add_storable_objects(
-    MAC_ListIdentity *list) const
+void DLMFD_System::add_storable_objects(MAC_ListIdentity *list) const
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: add_storable_objects");
@@ -258,7 +243,8 @@ void DLMFD_System::nullify_Explicit_DLMFD_Cvector()
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef)
+void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal,
+                                                     size_t index, double coef)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System::assemble_inExplicit_DLMFDvector");
@@ -276,14 +262,12 @@ bool DLMFD_System::VelocityDiffusion_solver(void)
 }
 
 //----------------------------------------------------------------------
-double
-DLMFD_System::VelocityPressure_correction_solver(
-    double const &density, double const &viscosity,
-    double const &timestep)
+double DLMFD_System::VelocityPressure_correction_solver(double const &density,
+                                                        double const &viscosity,
+                                                        double const &timestep)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: VelocityPressure_correction_solver");
+    MAC_LABEL("DLMFD_System:: VelocityPressure_correction_solver");
 
     string error_message = "DLMFD_System::VelocityPressure_correction_solver ";
     error_message += "should not be called !! Check implementation";
@@ -291,13 +275,10 @@ DLMFD_System::VelocityPressure_correction_solver(
 }
 
 //----------------------------------------------------------------------
-LA_Vector *
-DLMFD_System::get_pressure_DirichletBC_vector(
-    void)
+LA_Vector *DLMFD_System::get_pressure_DirichletBC_vector(void)
 //----------------------------------------------------------------------
 {
-    MAC_LABEL(
-        "DLMFD_System:: get_pressure_DirichletBC_vector");
+    MAC_LABEL("DLMFD_System:: get_pressure_DirichletBC_vector");
 
     string error_message = "DLMFD_System::get_pressure_DirichletBC_vector ";
     error_message += "should not be called !! Check implementation";
@@ -305,15 +286,14 @@ DLMFD_System::get_pressure_DirichletBC_vector(
 }
 
 //----------------------------------------------------------------------
-LA_Vector *
-DLMFD_System::get_unitary_periodic_pressure_drop_vector(
-    void)
+LA_Vector *DLMFD_System::get_unitary_periodic_pressure_drop_vector(void)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: "
               "get_unitary_periodic_pressure_drop_vector");
 
-    string error_message = "DLMFD_System::get_unitary_periodic_pressure_drop_vector ";
+    string error_message =
+        "DLMFD_System::get_unitary_periodic_pressure_drop_vector ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
@@ -412,7 +392,8 @@ void DLMFD_System::synchronize_rhs_periodic_pressure_vector()
 {
     MAC_LABEL("DLMFD_System::synchronize_rhs_periodic_pressure_vector");
 
-    string error_message = "DLMFD_System::synchronize_rhs_periodic_pressure_vector ";
+    string error_message =
+        "DLMFD_System::synchronize_rhs_periodic_pressure_vector ";
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
@@ -429,8 +410,7 @@ void DLMFD_System::set_periodic_pressure_rhs_item(size_t i_row, double xx)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::store_ugradu_Nm2(
-    size_t const &n_advection_subtimesteps)
+void DLMFD_System::store_ugradu_Nm2(size_t const &n_advection_subtimesteps)
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: store_ugradu_Nm2");
