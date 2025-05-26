@@ -1,8 +1,8 @@
 #ifndef DLMFD_PROJ_NAVIER_STOKES_SYSTEM_HH
 #define DLMFD_PROJ_NAVIER_STOKES_SYSTEM_HH
 
-#include <MAC_Object.hh>
 #include <DLMFD_System.hh>
+#include <MAC_Object.hh>
 #include <utility>
 using namespace std;
 
@@ -28,7 +28,8 @@ Generic matrix systems for the resolution of NavierStokes equations
 
 @author A. Wachs - Pacific project 2018-2019 */
 
-class DLMFD_ProjectionNavierStokesSystem : public MAC_Object, public DLMFD_System
+class DLMFD_ProjectionNavierStokesSystem : public MAC_Object,
+                                           public DLMFD_System
 {
   private: //----------------------------------------------------------
            //-- Constructors & Destructor

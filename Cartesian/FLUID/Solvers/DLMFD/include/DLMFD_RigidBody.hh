@@ -505,7 +505,7 @@ class DLMFD_RigidBody
     //-- Attributes
 
     FS_RigidBody *ptr_FSrigidbody; /* Pointer to geometric Rigid Body */
-    FV_DiscreteField *pField_;
+    FV_DiscreteField *pField_;     /* Pointer to the field */
 
     bool is_particle_fixed; /**< is the solid component a particle treated as a
                                fixed obstacle */

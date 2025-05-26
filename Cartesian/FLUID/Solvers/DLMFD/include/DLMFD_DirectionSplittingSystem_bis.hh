@@ -1,15 +1,15 @@
 #ifndef REG_HEAT_EQUATION_SYSTEM_HH
 #define REG_HEAT_EQUATION_SYSTEM_HH
 
-#include <MAC_Object.hh>
 #include <DLMFD_System.hh>
-#include <utility>
-#include <boolVector.hh>
-#include <size_t_array2D.hh>
-#include <doubleArray2D.hh>
-#include <vector>
-#include <LA_StorableVectors.hh>
 #include <LA_SeqVector.hh>
+#include <LA_StorableVectors.hh>
+#include <MAC_Object.hh>
+#include <boolVector.hh>
+#include <doubleArray2D.hh>
+#include <size_t_array2D.hh>
+#include <utility>
+#include <vector>
 using namespace std;
 
 class MAC_ModuleExplorer;
@@ -86,10 +86,11 @@ Matrix systems for the resolution of the heat equation.
 
 @author A. Goyal - Pacific project 2022 */
 
-class DLMFD_DirectionSplittingSystem_bis : public MAC_Object, public DLMFD_System
+class DLMFD_DirectionSplittingSystem_bis : public MAC_Object,
+                                           public DLMFD_System
 {
-private: //----------------------------------------------------------
-         //-- Constructors & Destructor
+  private: //----------------------------------------------------------
+           //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor without argument */
@@ -99,7 +100,8 @@ private: //----------------------------------------------------------
     ~DLMFD_DirectionSplittingSystem_bis(void);
 
     /** @brief Copy constructor */
-    DLMFD_DirectionSplittingSystem_bis(DLMFD_DirectionSplittingSystem_bis const &other);
+    DLMFD_DirectionSplittingSystem_bis(
+        DLMFD_DirectionSplittingSystem_bis const &other);
 
     /** @brief Constructor with arguments
     @param a_owner the MAC-based object
@@ -112,19 +114,19 @@ private: //----------------------------------------------------------
                                        bool &is_stressCal_);
     //@}
 
-public: //-----------------------------------------------------------
-        //-- Instance delivery and initialization
+  public: //-----------------------------------------------------------
+          //-- Instance delivery and initialization
     /** @name Instance delivery and initialization */
     //@{
-    /** @brief Create and initialize an instance of DLMFD_DirectionSplittingSystem_bis
+    /** @brief Create and initialize an instance of
+    DLMFD_DirectionSplittingSystem_bis
     @param a_owner the MAC-based object
     @param exp to read the data file
     @param mac_UF FV velocity field */
-    static DLMFD_DirectionSplittingSystem_bis *create(MAC_Object *a_owner,
-                                                      MAC_ModuleExplorer const *exp,
-                                                      FV_DiscreteField *mac_UF,
-                                                      FV_DiscreteField *mac_PF,
-                                                      bool &is_stressCal_);
+    static DLMFD_DirectionSplittingSystem_bis *
+    create(MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
+           FV_DiscreteField *mac_UF, FV_DiscreteField *mac_PF,
+           bool &is_stressCal_);
     //@}
 
     //-- Access
@@ -147,7 +149,8 @@ public: //-----------------------------------------------------------
     vector<doubleArray2D *> get_velocity_face_fractions();
     vector<doubleArray2D *> get_velocity_normalRB();
     /** @brief Return the local vector with a vector of row index */
-    size_t_array2D *get_row_indexes(size_t const &field, size_t const &dir, size_t const &comp);
+    size_t_array2D *get_row_indexes(size_t const &field, size_t const &dir,
+                                    size_t const &comp);
 
     /** @brief Return the Schur complement of
     Schur complement in case of periodic domain */
@@ -167,7 +170,11 @@ public: //-----------------------------------------------------------
     //@{
     /** @brief Solve the DS splitting problem in x by performing the
     matrix-vector product A_x^-1.Vx and transfer in the distributed vector */
-    void DLMFD_DirectionSplitting_solver(FV_DiscreteField *FF, size_t const &j, size_t const &k, size_t const &min_i, size_t const &comp, size_t const &dir, size_t const &r_index, size_t const &level);
+    void DLMFD_DirectionSplitting_solver(FV_DiscreteField *FF, size_t const &j,
+                                         size_t const &k, size_t const &min_i,
+                                         size_t const &comp, size_t const &dir,
+                                         size_t const &r_index,
+                                         size_t const &level);
 
     //@}
 
@@ -181,10 +188,14 @@ public: //-----------------------------------------------------------
 
     /** @brief Calls interior function for different conditions
     to compute the product of Aei*inv(Aii)*Aie */
-    void compute_product_matrix(struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp, size_t const &dir, size_t const &field, size_t const &r_index);
+    void compute_product_matrix(struct TDMatrix *arr, struct ProdMatrix *prr,
+                                size_t const &comp, size_t const &dir,
+                                size_t const &field, size_t const &r_index);
     /** @brief Compute the product of Aei*inv(Aii)*Aie in any
     direction for any field*/
-    void compute_product_matrix_interior(struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp, size_t const &column, size_t const &dir, size_t const &r_index);
+    void compute_product_matrix_interior(
+        struct TDMatrix *arr, struct ProdMatrix *prr, size_t const &comp,
+        size_t const &column, size_t const &dir, size_t const &r_index);
 
     //-- Utilities
 
@@ -192,15 +203,19 @@ public: //-----------------------------------------------------------
     //@{
     /** @brief Solve Linear system mat_A*x = rhs with only three
     vectors of mat_A(x,y,z) using thomas algorithm  */
-    void mod_thomas_algorithm(TDMatrix *arr, LA_SeqVector *rhs, size_t const &comp, size_t const &dir, size_t const &r_index);
+    void mod_thomas_algorithm(TDMatrix *arr, LA_SeqVector *rhs,
+                              size_t const &comp, size_t const &dir,
+                              size_t const &r_index);
     /** @brief Compute the modified super diagonal for thomas algorithm  */
-    void pre_thomas_treatment(size_t const &comp, size_t const &dir, struct TDMatrix *arr, size_t const &r_index);
+    void pre_thomas_treatment(size_t const &comp, size_t const &dir,
+                              struct TDMatrix *arr, size_t const &r_index);
     //@}
 
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
-    // --------------------------- DLMFD FRAMEWORK ------------------------------
+    // --------------------------- DLMFD FRAMEWORK
+    // ------------------------------
 
     /** @brief Finalize constant matrices */
     void finalize_constant_matrices();
@@ -265,8 +280,8 @@ public: //-----------------------------------------------------------
 
     void add_storable_objects(MAC_ListIdentity *list) const;
 
-protected: //--------------------------------------------------------
-private:   //----------------------------------------------------------
+  protected: //--------------------------------------------------------
+  private:   //----------------------------------------------------------
     /** @name Initialize matrices & vectors */
     //@{
     /** @brief Create matrices & vectors (without allocating memory)

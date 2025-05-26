@@ -1,22 +1,23 @@
 #ifndef _DLMFD_SYSTEM_BUILDERFACTORY__
 #define _DLMFD_SYSTEM_BUILDERFACTORY__
 
-#include <iostream>
 #include <FV_DiscreteField.hh>
-#include <MAC_Object.hh>
 #include <MAC_ModuleExplorer.hh>
+#include <MAC_Object.hh>
+#include <iostream>
 using namespace std;
 
 /** @brief The Class DLMFD_System.
 
-Linear system resolution class, that is either equal to DLMFD_ProjectionNavierStokesSystem
-or DLMFD_DirectionSplittingSystem, depending on the flow solver that is actually used.
+Linear system resolution class, that is either equal to
+DLMFD_ProjectionNavierStokesSystem or DLMFD_DirectionSplittingSystem, depending
+on the flow solver that is actually used.
 
 @author M. Houlette - Pacific project 2025 */
 
 class DLMFD_System
 {
-public: //-----------------------------------------------------------------
+  public: //-----------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
@@ -29,10 +30,8 @@ public: //-----------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_System(MAC_Object *a_owner,
-                 MAC_ModuleExplorer const *exp,
-                 FV_DiscreteField *mac_UF,
-                 FV_DiscreteField *mac_PF,
+    DLMFD_System(MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
+                 FV_DiscreteField *mac_UF, FV_DiscreteField *mac_PF,
                  size_t const &NS_Viscous_TimeAccuracy_,
                  size_t const &NS_Advection_TimeAccuracy_,
                  bool const &b_pressure_rescaling_,
@@ -121,7 +120,9 @@ public: //-----------------------------------------------------------------
     @param coef prefactor
     @param advected_level level of advected velocity */
     virtual void assemble_velocity_advection(string const &AdvectionScheme,
-                                             size_t advecting_level, double const &coef, size_t advected_level);
+                                             size_t advecting_level,
+                                             double const &coef,
+                                             size_t advected_level);
 
     /** @brief Finalize constant matrices */
     virtual void finalize_constant_matrices(void);
@@ -132,10 +133,9 @@ public: //-----------------------------------------------------------------
     @param b_with_advection add advection term
     @param dpdl periodic pressure gradient source term (is 0 if no periodic
     pressure drop is imposed) */
-    virtual void compute_velocityAdvectionDiffusion_rhs(bool const &b_restart,
-                                                        size_t const &iteration_number,
-                                                        bool const &b_with_advection,
-                                                        double const &dpdl);
+    virtual void compute_velocityAdvectionDiffusion_rhs(
+        bool const &b_restart, size_t const &iteration_number,
+        bool const &b_with_advection, double const &dpdl);
 
     /** @brief Assemble velocity viscous matrix and rhs
     @param coef_lap laplacian coefficient */
@@ -176,9 +176,9 @@ public: //-----------------------------------------------------------------
     @param density fluid density
     @param viscosity fluid viscosity
     @param timestep time step magnitude */
-    virtual double VelocityPressure_correction_solver(
-        double const &density, double const &viscosity,
-        double const &timestep);
+    virtual double VelocityPressure_correction_solver(double const &density,
+                                                      double const &viscosity,
+                                                      double const &timestep);
 
     /** @brief Velocity Advection solver */
     virtual bool VelocityAdvection_solver(void);
@@ -198,7 +198,8 @@ public: //-----------------------------------------------------------------
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
-    // --------------------------- DLMFD FRAMEWORK ------------------------------
+    // --------------------------- DLMFD FRAMEWORK
+    // ------------------------------
 
     /** @brief Initialize the velocity right hand side of momentum equations
     in the DLM/FD problem i.e. compute (ro/dt)*U(n-1) before the DLM/FD
@@ -217,13 +218,15 @@ public: //-----------------------------------------------------------------
     @param transferVec the entry
     @param index the position in the vector
     @param coef parameter */
-    virtual void assemble_inQUvector(double transferVal, size_t index, double coef) = 0;
+    virtual void assemble_inQUvector(double transferVal, size_t index,
+                                     double coef) = 0;
 
     /** @brief Assemble the explicit DLMFD C vector
     @param transferVec the entry
     @param index the position in the vector
     @param coef parameter */
-    virtual void assemble_inExplicit_DLMFD_Cvector(double transferVal, size_t index, double coef);
+    virtual void assemble_inExplicit_DLMFD_Cvector(double transferVal,
+                                                   size_t index, double coef);
 
     /** @brief Solve the fluid system at the matrix level */
     virtual void solve_FluidVel_DLMFD_Init(const double &time) = 0;
@@ -234,7 +237,8 @@ public: //-----------------------------------------------------------------
 
     int const get_DLMFD_maxiter() const;
 
-    /** @brief Initialize Qu vector as Bt*w, with w the pressure descent direction */
+    /** @brief Initialize Qu vector as Bt*w, with w the pressure descent
+     * direction */
     virtual void initialize_QUvector_with_divv_rhs();
 
     /** @brief solve A.tu = quf = <w,v> */
@@ -253,12 +257,12 @@ public: //-----------------------------------------------------------------
     /** @brief Reload other data than FV fields for restart  */
     virtual void do_additional_savings(string const &rootfilename_dlm);
 
-private: //-----------------------------------------------------------------
+  private: //-----------------------------------------------------------------
     // Uzawa algorithm
     double Uzawa_DLMFD_precision;
     int Uzawa_DLMFD_maxiter;
 
-protected: //-----------------------------------------------------------------
+  protected: //-----------------------------------------------------------------
 };
 
 #endif

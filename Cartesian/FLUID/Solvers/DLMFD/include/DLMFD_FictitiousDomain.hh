@@ -30,10 +30,10 @@ struct NavierStokes2FluidSolid
     geomVector gravity_vector;
     geomVector split_gravity_vector;
 
-   // Linear resolution
-   DLMFD_System *GLOBAL_EQ;
-   size_t velocitylevelDiscrField;
-   size_t nb_levels;
+    // Linear resolution
+    DLMFD_System *GLOBAL_EQ;
+    size_t velocitylevelDiscrField;
+    size_t nb_levels;
 
     // Booleans
     bool b_restart;
@@ -162,7 +162,7 @@ class DLMFD_FictitiousDomain : public MAC_Object,
   protected: //----------------------------------------------------------------
     //-- Class attributes
     size_t levelDiscrField;
-   size_t nb_levels;
+    size_t nb_levels;
 
   private: //----------------------------------------------------------------
     /** @name Constructors & Destructor */
@@ -256,7 +256,7 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     FV_DiscreteField *UU;
     FV_DiscreteField *PP;
 
-   DLMFD_System *GLOBAL_EQ;
+    DLMFD_System *GLOBAL_EQ;
 
     // Physical Parameters
     size_t dim;

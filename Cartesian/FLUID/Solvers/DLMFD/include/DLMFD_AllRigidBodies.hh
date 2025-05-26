@@ -11,6 +11,12 @@
 #include <size_t_array2D.hh>
 #include <size_t_vector.hh>
 #include <DLMFD_System.hh>
+#include <FS_AllRigidBodies.hh>
+#include <FV_DiscreteField.hh>
+#include <MAC_Communicator.hh>
+#include <doubleArray2D.hh>
+#include <size_t_array2D.hh>
+#include <size_t_vector.hh>
 using namespace std;
 
 /** @brief The class DLMFD_AllRigidBodies.

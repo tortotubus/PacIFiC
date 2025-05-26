@@ -1,21 +1,21 @@
 #ifndef DLMFD_DirectionSplitting_bis_HH
 #define DLMFD_DirectionSplitting_bis_HH
 
-#include <mpi.h>
-#include <FV_OneStepIteration.hh>
-#include <geomVector.hh>
-#include <PAC_computingtime.hh>
-#include <boolVector.hh>
-#include <PAC_solvercomputingtime.hh>
-#include <MAC_DoubleVector.hh>
-#include <DS_PID.hh>
-#include <vector>
-#include <string>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <utility>
 #include <DLMFD_FictitiousDomain.hh>
+#include <DS_PID.hh>
+#include <FV_OneStepIteration.hh>
+#include <MAC_DoubleVector.hh>
+#include <PAC_computingtime.hh>
+#include <PAC_solvercomputingtime.hh>
+#include <boolVector.hh>
+#include <fstream>
+#include <geomVector.hh>
+#include <iostream>
+#include <mpi.h>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 using namespace std;
 
 class MAC_Communicator;
@@ -41,10 +41,12 @@ struct MPIVarNS
     double ***receive;
 };
 
-class DLMFD_DirectionSplitting_bis : public FV_OneStepIteration, public PAC_ComputingTime, public PAC_SolverComputingTime
+class DLMFD_DirectionSplitting_bis : public FV_OneStepIteration,
+                                     public PAC_ComputingTime,
+                                     public PAC_SolverComputingTime
 {
-public: //-----------------------------------------------------------------
-        //-- Substeps of the step by step progression
+  public: //-----------------------------------------------------------------
+          //-- Substeps of the step by step progression
     /** @name Substeps of the step by step progression */
     //@{
     /** @brief Tasks performed at initialization of the algorithm, before
@@ -59,13 +61,11 @@ public: //-----------------------------------------------------------------
 
     /** @brief Tasks performed at initialization of each time step
     @param t_it time iterator */
-    virtual void do_before_inner_iterations_stage(
-        FV_TimeIterator const *t_it);
+    virtual void do_before_inner_iterations_stage(FV_TimeIterator const *t_it);
 
     /** @brief Tasks performed after of each time step
     @param t_it time iterator */
-    virtual void do_after_inner_iterations_stage(
-        FV_TimeIterator const *t_it);
+    virtual void do_after_inner_iterations_stage(FV_TimeIterator const *t_it);
 
     /** @brief Tasks performed at the end of the time stepping loop */
     virtual void do_after_time_stepping(void);
@@ -90,8 +90,8 @@ public: //-----------------------------------------------------------------
 
     //@}
 
-protected: //--------------------------------------------------------------
-private:   //----------------------------------------------------------------
+  protected: //--------------------------------------------------------------
+  private:   //----------------------------------------------------------------
     static DLMFD_DirectionSplitting_bis const *PROTOTYPE;
 
     //-- Constructors & Destructor
@@ -118,9 +118,9 @@ private:   //----------------------------------------------------------------
     @param dom mesh and fields
     @param prms set of parameters
     @param exp to read the data file */
-    virtual DLMFD_DirectionSplitting_bis *create_replica(MAC_Object *a_owner,
-                                                         FV_DomainAndFields const *dom,
-                                                         MAC_ModuleExplorer *exp) const;
+    virtual DLMFD_DirectionSplitting_bis *
+    create_replica(MAC_Object *a_owner, FV_DomainAndFields const *dom,
+                   MAC_ModuleExplorer *exp) const;
 
     //@}
 
@@ -130,50 +130,90 @@ private:   //----------------------------------------------------------------
     //@{
     /** @brief Call the function to assemble 1D matrices
     for both velocity and pressure field*/
-    void assemble_1D_matrices(FV_DiscreteField const *FF, FV_TimeIterator const *t_it);
+    void assemble_1D_matrices(FV_DiscreteField const *FF,
+                              FV_TimeIterator const *t_it);
 
     /** @brief Assemble 1D matrices for both velocity
     and pressure field in all directions */
-    void assemble_field_matrix(FV_DiscreteField const *FF, FV_TimeIterator const *t_it);
+    void assemble_field_matrix(FV_DiscreteField const *FF,
+                               FV_TimeIterator const *t_it);
 
     /** @brief Assemble 1D schur matrices for both
     velocity and pressure field in all directions */
     void assemble_field_schur_matrix(FV_DiscreteField const *FF);
 
     /** @brief Assemble advection term for Upwind spacial scheme */
-    double assemble_advection_Upwind(size_t const &advecting_level, double const &coef, size_t const &advected_level, size_t const &i, size_t const &j, size_t const &k, size_t const &component);
+    double assemble_advection_Upwind(size_t const &advecting_level,
+                                     double const &coef,
+                                     size_t const &advected_level,
+                                     size_t const &i, size_t const &j,
+                                     size_t const &k, size_t const &component);
 
     /** @brief Assemble advection term for Centered spacial scheme */
-    double assemble_advection_Centered(size_t const &advecting_level, double const &coef, size_t const &advected_level, size_t const &i, size_t const &j, size_t const &k, size_t const &component);
+    double assemble_advection_Centered(size_t const &advecting_level,
+                                       double const &coef,
+                                       size_t const &advected_level,
+                                       size_t const &i, size_t const &j,
+                                       size_t const &k,
+                                       size_t const &component);
 
-    /** @brief Assemble advection term for Centered spacial scheme with FD corrections*/
-    double assemble_advection_Centered_FD(double const &coef, size_t const &i, size_t const &j, size_t const &k, size_t const &comp, size_t const &level);
+    /** @brief Assemble advection term for Centered spacial scheme with FD
+     * corrections*/
+    double assemble_advection_Centered_FD(double const &coef, size_t const &i,
+                                          size_t const &j, size_t const &k,
+                                          size_t const &comp,
+                                          size_t const &level);
 
-    // /** @brief Assemble advection term for Centered spacial scheme with CutCell corrections */
-    // double assemble_advection_Centered_CutCell(FV_TimeIterator const *t_it, double const &coef, size_t const &i, size_t const &j, size_t const &k, size_t const &comp, size_t const &level);
+    // /** @brief Assemble advection term for Centered spacial scheme with
+    // CutCell corrections */ double
+    // assemble_advection_Centered_CutCell(FV_TimeIterator const *t_it, double
+    // const &coef, size_t const &i, size_t const &j, size_t const &k, size_t
+    // const &comp, size_t const &level);
 
     /** @brief Assemble advection term for TVD spacial scheme */
-    double assemble_advection_TVD(size_t const &advecting_level, double const &coef, size_t const &advected_level, size_t const &i, size_t const &j, size_t const &k, size_t const &component) const;
+    double assemble_advection_TVD(size_t const &advecting_level,
+                                  double const &coef,
+                                  size_t const &advected_level, size_t const &i,
+                                  size_t const &j, size_t const &k,
+                                  size_t const &component) const;
 
     /** @brief Assemble rhs for velocity in any direction */
-    double velocity_local_rhs(size_t const &j, size_t const &k, double const &gamma, FV_TimeIterator const *t_it, size_t const &comp, size_t const &dir);
+    double velocity_local_rhs(size_t const &j, size_t const &k,
+                              double const &gamma, FV_TimeIterator const *t_it,
+                              size_t const &comp, size_t const &dir);
 
     /** @brief Compute first derivative */
     std::tuple<double, double>
-    compute_first_derivative(size_t const &comp, size_t const &i, size_t const &j, size_t const &k, size_t const &dir, size_t const &level);
+    compute_first_derivative(size_t const &comp, size_t const &i,
+                             size_t const &j, size_t const &k,
+                             size_t const &dir, size_t const &level);
 
-    /** @brief Compute diffusive term of velocity field from previous timestep */
-    double compute_un_component(size_t const &comp, size_t const &i, size_t const &j, size_t const &k, size_t const &dir, size_t const &level);
-    /** @brief Compute diffusive term of velocity field from previous timestep */
-    double compute_un_component_FD(size_t const &comp, size_t const &i, size_t const &j, size_t const &k, size_t const &dir, size_t const &level);
-    // /** @brief Compute diffusive term of velocity field from previous timestep */
-    // double compute_un_component_FV(size_t const &comp, size_t const &i, size_t const &j, size_t const &k, size_t const &dir, size_t const &level);
-    /** @brief Compute diffusive term of pressure field from previous timestep */
-    double compute_p_component(size_t const &comp, size_t const &i, size_t const &j, size_t const &k);
-    /** @brief Compute advective term based on either Upwind or TVD spacial scheme */
-    double compute_adv_component(FV_TimeIterator const *t_it, size_t const &comp, size_t const &i, size_t const &j, size_t const &k);
+    /** @brief Compute diffusive term of velocity field from previous timestep
+     */
+    double compute_un_component(size_t const &comp, size_t const &i,
+                                size_t const &j, size_t const &k,
+                                size_t const &dir, size_t const &level);
+    /** @brief Compute diffusive term of velocity field from previous timestep
+     */
+    double compute_un_component_FD(size_t const &comp, size_t const &i,
+                                   size_t const &j, size_t const &k,
+                                   size_t const &dir, size_t const &level);
+    // /** @brief Compute diffusive term of velocity field from previous
+    // timestep */ double compute_un_component_FV(size_t const &comp, size_t
+    // const &i, size_t const &j, size_t const &k, size_t const &dir, size_t
+    // const &level);
+    /** @brief Compute diffusive term of pressure field from previous timestep
+     */
+    double compute_p_component(size_t const &comp, size_t const &i,
+                               size_t const &j, size_t const &k);
+    /** @brief Compute advective term based on either Upwind or TVD spacial
+     * scheme */
+    double compute_adv_component(FV_TimeIterator const *t_it,
+                                 size_t const &comp, size_t const &i,
+                                 size_t const &j, size_t const &k);
     /** @brief Assemble rhs term after calling compute_**_component */
-    void assemble_DS_un_at_rhs(FV_TimeIterator const *t_it, double const &gamma);
+    void assemble_DS_un_at_rhs(FV_TimeIterator const *t_it,
+                               double const &gamma);
 
     void assemble_velocity_diffusion_terms();
 
@@ -183,24 +223,36 @@ private:   //----------------------------------------------------------------
 
     void compute_velocity_divergence(FV_DiscreteField const *FF);
 
-    double divergence_of_U_noCorrection(size_t const &i, size_t const &j, size_t const &k, size_t const &comp, size_t const &level);
+    double divergence_of_U_noCorrection(size_t const &i, size_t const &j,
+                                        size_t const &k, size_t const &comp,
+                                        size_t const &level);
 
-    /** @brief Call functions to assemble rhs for pressure or velocity fields in any direction */
-    double assemble_local_rhs(size_t const &j, size_t const &k, double const &gamma, FV_TimeIterator const *t_it, size_t const &comp, size_t const &dir, size_t const &field);
+    /** @brief Call functions to assemble rhs for pressure or velocity fields in
+     * any direction */
+    double assemble_local_rhs(size_t const &j, size_t const &k,
+                              double const &gamma, FV_TimeIterator const *t_it,
+                              size_t const &comp, size_t const &dir,
+                              size_t const &field);
 
     /** @brief Assemble divergence for penelty step */
-    double calculate_velocity_divergence_FD(size_t const &i, size_t const &j, size_t const &k, size_t const &level);
+    double calculate_velocity_divergence_FD(size_t const &i, size_t const &j,
+                                            size_t const &k,
+                                            size_t const &level);
 
     // /** @brief Assemble divergence for penelty step */
-    // double calculate_velocity_divergence_cutCell(size_t const &i, size_t const &j, size_t const &k, size_t const &level);
+    // double calculate_velocity_divergence_cutCell(size_t const &i, size_t
+    // const &j, size_t const &k, size_t const &level);
 
-    double assemble_velocity_gradients(class doubleVector &grad, size_t const &i, size_t const &j, size_t const &k, size_t const &level);
+    double assemble_velocity_gradients(class doubleVector &grad,
+                                       size_t const &i, size_t const &j,
+                                       size_t const &k, size_t const &level);
 
     // void detect_fresh_cells_and_neighbours();
 
     void calculate_divergence_weighting(FV_TimeIterator const *t_it);
 
-    double pressure_local_rhs(size_t const &j, size_t const &k, FV_TimeIterator const *t_it, size_t const &dir);
+    double pressure_local_rhs(size_t const &j, size_t const &k,
+                              FV_TimeIterator const *t_it, size_t const &dir);
 
     // /** @brief Initialize the velocity on the velocity nodes in MAC grid*/
     // void initialize_grid_nodes_on_rigidbody(vector<size_t> const &list);
@@ -219,24 +271,37 @@ private:   //----------------------------------------------------------------
 
     /** @brief Solve interface unknowns for
     both fields in any particular direction */
-    void solve_interface_unknowns(FV_DiscreteField *FF, double const &gamma, FV_TimeIterator const *t_it, size_t const &comp, size_t const &dir, size_t const &level);
+    void solve_interface_unknowns(FV_DiscreteField *FF, double const &gamma,
+                                  FV_TimeIterator const *t_it,
+                                  size_t const &comp, size_t const &dir,
+                                  size_t const &level);
     /** @brief Unpack the interface variable sent
     by master processor to slave processor */
-    void unpack_ue(size_t const &comp, double *received_data, size_t const &dir, size_t const &p, size_t const &field);
+    void unpack_ue(size_t const &comp, double *received_data, size_t const &dir,
+                   size_t const &p, size_t const &field);
     /** @brief Unpack the data sent by "data_packing" and compute
     the interface unknown; and pack ue for sending to slave processor */
-    void unpack_compute_ue_pack(size_t const &comp, size_t const &dir, size_t const &p, size_t const &field);
+    void unpack_compute_ue_pack(size_t const &comp, size_t const &dir,
+                                size_t const &p, size_t const &field);
 
     /** @brief Pack Aei*(Aii)-1*fi and fe for sending to master processor */
-    void data_packing(FV_DiscreteField const *FF, size_t const &p, double const &fe, size_t const &comp, size_t const &dir);
+    void data_packing(FV_DiscreteField const *FF, size_t const &p,
+                      double const &fe, size_t const &comp, size_t const &dir);
     /** @brief Compute Aei*(Aii)-1*fi required to compute interface unknown */
-    void compute_Aei_ui(struct TDMatrix *arr, struct LocalVector *VEC, size_t const &comp, size_t const &dir, size_t const &r_index);
+    void compute_Aei_ui(struct TDMatrix *arr, struct LocalVector *VEC,
+                        size_t const &comp, size_t const &dir,
+                        size_t const &r_index);
 
     /** @brief Solve interface unknown for all cases */
-    void DS_interface_unknown_solver(LA_SeqVector *rhs, size_t const &comp, size_t const &dir, size_t const &field, size_t const &r_index);
+    void DS_interface_unknown_solver(LA_SeqVector *rhs, size_t const &comp,
+                                     size_t const &dir, size_t const &field,
+                                     size_t const &r_index);
 
     /** @brief Solve i in j and k; e.g. solve x in y ank z */
-    void Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterator const *t_it, size_t const &dir_i, size_t const &dir_j, size_t const &dir_k, double const &gamma, size_t const &level);
+    void Solve_i_in_jk(FV_DiscreteField *FF, FV_TimeIterator const *t_it,
+                       size_t const &dir_i, size_t const &dir_j,
+                       size_t const &dir_k, double const &gamma,
+                       size_t const &level);
 
     /** Pressure predictor */
     void NS_first_step(FV_TimeIterator const *t_it);
@@ -276,7 +341,8 @@ private:   //----------------------------------------------------------------
     /** @name Direction splitting communicators */
     /** @brief Create the sub-communicators */
     void create_DS_subcommunicators(void);
-    void processor_splitting(int const &color, int const &key, size_t const &dir);
+    void processor_splitting(int const &color, int const &key,
+                             size_t const &dir);
 
     void allocate_mpi_variables(FV_DiscreteField const *FF);
     void deallocate_mpi_variables();
@@ -300,7 +366,7 @@ private:   //----------------------------------------------------------------
 
     void add_storable_objects(MAC_ListIdentity *list);
 
-private: //----------------------------------------------------------------
+  private: //----------------------------------------------------------------
     //-- Class attributes
     //-- Attributes
 
