@@ -45,8 +45,10 @@ class DLMFD_AllGeomBoundaries
 
     /** @name Get methods */
     //@{
+
     /** @brief Return a pointer to the list of geometric boundaries */
     const list<DLMFD_GeomBoundary *> *get_ptr_list_geomboundaries() const;
+    
     //@}
 
     /** @brief Operator << */

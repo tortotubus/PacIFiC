@@ -25,9 +25,6 @@ class DLMFD_System
     /** @brief Default constructor */
     DLMFD_System();
 
-    /** @brief Copy constructor */
-    DLMFD_System(DLMFD_System const &other);
-
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
     DLMFD_System(MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
@@ -193,7 +190,7 @@ class DLMFD_System
     //-- Persistence
 
     // Add the vectors to be stored for restart
-    virtual void add_storable_objects(MAC_ListIdentity *list) const;
+    virtual void add_storable_objects(MAC_ListIdentity *list) const = 0;
 
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
@@ -208,9 +205,6 @@ class DLMFD_System
 
     /** @brief Nullify q vector */
     virtual void nullify_QUvector() = 0;
-
-    /** @brief Nullify Explicit DLMFD vector */
-    virtual void nullify_Explicit_DLMFD_Cvector();
 
     /** @brief Add the contribution coef*<lambda,v> to the q
     vector i.e. the DLM right hand side of momentum equations in the DLM/FD
@@ -253,9 +247,6 @@ class DLMFD_System
     virtual void store_DLMFD_rhs() = 0;
 
     virtual void re_initialize_explicit_DLMFD(bool const &restart) = 0;
-
-    /** @brief Reload other data than FV fields for restart  */
-    virtual void do_additional_savings(string const &rootfilename_dlm);
 
   private: //-----------------------------------------------------------------
     // Uzawa algorithm

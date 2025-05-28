@@ -57,12 +57,13 @@ class DLMFD_3Dbox : public DLMFD_RigidBody
     void set_all_points(FV_DiscreteField *pField, double critical_distance);
 
     /** @brief Set DLMFD boundary points
-    @param critical_distance Critical distance
-    @param pField Pointer to constrained field */
+    @param pField Pointer to constrained field
+    @param critical_distance Critical distance */
     void set_boundary_points_list(FV_DiscreteField *pField,
                                   double critical_distance);
 
     /** @brief Set DLMFD interior points
+    @param pField Pointer to constrained field
     @param critical_distance Critical distance */
     void set_interior_points_list(FV_DiscreteField *pField,
                                   double critical_distance);
@@ -105,7 +106,7 @@ class DLMFD_3Dbox : public DLMFD_RigidBody
                                  const geomVector &pointFour,
                                  const geomVector &pointToCheck) const;
 
-    /** @brief isIn method
+    /** @brief True if the point is inside the geometrical shape
     @param point Point */
     bool isIn(const geomVector &point) const;
 
@@ -148,7 +149,8 @@ class DLMFD_3Dbox : public DLMFD_RigidBody
     vector<double> box_min, box_max;
     vector<size_t> Npoints; /** Surface points on each direction
                                 of 3D box.*/
-                            //@}
+
+    //@}
 
   private: //-------------------------------------------------------------------
 };

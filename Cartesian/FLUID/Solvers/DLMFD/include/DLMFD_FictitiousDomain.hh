@@ -94,10 +94,6 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     /** @name Set methods */
     //@{
 
-    /** @brief Setting the critical distance attribute
-    @param critical_distance_ Critical distance to set */
-    void set_critical_distance(double critical_distance_);
-
     /** @brief Set the Paraview translated distance vector
     @param translated_distance translated distance magnitude
     @param translation_direction translation direction */
@@ -151,9 +147,15 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     /** @name Geometric methods */
     //@{
 
+    /** @brief Compute the distance between the gravity centers of all rigid
+    bodies and the cooridante, and return the minimum one
+    @param coordinate Value of bottom coordinate
+    @param direction Direction in which to compute the distance */
     double Compute_distance_to_bottom(const double &coordinate,
                                       const size_t &direction) const;
-
+    /** @brief Translate the geometric domain
+    @param translation_vector Translation vector
+    @param translation_direction Translation direction */
     void translate_all(const geomVector &translation_vector,
                        const size_t &translation_direction);
 

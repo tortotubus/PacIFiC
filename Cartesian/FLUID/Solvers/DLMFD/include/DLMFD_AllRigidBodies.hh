@@ -34,10 +34,10 @@ class DLMFD_AllRigidBodies
 
     /** @brief Constructor with arguments
     @param dim Number of space dimensions
+    @param time Time
     @param solidFluid_transferStream Input stream where features of rigid bodies
     are read
-    @param are_particles_fixed_ True if the all the particles are
-    obstacles
+    @param are_particles_fixed_ True if all the particles are fixed
     @param UU Pointer to flow field UF
     @param PP Pointer to flow field PF
     @param critical_distance Critical distance */
@@ -74,7 +74,7 @@ class DLMFD_AllRigidBodies
     void set_listIdOnProc();
 
     /** @brief Set constrained field
-    @param pField Constrained field */
+    @param pField_ Constrained field to set */
     void set_ptr_constrained_field(FV_DiscreteField *pField_);
 
     void set_ptr_constrained_field_in_all_particles();
@@ -298,8 +298,8 @@ class DLMFD_AllRigidBodies
 
     //@}
 
-    // -- Allocate methods
-    /** @name Allocate methods */
+    // -- Allocation methods
+    /** @name Allocation methods */
     //@{
 
     /** @brief Allocate initial array for n-1 translational and angular velocity
@@ -359,7 +359,7 @@ class DLMFD_AllRigidBodies
     vector<size_t_vector>
         *v_AllSharedOnProcs;       /**< vector of size nprocs stored on master
                                     process, element i is       the list of ids of
-                                    solid       component partially located on process
+                                    rigid bodies partially located on process
                                     i */
     list<int> *l_AllSharedOnProcs; /**< list, stored on master process, of ids
                                   of rigid bodies shared on all processes,

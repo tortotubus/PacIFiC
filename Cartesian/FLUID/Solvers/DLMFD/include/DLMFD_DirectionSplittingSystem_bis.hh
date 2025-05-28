@@ -214,8 +214,9 @@ class DLMFD_DirectionSplittingSystem_bis : public MAC_Object,
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
-    // --------------------------- DLMFD FRAMEWORK
-    // ------------------------------
+    // ---------------------------- DLMFD FRAMEWORK
+    // -----------------------------
+    // --------------------------------------------------------------------------
 
     /** @brief Finalize constant matrices */
     void finalize_constant_matrices();
@@ -246,6 +247,7 @@ class DLMFD_DirectionSplittingSystem_bis : public MAC_Object,
     /** @brief Solve the fluid system at the matrix level */
     void solve_FluidVel_DLMFD_Init(const double &time);
 
+    /** @brief Return the velocity solution vector */
     LA_SeqVector const *get_solution_U() const;
 
     /** @brief solve A.tu = quf = <w,v> */
@@ -257,13 +259,20 @@ class DLMFD_DirectionSplittingSystem_bis : public MAC_Object,
     /** @brief Update u+=alpha.t */
     void update_FluidVel_OneUzawaIter(const double &alpha);
 
+    /** @brief Store the DLMFD forcing term computed at previous time */
     void store_DLMFD_rhs();
 
+    /** @brief Allocate memory for explicit DLMFD forcing term
+    @param restart True if the simualtion has been reloaded */
     void re_initialize_explicit_DLMFD(bool const &restart);
 
-    /** @name Translation projection from peligriff */
+    //-- Projection-Translation methods=
+    /** @name Projection-Translation methods */
     //@{
 
+    /** @brief Set a velocity unknown
+    @param i_row row index
+    @param xx value */
     void set_velocity_unknown(size_t i_row, double xx);
 
     void synchronize_velocity_unknown_vector();
@@ -278,6 +287,9 @@ class DLMFD_DirectionSplittingSystem_bis : public MAC_Object,
 
     //@}
 
+    /** @brief Extend `list' so that it contains all objects required by the
+    storage and retrieval mechanisms that are not part of the
+    'FV_OneStepIteration::' base class subobject */
     void add_storable_objects(MAC_ListIdentity *list) const;
 
   protected: //--------------------------------------------------------

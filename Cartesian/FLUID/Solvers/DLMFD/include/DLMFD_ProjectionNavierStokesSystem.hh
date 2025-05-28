@@ -300,8 +300,7 @@ class DLMFD_ProjectionNavierStokesSystem : public MAC_Object,
 
     /** @brief Allocate memory for explicit DLMFD forcing term
     @param restart True if the simualtion has been reloaded */
-    void re_initialize_explicit_DLMFD(bool const &restart,
-                                      string const &rootfilename_dlm);
+    void re_initialize_explicit_DLMFD(bool const &restart);
 
   protected: //--------------------------------------------------------
   private:   //----------------------------------------------------------

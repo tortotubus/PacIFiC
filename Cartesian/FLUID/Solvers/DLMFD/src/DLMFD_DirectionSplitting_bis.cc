@@ -5636,13 +5636,6 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: fields_projection");
 
-    // if (b_ExplicitDLMFD)
-    // {
-    //     string error_message = "Translation-Projection + Explicit DLMFD : ";
-    //     error_message += "Not implemented yet";
-    //     MAC_Error::object()->raise_plain(error_message);
-    // }
-
     FV_Mesh *pmesh = const_cast<FV_Mesh *>(UF->primary_grid());
 
     pmesh->translation();

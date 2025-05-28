@@ -399,6 +399,7 @@ class DLMFD_RigidBody
                                          const double &timestep,
                                          const geomVector &gravity_vector_split,
                                          const geomVector &gravity_vector);
+
     /** @brief Invert the inertia_3D matrix */
     vector<vector<double>>
     calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix);

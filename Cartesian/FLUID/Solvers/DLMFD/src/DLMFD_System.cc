@@ -225,24 +225,6 @@ void DLMFD_System::pressure_laplacian_correction(void)
 }
 
 //----------------------------------------------------------------------
-void DLMFD_System::add_storable_objects(MAC_ListIdentity *list) const
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System:: add_storable_objects");
-
-    string error_message = "DLMFD_System::add_storable_objects ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::nullify_Explicit_DLMFD_Cvector()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::nullify_Explicit_DLMFD_Cvector");
-}
-
-//----------------------------------------------------------------------
 void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal,
                                                      size_t index, double coef)
 //----------------------------------------------------------------------
@@ -431,6 +413,17 @@ bool DLMFD_System::VelocityAdvection_solver(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+//----------------------------------------------------------------------
+void DLMFD_System::initialize_QUvector_with_divv_rhs()
+//----------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_System::initialize_QUvector_with_divv_rhs");
+
+    string error_message = "DLMFD_System::initialize_QUvector_with_divv_rhs ";
+    error_message += "should not be called !! Check implementation";
+    MAC_Error::object()->raise_plain(error_message);
+}
+
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
@@ -452,26 +445,4 @@ int const DLMFD_System::get_DLMFD_maxiter() const
     MAC_LABEL("DLMFD_System::get_DLMFD_convergence_criterion");
 
     return Uzawa_DLMFD_maxiter;
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::initialize_QUvector_with_divv_rhs()
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::initialize_QUvector_with_divv_rhs");
-
-    string error_message = "DLMFD_System::initialize_QUvector_with_divv_rhs ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
-}
-
-//----------------------------------------------------------------------
-void DLMFD_System::do_additional_savings(string const &rootfilename_dlm)
-//----------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_System::do_additional_savings");
-
-    string error_message = "DLMFD_System::do_additional_savings ";
-    error_message += "should not be called !! Check implementation";
-    MAC_Error::object()->raise_plain(error_message);
 }

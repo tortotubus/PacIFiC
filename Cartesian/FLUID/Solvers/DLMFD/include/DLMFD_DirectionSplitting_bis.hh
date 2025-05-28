@@ -77,15 +77,20 @@ class DLMFD_DirectionSplitting_bis : public FV_OneStepIteration,
                                        int const &cycleNumber);
     //@}
 
-    //-- Projection-Translation methods
-
+    //-- Projection-Translation methods=
     /** @name Projection-Translation methods */
     //@{
+
     /** @brief Projection of the field on the translated position of the grid */
     void fields_projection();
 
+    /** @brief Synchronize velocity field
+    @param level field storage level */
     void synchronize_velocity_field(size_t level);
 
+    /** @brief Synchronize the DLMFD forcing term computed at previous time
+    using the velocity field (same numbering)
+    @param level field storage level */
     void synchronize_DLMFD_Nm1_rhs(size_t level);
 
     //@}
@@ -362,8 +367,12 @@ class DLMFD_DirectionSplitting_bis : public FV_OneStepIteration,
 
     /** @brief Build the field projection-translation interpolations */
     void build_links_translation();
+
     //@}
 
+    /** @brief Extend `list' so that it contains all objects required by the
+    storage and retrieval mechanisms that are not part of the
+    'FV_OneStepIteration::' base class subobject */
     void add_storable_objects(MAC_ListIdentity *list);
 
   private: //----------------------------------------------------------------

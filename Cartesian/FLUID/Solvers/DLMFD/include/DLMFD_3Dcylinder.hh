@@ -90,7 +90,7 @@ class DLMFD_3Dcylinder : public DLMFD_RigidBody
     /** @name Geometric methods */
     //@{
 
-    /** @brief isIn method
+    /** @brief True if the point is iside the geometrical shape
     @param point Point */
     bool isIn(const geomVector &point) const;
 
