@@ -450,6 +450,7 @@ class DLMFD_DirectionSplitting_bis : public FV_OneStepIteration,
     // DLMFD solver
     DLMFD_FictitiousDomain *dlmfd_solver;
     bool b_ExplicitDLMFD;
+    bool b_DLMFD_before_projection;
 
     // Post-processing
     string resultsDirectory;

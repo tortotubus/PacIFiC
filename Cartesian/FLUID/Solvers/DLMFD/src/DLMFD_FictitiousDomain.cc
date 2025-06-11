@@ -155,6 +155,11 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(
         SCT_insert_app("DLMFD_solving");
         SCT_get_elapsed_time("Objects_Creation");
     }
+
+    // Do DLMFD before the projection step
+    b_DLMFD_before_projection = false;
+    if (exp->has_entry("DLMFD_start"))
+        b_DLMFD_before_projection = exp->bool_data("DLMFD_start");
 }
 
 
@@ -443,6 +448,15 @@ bool const DLMFD_FictitiousDomain::get_explicit_DLMFD() const
 
 
 //---------------------------------------------------------------------------
+bool const DLMFD_FictitiousDomain::get_DLMFD_before_projection() const
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_FictitiousDomain::get_DLMFD_before_projection");
+
+    return b_DLMFD_before_projection;
+}
+
+//---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::finalize_construction(
     MAC_ModuleExplorer const *exp)
 //---------------------------------------------------------------------------
@@ -573,8 +587,13 @@ void DLMFD_FictitiousDomain::run_DLMFD_UzawaSolver(FV_TimeIterator const *t_it,
 
     ++sub_prob_number;
 
-    if (my_rank == is_master)
-        MAC::out() << "Uzawa problem completed" << endl << " " << endl;
+    if (b_DLMFD_before_projection)
+    {
+        if (my_rank == is_master)
+            MAC::out() << "Uzawa problem completed" << endl;
+    }
+    else if (my_rank == is_master)
+        MAC::out() << "Uzawa problem completed" << endl << endl;
 }
 
 
@@ -806,8 +825,9 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
 
     // Transfer values from the level of computation to additional levels if
     // needed
-    for (size_t i = 1; i < nb_levels; i++)
-        UU->copy_DOFs_value(levelDiscrField, i);
+    if (!b_DLMFD_before_projection)
+        for (size_t i = 1; i < nb_levels; i++)
+            UU->copy_DOFs_value(levelDiscrField, i);
 
     if ((my_rank == is_master) && (b_particles_verbose))
     {

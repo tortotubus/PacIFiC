@@ -75,7 +75,6 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
       bottom_coordinate(0.), translated_distance(0.), gravity_vector(0),
       exceed(false), turn(false), compute_flow_rate_on("none")
 {
-    // CREATE ALL THE OBJECTS ABOVE FROM DS_DirectionSplitting !!!!!!!
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: DLMFD_DirectionSplitting_bis");
     MAC_ASSERT(UF->discretization_type() == "staggered");
     MAC_ASSERT(PF->discretization_type() == "centered");
@@ -273,13 +272,12 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
 
     if (UF->primary_grid()->is_periodic_flow_rate())
     {
-        // controller = DS_PID::create(0.5,1.,0);
         // Set the initial pressure drop, required in case of given flow rate
         if (!b_restart)
         {
             if (fabs(UF->primary_grid()->get_periodic_pressure_drop()) < 1.e-12)
                 const_cast<FV_Mesh *>(UF->primary_grid())
-                    ->set_periodic_pressure_drop(-100.);
+                    ->set_periodic_pressure_drop(0.);
             if (macCOMM->rank() == 0)
             {
                 string fileName = "./DS_results/flow_pressure_history.csv";
@@ -311,7 +309,8 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
         // SCT_insert_app("Stencil");
         // SCT_insert_app("Schur");
         SCT_insert_app("Pressure predictor");
-        SCT_insert_app("Velocity update");
+        SCT_insert_app("Velocity update : RHS solving");
+        SCT_insert_app("Velocity update : Projection solving");
         SCT_insert_app("Penalty Step");
         SCT_insert_app("Pressure Update");
         SCT_insert_app("Viscous stress");
@@ -378,6 +377,9 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
     b_ExplicitDLMFD = dlmfd_solver->get_explicit_DLMFD();
     if (b_ExplicitDLMFD)
         GLOBAL_EQ->re_initialize_explicit_DLMFD(b_restart);
+
+    // Do DLMFD before the projection step if b_DLMFD_before_projection = true
+    b_DLMFD_before_projection = dlmfd_solver->get_DLMFD_before_projection();
 }
 
 //---------------------------------------------------------------------------
@@ -408,13 +410,7 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure predictor");
 
-    if (my_rank == is_master)
-        SCT_set_start("Velocity update");
-
     NS_velocity_update(t_it);
-
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("Velocity update");
 
     if (my_rank == is_master)
         SCT_set_start("Penalty Step");
@@ -434,19 +430,22 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
 
     UF->copy_DOFs_value(0, 1);
 
-    // Initialize velocity vector at the matrix level to use in the DLMFD
-    // framework
-    GLOBAL_EQ->initialize_DS_velocity();
-    GLOBAL_EQ->synchronize_velocity_unknown_vector();
+    if (!b_DLMFD_before_projection)
+    {
+        // Initialize velocity vector at the matrix level to use in the DLMFD
+        // framework
+        GLOBAL_EQ->initialize_DS_velocity();
+        GLOBAL_EQ->synchronize_velocity_unknown_vector();
 
-    // Fictitous Domain workflow
-    if (my_rank == is_master)
-        SCT_set_start("FluidSolid_CorrectionStep");
+        // Fictitous Domain workflow
+        if (my_rank == is_master)
+            SCT_set_start("FluidSolid_CorrectionStep");
 
-    dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+        dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
 
-    if (my_rank == is_master)
-        SCT_get_elapsed_time("FluidSolid_CorrectionStep");
+        if (my_rank == is_master)
+            SCT_get_elapsed_time("FluidSolid_CorrectionStep");
+    }
 
     stop_solving_timer();
     stop_total_timer();
@@ -681,9 +680,13 @@ void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_RE_Assembly&Initialization");
 
+    // // Correct periodic pressure drop in case of periodic imposed flow rate
+    // if (UF->primary_grid()->is_periodic_flow_rate())
+    //     predicted_pressure_drop(t_it);
+
     // Correct periodic pressure drop in case of periodic imposed flow rate
     if (UF->primary_grid()->is_periodic_flow_rate())
-        predicted_pressure_drop(t_it);
+        periodic_flow_rate_update(t_it);
 }
 
 //---------------------------------------------------------------------------
@@ -3368,15 +3371,14 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
     //     size_t p_flow_dir =
     //     UF->primary_grid()->get_periodic_flow_direction(); double Lx =
     //     UF->primary_grid()->get_main_domain_max_coordinate(0) -
-    //     UF->primary_grid()->get_main_domain_min_coordinate(0); double Ly =
-    //     UF->primary_grid()->get_main_domain_max_coordinate(1) -
-    //     UF->primary_grid()->get_main_domain_min_coordinate(1); double Lz =
-    //     (dim == 3)
-    //                     ?
-    //                     UF->primary_grid()->get_main_domain_max_coordinate(2)
-    //                     -
-    //                     UF->primary_grid()->get_main_domain_min_coordinate(2)
-    //                     : 1.;
+    //                 UF->primary_grid()->get_main_domain_min_coordinate(0);
+    //     double Ly = UF->primary_grid()->get_main_domain_max_coordinate(1) -
+    //                 UF->primary_grid()->get_main_domain_min_coordinate(1);
+    //     double Lz =
+    //         (dim == 3)
+    //             ? UF->primary_grid()->get_main_domain_max_coordinate(2) -
+    //                   UF->primary_grid()->get_main_domain_min_coordinate(2)
+    //             : 1.;
 
     //     double cross_sec_area = Lx * Ly * Lz;
 
@@ -3396,15 +3398,15 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
     //     double Qc = cross_sec_area * Um;
     //     double Qset = UF->primary_grid()->get_periodic_flow_rate();
 
-    //     if ((fabs(Qc - Qset) / Qset > 1e-5) && (t_it->iteration_number() % 1
-    //     == 0))
+    //     if ((fabs(Qc - Qset) / Qset > 1e-5) &&
+    //         (t_it->iteration_number() % 1 == 0))
     //     {
     //         if ((Qc / Qset) > 1.)
     //         {
     //             exceed = true;
     //             // pressure_drop -=
-    //             controller->calculate(Qset,Qc,t_it->time_step()); if (turn ==
-    //             false)
+    //             // controller->calculate(Qset,Qc,t_it->time_step());
+    //             if (turn == false)
     //             {
     //                 pressure_drop *= 0.5;
     //                 if ((Qc - Qold) < 0.)
@@ -3429,8 +3431,8 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
     //             if (exceed == true)
     //             {
     //                 // pressure_drop -=
-    //                 controller->calculate(Qset,Qc,t_it->time_step()); if ((Qc
-    //                 / Qold) < 1.)
+    //                 // controller->calculate(Qset, Qc, t_it->time_step());
+    //                 if ((Qc / Qold) < 1.)
     //                 {
     //                     pressure_drop *= (Qset / Qc);
     //                 }
@@ -3448,23 +3450,23 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
     //     string fileName = "./DS_results/flow_pressure_history.csv";
     //     std::ofstream MyFile;
     //     MyFile.open(fileName.c_str(), std::ios::app);
-    //     MyFile << t_it->time() << " " << MAC::doubleToString(ios::scientific,
-    //     6, Qc)
-    //            << " " << MAC::doubleToString(ios::scientific, 6,
-    //            pressure_drop)
-    //            << " " << exceed
-    //            << " " << turn << endl;
+    //     MyFile << t_it->time() << " "
+    //            << MAC::doubleToString(ios::scientific, 6, Qc) << " "
+    //            << MAC::doubleToString(ios::scientific, 6, pressure_drop) << "
+    //            "
+    //            << exceed << " " << turn << endl;
     // }
 
     // // Broadcast the new pressure to all procs from master proc
     // macCOMM->broadcast(pressure_drop);
 
     // if (my_rank == is_master)
-    //     MAC::out() << "Periodic pressure drop = " <<
-    //     MAC::doubleToString(ios::scientific, 14, pressure_drop) << endl;
+    //     MAC::out() << "Periodic pressure drop = "
+    //                << MAC::doubleToString(ios::scientific, 14, pressure_drop)
+    //                << endl;
 
-    // const_cast<FV_Mesh
-    // *>(UF->primary_grid())->set_periodic_pressure_drop(pressure_drop);
+    // const_cast<FV_Mesh *>(UF->primary_grid())
+    //     ->set_periodic_pressure_drop(pressure_drop);
 }
 
 //---------------------------------------------------------------------------
@@ -3497,18 +3499,18 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(
     //     if (UF->primary_grid()->is_periodic_pressure_drop() &&
     //         !UF->primary_grid()->is_periodic_flow_rate())
     //     {
-    //         bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
-    //                    (UF->primary_grid()->get_main_domain_max_coordinate(cpp)
-    //                    -
-    //                    UF->primary_grid()->get_main_domain_min_coordinate(cpp));
+    //         bodyterm =
+    //             UF->primary_grid()->get_periodic_pressure_drop() /
+    //             (UF->primary_grid()->get_main_domain_max_coordinate(cpp) -
+    //              UF->primary_grid()->get_main_domain_min_coordinate(cpp));
     //     }
     //     else if (UF->primary_grid()->is_periodic_flow_rate())
     //     {
-    //         // predicted_pressure_drop(t_it);
-    //         bodyterm = UF->primary_grid()->get_periodic_pressure_drop() /
-    //                    (UF->primary_grid()->get_main_domain_max_coordinate(cpp)
-    //                    -
-    //                    UF->primary_grid()->get_main_domain_min_coordinate(cpp));
+    //         predicted_pressure_drop(t_it);
+    //         bodyterm =
+    //             UF->primary_grid()->get_periodic_pressure_drop() /
+    //             (UF->primary_grid()->get_main_domain_max_coordinate(cpp) -
+    //              UF->primary_grid()->get_main_domain_min_coordinate(cpp));
     //     }
     // }
 
@@ -3619,6 +3621,9 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(
             }
         }
     }
+
+    if (my_rank == is_master)
+        MAC::out() << "Navier-Stokes velocity update RHS completed" << endl;
 }
 
 //---------------------------------------------------------------------------
@@ -3809,17 +3814,60 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
         MAC::out() << "------------------------------------------------------"
                    << endl;
         MAC::out() << "Sub-problem " << sub_prob_number
-                   << " : Navier-Stokes velocity update" << endl;
+                   << " : Navier-Stokes velocity update : RHS solving" << endl;
         MAC::out() << "------------------------------------------------------"
                    << endl;
     }
 
     double gamma = mu;
 
+    if (my_rank == is_master)
+        SCT_set_start("Velocity update : RHS solving");
+
     assemble_DS_un_at_rhs(t_it, gamma);
+
+    if (my_rank == is_master)
+        SCT_get_elapsed_time("Velocity update : RHS solving");
+    ++sub_prob_number;
+
+    // Do DLMFD sub step if b_DLMFD_before_projection is true
+    if (b_DLMFD_before_projection)
+    {
+        // Synchronize the velocity field
+        UF->synchronize(0);
+
+        // Initialize velocity vector at the matrix level to use in the DLMFD
+        // framework
+        GLOBAL_EQ->initialize_DS_velocity();
+        GLOBAL_EQ->synchronize_velocity_unknown_vector();
+
+        // Fictitous Domain workflow
+        if (my_rank == is_master)
+            SCT_set_start("FluidSolid_CorrectionStep");
+
+        dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+
+        if (my_rank == is_master)
+            SCT_get_elapsed_time("FluidSolid_CorrectionStep");
+    }
+
     // Update gamma based for invidual direction
     gamma = mu / 2.0;
     UF->set_neumann_DOF_values();
+
+    if (my_rank == is_master)
+    {
+        MAC::out() << "------------------------------------------------------"
+                   << endl;
+        MAC::out() << "Sub-problem " << sub_prob_number
+                   << " : Navier-Stokes velocity update : Projection solving"
+                   << endl;
+        MAC::out() << "------------------------------------------------------"
+                   << endl;
+    }
+
+    if (my_rank == is_master)
+        SCT_set_start("Velocity update : Projection solving");
 
     Solve_i_in_jk(UF, t_it, 0, 1, 2, gamma, 3);
     // Synchronize the velocity field
@@ -3846,6 +3894,14 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
         UF->set_neumann_DOF_values();
     }
 
+    if (my_rank == is_master)
+        SCT_get_elapsed_time("Velocity update : Projection solving");
+    ++sub_prob_number;
+
+    // // Correct periodic pressure drop in case of periodic imposed flow rate
+    // if (UF->primary_grid()->is_periodic_flow_rate())
+    //     periodic_flow_rate_update(t_it);
+
     // Compute velocity change over the time step
     double velocity_time_change =
         compute_DS_velocity_change() / t_it->time_step();
@@ -3857,8 +3913,8 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
     compute_velocity_divergence(PF);
 
     if (my_rank == is_master)
-        MAC::out() << "Navier-Stokes velocity update completed" << endl;
-    ++sub_prob_number;
+        MAC::out() << "Navier-Stokes velocity update projection completed"
+                   << endl;
 }
 
 // //---------------------------------------------------------------------------
@@ -4800,10 +4856,10 @@ void DLMFD_DirectionSplitting_bis::NS_pressure_update(
         PF->synchronize(1);
     }
 
-    if (PF->all_BCs_nonDirichlet(0))
-    {
-        correct_mean_pressure(1);
-    }
+    // if (PF->all_BCs_nonDirichlet(0))
+    // {
+    //     correct_mean_pressure(1);
+    // }
 
     // if (is_solids)
     // {
@@ -4872,10 +4928,10 @@ void DLMFD_DirectionSplitting_bis::NS_final_step(FV_TimeIterator const *t_it)
     // Synchronize the pressure field
     PF->synchronize(0);
 
-    if (PF->all_BCs_nonDirichlet(0))
-    {
-        correct_mean_pressure(0);
-    }
+    // if (PF->all_BCs_nonDirichlet(0))
+    // {
+    //     correct_mean_pressure(0);
+    // }
 
     // Store the divergence to be used in the next time iteration
     for (size_t i = 0; i < PF->nb_local_unknowns(); i++)
@@ -5157,7 +5213,7 @@ void DLMFD_DirectionSplitting_bis::periodic_flow_rate_update(
 
     // Correct velocity field
     UF->add_to_DOFs_value(periodic_flow_direction, 0, ppd * per_vel);
-    GLOBAL_EQ->initialize_DS_velocity();
+    // GLOBAL_EQ->initialize_DS_velocity();
 }
 
 //----------------------------------------------------------------------
@@ -5654,12 +5710,13 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
     UF->synchronize(3);
 
     UF->translation_projection(4, 5, !b_ExplicitDLMFD);
+    // UF->translation_projection(4, 5, 1);
     UF->synchronize(4);
 
     // GLOBAL_EQ->initialize_DS_velocity();
 
-    // Synchronize velocity field at grid and matrix levels
-    synchronize_velocity_field(0);
+    // // Synchronize velocity field at grid and matrix levels
+    // synchronize_velocity_field(0);
 
     // Pressure Translation-Projection
     PF->translation_projection(0, 2, 0);
@@ -5670,6 +5727,10 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
 
     if (b_ExplicitDLMFD)
     {
+        // Copy the current grid velocity field in the velocity matrix
+        GLOBAL_EQ->initialize_DS_velocity();
+        GLOBAL_EQ->synchronize_velocity_unknown_vector();
+
         // Copy back DLMFD vector on velocity field
         UF->update_free_DOFs_value(0, GLOBAL_EQ->get_rhs_DLMFD_Nm1());
 

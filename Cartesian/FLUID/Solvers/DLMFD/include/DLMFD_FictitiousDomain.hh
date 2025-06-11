@@ -115,6 +115,9 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     /** @brief Get DLMFD explicit boolean */
     bool const get_explicit_DLMFD() const;
 
+    /** @brief Get DLMFD before projection boolean */
+    bool const get_DLMFD_before_projection() const;
+
     //@}
 
     //-- DLMFD solver methods
@@ -290,6 +293,7 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     bool b_solidSolver_parallel;
     bool b_correct_particle_acceleration;
     bool b_ExplicitDLMFD;
+    bool b_DLMFD_before_projection;
 
     // MPI data
     MAC_Communicator const *macCOMM;
