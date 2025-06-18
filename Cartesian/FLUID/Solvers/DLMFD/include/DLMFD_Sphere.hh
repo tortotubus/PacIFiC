@@ -15,7 +15,7 @@ A moving or stationary rigid sphere in the Fictitious Domain solver.
 
 class DLMFD_Sphere : public DLMFD_RigidBody
 {
-public: //------------------------------------------------------------------
+  public: //------------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
@@ -25,10 +25,8 @@ public: //------------------------------------------------------------------
 
     /** @brief Constructor with arguments
     @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_Sphere(FS_RigidBody *pgrb,
-                 const bool &are_particles_fixed,
-                 FV_DiscreteField *pField_,
-                 double const critical_distance_);
+    DLMFD_Sphere(FS_RigidBody *pgrb, const bool &are_particles_fixed,
+                 FV_DiscreteField *pField_, double const critical_distance_);
 
     /** @brief Destructor */
     ~DLMFD_Sphere();
@@ -52,11 +50,13 @@ public: //------------------------------------------------------------------
     /** @brief Set DLMFD boundary points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
-    void set_boundary_points_list(FV_DiscreteField *pField, double critical_distance);
+    void set_boundary_points_list(FV_DiscreteField *pField,
+                                  double critical_distance);
 
     /** @brief Set DLMFD interior points
     @param critical_distance Critical distance */
-    void set_interior_points_list(FV_DiscreteField *pField, double critical_distance);
+    void set_interior_points_list(FV_DiscreteField *pField,
+                                  double critical_distance);
 
     //@}
 
@@ -78,11 +78,12 @@ public: //------------------------------------------------------------------
     //-- Add methods
     /** @name Add methods */
     //@{
-    
+
     /** @brief Allocate default list of points and vectors for the sphere
     @param critical_distance Critical distance
     @param pField Constrained field */
-    void allocate_default_listOfPointsAndVectors_Sphere(const double &critical_distance, FV_DiscreteField *pField);
+    void allocate_default_listOfPointsAndVectors_Sphere(
+        const double &critical_distance, FV_DiscreteField *pField);
 
     //@}
 
@@ -96,8 +97,8 @@ public: //------------------------------------------------------------------
 
     //@}
 
-protected: //----------------------------------------------------------------
-private:   //----------------------------------------------------------------
+  protected: //----------------------------------------------------------------
+  private:   //----------------------------------------------------------------
 };
 
 #endif

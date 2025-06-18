@@ -1,9 +1,9 @@
 #ifndef DLMFD_INTERIORMULTIPLIERPOINT_HH
 #define DLMFD_INTERIORMULTIPLIERPOINT_HH
 
-#include <geomVector.hh>
 #include <DLMFD_ParticlePoint.hh>
 #include <FV_DiscreteField.hh>
+#include <geomVector.hh>
 using namespace std;
 
 /** @brief The Class DLMFD_InteriorMultiplierPoint.
@@ -14,7 +14,7 @@ Use for the definition of an interior multiplier point of a Rigid Body.
 
 class DLMFD_InteriorMultiplierPoint : public DLMFD_ParticlePoint
 {
-public: //----------------------------------------------------------------
+  public: //----------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
@@ -22,8 +22,9 @@ public: //----------------------------------------------------------------
     /** @brief Constructor with arguments
     @param position point position
     @param gravity_center gravity center of the particle the point belongs to */
-    DLMFD_InteriorMultiplierPoint(const size_t &comp, const geomVector &position,
-                                  size_t i, size_t j, size_t k,
+    DLMFD_InteriorMultiplierPoint(const size_t &comp,
+                                  const geomVector &position, size_t i,
+                                  size_t j, size_t k,
                                   const geomVector &gravity_center);
 
     /** @brief Destructor */
@@ -42,10 +43,8 @@ public: //----------------------------------------------------------------
     @param j y index of FV triplet
     @param k z index of FV triplet
     @param gravity_center Gravity center */
-    void set(const size_t &comp,
-             const geomVector &point,
-             size_t i, size_t j, size_t k,
-             const geomVector &gravity_center);
+    void set(const size_t &comp, const geomVector &point, size_t i, size_t j,
+             size_t k, const geomVector &gravity_center);
 
     //@}
 
@@ -58,8 +57,8 @@ public: //----------------------------------------------------------------
 
     //@}
 
-private:                          //----------------------------------------------------------------
-protected:                        //--------------------------------------------------------------
+  private:   //----------------------------------------------------------------
+  protected: //--------------------------------------------------------------
     FV_TRIPLET *localNodeTriplet; /**< local node MAC triplet */
 };
 

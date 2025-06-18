@@ -2,9 +2,9 @@
 using namespace std;
 
 //---------------------------------------------------------------------------
-DLMFD_InteriorMultiplierPoint::DLMFD_InteriorMultiplierPoint(const size_t &comp, const geomVector &position,
-                                                             size_t i, size_t j, size_t k,
-                                                             const geomVector &gravity_center)
+DLMFD_InteriorMultiplierPoint::DLMFD_InteriorMultiplierPoint(
+    const size_t &comp, const geomVector &position, size_t i, size_t j,
+    size_t k, const geomVector &gravity_center)
     : DLMFD_ParticlePoint(position, gravity_center)
 //--------------------------------------------------------------------------
 {
@@ -16,6 +16,9 @@ DLMFD_InteriorMultiplierPoint::DLMFD_InteriorMultiplierPoint(const size_t &comp,
     localNodeTriplet->k = k;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_InteriorMultiplierPoint::~DLMFD_InteriorMultiplierPoint()
 //--------------------------------------------------------------------------
@@ -23,10 +26,13 @@ DLMFD_InteriorMultiplierPoint::~DLMFD_InteriorMultiplierPoint()
     MAC_LABEL("DLMFD_InteriorMultiplierPoint:: ~DLMFD_InteriorMultiplierPoint");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_InteriorMultiplierPoint::set(const size_t &comp,
-                                        const geomVector &point,
-                                        size_t i, size_t j, size_t k,
+                                        const geomVector &point, size_t i,
+                                        size_t j, size_t k,
                                         const geomVector &gravity_center)
 //--------------------------------------------------------------------------
 {
@@ -37,6 +43,9 @@ void DLMFD_InteriorMultiplierPoint::set(const size_t &comp,
     localNodeTriplet->j = j;
     localNodeTriplet->k = k;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 FV_TRIPLET *DLMFD_InteriorMultiplierPoint::get_localNodeTriplet()

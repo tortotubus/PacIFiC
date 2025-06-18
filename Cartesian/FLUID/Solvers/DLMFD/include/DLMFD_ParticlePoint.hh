@@ -12,13 +12,13 @@ Use for the definition of a multiplier point of a Rigid Body.
 
 class DLMFD_ParticlePoint
 {
-protected:                       //----------------------------------------------------------------
+  protected: //----------------------------------------------------------------
     geomVector pointCoordinates; /**< coordinates of the point */
     geomVector GCPointVector;    /**< vector from gravity center to the point */
     size_t component_number;     /**< the component number for MAC FVM */
     bool valid;                  /**< validity of the point */
 
-public: //----------------------------------------------------------------
+  public: //----------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
@@ -26,7 +26,8 @@ public: //----------------------------------------------------------------
     /** @brief Constructor with arguments
     @param point Point position
     @param gravity_center Gravity center of the particle the point belongs to */
-    DLMFD_ParticlePoint(const geomVector &point, const geomVector &gravity_center);
+    DLMFD_ParticlePoint(const geomVector &point,
+                        const geomVector &gravity_center);
 
     /** @brief Destructor */
     ~DLMFD_ParticlePoint();
@@ -76,7 +77,7 @@ public: //----------------------------------------------------------------
 
     //@}
 
-private: //----------------------------------------------------------------
+  private: //----------------------------------------------------------------
 };
 
 #endif

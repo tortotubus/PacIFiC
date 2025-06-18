@@ -1,16 +1,16 @@
 #include <DLMFD_3Dcylinder.hh>
-#include <DLMFD_RigidBody.hh>
-#include <DLMFD_InteriorMultiplierPoint.hh>
 #include <DLMFD_BoundaryMultiplierPoint.hh>
 #include <DLMFD_FictitiousDomain.hh>
+#include <DLMFD_InteriorMultiplierPoint.hh>
+#include <DLMFD_RigidBody.hh>
 #include <FS_3Dcylinder.hh>
-#include <math.h>
+#include <climits>
 #include <iostream>
+#include <math.h>
 #include <set>
-#include <utility>
 #include <sstream>
 #include <string>
-#include <climits>
+#include <utility>
 using namespace std;
 #define THRESHOLD 1.e-7
 //---------------------------------------------------------------------------
@@ -20,11 +20,15 @@ DLMFD_3Dcylinder::DLMFD_3Dcylinder() : DLMFD_RigidBody()
     MAC_LABEL("DLMFD_3Dcylinder:: DLMFD_3Dcylinder");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_3Dcylinder::DLMFD_3Dcylinder(FS_RigidBody *pgrb,
                                    const bool &are_particles_fixed,
                                    FV_DiscreteField *pField_,
-                                   double const critical_distance_) : DLMFD_RigidBody(pgrb, are_particles_fixed, pField_)
+                                   double const critical_distance_)
+    : DLMFD_RigidBody(pgrb, are_particles_fixed, pField_)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder:: DLMFD_3Dcylinder");
@@ -46,12 +50,18 @@ DLMFD_3Dcylinder::DLMFD_3Dcylinder(FS_RigidBody *pgrb,
     set_all_MAC(pField_, critical_distance_);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_3Dcylinder::~DLMFD_3Dcylinder()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder:: ~DLMFD_3Dcylinder");
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_3Dcylinder::set_ptr_FS_3Dcylinder_Additional_Param()
@@ -62,8 +72,12 @@ void DLMFD_3Dcylinder::set_ptr_FS_3Dcylinder_Additional_Param()
     pagp = get_ptr_FS_3Dcylinder_Additional_Param();
 }
 
+
+
+
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField,
+                                   double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder::set_all_MAC");
@@ -87,17 +101,17 @@ void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField, double critical_dis
         for (i = 0; i < nper; ++i)
         {
             gravity_center = gvref + (*periodic_directions)[i];
-            if (primary_grid->is_in_domain_with_halozone_plus_ext(gravity_center(0),
-                                                                  gravity_center(1),
-                                                                  gravity_center(2),
-                                                                  radius))
+            if (primary_grid->is_in_domain_with_halozone_plus_ext(
+                    gravity_center(0), gravity_center(1), gravity_center(2),
+                    radius))
             {
                 in = true;
                 BottomCenter = BottomCenterRef + (*periodic_directions)[i];
                 TopCenter = TopCenterRef + (*periodic_directions)[i];
 
                 if (interior_points.empty())
-                    allocate_default_listOfPointsAndVectors_3Dcylinder(critical_distance, pField);
+                    allocate_default_listOfPointsAndVectors_3Dcylinder(
+                        critical_distance, pField);
 
                 set_all_points(pField, critical_distance);
             }
@@ -108,32 +122,37 @@ void DLMFD_3Dcylinder::set_all_MAC(FV_DiscreteField *pField, double critical_dis
     }
 
     // !!! IMPORTANT !!!
-    // DLM/FD points for the primary particle position must always be constructed
-    // AFTER those for its periodic clones in case of a periodic particle
-    if (primary_grid->is_in_domain_with_halozone_plus_ext(gravity_center(0),
-                                                          gravity_center(1),
-                                                          gravity_center(2),
-                                                          radius))
+    // DLM/FD points for the primary particle position must always be
+    // constructed AFTER those for its periodic clones in case of a periodic
+    // particle
+    if (primary_grid->is_in_domain_with_halozone_plus_ext(
+            gravity_center(0), gravity_center(1), gravity_center(2), radius))
     {
         in = true;
         if (interior_points.empty())
-            allocate_default_listOfPointsAndVectors_3Dcylinder(critical_distance, pField);
+            allocate_default_listOfPointsAndVectors_3Dcylinder(
+                critical_distance, pField);
 
         set_all_points(pField, critical_distance);
     }
 
     // This method must be called once, and only once.
     // When temperature and particle_as_fixed_obtacle are combined, set_all_MAC
-    // is called at each time step while allocate_exact_listOfPointInfosAndVectors
-    // must be called only once. The boolean b_exactAllocation_done prevents from
-    // performing the allocation twice as the return value of the method
+    // is called at each time step while
+    // allocate_exact_listOfPointInfosAndVectors must be called only once. The
+    // boolean b_exactAllocation_done prevents from performing the allocation
+    // twice as the return value of the method
     // allocate_exact_listOfPointInfosAndVectors is true
     if (is_particle_fixed && !b_exactAllocation_done)
         b_exactAllocation_done = allocate_exact_listOfPointInfosAndVectors();
 }
 
+
+
+
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::set_all_points(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dcylinder::set_all_points(FV_DiscreteField *pField,
+                                      double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder:: set_all_points");
@@ -145,23 +164,30 @@ void DLMFD_3Dcylinder::set_all_points(FV_DiscreteField *pField, double critical_
     set_interior_points_list(pField, critical_distance);
 }
 
+
+
+
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::set_boundary_points_list(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dcylinder::set_boundary_points_list(FV_DiscreteField *pField,
+                                                double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder::set_boundary_points_list");
 
     FV_Mesh const *primary_grid = pField->primary_grid();
 
-    list<DLMFD_BoundaryMultiplierPoint *>::iterator bp = boundary_points.begin();
-    list<DLMFD_BoundaryMultiplierPoint *>::iterator bphz = halozone_boundary_points.begin();
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator bp =
+        boundary_points.begin();
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator bphz =
+        halozone_boundary_points.begin();
     for (size_t i = 0; i < nBP; ++i)
         bp++;
     for (size_t i = 0; i < nBPHZ; ++i)
         bphz++;
 
     double pi = acos(-1.);
-    double spacing = critical_distance * DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef;
+    double spacing =
+        critical_distance * DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef;
     size_t npts_radius = size_t(cylinder_radius / spacing) + 1;
     double delta_radius = cylinder_radius / (npts_radius - 1);
     size_t npts_height = size_t(cylinder_height / sqrt(3) * 2 / spacing) + 1;
@@ -193,8 +219,11 @@ void DLMFD_3Dcylinder::set_boundary_points_list(FV_DiscreteField *pField, double
         }
         for (size_t j = 0; j < npts_local_radius; ++j)
         {
-            local_angle = 2. * pi * double(j) / double(npts_local_radius) + pi * bin / double(npts_local_radius);
-            newPoint = cos(local_angle) * RadialRefVec + sin(local_angle) * n_cross_rad + BottomCenter + i * delta_height * unit_axial;
+            local_angle = 2. * pi * double(j) / double(npts_local_radius) +
+                          pi * bin / double(npts_local_radius);
+            newPoint = cos(local_angle) * RadialRefVec +
+                       sin(local_angle) * n_cross_rad + BottomCenter +
+                       i * delta_height * unit_axial;
             setBndPoint(newPoint, primary_grid, bp, bphz);
         }
     }
@@ -205,21 +234,26 @@ void DLMFD_3Dcylinder::set_boundary_points_list(FV_DiscreteField *pField, double
     double theoreticalPacking = pi / 2 / sqrt(3);
 
     // Fixed-point algorithm to obtain the right number of point on the disk
-    double nPtsDiski = 4. * cylinder_radius * cylinder_radius / (spacing * spacing) * theoreticalPacking;
+    double nPtsDiski = 4. * cylinder_radius * cylinder_radius /
+                       (spacing * spacing) * theoreticalPacking;
     double nPtsDiskOld = 0;
 
     while (fabs(nPtsDiski - nPtsDiskOld) > 1e-2)
     {
         nPtsDiskOld = nPtsDiski;
-        nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) * (theoreticalPacking - 1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
+        nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) *
+                    (theoreticalPacking -
+                     1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
     }
     nPtsDisk = size_t(nPtsDiski);
 
     for (size_t j = 1; j <= nPtsDisk; ++j)
     {
         local_angle = double(j) * goldenAngle;
-        newPoint = cos(local_angle) * RadialRefVec + sin(local_angle) * n_cross_rad;
-        newPoint *= sqrt(double(j) / nPtsDisk) * (1. - spacing / 2. / cylinder_radius);
+        newPoint =
+            cos(local_angle) * RadialRefVec + sin(local_angle) * n_cross_rad;
+        newPoint *=
+            sqrt(double(j) / nPtsDisk) * (1. - spacing / 2. / cylinder_radius);
 
         // Bottom disk
         newPoint += BottomCenter;
@@ -231,8 +265,12 @@ void DLMFD_3Dcylinder::set_boundary_points_list(FV_DiscreteField *pField, double
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double critical_distance)
+void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField,
+                                                double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder:: set_interior_points_list");
@@ -258,14 +296,18 @@ void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double
         for (size_t comp = 0; comp < ncomps; ++comp)
         {
             field_mesh[comp][m] = pField->get_DOF_coordinates_vector(comp, m);
-            (*index_min)(comp, m) = FV_Mesh::min_index(field_mesh[comp][m], coor_min(m) - 0.1 * critical_distance);
-            (*index_max)(comp, m) = FV_Mesh::max_index(field_mesh[comp][m], coor_max(m) + 0.1 * critical_distance);
+            (*index_min)(comp, m) = FV_Mesh::min_index(
+                field_mesh[comp][m], coor_min(m) - 0.1 * critical_distance);
+            (*index_max)(comp, m) = FV_Mesh::max_index(
+                field_mesh[comp][m], coor_max(m) + 0.1 * critical_distance);
         }
     }
 
     // Interior points
-    list<DLMFD_InteriorMultiplierPoint *>::iterator ip = interior_points.begin();
-    list<DLMFD_InteriorMultiplierPoint *>::iterator iphz = halozone_interior_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::iterator ip =
+        interior_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::iterator iphz =
+        halozone_interior_points.begin();
     for (size_t i = 0; i < nIP; ++i)
         ip++;
     for (size_t i = 0; i < nIPHZ; ++i)
@@ -279,11 +321,13 @@ void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double
         {
             x = (*field_mesh[comp][0])(i);
             node(0) = x;
-            for (size_t j = (*index_min)(comp, 1); j <= (*index_max)(comp, 1); ++j)
+            for (size_t j = (*index_min)(comp, 1); j <= (*index_max)(comp, 1);
+                 ++j)
             {
                 y = (*field_mesh[comp][1])(j);
                 node(1) = y;
-                for (size_t k = (*index_min)(comp, 2); k <= (*index_max)(comp, 2); ++k)
+                for (size_t k = (*index_min)(comp, 2);
+                     k <= (*index_max)(comp, 2); ++k)
                 {
                     z = (*field_mesh[comp][2])(k);
                     node(2) = z;
@@ -291,27 +335,34 @@ void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double
                     if (isIn(node))
                     {
                         // !! Add interior points that are unknowns only !!
-                        if (pField->DOF_is_unknown(i, j, k, comp) && !pField->DOF_is_constrained(i, j, k, comp))
+                        if (pField->DOF_is_unknown(i, j, k, comp) &&
+                            !pField->DOF_is_constrained(i, j, k, comp))
                         {
                             pField->set_DOF_constrained(i, j, k, comp);
-                            if (pField->DOF_is_unknown_handled_by_proc(i, j, k, comp))
+                            if (pField->DOF_is_unknown_handled_by_proc(i, j, k,
+                                                                       comp))
                             {
                                 (*ip)->set(comp, node, i, j, k, gravity_center);
                                 ++nIP;
                                 if (nIP == __nip)
                                 {
-                                    extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
+                                    extend_ip_list(
+                                        DLMFD_RigidBody::
+                                            BlockSize_InteriorPoints);
                                     __nip = interior_points.size();
                                 }
                                 ip++;
                             }
                             else
                             {
-                                (*iphz)->set(comp, node, i, j, k, gravity_center);
+                                (*iphz)->set(comp, node, i, j, k,
+                                             gravity_center);
                                 ++nIPHZ;
                                 if (nIPHZ == __niphz)
                                 {
-                                    extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
+                                    extend_iphz_list(
+                                        DLMFD_RigidBody::
+                                            BlockSize_HZ_InteriorPoints);
                                     __niphz = halozone_interior_points.size();
                                 }
                                 iphz++;
@@ -322,6 +373,9 @@ void DLMFD_3Dcylinder::set_interior_points_list(FV_DiscreteField *pField, double
             }
         }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_3Dcylinder::update()
@@ -346,29 +400,41 @@ void DLMFD_3Dcylinder::update()
     cylinder_height = pagp->cylinder_height;
 }
 
+
+
+
 //---------------------------------------------------------------------------
-FS_3Dcylinder_Additional_Param const *DLMFD_3Dcylinder::get_ptr_FS_3Dcylinder_Additional_Param()
+FS_3Dcylinder_Additional_Param const *
+DLMFD_3Dcylinder::get_ptr_FS_3Dcylinder_Additional_Param()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_3Dcylinder::get_ptr_FS_3Dcylinder_Additional_Param");
 
-    return (dynamic_cast<FS_3Dcylinder *>(ptr_FSrigidbody)->get_ptr_FS_3Dcylinder_Additional_Param());
+    return (dynamic_cast<FS_3Dcylinder *>(ptr_FSrigidbody)
+                ->get_ptr_FS_3Dcylinder_Additional_Param());
 }
 
+
+
+
 //---------------------------------------------------------------------------
-void DLMFD_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder(const double &critical_distance, FV_DiscreteField *pField)
+void DLMFD_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder(
+    const double &critical_distance, FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DS_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder()");
+    MAC_LABEL(
+        "DS_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder()");
 
     if (is_particle_fixed)
         initialize_listOfDLMFDPoints();
     else
     {
         double pi = acos(-1.);
-        double spacing = critical_distance * DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef;
+        double spacing = critical_distance *
+                         DLMFD_FictitiousDomain::BoundaryPointsSpacing_coef;
         double mesh_size = critical_distance / sqrt(3.);
-        size_t security_bandwidth = pField->primary_grid()->get_security_bandwidth();
+        size_t security_bandwidth =
+            pField->primary_grid()->get_security_bandwidth();
         size_t nSI = size_t(2. * cylinder_radius / mesh_size) + 1;
         size_t nHI = size_t(cylinder_height / mesh_size) + 1;
         size_t nbIPdef = size_t(3.2 * nHI * pi * nSI * nSI / 4.);
@@ -377,7 +443,8 @@ void DLMFD_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder(const 
         // Exterior
         size_t npts_radius = size_t(cylinder_radius / critical_distance) + 1;
         double delta_radius = cylinder_radius / (npts_radius - 1);
-        size_t npts_height = size_t(cylinder_height / sqrt(3) * 2 / spacing) + 1;
+        size_t npts_height =
+            size_t(cylinder_height / sqrt(3) * 2 / spacing) + 1;
         double local_radius;
         size_t npts_local_radius;
         size_t nbBPdef = 0;
@@ -386,29 +453,38 @@ void DLMFD_3Dcylinder::allocate_default_listOfPointsAndVectors_3Dcylinder(const 
         nbBPdef += 2;
 
         // Cylinder height
-        npts_local_radius = size_t(2. * pi * cylinder_radius / critical_distance);
+        npts_local_radius =
+            size_t(2. * pi * cylinder_radius / critical_distance);
         nbBPdef += npts_local_radius * npts_height;
 
         // Spiralling distribution
         double goldenAngle = pi * (3 - sqrt(5));
         size_t nPtsDisk;
         double theoreticalPacking = pi / 2 / sqrt(3);
-        double nPtsDiski = 4. * cylinder_radius * cylinder_radius / (spacing * spacing) * theoreticalPacking;
+        double nPtsDiski = 4. * cylinder_radius * cylinder_radius /
+                           (spacing * spacing) * theoreticalPacking;
         double nPtsDiskOld = 0;
 
-        // Loop giving the optimal number of points on the disk (converge in 4-5 iterations)
+        // Loop giving the optimal number of points on the disk (converge in 4-5
+        // iterations)
         while (fabs(nPtsDiski - nPtsDiskOld) > 1e-2)
         {
             nPtsDiskOld = nPtsDiski;
-            nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) * (theoreticalPacking - 1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
+            nPtsDiski = 4 * pow(cylinder_radius, 2.0) / pow(spacing, 2.0) *
+                        (theoreticalPacking -
+                         1 / (pow(nPtsDiski / theoreticalPacking, 0.5) + 1));
         }
         nbBPdef += 2 * size_t(nPtsDiski);
 
         size_t nbBPHZdef = size_t(0.5 * nbBPdef);
 
-        allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef, nbBPHZdef);
+        allocate_default_listOfPointsAndVectors(nbIPdef, nbBPdef, nbIPHZdef,
+                                                nbBPHZdef);
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 bool DLMFD_3Dcylinder::isIn(const geomVector &point) const
@@ -416,17 +492,14 @@ bool DLMFD_3Dcylinder::isIn(const geomVector &point) const
 {
     MAC_LABEL("DLMFD_3Dcylinder:: isIn");
 
-    // return (ptr_FSrigidbody->isIn(point));
-
-    // TODO: there is something to do with this function, see constructor.
-
     bool b_isIn = false;
 
     geomVector BottomToPoint(point - BottomCenter);
     double dot = (BottomToPoint, BottomToTopVec) / cylinder_height;
 
     if (dot < cylinder_height && dot > 0.)
-        if (BottomToPoint.calcNormSquare() - dot * dot < cylinder_radius * cylinder_radius)
+        if (BottomToPoint.calcNormSquare() - dot * dot <
+            cylinder_radius * cylinder_radius)
             b_isIn = true;
 
     if (periodic_directions)
@@ -437,13 +510,17 @@ bool DLMFD_3Dcylinder::isIn(const geomVector &point) const
             dot = (BottomToPoint, BottomToTopVec) / cylinder_height;
 
             if (dot <= cylinder_height && dot > 0)
-                if (BottomToPoint.calcNormSquare() - dot * dot < cylinder_radius * cylinder_radius)
+                if (BottomToPoint.calcNormSquare() - dot * dot <
+                    cylinder_radius * cylinder_radius)
                     b_isIn = true;
         }
     }
 
     return b_isIn;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_3Dcylinder::translateGeometricFeatures(geomVector const &newg)
@@ -459,6 +536,9 @@ void DLMFD_3Dcylinder::translateGeometricFeatures(geomVector const &newg)
         TopCenter += translation_vec;
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector DLMFD_3Dcylinder::particle_orientation_vector() const

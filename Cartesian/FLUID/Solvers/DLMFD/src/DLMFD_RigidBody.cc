@@ -25,6 +25,9 @@ DLMFD_RigidBody::DLMFD_RigidBody()
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
                                  const bool &are_particles_fixed,
@@ -112,6 +115,9 @@ DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
     set_ptr_periodic_directions();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_RigidBody::~DLMFD_RigidBody()
 //---------------------------------------------------------------------------
@@ -175,6 +181,9 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_component_type()
 //---------------------------------------------------------------------------
@@ -183,6 +192,9 @@ void DLMFD_RigidBody::set_component_type()
 
     component_type = ptr_FSrigidbody->get_type();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_ptr_constrained_field(FV_DiscreteField *pField__)
@@ -193,6 +205,9 @@ void DLMFD_RigidBody::set_ptr_constrained_field(FV_DiscreteField *pField__)
     pField_ = pField__;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_ptr_periodic_directions()
 //---------------------------------------------------------------------------
@@ -201,6 +216,9 @@ void DLMFD_RigidBody::set_ptr_periodic_directions()
 
     periodic_directions = get_ptr_to_periodic_directions();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_boundary_point(
@@ -217,6 +235,9 @@ void DLMFD_RigidBody::set_boundary_point(
     bp++;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_halozone_boundary_point(
     const geomVector &point,
@@ -231,6 +252,9 @@ void DLMFD_RigidBody::set_halozone_boundary_point(
         extend_bphz_list(DLMFD_RigidBody::BlockSize_HZ_BoundaryPoints);
     bphz++;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::setBndPoint(
@@ -254,6 +278,9 @@ void DLMFD_RigidBody::setBndPoint(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::setPtsOnEdge(
@@ -290,6 +317,9 @@ void DLMFD_RigidBody::setPtsOnEdge(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_interior_points_PerProc(
@@ -345,6 +375,9 @@ void DLMFD_RigidBody::erase_critical_interior_points_PerProc(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_boundary_points_ptb(
     const double &critical_distance,
@@ -368,6 +401,9 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptb(
         translateGeometricFeatures(gcref);
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(
@@ -404,6 +440,9 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(
             }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(
@@ -466,6 +505,9 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(
@@ -584,6 +626,9 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
@@ -685,6 +730,9 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
 //---------------------------------------------------------------------------
@@ -757,6 +805,9 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::fill_DLMFD_Cvectors()
 //---------------------------------------------------------------------------
@@ -822,6 +873,9 @@ void DLMFD_RigidBody::fill_DLMFD_Cvectors()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_coupling_factor(double const &rho_f,
                                           bool const &explicit_treatment)
@@ -834,6 +888,9 @@ void DLMFD_RigidBody::set_coupling_factor(double const &rho_f,
         fluidsolid_coupling_factor -= rho_f / rho_s;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_mass_and_density_and_inertia()
 //---------------------------------------------------------------------------
@@ -845,6 +902,9 @@ void DLMFD_RigidBody::set_mass_and_density_and_inertia()
     inertia_3D = get_rigid_body_inertia();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_volume()
 //---------------------------------------------------------------------------
@@ -853,6 +913,9 @@ void DLMFD_RigidBody::set_volume()
 
     volume = mass / rho_s;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_translational_velocity()
@@ -863,6 +926,9 @@ void DLMFD_RigidBody::set_translational_velocity()
     translational_velocity = get_rigid_body_translational_velocity();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_translational_velocity(const geomVector &vtran)
 //---------------------------------------------------------------------------
@@ -871,6 +937,9 @@ void DLMFD_RigidBody::set_translational_velocity(const geomVector &vtran)
 
     translational_velocity = vtran;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_angular_velocity_3D()
@@ -881,6 +950,9 @@ void DLMFD_RigidBody::set_angular_velocity_3D()
     angular_velocity_3D = get_rigid_body_angular_velocity();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_angular_velocity_3D(const geomVector &vrot)
 //---------------------------------------------------------------------------
@@ -889,6 +961,9 @@ void DLMFD_RigidBody::set_angular_velocity_3D(const geomVector &vrot)
 
     angular_velocity_3D = vrot;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_Qu(const geomVector &qtran)
@@ -899,6 +974,9 @@ void DLMFD_RigidBody::set_Qu(const geomVector &qtran)
     q_tran = qtran;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_Qrot(const geomVector &qrot)
 //---------------------------------------------------------------------------
@@ -907,6 +985,9 @@ void DLMFD_RigidBody::set_Qrot(const geomVector &qrot)
 
     q_rot_3D = qrot;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_Tu(const geomVector &ttran)
@@ -917,6 +998,9 @@ void DLMFD_RigidBody::set_Tu(const geomVector &ttran)
     t_tran = ttran;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_Trot(const geomVector &trot)
 //---------------------------------------------------------------------------
@@ -925,6 +1009,9 @@ void DLMFD_RigidBody::set_Trot(const geomVector &trot)
 
     t_rot_3D = trot;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::set_ttran_ncomp(const size_t &ncomp_)
@@ -935,6 +1022,9 @@ void DLMFD_RigidBody::set_ttran_ncomp(const size_t &ncomp_)
     t_tran.resize(ncomp_);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 int DLMFD_RigidBody::get_number_periodicClones() const
 //---------------------------------------------------------------------------
@@ -943,6 +1033,9 @@ int DLMFD_RigidBody::get_number_periodicClones() const
 
     return (periodic_directions ? periodic_directions->size() : 0);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 vector<geomVector> const *
@@ -954,6 +1047,9 @@ DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
     return periodic_directions;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 string DLMFD_RigidBody::get_component_type() const
 //---------------------------------------------------------------------------
@@ -962,6 +1058,9 @@ string DLMFD_RigidBody::get_component_type() const
 
     return component_type;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 GEOMETRICSHAPE DLMFD_RigidBody::get_GeometricObjectType() const
@@ -972,6 +1071,9 @@ GEOMETRICSHAPE DLMFD_RigidBody::get_GeometricObjectType() const
     return (ptr_FSrigidbody->get_shape_type());
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::get_circumscribed_radius() const
 //---------------------------------------------------------------------------
@@ -980,6 +1082,9 @@ double DLMFD_RigidBody::get_circumscribed_radius() const
 
     return (ptr_FSrigidbody->get_circumscribed_radius());
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector const *DLMFD_RigidBody::get_ptr_to_gravity_centre() const
@@ -990,6 +1095,9 @@ geomVector const *DLMFD_RigidBody::get_ptr_to_gravity_centre() const
     return (dynamic_cast<FS_RigidBody *>(ptr_FSrigidbody)
                 ->get_ptr_to_gravity_centre());
 }
+
+
+
 
 //---------------------------------------------------------------------------
 size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
@@ -1015,6 +1123,9 @@ size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
     return output_npts;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 vector<geomVector> *DLMFD_RigidBody::get_ptr_to_periodic_directions() const
 //---------------------------------------------------------------------------
@@ -1023,6 +1134,9 @@ vector<geomVector> *DLMFD_RigidBody::get_ptr_to_periodic_directions() const
 
     return (ptr_FSrigidbody->get_ptr_to_periodic_directions());
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector
@@ -1034,6 +1148,9 @@ DLMFD_RigidBody::get_rigid_body_velocity(geomVector const &point) const
     return (ptr_FSrigidbody->rigid_body_velocity(point));
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::get_rigid_body_angular_velocity() const
 //---------------------------------------------------------------------------
@@ -1042,6 +1159,9 @@ geomVector DLMFD_RigidBody::get_rigid_body_angular_velocity() const
 
     return (ptr_FSrigidbody->rigid_body_angular_velocity());
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::get_angular_velocity_3D() const
@@ -1052,6 +1172,9 @@ geomVector DLMFD_RigidBody::get_angular_velocity_3D() const
     return angular_velocity_3D;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::get_rigid_body_translational_velocity() const
 //---------------------------------------------------------------------------
@@ -1061,6 +1184,9 @@ geomVector DLMFD_RigidBody::get_rigid_body_translational_velocity() const
     return (ptr_FSrigidbody->rigid_body_translational_velocity());
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::get_translational_velocity() const
 //---------------------------------------------------------------------------
@@ -1069,6 +1195,9 @@ geomVector DLMFD_RigidBody::get_translational_velocity() const
 
     return translational_velocity;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::get_rigid_body_mass() const
@@ -1081,6 +1210,9 @@ double DLMFD_RigidBody::get_rigid_body_mass() const
     return mass_;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::get_rigid_body_density() const
 //---------------------------------------------------------------------------
@@ -1092,6 +1224,9 @@ double DLMFD_RigidBody::get_rigid_body_density() const
     return density_;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::get_density() const
 //---------------------------------------------------------------------------
@@ -1100,6 +1235,9 @@ double DLMFD_RigidBody::get_density() const
 
     return rho_s;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 vector<vector<double>> DLMFD_RigidBody::get_rigid_body_inertia() const
@@ -1110,6 +1248,9 @@ vector<vector<double>> DLMFD_RigidBody::get_rigid_body_inertia() const
     return ptr_FSrigidbody->get_inertia();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector const DLMFD_RigidBody::get_Qu() const
 //---------------------------------------------------------------------------
@@ -1118,6 +1259,9 @@ geomVector const DLMFD_RigidBody::get_Qu() const
 
     return q_tran;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector const DLMFD_RigidBody::get_Qrot() const
@@ -1128,6 +1272,9 @@ geomVector const DLMFD_RigidBody::get_Qrot() const
     return q_rot_3D;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector const DLMFD_RigidBody::get_Tu() const
 //---------------------------------------------------------------------------
@@ -1136,6 +1283,9 @@ geomVector const DLMFD_RigidBody::get_Tu() const
 
     return t_tran;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 geomVector const DLMFD_RigidBody::get_Trot() const
@@ -1146,6 +1296,9 @@ geomVector const DLMFD_RigidBody::get_Trot() const
     return t_rot_3D;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::get_volume() const
 //---------------------------------------------------------------------------
@@ -1154,6 +1307,9 @@ double DLMFD_RigidBody::get_volume() const
 
     return volume;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_bp_list(size_t const &np)
@@ -1172,6 +1328,9 @@ void DLMFD_RigidBody::extend_bp_list(size_t const &np)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_bphz_list(size_t const &np)
 //---------------------------------------------------------------------------
@@ -1188,6 +1347,9 @@ void DLMFD_RigidBody::extend_bphz_list(size_t const &np)
             new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_ip_list(size_t const &np)
@@ -1206,6 +1368,9 @@ void DLMFD_RigidBody::extend_ip_list(size_t const &np)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::extend_iphz_list(size_t const &np)
 //---------------------------------------------------------------------------
@@ -1222,6 +1387,9 @@ void DLMFD_RigidBody::extend_iphz_list(size_t const &np)
             0, virtual_point, 0, 0, 0, gravity_center);
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(
@@ -1277,6 +1445,9 @@ void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(
     VEC_w.re_initialize(ndofdef, 0.);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
 //---------------------------------------------------------------------------
@@ -1317,6 +1488,9 @@ void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 bool DLMFD_RigidBody::allocate_exact_listOfPointInfosAndVectors()
 //---------------------------------------------------------------------------
@@ -1338,6 +1512,9 @@ bool DLMFD_RigidBody::allocate_exact_listOfPointInfosAndVectors()
     return (true);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::update()
 //---------------------------------------------------------------------------
@@ -1353,6 +1530,9 @@ void DLMFD_RigidBody::update()
     if (periodic_directions)
         periodic_directions = get_ptr_to_periodic_directions();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
@@ -1379,6 +1559,9 @@ bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
     return close;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(
     list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
@@ -1404,6 +1587,9 @@ void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(
             distance_contactRegion)
             BPHZ_contactRegion.push_back(*imp);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 bool DLMFD_RigidBody::hasDLMFDPointsOnProc() const
@@ -1435,6 +1621,9 @@ bool DLMFD_RigidBody::hasDLMFDPointsOnProc() const
     return has_valid_point;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
 //---------------------------------------------------------------------------
@@ -1464,6 +1653,9 @@ bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
 
     return has_halozone_point;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::print_partPointsCoordinates(
@@ -1506,6 +1698,9 @@ void DLMFD_RigidBody::print_partPointsCoordinates(
         }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double
 DLMFD_RigidBody::compute_distance_to_bottom(const double &coordinate,
@@ -1517,6 +1712,9 @@ DLMFD_RigidBody::compute_distance_to_bottom(const double &coordinate,
     return (fabs(gravity_center(direction) - coordinate));
 }
 
+
+
+
 //---------------------------------------------------------------------------
 geomVector DLMFD_RigidBody::particle_orientation_vector() const
 //---------------------------------------------------------------------------
@@ -1527,6 +1725,9 @@ geomVector DLMFD_RigidBody::particle_orientation_vector() const
 
     return zero;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::clear_listOfPointsAndVectors()
@@ -1544,6 +1745,9 @@ void DLMFD_RigidBody::clear_listOfPointsAndVectors()
     boundary_points.clear();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::nullify_Uzawa_vectors()
 //---------------------------------------------------------------------------
@@ -1555,6 +1759,9 @@ void DLMFD_RigidBody::nullify_Uzawa_vectors()
     VEC_lambda.set(0.);
     VEC_w.set(0.);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_Qu(bool init)
@@ -1578,6 +1785,9 @@ void DLMFD_RigidBody::compute_Qu(bool init)
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_Qrot(bool init)
@@ -1618,6 +1828,9 @@ void DLMFD_RigidBody::compute_Qrot(bool init)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::add_to_Qu(const geomVector &qtran)
 //---------------------------------------------------------------------------
@@ -1627,6 +1840,9 @@ void DLMFD_RigidBody::add_to_Qu(const geomVector &qtran)
     q_tran += qtran;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::add_to_Qrot(const geomVector &qrot)
 //---------------------------------------------------------------------------
@@ -1635,6 +1851,9 @@ void DLMFD_RigidBody::add_to_Qrot(const geomVector &qrot)
 
     q_rot_3D += qrot;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(
@@ -1668,6 +1887,9 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(
 
     q_rot_3D = Fomega - q_rot_3D;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 vector<vector<double>>
@@ -1715,6 +1937,9 @@ DLMFD_RigidBody::calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix)
     return inversedMatrix;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f,
                                                   double const &timestep)
@@ -1748,6 +1973,9 @@ void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f,
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::updateSolutionVectors_Velocity(const double &alpha,
                                                      const double &beta)
@@ -1759,6 +1987,9 @@ void DLMFD_RigidBody::updateSolutionVectors_Velocity(const double &alpha,
     angular_velocity_3D = t_rot_3D * alpha + angular_velocity_3D * beta;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::setTVectors_constant()
 //---------------------------------------------------------------------------
@@ -1768,6 +1999,9 @@ void DLMFD_RigidBody::setTVectors_constant()
     t_tran = translational_velocity;
     t_rot_3D = angular_velocity_3D;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_fluid_rhs(
@@ -1804,6 +2038,9 @@ void DLMFD_RigidBody::compute_fluid_rhs(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
@@ -1852,6 +2089,9 @@ void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::compute_r_and_w_FirstUzawaIteration()
 //---------------------------------------------------------------------------
@@ -1868,6 +2108,9 @@ void DLMFD_RigidBody::compute_r_and_w_FirstUzawaIteration()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::compute_r_dot_r() const
 //---------------------------------------------------------------------------
@@ -1882,6 +2125,9 @@ double DLMFD_RigidBody::compute_r_dot_r() const
 
     return rdotr;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::compute_w_dot_x() const
@@ -1898,6 +2144,9 @@ double DLMFD_RigidBody::compute_w_dot_x() const
     return wdotx;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::update_lambda_and_r(const double &alpha)
 //---------------------------------------------------------------------------
@@ -1913,6 +2162,9 @@ void DLMFD_RigidBody::update_lambda_and_r(const double &alpha)
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::update_w(const double &beta)
@@ -2204,6 +2456,9 @@ void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                                             ULBD_RHSInfos &OnePointInfos,
@@ -2424,6 +2679,9 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
     // full list of boundary points
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::compute_weight_generic(double const &x, size_t const &i,
                                                size_t const &order)
@@ -2461,6 +2719,9 @@ double DLMFD_RigidBody::compute_weight_generic(double const &x, size_t const &i,
     }
     return (result);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,

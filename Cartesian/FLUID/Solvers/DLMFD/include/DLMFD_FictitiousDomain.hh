@@ -164,7 +164,6 @@ class DLMFD_FictitiousDomain : public MAC_Object,
     size_t levelDiscrField;
 
   private: //----------------------------------------------------------------
-
     /** @name Constructors & Destructor */
     //@{
 

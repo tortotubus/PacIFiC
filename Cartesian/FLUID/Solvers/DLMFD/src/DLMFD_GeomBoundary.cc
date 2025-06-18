@@ -9,12 +9,18 @@ DLMFD_GeomBoundary::DLMFD_GeomBoundary(const string &geomtype_)
     geomtype = geomtype_;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_GeomBoundary::~DLMFD_GeomBoundary()
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_GeomBoundary::~DLMFD_GeomBoundary");
 }
+
+
+
 
 //---------------------------------------------------------------------------
 DLMFD_GeomBoundary::DLMFD_GeomBoundary(const DLMFD_GeomBoundary &M)
@@ -26,6 +32,9 @@ DLMFD_GeomBoundary::DLMFD_GeomBoundary(const DLMFD_GeomBoundary &M)
     geomtype = M.geomtype;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 ostream &operator<<(ostream &f, const DLMFD_GeomBoundary &G)
 //---------------------------------------------------------------------------
@@ -36,6 +45,9 @@ ostream &operator<<(ostream &f, const DLMFD_GeomBoundary &G)
 
     return f;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_GeomBoundary::display(ostream &f) const

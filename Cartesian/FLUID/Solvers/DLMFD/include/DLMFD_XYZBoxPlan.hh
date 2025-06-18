@@ -1,8 +1,8 @@
 #ifndef DLMFD_XYZBOXPLAN_HH
 #define DLMFD_XYZBOXPLAN_HH
 
-#include <string>
 #include <DLMFD_GeomBoundary.hh>
+#include <string>
 using namespace std;
 
 /** @brief The Class DLMFD_XYZBoxPlan.
@@ -13,11 +13,11 @@ Special type of geometric box: plan of a closed box
 
 class DLMFD_XYZBoxPlan : public DLMFD_GeomBoundary
 {
-protected:
+  protected:
     size_t coordinate_direction; /**< coordinate direction (0,1 or 2) */
     double value;                /**< coordinate value */
 
-private:
+  private:
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor without argument */
@@ -27,7 +27,7 @@ private:
     DLMFD_XYZBoxPlan(const DLMFD_XYZBoxPlan &M) : DLMFD_GeomBoundary(M) {}
     //@}
 
-public:
+  public:
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor with arguments
@@ -35,7 +35,7 @@ public:
     @param coordinate_direction_ coordinate direction
     @param value_ a value to define the geometric boundary */
     DLMFD_XYZBoxPlan(const string &type_, const size_t &coordinate_direction_,
-               const double &value_);
+                     const double &value_);
 
     /** @brief Destructor */
     ~DLMFD_XYZBoxPlan();
@@ -43,8 +43,8 @@ public:
 
     /** @brief Search the intersection normal
     @param line_point point on the normal */
-    pair<bool, geomVector> intersection_normal(
-        const geomVector &line_point) const;
+    pair<bool, geomVector>
+    intersection_normal(const geomVector &line_point) const;
 
     /** @brief Operator << */
     friend ostream &operator<<(ostream &f, const DLMFD_XYZBoxPlan &G);

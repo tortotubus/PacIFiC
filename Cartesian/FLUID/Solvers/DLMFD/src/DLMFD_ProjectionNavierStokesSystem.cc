@@ -52,6 +52,9 @@ DLMFD_ProjectionNavierStokesSystem *DLMFD_ProjectionNavierStokesSystem::create(
     return (result);
 }
 
+
+
+
 //----------------------------------------------------------------------
 DLMFD_ProjectionNavierStokesSystem::DLMFD_ProjectionNavierStokesSystem(
     MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
@@ -102,6 +105,9 @@ DLMFD_ProjectionNavierStokesSystem::DLMFD_ProjectionNavierStokesSystem(
     if (exp->has_entry("Uzawa_DLMFD_maxiter"))
         Uzawa_DLMFD_maxiter = exp->int_data("Uzawa_DLMFD_maxiter");
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::build_system(
@@ -192,6 +198,9 @@ void DLMFD_ProjectionNavierStokesSystem::build_system(
     VECS_Storage = LA_StorableVectors::create(this);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::re_initialize(void)
 //----------------------------------------------------------------------
@@ -263,11 +272,17 @@ void DLMFD_ProjectionNavierStokesSystem::re_initialize(void)
     PP_NUM->define_scatter(VEC_P);
 }
 
+
+
+
 //----------------------------------------------------------------------
 DLMFD_ProjectionNavierStokesSystem::~DLMFD_ProjectionNavierStokesSystem(void)
 //----------------------------------------------------------------------
 {
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::at_each_time_step(void)
@@ -279,6 +294,9 @@ void DLMFD_ProjectionNavierStokesSystem::at_each_time_step(void)
     VEC_U->synchronize();
     VEC_U_previoustime->set(VEC_U);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_ProjectionNavierStokesSystem::compute_velocity_change(void)
@@ -298,6 +316,9 @@ double DLMFD_ProjectionNavierStokesSystem::compute_velocity_change(void)
     return (time_change);
 }
 
+
+
+
 //----------------------------------------------------------------------
 double
 DLMFD_ProjectionNavierStokesSystem::compute_velocity_divergence_norm(void)
@@ -314,6 +335,9 @@ DLMFD_ProjectionNavierStokesSystem::compute_velocity_divergence_norm(void)
     return normdivu;
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::nullify_velocity_advection_rhs(void)
 //----------------------------------------------------------------------
@@ -324,6 +348,9 @@ void DLMFD_ProjectionNavierStokesSystem::nullify_velocity_advection_rhs(void)
     // Nullify inertia rhs
     VEC_rhs_VelocityAdvection->nullify();
 }
+
+
+
 
 //----------------------------------------------------------------------
 LA_SeqVector const *
@@ -339,6 +366,9 @@ DLMFD_ProjectionNavierStokesSystem::get_solution_velocity(void) const
     return (result);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_SeqVector const *
 DLMFD_ProjectionNavierStokesSystem::get_solution_pressure(void) const
@@ -353,6 +383,9 @@ DLMFD_ProjectionNavierStokesSystem::get_solution_pressure(void) const
     return (result);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::initialize_velocity(void)
 //----------------------------------------------------------------------
@@ -363,6 +396,9 @@ void DLMFD_ProjectionNavierStokesSystem::initialize_velocity(void)
     UU_NUM->scatter()->set(U_LOC, VEC_U);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::initialize_pressure(void)
 //----------------------------------------------------------------------
@@ -372,6 +408,9 @@ void DLMFD_ProjectionNavierStokesSystem::initialize_pressure(void)
     PP->extract_unknown_DOFs_value(0, P_LOC);
     PP_NUM->scatter()->set(P_LOC, VEC_P);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::finalize_constant_matrices(void)
@@ -404,6 +443,9 @@ void DLMFD_ProjectionNavierStokesSystem::finalize_constant_matrices(void)
 
     SOLVER_A_VelocityUnsteady->set_matrix(MAT_A_VelocityUnsteady);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::compute_velocityAdvectionDiffusion_rhs(
@@ -489,6 +531,9 @@ void DLMFD_ProjectionNavierStokesSystem::compute_velocityAdvectionDiffusion_rhs(
         VEC_rhs_VelocityAdvectionDiffusion->sum(VEC_rhs_VelocityDLMFD_Nm1);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_viscous_matrix_rhs(
     double const &coef_lap)
@@ -501,6 +546,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_viscous_matrix_rhs(
         coef_lap, MAT_A_VelocityUnsteadyPlusViscous, VEC_rhs_A_VelocityViscous);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_unsteady_matrix(
     double const &coef)
@@ -512,6 +560,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_unsteady_matrix(
     UU->assemble_mass_matrix(coef, MAT_A_VelocityUnsteady);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_pdivv_matrix_rhs(
     double const &coef)
@@ -522,6 +573,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_pdivv_matrix_rhs(
     PP->assemble_pDivv_matrix(UU, coef, MAT_B_VelocityDivergence,
                               VEC_rhs_B_VelocityDivergence);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_advection(
@@ -540,6 +594,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_velocity_advection(
                                    VEC_rhs_VelocityAdvection);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_pressure_laplacian_matrix_rhs(
     double const &coef_lap)
@@ -552,6 +609,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_pressure_laplacian_matrix_rhs(
         coef_lap, MAT_D_PressureLaplacian, VEC_rhs_D_PressureLaplacian,
         b_pressure_rescaling);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::pressure_laplacian_correction(void)
@@ -581,6 +641,9 @@ void DLMFD_ProjectionNavierStokesSystem::pressure_laplacian_correction(void)
     }
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::add_storable_objects(
     MAC_ListIdentity *list) const
@@ -601,6 +664,9 @@ void DLMFD_ProjectionNavierStokesSystem::add_storable_objects(
         VECS_Storage->add_vector_to_store(VEC_rhs_VelocityDLMFD_Nm1);
     }
 }
+
+
+
 
 //----------------------------------------------------------------------
 bool DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver(void)
@@ -634,6 +700,9 @@ bool DLMFD_ProjectionNavierStokesSystem::VelocityDiffusion_solver(void)
 
     return (true);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_ProjectionNavierStokesSystem::VelocityPressure_correction_solver(
@@ -743,6 +812,9 @@ double DLMFD_ProjectionNavierStokesSystem::VelocityPressure_correction_solver(
     return (normdivu);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_Vector *
 DLMFD_ProjectionNavierStokesSystem::get_pressure_DirichletBC_vector(void)
@@ -753,6 +825,9 @@ DLMFD_ProjectionNavierStokesSystem::get_pressure_DirichletBC_vector(void)
 
     return (VEC_rhs_Bt_PressureGradient);
 }
+
+
+
 
 //----------------------------------------------------------------------
 LA_Vector *
@@ -766,6 +841,9 @@ DLMFD_ProjectionNavierStokesSystem::get_unitary_periodic_pressure_drop_vector(
     return (VEC_rhs_A_UnitaryPeriodicPressureGradient);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::set_velocity_unknown(size_t i_row,
                                                               double xx)
@@ -775,6 +853,9 @@ void DLMFD_ProjectionNavierStokesSystem::set_velocity_unknown(size_t i_row,
 
     VEC_U->set_item(i_row, xx);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::set_pressure_unknown(size_t i_row,
@@ -786,6 +867,9 @@ void DLMFD_ProjectionNavierStokesSystem::set_pressure_unknown(size_t i_row,
     VEC_P->set_item(i_row, xx);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::synchronize_velocity_unknown_vector()
 //----------------------------------------------------------------------
@@ -795,6 +879,9 @@ void DLMFD_ProjectionNavierStokesSystem::synchronize_velocity_unknown_vector()
 
     VEC_U->synchronize();
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::synchronize_pressure_unknown_vector()
@@ -806,6 +893,9 @@ void DLMFD_ProjectionNavierStokesSystem::synchronize_pressure_unknown_vector()
     VEC_P->synchronize();
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::nullify_DLMFD_Nm1_rhs()
 //----------------------------------------------------------------------
@@ -814,6 +904,9 @@ void DLMFD_ProjectionNavierStokesSystem::nullify_DLMFD_Nm1_rhs()
 
     VEC_rhs_VelocityDLMFD_Nm1->nullify();
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::set_rhs_DLMFD_Nm1(size_t i_row,
@@ -824,6 +917,9 @@ void DLMFD_ProjectionNavierStokesSystem::set_rhs_DLMFD_Nm1(size_t i_row,
 
     VEC_rhs_VelocityDLMFD_Nm1->set_item(i_row, xx);
 }
+
+
+
 
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_rhs_DLMFD_Nm1()
@@ -838,6 +934,9 @@ LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_rhs_DLMFD_Nm1()
     return (result);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_DLMFD_Nm1_vector()
 //----------------------------------------------------------------------
@@ -847,6 +946,9 @@ void DLMFD_ProjectionNavierStokesSystem::synchronize_rhs_DLMFD_Nm1_vector()
 
     VEC_rhs_VelocityDLMFD_Nm1->synchronize();
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::
@@ -859,6 +961,9 @@ void DLMFD_ProjectionNavierStokesSystem::
     VEC_rhs_A_PeriodicPressure->synchronize();
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::set_periodic_pressure_rhs_item(
     size_t i_row, double xx)
@@ -870,6 +975,9 @@ void DLMFD_ProjectionNavierStokesSystem::set_periodic_pressure_rhs_item(
     VEC_rhs_A_PeriodicPressure->set_item(i_row, xx);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::store_ugradu_Nm2(
     size_t const &n_advection_subtimesteps)
@@ -880,6 +988,9 @@ void DLMFD_ProjectionNavierStokesSystem::store_ugradu_Nm2(
     VEC_rhs_VelocityAdvection_Nm2->set(VEC_rhs_VelocityAdvection);
     VEC_rhs_VelocityAdvection_Nm2->scale(double(n_advection_subtimesteps));
 }
+
+
+
 
 //----------------------------------------------------------------------
 bool DLMFD_ProjectionNavierStokesSystem::VelocityAdvection_solver(void)
@@ -919,6 +1030,9 @@ void DLMFD_ProjectionNavierStokesSystem::updateFluid_DLMFD_rhs()
         VEC_rhs_A_Velocity->sum(VEC_rhs_VelocityDLMFD_Nm1, -1.);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::nullify_QUvector()
 //----------------------------------------------------------------------
@@ -927,6 +1041,9 @@ void DLMFD_ProjectionNavierStokesSystem::nullify_QUvector()
 
     VEC_q->nullify();
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::assemble_inQUvector(double transferVal,
@@ -938,6 +1055,9 @@ void DLMFD_ProjectionNavierStokesSystem::assemble_inQUvector(double transferVal,
 
     VEC_q->add_to_item(index, coef * transferVal);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Init(
@@ -953,6 +1073,9 @@ void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Init(
     SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_U);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_solution_U() const
 //----------------------------------------------------------------------
@@ -966,6 +1089,9 @@ LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_solution_U() const
     return result;
 }
 
+
+
+
 //----------------------------------------------------------------------
 double const
 DLMFD_ProjectionNavierStokesSystem::get_DLMFD_convergence_criterion() const
@@ -977,6 +1103,9 @@ DLMFD_ProjectionNavierStokesSystem::get_DLMFD_convergence_criterion() const
     return Uzawa_DLMFD_precision;
 }
 
+
+
+
 //----------------------------------------------------------------------
 int const DLMFD_ProjectionNavierStokesSystem::get_DLMFD_maxiter() const
 //----------------------------------------------------------------------
@@ -986,6 +1115,9 @@ int const DLMFD_ProjectionNavierStokesSystem::get_DLMFD_maxiter() const
 
     return Uzawa_DLMFD_maxiter;
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_divv_rhs()
@@ -997,6 +1129,9 @@ void DLMFD_ProjectionNavierStokesSystem::initialize_QUvector_with_divv_rhs()
     // Compute qu = Bt.w
     MAT_B_VelocityDivergence->tr_multiply_vec_then_add(VEC_w, VEC_q);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Iter(
@@ -1013,6 +1148,9 @@ void DLMFD_ProjectionNavierStokesSystem::solve_FluidVel_DLMFD_Iter(
     SOLVER_A_VelocityUnsteady->solve(VEC_q, VEC_t);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_tVector_U() const
 //----------------------------------------------------------------------
@@ -1026,6 +1164,9 @@ LA_SeqVector const *DLMFD_ProjectionNavierStokesSystem::get_tVector_U() const
     return result;
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::update_FluidVel_OneUzawaIter(
     const double &alpha)
@@ -1038,6 +1179,9 @@ void DLMFD_ProjectionNavierStokesSystem::update_FluidVel_OneUzawaIter(
     VEC_U->sum(VEC_t, alpha);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::store_DLMFD_rhs()
 //----------------------------------------------------------------------
@@ -1047,6 +1191,9 @@ void DLMFD_ProjectionNavierStokesSystem::store_DLMFD_rhs()
     VEC_q->synchronize();
     VEC_rhs_VelocityDLMFD_Nm1->set(VEC_q);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_ProjectionNavierStokesSystem::re_initialize_explicit_DLMFD(

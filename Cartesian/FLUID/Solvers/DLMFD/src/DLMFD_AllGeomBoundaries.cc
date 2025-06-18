@@ -22,6 +22,9 @@ DLMFD_AllGeomBoundaries::DLMFD_AllGeomBoundaries(FV_DiscreteField *pField)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_AllGeomBoundaries::~DLMFD_AllGeomBoundaries()
 //---------------------------------------------------------------------------
@@ -34,6 +37,9 @@ DLMFD_AllGeomBoundaries::~DLMFD_AllGeomBoundaries()
     all_geomboundaries.clear();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 const list<DLMFD_GeomBoundary *> *
 DLMFD_AllGeomBoundaries::get_ptr_list_geomboundaries() const
@@ -43,6 +49,9 @@ DLMFD_AllGeomBoundaries::get_ptr_list_geomboundaries() const
 
     return &all_geomboundaries;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 ostream &operator<<(ostream &f, const DLMFD_AllGeomBoundaries &G)
@@ -60,6 +69,9 @@ ostream &operator<<(ostream &f, const DLMFD_AllGeomBoundaries &G)
     return f;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_AllGeomBoundaries::display(ostream &f) const
 //---------------------------------------------------------------------------
@@ -75,6 +87,9 @@ void DLMFD_AllGeomBoundaries::display(ostream &f) const
         f << endl;
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_AllGeomBoundaries::translate(const geomVector &translation_vector,

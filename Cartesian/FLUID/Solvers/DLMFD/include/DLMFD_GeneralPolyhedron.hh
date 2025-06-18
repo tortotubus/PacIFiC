@@ -82,7 +82,7 @@ class DLMFD_GeneralPolyhedron : public DLMFD_RigidBody
     //-- Update methods
     /** @name Update methods */
     //@{
-    
+
     /** @brief Update the attributes in case of moving rigid bodies */
     void update();
 

@@ -2,12 +2,10 @@
 #define DLMFD_GEOMBOUNDARY_HH
 
 #include <MAC.hh>
-#include <string>
-#include <iostream>
-#include <math.h>
-#include <MAC.hh>
 #include <MAC_assertions.hh>
 #include <iostream>
+#include <math.h>
+#include <string>
 #include <vector>
 using namespace std;
 
@@ -22,10 +20,10 @@ points.
 
 class DLMFD_GeomBoundary
 {
-protected:
+  protected:
     string geomtype; /**< Type of geometric boundary */
 
-protected:
+  protected:
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor without argument */
@@ -35,7 +33,7 @@ protected:
     DLMFD_GeomBoundary(const DLMFD_GeomBoundary &M);
     //@}
 
-public:
+  public:
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor with arguments
@@ -54,8 +52,8 @@ public:
 
     /** @brief Search the intersection normal
     @param line_point point on the normal */
-    virtual pair<bool, geomVector> intersection_normal(
-        const geomVector &line_point) const = 0;
+    virtual pair<bool, geomVector>
+    intersection_normal(const geomVector &line_point) const = 0;
 
     /** @brief Translate geometric boundaries
     @param translation_vector translation vector

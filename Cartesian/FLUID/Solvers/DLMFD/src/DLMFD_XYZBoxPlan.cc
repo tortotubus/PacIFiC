@@ -1,10 +1,12 @@
 #include <DLMFD_XYZBoxPlan.hh>
 #include <geomVector.hh>
 
-/* Constructor with arguments
------------------------------*/
-DLMFD_XYZBoxPlan::DLMFD_XYZBoxPlan(const string &type_, const size_t &coordinate_direction_,
-                       const double &value_) : DLMFD_GeomBoundary(type_)
+//---------------------------------------------------------------------------
+DLMFD_XYZBoxPlan::DLMFD_XYZBoxPlan(const string &type_,
+                                   const size_t &coordinate_direction_,
+                                   const double &value_)
+    : DLMFD_GeomBoundary(type_)
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::DLMFD_XYZBoxPlan");
 
@@ -12,17 +14,23 @@ DLMFD_XYZBoxPlan::DLMFD_XYZBoxPlan(const string &type_, const size_t &coordinate
     value = value_;
 }
 
-/* Destructor
--------------*/
+
+
+
+//---------------------------------------------------------------------------
 DLMFD_XYZBoxPlan::~DLMFD_XYZBoxPlan()
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::~DLMFD_XYZBoxPlan");
 }
 
-/* Search the intersection normal
----------------------------------*/
-pair<bool, geomVector> DLMFD_XYZBoxPlan::intersection_normal(
-    const geomVector &line_point) const
+
+
+
+//---------------------------------------------------------------------------
+pair<bool, geomVector>
+DLMFD_XYZBoxPlan::intersection_normal(const geomVector &line_point) const
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::intersection_normal");
 
@@ -44,9 +52,12 @@ pair<bool, geomVector> DLMFD_XYZBoxPlan::intersection_normal(
     return intersection;
 }
 
-/* Operator <<
---------------*/
+
+
+
+//---------------------------------------------------------------------------
 ostream &operator<<(ostream &f, const DLMFD_XYZBoxPlan &G)
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::operator <<");
 
@@ -62,9 +73,12 @@ ostream &operator<<(ostream &f, const DLMFD_XYZBoxPlan &G)
     return f;
 }
 
-/* Display
-----------*/
+
+
+
+//---------------------------------------------------------------------------
 void DLMFD_XYZBoxPlan::display(ostream &f) const
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::display");
 
@@ -78,10 +92,13 @@ void DLMFD_XYZBoxPlan::display(ostream &f) const
         f << "Z = " << value;
 }
 
-/* Translate the geometric boundary
------------------------------------*/
+
+
+
+//---------------------------------------------------------------------------
 void DLMFD_XYZBoxPlan::translate(const geomVector &translation_vector,
-                           const size_t &translation_direction)
+                                 const size_t &translation_direction)
+//---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_XYZBoxPlan::translate");
 

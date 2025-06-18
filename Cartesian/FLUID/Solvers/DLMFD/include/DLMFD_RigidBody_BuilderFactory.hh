@@ -1,8 +1,8 @@
 #ifndef _DLMFD_RIGIDBODY_BUILDERFACTORY__
 #define _DLMFD_RIGIDBODY_BUILDERFACTORY__
 
-#include <iostream>
 #include <FV_DiscreteField.hh>
+#include <iostream>
 using namespace std;
 class FS_RigidBody;
 class DLMFD_RigidBody;
@@ -18,8 +18,8 @@ the main parameter.
 
 class DLMFD_RigidBody_BuilderFactory
 {
-public: //-----------------------------------------------------------------
-        //-- Static methods
+  public: //-----------------------------------------------------------------
+          //-- Static methods
     /** @name Static methods */
     //@{
     /** @brief Creates a Fictitious Domain rigid body
@@ -29,9 +29,9 @@ public: //-----------------------------------------------------------------
                                    FV_DiscreteField *pField_,
                                    double const critical_distance_);
 
-protected: //--------------------------------------------------------------
-private:   //----------------------------------------------------------------
-           //-- Constructors & Destructor
+  protected: //--------------------------------------------------------------
+  private:   //----------------------------------------------------------------
+             //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
     /** @brief Default constructor */
