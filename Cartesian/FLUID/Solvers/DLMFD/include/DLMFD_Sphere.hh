@@ -39,7 +39,7 @@ public: //------------------------------------------------------------------
     /** @name Set methods */
     //@{
 
-    /** @brief Set DLMFD boundary and interior points
+    /** @brief Allocate and set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
     void set_all_MAC(FV_DiscreteField *pField, double critical_distance);
@@ -64,10 +64,8 @@ public: //------------------------------------------------------------------
     /** @name Geometric methods */
     //@{
 
-    /** @brief isIn method
-    @param x x-component
-    @param y y-component
-    @param z z-component */
+    /** @brief True if point is inside the geometrical shape
+    @param point Point */
     bool isIn(const geomVector &point) const;
 
     /** @brief Translate the component from current gravity center to new
@@ -80,7 +78,10 @@ public: //------------------------------------------------------------------
     //-- Add methods
     /** @name Add methods */
     //@{
-
+    
+    /** @brief Allocate default list of points and vectors for the sphere
+    @param critical_distance Critical distance
+    @param pField Constrained field */
     void allocate_default_listOfPointsAndVectors_Sphere(const double &critical_distance, FV_DiscreteField *pField);
 
     //@}

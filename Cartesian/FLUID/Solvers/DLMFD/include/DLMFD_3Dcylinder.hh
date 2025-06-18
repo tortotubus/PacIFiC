@@ -1,8 +1,8 @@
 #ifndef _DLMFD_3DCYLINDER__
 #define _DLMFD_3DCYLINDER__
 
-#include <FS_3Dcylinder.hh>
 #include <DLMFD_RigidBody.hh>
+#include <FS_3Dcylinder.hh>
 #include <FV_DiscreteField.hh>
 #include <FV_Mesh.hh>
 #include <string>
@@ -16,7 +16,7 @@ A moving or stationary rigid 3D cylinder in the Fictitious Domain solver.
 
 class DLMFD_3Dcylinder : public DLMFD_RigidBody
 {
-public: //------------------------------------------------------------------
+  public: //------------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
@@ -25,9 +25,11 @@ public: //------------------------------------------------------------------
     DLMFD_3Dcylinder();
 
     /** @brief Constructor with arguments
-    @param pgrb Pointer to the geometric rigid body class */
-    DLMFD_3Dcylinder(FS_RigidBody *pgrb,
-                     const bool &are_particles_fixed,
+    @param pgrb Pointer to the geometric rigid body class
+    @param are_particles_fixed True if all particles are fixed
+    @param pField_ Constrained field
+    @param critical_distance_ Critical distance */
+    DLMFD_3Dcylinder(FS_RigidBody *pgrb, const bool &are_particles_fixed,
                      FV_DiscreteField *pField_,
                      double const critical_distance_);
 
@@ -40,9 +42,10 @@ public: //------------------------------------------------------------------
     /** @name Set methods */
     //@{
 
+    /** @brief Set the structure of geometrical parameters of the cylinder */
     void set_ptr_FS_3Dcylinder_Additional_Param();
 
-    /** @brief Set DLMFD boundary and interior points
+    /** @brief Allocate and set DLMFD boundary and interior points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
     void set_all_MAC(FV_DiscreteField *pField, double critical_distance);
@@ -55,11 +58,13 @@ public: //------------------------------------------------------------------
     /** @brief Set DLMFD boundary points
     @param critical_distance Critical distance
     @param pField Pointer to constrained field */
-    void set_boundary_points_list(FV_DiscreteField *pField, double critical_distance);
+    void set_boundary_points_list(FV_DiscreteField *pField,
+                                  double critical_distance);
 
     /** @brief Set DLMFD interior points
     @param critical_distance Critical distance */
-    void set_interior_points_list(FV_DiscreteField *pField, double critical_distance);
+    void set_interior_points_list(FV_DiscreteField *pField,
+                                  double critical_distance);
 
     //@}
 
@@ -67,6 +72,7 @@ public: //------------------------------------------------------------------
     /** @name Update methods */
     //@{
 
+    /** @brief Update the attributes in case of moving rigid bodies */
     void update();
 
     //@}
@@ -74,8 +80,9 @@ public: //------------------------------------------------------------------
     //-- Get methods
     /** @name Get methods */
     //@{
-
-    FS_3Dcylinder_Additional_Param const *get_ptr_FS_3Dcylinder_Additional_Param();
+    /** @brief Get the structure of geometrical parameters of the cylinder */
+    FS_3Dcylinder_Additional_Param const *
+    get_ptr_FS_3Dcylinder_Additional_Param();
 
     //@}
 
@@ -92,6 +99,7 @@ public: //------------------------------------------------------------------
     @param newg new gravity center */
     void translateGeometricFeatures(geomVector const &newg);
 
+    /** @brief Orientation of the cylinder */
     geomVector particle_orientation_vector() const;
 
     //@}
@@ -100,37 +108,33 @@ public: //------------------------------------------------------------------
     /** @name Add methods */
     //@{
 
-    void allocate_default_listOfPointsAndVectors_3Dcylinder(const double &critical_distance, FV_DiscreteField *pField);
+    /** @brief Allocate default list of points and vectors for the cylinder
+    @param critical_distance Critical distance
+    @param pField Constrained field */
+    void allocate_default_listOfPointsAndVectors_3Dcylinder(
+        const double &critical_distance, FV_DiscreteField *pField);
 
     //@}
 
-    //-- Add methods
-    /** @name Add methods */
+  protected: //----------------------------------------------------------------
+             //-- Attributes
+             /** @name Parameters */
     //@{
 
-    // /** @brief Remove critical interior points
-    // @param critical_distance Critical_distance */
-    // void erase_critical_interior_points_PerProc(double critical_distance);
-
-    //@}
-
-protected: //----------------------------------------------------------------
-           //-- Attributes
-           /** @name Parameters */
-    //@{
-
-    FS_3Dcylinder_Additional_Param const *pagp; /** Pointer to FS 3Dcylinder parameters */
+    FS_3Dcylinder_Additional_Param const
+        *pagp; /** Pointer to FS 3Dcylinder parameters */
 
     geomVector BottomCenter;   /**< Center of the bottom disk */
     geomVector TopCenter;      /**< Center of the top disk */
-    geomVector BottomToTopVec; /**< Axial vector from the bottom to the top disk center */
+    geomVector BottomToTopVec; /**< Axial vector from the bottom to the top disk
+                                  center */
     geomVector RadialRefVec;   /**< Radial reference vector */
     double cylinder_radius;    /**< Cylinder radius */
     double cylinder_height;    /**< Cylinder height */
 
     //@}
 
-private: //-------------------------------------------------------------------
+  private: //-------------------------------------------------------------------
 };
 
 #endif

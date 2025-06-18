@@ -1,9 +1,9 @@
 #ifndef _DLMFD_AllGeomBoundaries_HH
 #define _DLMFD_AllGeomBoundaries_HH
 
-#include <string>
-#include <list>
 #include <DLMFD_GeomBoundary.hh>
+#include <list>
+#include <string>
 using namespace std;
 
 class FV_DiscreteField;
@@ -16,10 +16,11 @@ For the definition of a list of geometric boundaries.
 
 class DLMFD_AllGeomBoundaries
 {
-protected:
-    list<DLMFD_GeomBoundary *> all_geomboundaries; /**< list of geometric boundaries */
+  protected:
+    list<DLMFD_GeomBoundary *>
+        all_geomboundaries; /**< list of geometric boundaries */
 
-private:
+  private:
     /** @name Constructors & Destructor */
     //@{
     /** @brief Constructor without argument */
@@ -29,7 +30,7 @@ private:
     DLMFD_AllGeomBoundaries(const DLMFD_AllGeomBoundaries &M) {}
     //@}
 
-public:
+  public:
     /** @name Constructors & Destructor */
     //@{
     /**
@@ -42,7 +43,7 @@ public:
     ~DLMFD_AllGeomBoundaries();
     //@}
 
-    /** @name GET methods */
+    /** @name Get methods */
     //@{
     /** @brief Return a pointer to the list of geometric boundaries */
     const list<DLMFD_GeomBoundary *> *get_ptr_list_geomboundaries() const;
@@ -54,11 +55,9 @@ public:
     /** @brief Display */
     void display(ostream &f) const;
 
-    /**
-      @brief Translate geometric boundaries
-      @param translation_vector translation vector
-      @param translation_direction translation direction
-    */
+    /** @brief Translate geometric boundaries
+    @param translation_vector translation vector
+    @param translation_direction translation direction */
     void translate(const geomVector &translation_vector,
                    const size_t &translation_direction);
 };

@@ -564,16 +564,7 @@ void DLMFD_ProjectionNavierStokes::do_additional_savings(FV_TimeIterator const *
 
   start_total_timer("DLMFD_ProjectionNavierStokes:: do_additional_savings");
 
-  static size_t saving_counter = 2;
-
-  string current_saving_filename = restartFileName_1;
-  if (saving_counter == 0)
-    current_saving_filename = restartFileName_0;
-  size_t pos = current_saving_filename.rfind(".");
-  explicitDLMFD_restartFilename = explicitDLMFD_restartFilename_Root + current_saving_filename.substr(0, pos);
-  if (saving_counter < 2)
-    GLOBAL_EQ->do_additional_savings(explicitDLMFD_restartFilename);
-
+  // DLMFD additional savings
   dlmfd_solver->do_additional_savings(cycleNumber, t_it, translated_distance, translation_direction);
 
   // Elapsed time by sub-problems

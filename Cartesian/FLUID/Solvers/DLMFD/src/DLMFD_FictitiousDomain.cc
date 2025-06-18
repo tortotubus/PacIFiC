@@ -121,7 +121,7 @@ DLMFD_FictitiousDomain::DLMFD_FictitiousDomain(MAC_Object *a_owner,
 
    // Set critical distance
    double grid_size = UU->primary_grid()->get_smallest_constant_grid_size();
-   set_critical_distance(sqrt(double(dim)) * grid_size);
+   critical_distance = sqrt(double(dim)) * grid_size;
 
    // Create the Rigid Bodies
    allrigidbodies = new DLMFD_AllRigidBodies(dim, 0., *solidFluid_transferStream,
@@ -362,15 +362,6 @@ void DLMFD_FictitiousDomain::translate_all(const geomVector &translation_vector,
       solidSolver->setParaviewPostProcessingTranslationVector(translation_direction == 0 ? -trans_dist : 0.,
                                                               translation_direction == 1 ? -trans_dist : 0.,
                                                               translation_direction == 2 ? -trans_dist : 0.);
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_FictitiousDomain::set_critical_distance(double critical_distance_)
-//---------------------------------------------------------------------------
-{
-   MAC_LABEL("DLMFD_FictitiousDomain:: set_critical_distance");
-
-   critical_distance = critical_distance_;
 }
 
 //---------------------------------------------------------------------------

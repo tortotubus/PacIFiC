@@ -1,11 +1,11 @@
-#include <DLMFD_RigidBody.hh>
 #include <DLMFD_FictitiousDomain.hh>
-#include <FV_Mesh.hh>
+#include <DLMFD_RigidBody.hh>
 #include <FS_RigidBody.hh>
-#include <geomVector.hh>
+#include <FV_Mesh.hh>
 #include <doubleVector.hh>
-#include <math.h>
 #include <fstream>
+#include <geomVector.hh>
+#include <math.h>
 using namespace std;
 
 size_t_array3D *DLMFD_RigidBody::Q2numb = NULL;
@@ -15,10 +15,11 @@ size_t DLMFD_RigidBody::BlockSize_HZ_InteriorPoints = 1;
 size_t DLMFD_RigidBody::BlockSize_HZ_BoundaryPoints = 1;
 
 //---------------------------------------------------------------------------
-DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
-                                     VEC_x(*DLMFD_FictitiousDomain::dbnull),
-                                     VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
-                                     VEC_w(*DLMFD_FictitiousDomain::dbnull)
+DLMFD_RigidBody::DLMFD_RigidBody()
+    : VEC_r(*DLMFD_FictitiousDomain::dbnull),
+      VEC_x(*DLMFD_FictitiousDomain::dbnull),
+      VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+      VEC_w(*DLMFD_FictitiousDomain::dbnull)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -27,19 +28,14 @@ DLMFD_RigidBody::DLMFD_RigidBody() : VEC_r(*DLMFD_FictitiousDomain::dbnull),
 //---------------------------------------------------------------------------
 DLMFD_RigidBody::DLMFD_RigidBody(FS_RigidBody *pgrb,
                                  const bool &are_particles_fixed,
-                                 FV_DiscreteField *pField_) : ptr_FSrigidbody(pgrb),
-                                                              pField_(pField_),
-                                                              is_particle_fixed(are_particles_fixed),
-                                                              b_exactAllocation_done(false),
-                                                              VEC_r(*DLMFD_FictitiousDomain::dbnull),
-                                                              VEC_x(*DLMFD_FictitiousDomain::dbnull),
-                                                              VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
-                                                              VEC_w(*DLMFD_FictitiousDomain::dbnull),
-                                                              periodic_directions(NULL),
-                                                              ndof(0),
-                                                              ndof_previous(0),
-                                                              ntotal_fieldunk(0),
-                                                              ntotal_fieldunk_previous(0)
+                                 FV_DiscreteField *pField_)
+    : ptr_FSrigidbody(pgrb), pField_(pField_),
+      is_particle_fixed(are_particles_fixed), b_exactAllocation_done(false),
+      VEC_r(*DLMFD_FictitiousDomain::dbnull),
+      VEC_x(*DLMFD_FictitiousDomain::dbnull),
+      VEC_lambda(*DLMFD_FictitiousDomain::dbnull),
+      VEC_w(*DLMFD_FictitiousDomain::dbnull), periodic_directions(NULL),
+      ndof(0), ndof_previous(0), ntotal_fieldunk(0), ntotal_fieldunk_previous(0)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: DLMFD_RigidBody");
@@ -148,13 +144,13 @@ DLMFD_RigidBody::~DLMFD_RigidBody()
     }
     points_infos.clear();
 
-    for (iip = halozone_interior_points.begin(); iip != halozone_interior_points.end();
-         iip++)
+    for (iip = halozone_interior_points.begin();
+         iip != halozone_interior_points.end(); iip++)
         delete *iip;
     halozone_interior_points.clear();
 
-    for (ibp = halozone_boundary_points.begin(); ibp != halozone_boundary_points.end();
-         ibp++)
+    for (ibp = halozone_boundary_points.begin();
+         ibp != halozone_boundary_points.end(); ibp++)
         delete *ibp;
     halozone_boundary_points.clear();
 
@@ -207,7 +203,9 @@ void DLMFD_RigidBody::set_ptr_periodic_directions()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
+void DLMFD_RigidBody::set_boundary_point(
+    const geomVector &point,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: set_boundary_point");
@@ -220,7 +218,9 @@ void DLMFD_RigidBody::set_boundary_point(const geomVector &point, list<DLMFD_Bou
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_halozone_boundary_point(const geomVector &point, list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+void DLMFD_RigidBody::set_halozone_boundary_point(
+    const geomVector &point,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::set_halozone_boundary_point");
@@ -233,57 +233,18 @@ void DLMFD_RigidBody::set_halozone_boundary_point(const geomVector &point, list<
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_interior_point(const size_t &comp,
-                                         const geomVector &point,
-                                         size_t i, size_t j, size_t k,
-                                         list<DLMFD_InteriorMultiplierPoint *>::iterator &ip,
-                                         size_t __nip)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
-
-    (*ip)->set(comp, point, i, j, k, gravity_center);
-    ++nIP;
-    if (nIP == __nip)
-    {
-        extend_ip_list(DLMFD_RigidBody::BlockSize_InteriorPoints);
-        __nip = interior_points.size();
-    }
-    ip++;
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_halozone_interior_point(const size_t &comp,
-                                                  const geomVector &point,
-                                                  size_t i, size_t j, size_t k,
-                                                  list<DLMFD_InteriorMultiplierPoint *>::iterator &iphz,
-                                                  size_t __niphz)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody:: set_interior_point");
-
-    (*iphz)->set(comp, point, i, j, k, gravity_center);
-    ++nIPHZ;
-    if (nIPHZ == __niphz)
-    {
-        extend_iphz_list(DLMFD_RigidBody::BlockSize_HZ_InteriorPoints);
-        __niphz = halozone_interior_points.size();
-    }
-    iphz++;
-}
-
-//---------------------------------------------------------------------------
-void DLMFD_RigidBody::setBndPoint(geomVector const &point,
-                                  FV_Mesh const *primary_grid,
-                                  list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
-                                  list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+void DLMFD_RigidBody::setBndPoint(
+    geomVector const &point, FV_Mesh const *primary_grid,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::setBndPoint");
 
     if (primary_grid->is_in_domain_with_halozone(point(0), point(1), point(2)))
     {
-        if (primary_grid->is_in_domain_on_current_processor(point(0), point(1), point(2)))
+        if (primary_grid->is_in_domain_on_current_processor(point(0), point(1),
+                                                            point(2)))
         {
             set_boundary_point(point, bp);
         }
@@ -295,18 +256,19 @@ void DLMFD_RigidBody::setBndPoint(geomVector const &point,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::setPtsOnEdge(const geomVector &firstPoint,
-                                   const geomVector &secondPoint,
-                                   const double &critical_distance, const bool &addBeginPnt,
-                                   FV_Mesh const *primary_grid,
-                                   list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
-                                   list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
+void DLMFD_RigidBody::setPtsOnEdge(
+    const geomVector &firstPoint, const geomVector &secondPoint,
+    const double &critical_distance, const bool &addBeginPnt,
+    FV_Mesh const *primary_grid,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bp,
+    list<DLMFD_BoundaryMultiplierPoint *>::iterator &bphz)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::setPtsOnEdge");
 
     double tol = 0.01;
-    size_t nbptsLocal = size_t(firstPoint.calcDist(secondPoint) / critical_distance + tol);
+    size_t nbptsLocal =
+        size_t(firstPoint.calcDist(secondPoint) / critical_distance + tol);
 
     geomVector point;
 
@@ -330,7 +292,8 @@ void DLMFD_RigidBody::setPtsOnEdge(const geomVector &firstPoint,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_distance)
+void DLMFD_RigidBody::erase_critical_interior_points_PerProc(
+    double critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::erase_critical_interior_points_PerProc");
@@ -352,7 +315,9 @@ void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_dis
                     for (size_t j = 0; j < nIP; ++j, ivi++)
                         if ((*ivi)->isValid())
                         {
-                            if (((*imp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                            if (((*imp)->get_coordinates())
+                                    .calcDist((*ivi)->get_coordinates()) <
+                                critical_distance)
                             {
                                 (*ivi)->set_validity(false);
                             }
@@ -371,7 +336,9 @@ void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_dis
                     ivi = interior_points.begin();
                     for (size_t j = 0; j < nIP; ++j, ivi++)
                         if ((*ivi)->isValid())
-                            if (((*ihp)->get_coordinates()).calcDist((*ivi)->get_coordinates()) < critical_distance)
+                            if (((*ihp)->get_coordinates())
+                                    .calcDist((*ivi)->get_coordinates()) <
+                                critical_distance)
                                 (*ivi)->set_validity(false);
                 }
         }
@@ -379,13 +346,15 @@ void DLMFD_RigidBody::erase_critical_interior_points_PerProc(double critical_dis
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::erase_critical_boundary_points_ptb(const double &critical_distance,
-                                                         const DLMFD_AllGeomBoundaries *GeoBoundaries)
+void DLMFD_RigidBody::erase_critical_boundary_points_ptb(
+    const double &critical_distance,
+    const DLMFD_AllGeomBoundaries *GeoBoundaries)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::erase_critical_interior_points_PerProc");
 
-    list<DLMFD_GeomBoundary *> const *lb = GeoBoundaries->get_ptr_list_geomboundaries();
+    list<DLMFD_GeomBoundary *> const *lb =
+        GeoBoundaries->get_ptr_list_geomboundaries();
     erase_critical_boundary_points_ptb_oneGC(critical_distance, lb);
 
     if (periodic_directions)
@@ -401,8 +370,8 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptb(const double &critical_
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(const double &critical_distance,
-                                                               list<DLMFD_GeomBoundary *> const *lb)
+void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(
+    const double &critical_distance, list<DLMFD_GeomBoundary *> const *lb)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC");
@@ -424,8 +393,10 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(const double &cri
                 for (size_t i = 0; i < nBP; ++i, imp++)
                     if ((*imp)->isValid())
                     {
-                        inter = (*il)->intersection_normal((*imp)->get_coordinates());
-                        distP = (*imp)->get_coordinates().calcDist(inter.second);
+                        inter = (*il)->intersection_normal(
+                            (*imp)->get_coordinates());
+                        distP =
+                            (*imp)->get_coordinates().calcDist(inter.second);
 
                         if (inter.first && distP < critical_distance)
                             (*imp)->set_validity(false);
@@ -435,14 +406,16 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptb_oneGC(const double &cri
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody *second_component, const double &critical_distance)
+void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(
+    DLMFD_RigidBody *second_component, const double &critical_distance)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc");
 
     size_t nclones2 = second_component->get_number_periodicClones();
 
-    erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+    erase_critical_boundary_points_ptp_PerProc_oneGC(second_component,
+                                                     critical_distance);
 
     if (periodic_directions)
     {
@@ -451,7 +424,8 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody
         {
             // gravity_center = gcref + (*periodic_directions)[i];
             translateGeometricFeatures(gcref + (*periodic_directions)[i]);
-            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component,
+                                                             critical_distance);
         }
         //    gravity_center = gcref ;
         translateGeometricFeatures(gcref);
@@ -460,11 +434,13 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody
     if (nclones2)
     {
         geomVector gcref2 = *(second_component->get_ptr_to_gravity_centre());
-        vector<geomVector> const *pd2 = second_component->get_periodicClones_DirectionsVector();
+        vector<geomVector> const *pd2 =
+            second_component->get_periodicClones_DirectionsVector();
         for (size_t j = 0; j < nclones2; ++j)
         {
             second_component->translateGeometricFeatures(gcref2 + (*pd2)[j]);
-            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component, critical_distance);
+            erase_critical_boundary_points_ptp_PerProc_oneGC(second_component,
+                                                             critical_distance);
         }
         second_component->translateGeometricFeatures(gcref2);
 
@@ -477,9 +453,10 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody
                 translateGeometricFeatures(gcref + (*periodic_directions)[i]);
                 for (size_t j = 0; j < nclones2; ++j)
                 {
-                    second_component->translateGeometricFeatures(gcref2 + (*pd2)[j]);
-                    erase_critical_boundary_points_ptp_PerProc_oneGC(second_component,
-                                                                     critical_distance);
+                    second_component->translateGeometricFeatures(gcref2 +
+                                                                 (*pd2)[j]);
+                    erase_critical_boundary_points_ptp_PerProc_oneGC(
+                        second_component, critical_distance);
                     // second_component->set_gravityCenter( gcref2 ) ;
                 }
             }
@@ -491,10 +468,12 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc(DLMFD_RigidBody
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_RigidBody *second_component, const double &critical_distance)
+void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(
+    DLMFD_RigidBody *second_component, const double &critical_distance)
 //---------------------------------------------------------------------------
 {
-    MAC_LABEL("DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC");
+    MAC_LABEL(
+        "DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC");
 
     // TO CLEAN : see the issue with pointer/object for isIn etc
 
@@ -502,18 +481,16 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_Rig
     {
         // Determine points in contact region
         list<DLMFD_BoundaryMultiplierPoint *> BP_contactRegion,
-            BPHZ_contactRegion,
-            C2_BP_contactRegion,
-            C2_BPHZ_contactRegion;
+            BPHZ_contactRegion, C2_BP_contactRegion, C2_BPHZ_contactRegion;
 
-        DLMFDPoints_in_ContactRegion(BP_contactRegion, BPHZ_contactRegion,
-                                     *second_component->get_ptr_to_gravity_centre(),
-                                     second_component->get_circumscribed_radius() + critical_distance);
+        DLMFDPoints_in_ContactRegion(
+            BP_contactRegion, BPHZ_contactRegion,
+            *second_component->get_ptr_to_gravity_centre(),
+            second_component->get_circumscribed_radius() + critical_distance);
 
-        second_component->DLMFDPoints_in_ContactRegion(C2_BP_contactRegion,
-                                                       C2_BPHZ_contactRegion,
-                                                       gravity_center,
-                                                       radius + critical_distance);
+        second_component->DLMFDPoints_in_ContactRegion(
+            C2_BP_contactRegion, C2_BPHZ_contactRegion, gravity_center,
+            radius + critical_distance);
 
         // Procedure to tag boundary points (BP)
         // 1. find BP of the former component that lie inside the latter and
@@ -524,34 +501,38 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_Rig
 
         // Find BP & HP of the former component that lie inside the latter and
         // vice-versa
-        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end();
+             imp++)
             if ((*imp)->isValid())
                 if (second_component->isIn((*imp)->get_coordinates()))
                     (*imp)->set_validity(false);
 
-        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end();
+             ihp++)
             if ((*ihp)->isValid())
                 if (second_component->isIn((*ihp)->get_coordinates()))
                     (*ihp)->set_validity(false);
 
-        for (imp2 = C2_BP_contactRegion.begin(); imp2 != C2_BP_contactRegion.end();
-             imp2++)
+        for (imp2 = C2_BP_contactRegion.begin();
+             imp2 != C2_BP_contactRegion.end(); imp2++)
             if ((*imp2)->isValid())
                 if (isIn((*imp2)->get_coordinates()))
                     (*imp2)->set_validity(false);
 
-        for (ihp2 = C2_BPHZ_contactRegion.begin(); ihp2 != C2_BPHZ_contactRegion.end();
-             ihp2++)
+        for (ihp2 = C2_BPHZ_contactRegion.begin();
+             ihp2 != C2_BPHZ_contactRegion.end(); ihp2++)
             if ((*ihp2)->isValid())
                 if (isIn((*ihp2)->get_coordinates()))
                     (*ihp2)->set_validity(false);
 
         // Compare BP & HP of the 2 particles
-        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+        for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end();
+             imp++)
             for (imp2 = C2_BP_contactRegion.begin();
                  imp2 != C2_BP_contactRegion.end(); imp2++)
             {
-                dist = ((*imp2)->get_coordinates()).calcDist((*imp)->get_coordinates());
+                dist = ((*imp2)->get_coordinates())
+                           .calcDist((*imp)->get_coordinates());
                 if (dist < critical_distance)
                 {
                     (*imp)->set_validity(false);
@@ -559,11 +540,13 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_Rig
                 }
             }
 
-        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end();
+             ihp++)
             for (imp2 = C2_BP_contactRegion.begin();
                  imp2 != C2_BP_contactRegion.end(); imp2++)
             {
-                dist = ((*imp2)->get_coordinates()).calcDist((*ihp)->get_coordinates());
+                dist = ((*imp2)->get_coordinates())
+                           .calcDist((*ihp)->get_coordinates());
                 if (dist < critical_distance)
                 {
                     (*ihp)->set_validity(false);
@@ -571,11 +554,13 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_Rig
                 }
             }
 
-        for (ihp2 = C2_BPHZ_contactRegion.begin(); ihp2 != C2_BPHZ_contactRegion.end();
-             ihp2++)
-            for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end(); imp++)
+        for (ihp2 = C2_BPHZ_contactRegion.begin();
+             ihp2 != C2_BPHZ_contactRegion.end(); ihp2++)
+            for (imp = BP_contactRegion.begin(); imp != BP_contactRegion.end();
+                 imp++)
             {
-                dist = ((*imp)->get_coordinates()).calcDist((*ihp2)->get_coordinates());
+                dist = ((*imp)->get_coordinates())
+                           .calcDist((*ihp2)->get_coordinates());
                 if (dist < critical_distance)
                 {
                     (*ihp2)->set_validity(false);
@@ -583,11 +568,13 @@ void DLMFD_RigidBody::erase_critical_boundary_points_ptp_PerProc_oneGC(DLMFD_Rig
                 }
             }
 
-        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end(); ihp++)
+        for (ihp = BPHZ_contactRegion.begin(); ihp != BPHZ_contactRegion.end();
+             ihp++)
             for (ihp2 = C2_BPHZ_contactRegion.begin();
                  ihp2 != C2_BPHZ_contactRegion.end(); ihp2++)
             {
-                dist = ((*ihp)->get_coordinates()).calcDist((*ihp2)->get_coordinates());
+                dist = ((*ihp)->get_coordinates())
+                           .calcDist((*ihp2)->get_coordinates());
                 if (dist < critical_distance)
                 {
                     (*ihp)->set_validity(false);
@@ -616,7 +603,8 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
     // Interior points
     if (nIP)
     {
-        list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts = interior_points.begin();
+        list<DLMFD_InteriorMultiplierPoint *>::const_iterator iterIntPnts =
+            interior_points.begin();
         for (size_t i = 0; i < nIP; ++i, iterIntPnts++)
         {
             if ((*iterIntPnts)->isValid())
@@ -630,11 +618,12 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
                 pinfo->compIdx = compIdx;
 
                 // Global DOF number
-                // A priori always >= 0 i.e. DOF is unknown because DOFs that are not
-                // unknowns have already been discarded in the set_all_points method
-                // of the component
+                // A priori always >= 0 i.e. DOF is unknown because DOFs that
+                // are not unknowns have already been discarded in the
+                // set_all_points method of the component
                 ijk = (*iterIntPnts)->get_localNodeTriplet();
-                globalDOFNo = pField->DOF_global_number(ijk->i, ijk->j, ijk->k, compIdx);
+                globalDOFNo =
+                    pField->DOF_global_number(ijk->i, ijk->j, ijk->k, compIdx);
 
                 // Set infos
                 if (pinfo->positionU.size() != 1)
@@ -661,15 +650,18 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
     // Boundary points
     if (nBP)
     {
-        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator iterBndPnts = boundary_points.begin();
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator iterBndPnts =
+            boundary_points.begin();
         size_t ncomps = pField->nb_components();
         for (size_t i = 0; i < nBP; ++i, iterBndPnts++)
             if ((*iterBndPnts)->isValid())
                 for (compIdx = 0; compIdx < ncomps; ++compIdx)
                 // Loop on all components
                 {
-                    // get the mesh ID of the element containing the boundary point
-                    pinfo->ptr_point = (const DLMFD_ParticlePoint *)(*iterBndPnts);
+                    // get the mesh ID of the element containing the boundary
+                    // point
+                    pinfo->ptr_point =
+                        (const DLMFD_ParticlePoint *)(*iterBndPnts);
 
                     // Set the field component
                     pinfo->compIdx = compIdx;
@@ -680,7 +672,9 @@ void DLMFD_RigidBody::set_points_infos(FV_DiscreteField *pField)
                     pinfo->omega_delta.clear();
 
                     // Get surrouding dofs
-                    fill_DLMFD_pointInfos(pField, *pinfo, DLMFD_FictitiousDomain::b_SecondOrderInterpol);
+                    fill_DLMFD_pointInfos(
+                        pField, *pinfo,
+                        DLMFD_FictitiousDomain::b_SecondOrderInterpol);
 
                     // Move the iterator and update ndof & ntotal_fieldunk
                     ntotal_fieldunk += pinfo->positionU.size();
@@ -715,12 +709,14 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
                 ndof_previous = size_t(0.8 * ndof_previous);
 
             NDOF_comp = new size_t[ndof_previous];
-            NDOF_leverage = new double[(gravity_center.getVecSize() - 1) * ndof_previous];
+            NDOF_leverage =
+                new double[(gravity_center.getVecSize() - 1) * ndof_previous];
             NDOF_nfieldUNK = new size_t[ndof_previous];
         }
 
         // Same allocation strategy for ntotal_fieldunk
-        if (ntotal_fieldunk > ntotal_fieldunk_previous || ntotal_fieldunk < size_t(0.78 * ntotal_fieldunk_previous))
+        if (ntotal_fieldunk > ntotal_fieldunk_previous ||
+            ntotal_fieldunk < size_t(0.78 * ntotal_fieldunk_previous))
         {
             if (NDOF_globalpos)
                 delete[] NDOF_globalpos;
@@ -730,9 +726,12 @@ void DLMFD_RigidBody::check_allocation_DLMFD_Cvectors()
                 delete[] NDOF_FVTriplet;
 
             if (ntotal_fieldunk > ntotal_fieldunk_previous)
-                ntotal_fieldunk_previous = is_particle_fixed ? ntotal_fieldunk : size_t(1.2 * ntotal_fieldunk);
+                ntotal_fieldunk_previous = is_particle_fixed
+                                               ? ntotal_fieldunk
+                                               : size_t(1.2 * ntotal_fieldunk);
             else
-                ntotal_fieldunk_previous = size_t(0.8 * ntotal_fieldunk_previous);
+                ntotal_fieldunk_previous =
+                    size_t(0.8 * ntotal_fieldunk_previous);
 
             NDOF_globalpos = new size_t[ntotal_fieldunk_previous];
             NDOF_deltaOmega = new double[ntotal_fieldunk_previous];
@@ -807,7 +806,8 @@ void DLMFD_RigidBody::fill_DLMFD_Cvectors()
         {
             ildom = il->omega_delta.begin();
             ilFVTripletU = il->MacTripletU.begin();
-            for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end();
+            for (ilpositionU = il->positionU.begin();
+                 ilpositionU != il->positionU.end();
                  ilpositionU++, ildom++, ilFVTripletU++)
             {
                 NDOF_globalpos[l] = *ilpositionU;
@@ -823,7 +823,8 @@ void DLMFD_RigidBody::fill_DLMFD_Cvectors()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::set_coupling_factor(double const &rho_f, bool const &explicit_treatment)
+void DLMFD_RigidBody::set_coupling_factor(double const &rho_f,
+                                          bool const &explicit_treatment)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: set_coupling_factor");
@@ -944,7 +945,8 @@ int DLMFD_RigidBody::get_number_periodicClones() const
 }
 
 //---------------------------------------------------------------------------
-vector<geomVector> const *DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
+vector<geomVector> const *
+DLMFD_RigidBody::get_periodicClones_DirectionsVector() const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::get_periodicClones_DirectionsVector");
@@ -985,7 +987,8 @@ geomVector const *DLMFD_RigidBody::get_ptr_to_gravity_centre() const
 {
     MAC_LABEL("DLMFD_RigidBody:: get_ptr_to_gravity_centre");
 
-    return (dynamic_cast<FS_RigidBody *>(ptr_FSrigidbody)->get_ptr_to_gravity_centre());
+    return (dynamic_cast<FS_RigidBody *>(ptr_FSrigidbody)
+                ->get_ptr_to_gravity_centre());
 }
 
 //---------------------------------------------------------------------------
@@ -994,8 +997,10 @@ size_t DLMFD_RigidBody::get_npts_output(bool const &withIntPts)
 {
     MAC_LABEL("DLMFD_RigidBody:: get_npts_output");
 
-    list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = boundary_points.begin();
-    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = interior_points.begin();
+    list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp =
+        boundary_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi =
+        interior_points.begin();
     size_t output_npts = 0;
 
     for (size_t i = 0; i < nBP; ++i, imp++)
@@ -1020,7 +1025,8 @@ vector<geomVector> *DLMFD_RigidBody::get_ptr_to_periodic_directions() const
 }
 
 //---------------------------------------------------------------------------
-geomVector DLMFD_RigidBody::get_rigid_body_velocity(geomVector const &point) const
+geomVector
+DLMFD_RigidBody::get_rigid_body_velocity(geomVector const &point) const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: get_rigid_body_velocity");
@@ -1178,7 +1184,8 @@ void DLMFD_RigidBody::extend_bphz_list(size_t const &np)
     for (size_t i = 0; i < np; ++i)
     {
         halozone_boundary_points.push_back(bmphz);
-        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        halozone_boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 }
 
@@ -1194,7 +1201,8 @@ void DLMFD_RigidBody::extend_ip_list(size_t const &np)
     for (size_t i = 0; i < np; ++i)
     {
         interior_points.push_back(imp);
-        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 }
 
@@ -1210,15 +1218,15 @@ void DLMFD_RigidBody::extend_iphz_list(size_t const &np)
     for (size_t i = 0; i < np; ++i)
     {
         halozone_interior_points.push_back(imphz);
-        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(size_t const &nbIPdef,
-                                                              size_t const &nbBPdef,
-                                                              size_t const &nbIPHZdef,
-                                                              size_t const &nbBPHZdef)
+void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(
+    size_t const &nbIPdef, size_t const &nbBPdef, size_t const &nbIPHZdef,
+    size_t const &nbBPHZdef)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_Sphere:: allocate_default_listOfPointsAndVectors");
@@ -1231,25 +1239,29 @@ void DLMFD_RigidBody::allocate_default_listOfPointsAndVectors(size_t const &nbIP
     for (size_t i = 0; i < nbIPdef; ++i)
     {
         interior_points.push_back(imp);
-        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 
     for (size_t i = 0; i < nbIPHZdef; ++i)
     {
         halozone_interior_points.push_back(imp);
-        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 
     for (size_t i = 0; i < nbBPdef; ++i)
     {
         boundary_points.push_back(bmp);
-        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 
     for (size_t i = 0; i < nbBPHZdef; ++i)
     {
         halozone_boundary_points.push_back(bmp);
-        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        halozone_boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 
     size_t ndofdef = nbIPdef + nbBPdef * gravity_center.getVecSize();
@@ -1279,25 +1291,29 @@ void DLMFD_RigidBody::initialize_listOfDLMFDPoints()
     if (interior_points.empty())
     {
         interior_points.push_back(imp);
-        interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 
     if (halozone_interior_points.empty())
     {
         halozone_interior_points.push_back(imp);
-        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(0, virtual_point, 0, 0, 0, gravity_center);
+        halozone_interior_points.back() = new DLMFD_InteriorMultiplierPoint(
+            0, virtual_point, 0, 0, 0, gravity_center);
     }
 
     if (boundary_points.empty())
     {
         boundary_points.push_back(bmp);
-        boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 
     if (halozone_boundary_points.empty())
     {
         halozone_boundary_points.push_back(bmp);
-        halozone_boundary_points.back() = new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
+        halozone_boundary_points.back() =
+            new DLMFD_BoundaryMultiplierPoint(virtual_point, gravity_center);
     }
 }
 
@@ -1339,18 +1355,6 @@ void DLMFD_RigidBody::update()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::update_RB_position_and_velocity(geomVector const &pos,
-                                                      geomVector const &vel,
-                                                      geomVector const &ang_vel,
-                                                      vector<geomVector> const &periodic_directions, double const &time_step)
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody:: update_RB_position_and_velocity");
-
-    return (ptr_FSrigidbody->update_RB_position_and_velocity(pos, vel, ang_vel, periodic_directions, time_step));
-}
-
-//---------------------------------------------------------------------------
 bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
                                      const double &distance) const
 //---------------------------------------------------------------------------
@@ -1366,7 +1370,9 @@ bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
         break;
 
     default:
-        if (gravity_center.calcDist(*second_component->get_ptr_to_gravity_centre()) <= radius + second_component->get_circumscribed_radius() + distance)
+        if (gravity_center.calcDist(
+                *second_component->get_ptr_to_gravity_centre()) <=
+            radius + second_component->get_circumscribed_radius() + distance)
             close = true;
     }
 
@@ -1374,10 +1380,10 @@ bool DLMFD_RigidBody::proximityQuery(DLMFD_RigidBody const *second_component,
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
-                                                   list<DLMFD_BoundaryMultiplierPoint *> &BPHZ_contactRegion,
-                                                   geomVector const &refPoint,
-                                                   double const &distance_contactRegion)
+void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(
+    list<DLMFD_BoundaryMultiplierPoint *> &BP_contactRegion,
+    list<DLMFD_BoundaryMultiplierPoint *> &BPHZ_contactRegion,
+    geomVector const &refPoint, double const &distance_contactRegion)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::DLMFDPoints_in_ContactRegion");
@@ -1387,13 +1393,15 @@ void DLMFD_RigidBody::DLMFDPoints_in_ContactRegion(list<DLMFD_BoundaryMultiplier
     // Boundary points in the contact region
     imp = boundary_points.begin();
     for (size_t i = 0; i < nBP; ++i, imp++)
-        if (((*imp)->get_coordinates()).calcDist(refPoint) < distance_contactRegion)
+        if (((*imp)->get_coordinates()).calcDist(refPoint) <
+            distance_contactRegion)
             BP_contactRegion.push_back(*imp);
 
     // Boundary points in halo zone in the contact region
     imp = halozone_boundary_points.begin();
     for (size_t i = 0; i < nBPHZ; ++i, imp++)
-        if (((*imp)->get_coordinates()).calcDist(refPoint) < distance_contactRegion)
+        if (((*imp)->get_coordinates()).calcDist(refPoint) <
+            distance_contactRegion)
             BPHZ_contactRegion.push_back(*imp);
 }
 
@@ -1406,7 +1414,8 @@ bool DLMFD_RigidBody::hasDLMFDPointsOnProc() const
     bool has_valid_point = false;
 
     // Interior points
-    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = interior_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi =
+        interior_points.begin();
 
     for (size_t i = 0; i < nIP && !has_valid_point; ++i, ivi++)
         if ((*ivi)->isValid())
@@ -1415,7 +1424,8 @@ bool DLMFD_RigidBody::hasDLMFDPointsOnProc() const
     // Boundary points
     if (!has_valid_point)
     {
-        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = boundary_points.begin();
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp =
+            boundary_points.begin();
 
         for (size_t i = 0; i < nBP && !has_valid_point; ++i, imp++)
             if ((*imp)->isValid())
@@ -1434,7 +1444,8 @@ bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
     bool has_halozone_point = false;
 
     // Interior points
-    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi = halozone_interior_points.begin();
+    list<DLMFD_InteriorMultiplierPoint *>::const_iterator ivi =
+        halozone_interior_points.begin();
 
     for (size_t i = 0; i < nIPHZ && !has_halozone_point; ++i, ivi++)
         if ((*ivi)->isValid())
@@ -1443,7 +1454,8 @@ bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
     // Boundary points
     if (!has_halozone_point)
     {
-        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp = halozone_boundary_points.begin();
+        list<DLMFD_BoundaryMultiplierPoint *>::const_iterator imp =
+            halozone_boundary_points.begin();
 
         for (size_t i = 0; i < nBPHZ && !has_halozone_point; ++i, imp++)
             if ((*imp)->isValid())
@@ -1454,11 +1466,10 @@ bool DLMFD_RigidBody::hasDLMFDPoints_inHalozone_OnProc() const
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
-                                                  geomVector const *translated_distance_vector,
-                                                  const string &text2write_before,
-                                                  const string &text2write_after,
-                                                  bool const &withIntPts) const
+void DLMFD_RigidBody::print_partPointsCoordinates(
+    ofstream &f, geomVector const *translated_distance_vector,
+    const string &text2write_before, const string &text2write_after,
+    bool const &withIntPts) const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: print_partPointsCoordinates");
@@ -1475,7 +1486,9 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
             {
                 f << text2write_before;
                 for (size_t index = 0; index < dim; index++)
-                    f << (*imp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
+                    f << (*imp)->get_oneCoordinate(index) -
+                             (*translated_distance_vector)(index)
+                      << "\t";
                 f << text2write_after << endl;
             }
 
@@ -1486,13 +1499,17 @@ void DLMFD_RigidBody::print_partPointsCoordinates(ofstream &f,
         {
             f << text2write_before;
             for (size_t index = 0; index < dim; index++)
-                f << (*bmp)->get_oneCoordinate(index) - (*translated_distance_vector)(index) << "\t";
+                f << (*bmp)->get_oneCoordinate(index) -
+                         (*translated_distance_vector)(index)
+                  << "\t";
             f << text2write_after << endl;
         }
 }
 
 //---------------------------------------------------------------------------
-double DLMFD_RigidBody::compute_distance_to_bottom(const double &coordinate, const size_t &direction) const
+double
+DLMFD_RigidBody::compute_distance_to_bottom(const double &coordinate,
+                                            const size_t &direction) const
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody:: compute_distance_to_bottom");
@@ -1537,15 +1554,6 @@ void DLMFD_RigidBody::nullify_Uzawa_vectors()
     VEC_x.set(0.);
     VEC_lambda.set(0.);
     VEC_w.set(0.);
-}
-
-//---------------------------------------------------------------------------
-bool DLMFD_RigidBody::is_interior_points_empty()
-//---------------------------------------------------------------------------
-{
-    MAC_LABEL("DLMFD_RigidBody:: is_interior_points_empty");
-
-    return interior_points.empty();
 }
 
 //---------------------------------------------------------------------------
@@ -1598,7 +1606,8 @@ void DLMFD_RigidBody::compute_Qrot(bool init)
                 break;
             case 1:
                 q_rot_3D.addOneComp(0, lambda_value * NDOF_leverage[2 * i]);
-                q_rot_3D.addOneComp(2, -lambda_value * NDOF_leverage[2 * i + 1]);
+                q_rot_3D.addOneComp(2,
+                                    -lambda_value * NDOF_leverage[2 * i + 1]);
                 break;
             default:
                 q_rot_3D.addOneComp(0, -lambda_value * NDOF_leverage[2 * i]);
@@ -1628,10 +1637,9 @@ void DLMFD_RigidBody::add_to_Qrot(const geomVector &qrot)
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
-                                                           const double &timestep,
-                                                           const geomVector &gravity_vector_split,
-                                                           const geomVector &gravity_vector)
+void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(
+    const double &rho_f, const double &timestep,
+    const geomVector &gravity_vector_split, const geomVector &gravity_vector)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity");
@@ -1642,7 +1650,9 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
     double coeffF = 1. - rho_f / rho_s;
 
     // correct Q vectors
-    q_tran = translational_velocity * (fluidsolid_coupling_factor * mass / timestep) + gravity_vector_split * (coeffF * mass) - q_tran;
+    q_tran = translational_velocity *
+                 (fluidsolid_coupling_factor * mass / timestep) +
+             gravity_vector_split * (coeffF * mass) - q_tran;
 
     MAC_ASSERT(inversedInertia_3D.size() == dim);
 
@@ -1660,7 +1670,8 @@ void DLMFD_RigidBody::correctQvectorsAndInitUzawa_Velocity(const double &rho_f,
 }
 
 //---------------------------------------------------------------------------
-vector<vector<double>> DLMFD_RigidBody::calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix)
+vector<vector<double>>
+DLMFD_RigidBody::calcInvers3by3Matrix(const vector<vector<double>> &oldMatrix)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::calcInvers3by3Matrix");
@@ -1669,29 +1680,44 @@ vector<vector<double>> DLMFD_RigidBody::calcInvers3by3Matrix(const vector<vector
 
     vector<vector<double>> inversedMatrix(dim, vector<double>(dim, 0.));
 
-    double block1 = oldMatrix[1][1] * oldMatrix[2][2] - oldMatrix[1][2] * oldMatrix[2][1];
-    double block2 = oldMatrix[1][2] * oldMatrix[2][0] - oldMatrix[1][0] * oldMatrix[2][2];
-    double block3 = oldMatrix[1][0] * oldMatrix[2][1] - oldMatrix[1][1] * oldMatrix[2][0];
+    double block1 =
+        oldMatrix[1][1] * oldMatrix[2][2] - oldMatrix[1][2] * oldMatrix[2][1];
+    double block2 =
+        oldMatrix[1][2] * oldMatrix[2][0] - oldMatrix[1][0] * oldMatrix[2][2];
+    double block3 =
+        oldMatrix[1][0] * oldMatrix[2][1] - oldMatrix[1][1] * oldMatrix[2][0];
 
-    double determinat = oldMatrix[0][0] * block1 +
-                        oldMatrix[0][1] * block2 +
+    double determinat = oldMatrix[0][0] * block1 + oldMatrix[0][1] * block2 +
                         oldMatrix[0][2] * block3;
 
     inversedMatrix[0][0] = block1 / determinat;
-    inversedMatrix[0][1] = (oldMatrix[0][2] * oldMatrix[2][1] - oldMatrix[0][1] * oldMatrix[2][2]) / determinat;
-    inversedMatrix[0][2] = (oldMatrix[0][1] * oldMatrix[1][2] - oldMatrix[0][2] * oldMatrix[1][1]) / determinat;
+    inversedMatrix[0][1] = (oldMatrix[0][2] * oldMatrix[2][1] -
+                            oldMatrix[0][1] * oldMatrix[2][2]) /
+                           determinat;
+    inversedMatrix[0][2] = (oldMatrix[0][1] * oldMatrix[1][2] -
+                            oldMatrix[0][2] * oldMatrix[1][1]) /
+                           determinat;
     inversedMatrix[1][0] = block2 / determinat;
-    inversedMatrix[1][1] = (oldMatrix[0][0] * oldMatrix[2][2] - oldMatrix[0][2] * oldMatrix[2][0]) / determinat;
-    inversedMatrix[1][2] = (oldMatrix[0][2] * oldMatrix[1][0] - oldMatrix[0][0] * oldMatrix[1][2]) / determinat;
+    inversedMatrix[1][1] = (oldMatrix[0][0] * oldMatrix[2][2] -
+                            oldMatrix[0][2] * oldMatrix[2][0]) /
+                           determinat;
+    inversedMatrix[1][2] = (oldMatrix[0][2] * oldMatrix[1][0] -
+                            oldMatrix[0][0] * oldMatrix[1][2]) /
+                           determinat;
     inversedMatrix[2][0] = block3 / determinat;
-    inversedMatrix[2][1] = (oldMatrix[0][1] * oldMatrix[2][0] - oldMatrix[0][0] * oldMatrix[2][1]) / determinat;
-    inversedMatrix[2][2] = (oldMatrix[0][0] * oldMatrix[1][1] - oldMatrix[0][1] * oldMatrix[1][0]) / determinat;
+    inversedMatrix[2][1] = (oldMatrix[0][1] * oldMatrix[2][0] -
+                            oldMatrix[0][0] * oldMatrix[2][1]) /
+                           determinat;
+    inversedMatrix[2][2] = (oldMatrix[0][0] * oldMatrix[1][1] -
+                            oldMatrix[0][1] * oldMatrix[1][0]) /
+                           determinat;
 
     return inversedMatrix;
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f, double const &timestep)
+void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f,
+                                                  double const &timestep)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::calculateParticleVelocities");
@@ -1723,7 +1749,8 @@ void DLMFD_RigidBody::calculateParticleVelocities(double const &rho_f, double co
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::updateSolutionVectors_Velocity(const double &alpha, const double &beta)
+void DLMFD_RigidBody::updateSolutionVectors_Velocity(const double &alpha,
+                                                     const double &beta)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::updateSolutionVectors_Velocity");
@@ -1743,7 +1770,8 @@ void DLMFD_RigidBody::setTVectors_constant()
 }
 
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init)
+void DLMFD_RigidBody::compute_fluid_rhs(
+    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_fluid_rhs");
@@ -1768,7 +1796,9 @@ void DLMFD_RigidBody::compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOB
             lambda_value = (*work)(i);
             for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
             {
-                GLOBAL_EQ->assemble_inQUvector(NDOF_deltaOmega[j + start] * lambda_value, NDOF_globalpos[j + start], coef);
+                GLOBAL_EQ->assemble_inQUvector(NDOF_deltaOmega[j + start] *
+                                                   lambda_value,
+                                               NDOF_globalpos[j + start], coef);
             }
             start += NDOF_nfieldUNK[i];
         }
@@ -1794,13 +1824,16 @@ void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
         switch (comp)
         {
         case 0:
-            solid_velocity_component += t_rot_3D(1) * NDOF_leverage[2 * i] - t_rot_3D(2) * NDOF_leverage[2 * i + 1];
+            solid_velocity_component += t_rot_3D(1) * NDOF_leverage[2 * i] -
+                                        t_rot_3D(2) * NDOF_leverage[2 * i + 1];
             break;
         case 1:
-            solid_velocity_component += t_rot_3D(2) * NDOF_leverage[2 * i + 1] - t_rot_3D(0) * NDOF_leverage[2 * i];
+            solid_velocity_component += t_rot_3D(2) * NDOF_leverage[2 * i + 1] -
+                                        t_rot_3D(0) * NDOF_leverage[2 * i];
             break;
         default:
-            solid_velocity_component += t_rot_3D(0) * NDOF_leverage[2 * i] - t_rot_3D(1) * NDOF_leverage[2 * i + 1];
+            solid_velocity_component += t_rot_3D(0) * NDOF_leverage[2 * i] -
+                                        t_rot_3D(1) * NDOF_leverage[2 * i + 1];
             break;
         }
 
@@ -1809,11 +1842,10 @@ void DLMFD_RigidBody::compute_x_residuals_Velocity(FV_DiscreteField *pField)
         // Fluid part
         for (j = 0; j < NDOF_nfieldUNK[i]; ++j)
         {
-            VEC_x(i) += NDOF_deltaOmega[l] * pField->DOF_value(NDOF_FVTriplet[m],
-                                                               NDOF_FVTriplet[m + 1],
-                                                               NDOF_FVTriplet[m + 2],
-                                                               comp,
-                                                               0);
+            VEC_x(i) +=
+                NDOF_deltaOmega[l] *
+                pField->DOF_value(NDOF_FVTriplet[m], NDOF_FVTriplet[m + 1],
+                                  NDOF_FVTriplet[m + 2], comp, 0);
             ++l;
             m += 3;
         }
@@ -1893,9 +1925,9 @@ void DLMFD_RigidBody::update_w(const double &beta)
             VEC_w(i) = VEC_r(i) + beta * VEC_w(i);
 }
 //---------------------------------------------------------------------------
-void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
-                                                   bool bulk,
-                                                   FV_DiscreteField *pField)
+void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(
+    DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool bulk,
+    FV_DiscreteField *pField)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_fluid_DLMFD_explicit");
@@ -1916,228 +1948,256 @@ void DLMFD_RigidBody::compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesS
             ildom = il->omega_delta.begin();
 
             if (il->omega_delta.size() != 1)
-                for (ilpositionU = il->positionU.begin(); ilpositionU != il->positionU.end(); ilpositionU++, ildom++)
-                    GLOBAL_EQ->assemble_inQUvector(*ildom * lambda_value, *ilpositionU, coef);
+                for (ilpositionU = il->positionU.begin();
+                     ilpositionU != il->positionU.end(); ilpositionU++, ildom++)
+                    GLOBAL_EQ->assemble_inQUvector(*ildom * lambda_value,
+                                                   *ilpositionU, coef);
 
             else if (bulk)
             {
                 // Coef 1 / 8
                 size_t globalDOFNo;
                 FV_TRIPLET ijk = il->MacTripletU.front();
-                globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k,
-                                                        il->compIdx);
-                GLOBAL_EQ->assemble_inQUvector(0.125 * lambda_value, globalDOFNo,
-                                               coef);
+                globalDOFNo =
+                    pField->DOF_global_number(ijk.i, ijk.j, ijk.k, il->compIdx);
+                GLOBAL_EQ->assemble_inQUvector(0.125 * lambda_value,
+                                               globalDOFNo, coef);
 
                 // Coef 1 / 16
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j,
+                                                            ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j,
+                                                            ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1,
+                                                            ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1,
+                                                            ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.0625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
                 // Coef 1 / 32
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j + 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j - 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j + 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j + 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j + 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i, ijk.j - 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i, ijk.j - 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i, ijk.j - 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j + 1, ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j - 1, ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j + 1, ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j - 1, ijk.k, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.03125 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
                 // Coef 1 / 64
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j + 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j - 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j + 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k - 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k - 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k - 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j - 1, ijk.k - 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j + 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j + 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j + 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i + 1, ijk.j - 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i + 1, ijk.j - 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i + 1, ijk.j - 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j + 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j + 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j + 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
 
-                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k + 1, il->compIdx))
+                if (pField->DOF_is_unknown(ijk.i - 1, ijk.j - 1, ijk.k + 1,
+                                           il->compIdx))
                 {
-                    globalDOFNo = pField->DOF_global_number(ijk.i - 1, ijk.j - 1, ijk.k + 1,
-                                                            il->compIdx);
-                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value, globalDOFNo,
-                                                   coef);
+                    globalDOFNo = pField->DOF_global_number(
+                        ijk.i - 1, ijk.j - 1, ijk.k + 1, il->compIdx);
+                    GLOBAL_EQ->assemble_inQUvector(0.015625 * lambda_value,
+                                                   globalDOFNo, coef);
                 }
             }
         }
@@ -2172,25 +2232,25 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
         if (component_type != "P")
             FV_Mesh::between(mesh[i], point(i), indices(i));
         else
-            FV_Mesh::between_subinterval(mesh[i],
-                                         point(i),
-                                         indices(i),
-                                         (*index_min)(OnePointInfos.compIdx, i),
-                                         (*index_max)(OnePointInfos.compIdx, i));
+            FV_Mesh::between_subinterval(
+                mesh[i], point(i), indices(i),
+                (*index_min)(OnePointInfos.compIdx, i),
+                (*index_max)(OnePointInfos.compIdx, i));
 
         cellsize(i) = (*mesh[i])(indices(i) + 1) - (*mesh[i])(indices(i));
     }
 
-    // If the particle is periodic, some boundary points correspond to the primary
-    // particle position and others to its periodic clones.
-    // Hence, it is mandatory to set the geometric features corresponding
-    // to this DLM/FD point using GC = point - point_to_GC
-    // where point_to_GC is ParticlePoint::GCPointVector
-    // and is available from OnePointInfos.ptr_point->get_GCPointVector()
+    // If the particle is periodic, some boundary points correspond to the
+    // primary particle position and others to its periodic clones. Hence, it is
+    // mandatory to set the geometric features corresponding to this DLM/FD
+    // point using GC = point - point_to_GC where point_to_GC is
+    // ParticlePoint::GCPointVector and is available from
+    // OnePointInfos.ptr_point->get_GCPointVector()
     // !!! The reason is: the method isIn(x,y,z) uses the gravity center
     // position to function !!!
     if (component_type == "PP" && SecondOrderBP)
-        translateGeometricFeatures(point - OnePointInfos.ptr_point->get_GCPointVector());
+        translateGeometricFeatures(
+            point - OnePointInfos.ptr_point->get_GCPointVector());
 
     // Check if second order interpolation is available
     size_t iref, jref, kref;
@@ -2310,7 +2370,8 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                 for (kk = 0; kk < 3; ++kk)
                 {
                     k = kref + kk;
-                    globalDOFNo = pField->DOF_global_number(i, j, k, OnePointInfos.compIdx);
+                    globalDOFNo = pField->DOF_global_number(
+                        i, j, k, OnePointInfos.compIdx);
                     OnePointInfos.positionU.push_back(globalDOFNo);
 
                     ijk.i = i;
@@ -2318,7 +2379,8 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                     ijk.k = k;
                     OnePointInfos.MacTripletU.push_back(ijk);
 
-                    weightFunct = Q2weighting((*Q2numb)(ii, jj, kk), xtransf, ytransf, ztransf);
+                    weightFunct = Q2weighting((*Q2numb)(ii, jj, kk), xtransf,
+                                              ytransf, ztransf);
                     OnePointInfos.omega_delta.push_back(weightFunct);
                 }
             }
@@ -2336,14 +2398,17 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
                 for (k = indices(2); k < indices(2) + 2; ++k)
                 {
                     DOFcoor(2) = (*mesh[2])(k);
-                    globalDOFNo = pField->DOF_global_number(i, j, k,
-                                                            OnePointInfos.compIdx);
+                    globalDOFNo = pField->DOF_global_number(
+                        i, j, k, OnePointInfos.compIdx);
                     OnePointInfos.positionU.push_back(globalDOFNo);
                     ijk.i = i;
                     ijk.j = j;
                     ijk.k = k;
                     OnePointInfos.MacTripletU.push_back(ijk);
-                    weightFunct = (1. - fabs(point(0) - DOFcoor(0)) / cellsize(0)) * (1. - fabs(point(1) - DOFcoor(1)) / cellsize(1)) * (1. - fabs(point(2) - DOFcoor(2)) / cellsize(2));
+                    weightFunct =
+                        (1. - fabs(point(0) - DOFcoor(0)) / cellsize(0)) *
+                        (1. - fabs(point(1) - DOFcoor(1)) / cellsize(1)) *
+                        (1. - fabs(point(2) - DOFcoor(2)) / cellsize(2));
                     OnePointInfos.omega_delta.push_back(weightFunct);
                 }
             }
@@ -2360,8 +2425,8 @@ void DLMFD_RigidBody::fill_DLMFD_pointInfos(FV_DiscreteField *pField,
 }
 
 //---------------------------------------------------------------------------
-double DLMFD_RigidBody::compute_weight_generic(double const &x,
-                                               size_t const &i, size_t const &order)
+double DLMFD_RigidBody::compute_weight_generic(double const &x, size_t const &i,
+                                               size_t const &order)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_RigidBody::compute_weight_generic");
@@ -2409,13 +2474,16 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
     switch (i)
     {
     case 0:
-        result = 8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        result = 8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) *
+                 (1.0 - z) * (0.5 - z);
         break;
     case 1:
-        result = 16.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        result = 16.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) *
+                 (0.5 - z);
         break;
     case 2:
-        result = -8.0 * x * (0.5 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        result = -8.0 * x * (0.5 - x) * (1.0 - y) * (0.5 - y) * (1.0 - z) *
+                 (0.5 - z);
         break;
     case 3:
         result = -16.0 * x * (0.5 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
@@ -2424,10 +2492,12 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
         result = 32.0 * x * (1.0 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
         break;
     case 5:
-        result = 16.0 * (1.0 - x) * (0.5 - x) * y * (1.0 - y) * (1.0 - z) * (0.5 - z);
+        result = 16.0 * (1.0 - x) * (0.5 - x) * y * (1.0 - y) * (1.0 - z) *
+                 (0.5 - z);
         break;
     case 6:
-        result = -8.0 * (1.0 - x) * (0.5 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
+        result = -8.0 * (1.0 - x) * (0.5 - x) * y * (0.5 - y) * (1.0 - z) *
+                 (0.5 - z);
         break;
     case 7:
         result = -16.0 * x * (1.0 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
@@ -2436,7 +2506,8 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
         result = 8.0 * x * (0.5 - x) * y * (0.5 - y) * (1.0 - z) * (0.5 - z);
         break;
     case 9:
-        result = 16.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (1.0 - z);
+        result = 16.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z *
+                 (1.0 - z);
         break;
     case 10:
         result = 32.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * z * (1.0 - z);
@@ -2463,7 +2534,8 @@ double DLMFD_RigidBody::Q2weighting(size_t const &i, double const &x,
         result = 16.0 * x * (0.5 - x) * y * (0.5 - y) * z * (1.0 - z);
         break;
     case 18:
-        result = -8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z * (0.5 - z);
+        result = -8.0 * (1.0 - x) * (0.5 - x) * (1.0 - y) * (0.5 - y) * z *
+                 (0.5 - z);
         break;
     case 19:
         result = -16.0 * x * (1.0 - x) * (1.0 - y) * (0.5 - y) * z * (0.5 - z);

@@ -19,7 +19,6 @@ DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(FS_RigidBody *ptr_geom_r
 
     DLMFD_RigidBody *ptr_dlmfd_rb = NULL;
 
-    // Build the Fictitious Domain rigid body
     switch (ptr_geom_rb->get_shape_type())
     {
     case GEOM_SPHERE:

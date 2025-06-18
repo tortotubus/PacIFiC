@@ -1,15 +1,15 @@
 #ifndef _DLMFD_ALLRIGIDBODIES__
 #define _DLMFD_ALLRIGIDBODIES__
 
-#include <size_t_vector.hh>
-#include <size_t_array2D.hh>
-#include <doubleArray2D.hh>
-#include <FS_AllRigidBodies.hh>
-#include <DLMFD_RigidBody.hh>
-#include <FV_DiscreteField.hh>
 #include <DLMFD_AllGeomBoundaries.hh>
-#include <MAC_Communicator.hh>
 #include <DLMFD_ProjectionNavierStokesSystem.hh>
+#include <DLMFD_RigidBody.hh>
+#include <FS_AllRigidBodies.hh>
+#include <FV_DiscreteField.hh>
+#include <MAC_Communicator.hh>
+#include <doubleArray2D.hh>
+#include <size_t_array2D.hh>
+#include <size_t_vector.hh>
 using namespace std;
 
 /** @brief The class DLMFD_AllRigidBodies.
@@ -20,25 +20,24 @@ The array of all rigid bodies in the Fictitious Domain solver.
 
 class DLMFD_AllRigidBodies
 {
-public: //-----------------------------------------------------------------
+  public: //-----------------------------------------------------------------
     //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
 
     /** @brief Constructor with arguments
     @param dim Number of space dimensions
-    @param solidFluid_transferStream Input stream where features of rigid bodies are read
+    @param solidFluid_transferStream Input stream where features of rigid bodies
+    are read
     @param are_particles_fixed_ True if the all the particles are
     obstacles
     @param UU Pointer to flow field UF
-    @param PP Pointer to flow field PF */
-    DLMFD_AllRigidBodies(size_t &dim,
-                         double const &time,
+    @param PP Pointer to flow field PF
+    @param critical_distance Critical distance */
+    DLMFD_AllRigidBodies(size_t &dim, double const &time,
                          istringstream &solidFluid_transferStream,
-                         bool const &are_particles_fixed_,
-                         FV_DiscreteField *UU,
-                         FV_DiscreteField *PP,
-                         double const critical_distance);
+                         bool const &are_particles_fixed_, FV_DiscreteField *UU,
+                         FV_DiscreteField *PP, double const critical_distance);
 
     /** @brief Destructor */
     ~DLMFD_AllRigidBodies();
@@ -53,15 +52,15 @@ public: //-----------------------------------------------------------------
 
     void set_b_output_hydro_forceTorque(bool const &is_output);
 
-    /** @brief TODO
+    /** @brief Allocate and set the multiplier points
     @param critical_distance Critical distance */
     void set_all_MAC(double critical_distance);
 
-    /** @brief TODO
+    /** @brief Set the multiplier points
     @param critical_distance Critical distance */
     void set_all_points(double critical_distance);
 
-    /** @brief Return the total number of rigid bodies */
+    /** @brief Erase critical DLMFD points */
     void eraseCriticalDLMFDPoints(const double &time, double critical_distance);
 
     /** @brief Set the list of IDs of on proc */
@@ -78,8 +77,10 @@ public: //-----------------------------------------------------------------
     /** @brief Set points infos for all rigid bodies */
     void set_points_infos();
 
+    /** @brief Allocate DLMFD C vectors */
     void check_allocation_DLMFD_Cvectors();
 
+    /** @brief Fill DLMFD C vectors */
     void fill_DLMFD_Cvectors();
 
     /** @brief Set MPI data */
@@ -87,11 +88,14 @@ public: //-----------------------------------------------------------------
 
     /** @brief Set coupling factor of each rigid body
     @param rho_f Fluid density
-    @param explicit_treatment Is explicit treated */
-    void set_coupling_factor(double const &rho_f, bool const &explicit_treatment);
+    @param explicit_treatment If true, we solve by treating the added mass term
+    (rho_f/rho_s) * (dU/dt) as explicit in the Newton's law */
+    void set_coupling_factor(double const &rho_f,
+                             bool const &explicit_treatment);
 
     /** @brief Set mass, density and inertia of all RBs */
-    void set_mass_and_density_and_volume_and_inertia(istringstream &solidFluid_transferStream);
+    void set_mass_and_density_and_volume_and_inertia(
+        istringstream &solidFluid_transferStream);
 
     /** @brief Set t_tran of RB i */
     void set_Tu(const size_t i, const geomVector &ttran);
@@ -119,7 +123,7 @@ public: //-----------------------------------------------------------------
     /** @name Get methods */
     //@{
 
-    /** @brief Return the total number of rigid bodies */
+    /** @brief Get the total number of rigid bodies */
     size_t get_number_rigid_bodies() const;
 
     /** @brief Get shared rigid bodies on procs */
@@ -168,6 +172,8 @@ public: //-----------------------------------------------------------------
     @param critical_distance Critical distance */
     void update(istringstream &solidFluid_transferStream);
 
+    /** @brief Store the RBs velocities to transfer to Grains3D
+    @param vecVel Storage vector */
     void particles_velocities_output(vector<vector<double>> &vecVel) const;
 
     //@}
@@ -178,27 +184,33 @@ public: //-----------------------------------------------------------------
 
     /** @brief Output DLMFD points in Paraview
     @param filename File name */
-    void output_DLMFDPoints_PARAVIEW(const string &filename,
-                                     geomVector const *translated_distance_vector,
-                                     const bool &withIntPts) const;
+    void
+    output_DLMFDPoints_PARAVIEW(const string &filename,
+                                geomVector const *translated_distance_vector,
+                                const bool &withIntPts) const;
 
     bool is_hydro_forceTorque_postprocessed() const;
 
     /** @brief Output force and torque
     @param nothing File name */
-    void particles_hydrodynamic_force_output(const string &path_name,
-                                             const bool &b_restart,
-                                             const double &time,
-                                             const double &timestep,
-                                             const double &rho_f,
-                                             vector<vector<double>> const *Iw_Idw);
+    void particles_hydrodynamic_force_output(
+        const string &path_name, const bool &b_restart, const double &time,
+        const double &timestep, const double &rho_f,
+        vector<vector<double>> const *Iw_Idw);
 
-    /** @brief TODO
-    @param nothing File name */
+    /** @brief MPI routine to sum the contributions of the hydrodynamic force of
+    all procs
+    @param b_restart True if the simulation is reloaded */
     void sum_DLM_hydrodynamic_force_output(const bool &b_restart);
 
+    /** @brief Read the particles outputs from the explorer
+    @param exp Explorer */
     void read_particles_outputs(MAC_ModuleExplorer const *exp);
 
+    /** @brief Write in the output files
+    @param path_name Path where to write
+    @param b_restart True if the simulation is reloaded
+    @param time Time */
     void particles_features_output(const string &path_name,
                                    const bool &b_restart,
                                    const double &time) const;
@@ -209,6 +221,7 @@ public: //-----------------------------------------------------------------
     /** @name DLMFD solving methods */
     //@{
 
+    /** @brief Nullify all the vectors used in Uzawa algorithm */
     void nullify_all_Uzawa_vectors();
 
     /** @brief Compute the q_U quantities */
@@ -224,10 +237,11 @@ public: //-----------------------------------------------------------------
     void add_to_Qrot(const size_t i, const geomVector &qrot);
 
     /** @brief Complete the initialization of Uzawa solving algorithm */
-    void completeFirstUzawaIteration_Velocity(const double &rho_f,
-                                              const double &timestep,
-                                              const geomVector &gravity_vector_split,
-                                              const geomVector &gravity_vector);
+    void
+    completeFirstUzawaIteration_Velocity(const double &rho_f,
+                                         const double &timestep,
+                                         const geomVector &gravity_vector_split,
+                                         const geomVector &gravity_vector);
 
     /** @brief Correct the particle velocities after broadcast of t_tran and
    t_rot i.e. do on each particle: U = t_tran and omega = t_rot */
@@ -236,12 +250,16 @@ public: //-----------------------------------------------------------------
     /** @brief Solve one Uzawa iteration for the particles system
     @param rho_f Fluid density
     @param timestep Time step */
-    void solve_Particles_OneUzawaIter_Velocity(double const &rho_f, double const &timestep);
+    void solve_Particles_OneUzawaIter_Velocity(double const &rho_f,
+                                               double const &timestep);
 
     /** @brief Compute the momentum equations right hand side <w,v>_P
-   as a list of position and entries in the right hand side vector of the
-   global matrix system */
-    void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool init);
+    as a list of position and entries in the right hand side vector of the
+    global matrix system
+    @param GLOBAL_EQ Linear system object
+    @param init True if very first Uzawa iteration */
+    void compute_fluid_rhs(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+                           bool init);
 
     /** @brief Compute residuals x=<alpha,tu-(tU+tomega^GM)>_P */
     void compute_x_residuals_Velocity();
@@ -255,25 +273,30 @@ public: //-----------------------------------------------------------------
     /** @brief Return the VEC_w.VEC_x scalar product on all particles */
     double compute_w_dot_x() const;
 
-    /** @brief Update lambda and r i.e. do on each particle: lambda -= alpha * w and r -= alpha * x */
+    /** @brief Update lambda and r i.e. do on each particle: lambda -= alpha * w
+     * and r -= alpha * x */
     void update_lambda_and_r(const double &alpha);
 
-    /** @brief Correct the particle velocities i.e. do on each particle: U += t_tran*alpha and omega += t_rot*alpha  */
+    /** @brief Correct the particle velocities i.e. do on each particle: U +=
+     * t_tran*alpha and omega += t_rot*alpha  */
     void update_ParticlesVelocities(const double &alpha);
 
     /** @brief Update w i.e. do on each particle: w = r + beta * w */
     void update_w(const double &beta);
 
     /** @brief Compute the momentum equations right hand side <w,v>_P */
-    void compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ, bool bulk);
+    void
+    compute_fluid_DLMFD_explicit(DLMFD_ProjectionNavierStokesSystem *GLOBAL_EQ,
+                                 bool bulk);
 
     //@}
 
-    // -- Side methods
-    /** @name Side methods */
+    // -- Allocate methods
+    /** @name Allocate methods */
     //@{
 
-    /** @brief Allocate initial array for n-1 translational and angular velocity */
+    /** @brief Allocate initial array for n-1 translational and angular velocity
+     */
     void allocate_translational_angular_velocity_array();
 
     //@}
@@ -282,18 +305,25 @@ public: //-----------------------------------------------------------------
     /** @name Geometric methods */
     //@{
 
-    double compute_minimum_distance_to_bottom(const double &coordinate, const size_t &direction) const;
-
+    /** @brief Compute : min[ abs(gravity_center_i(direction) - coordinate) ],
+    where i is a rigid body
+    @param coordinate Coordinate
+    @param direction Direction */
+    double compute_minimum_distance_to_bottom(const double &coordinate,
+                                              const size_t &direction) const;
+    /** @brief Translate the geometric boundaries
+    @param translation_vector Translation vector
+    @param translation_direction Translation direction */
     void translate_geometricBoundaries(const geomVector &translation_vector,
                                        const size_t &translation_direction);
 
     //@}
 
-protected: //----------------------------------------------------------------
+  protected: //----------------------------------------------------------------
     bool b_output_hydro_forceTorque;
     bool are_particles_fixed;
 
-private: //----------------------------------------------------------------
+  private: //----------------------------------------------------------------
     //-- Attributes
     /** @name Parameters */
     //@{
@@ -304,32 +334,47 @@ private: //----------------------------------------------------------------
     size_t rank;
     size_t master;
 
-    size_t dim = 3;                                        //*< Dimension */
-    size_t RBs_number;                                     /**< Number of rigid bodies */
-    size_t particles_number;                               /**< Number of particles */
-    FS_AllRigidBodies *ptr_FSallrigidbodies;               /**< Pointer to the geometric rigid bodies */
-    vector<DLMFD_RigidBody *> vec_ptr_DLMFDallrigidbodies; /**<  Pointer to the vector of DLMFD rigid bodies */
-    list<int> entireOnProc;                                /**< list of ids of solid component entirely located
-                                                            on this process */
+    size_t dim = 3;          //*< Dimension */
+    size_t RBs_number;       /**< Number of rigid bodies */
+    size_t particles_number; /**< Number of particles */
+    FS_AllRigidBodies
+        *ptr_FSallrigidbodies; /**< Pointer to the geometric rigid bodies */
+    vector<DLMFD_RigidBody *>
+        vec_ptr_DLMFDallrigidbodies; /**<  Vector of DLMFD rigid
+                                        bodies pointers*/
+    list<int> entireOnProc; /**< list of ids of rigid bodies entirely located
+                             on this process */
 
-    list<int> SharedOnProc;                    /**< list of ids of solid component partially located on this process */
-    list<int> onProc;                          /**< list of ids of solid component located on this process */
-    vector<size_t_vector> *v_AllSharedOnProcs; /**< vector of size nprocs stored on master process, element i is
-                                                the list of ids of solid component partially located on process i */
-    list<int> *l_AllSharedOnProcs;             /**< list, stored on master process, of ids
-                                              of solid component shared on all processes, except those which are
-                                              shared by master */
+    list<int> SharedOnProc; /**< list of ids of rigid bodies partially
+                               located on this process */
+    list<int>
+        onProc; /**< list of ids of rigid bodies located on this process */
+    vector<size_t_vector>
+        *v_AllSharedOnProcs;       /**< vector of size nprocs stored on master
+                                    process, element i is       the list of ids of
+                                    solid       component partially located on process
+                                    i */
+    list<int> *l_AllSharedOnProcs; /**< list, stored on master process, of ids
+                                  of rigid bodies shared on all processes,
+                                  except those which are shared by master */
 
-    string output_x_velocity;  /**< X-velocity output type: yes, no, mean or all */
-    string output_y_velocity;  /**< Y-velocity output type: yes, no, mean or all */
-    string output_z_velocity;  /**< Z-velocity output type: yes, no, mean or all */
-    string output_x_position;  /**< X-position output type: yes, no, mean or all */
-    string output_y_position;  /**< Y-position output type: yes, no, mean or all */
-    string output_z_position;  /**< Z-position output type: yes, no, mean or all */
-    string output_x_omega;     /**< X-Omega output type: yes, no, mean or all */
-    string output_y_omega;     /**< Y-Omega output type: yes, no, mean or all */
-    string output_z_omega;     /**< Z-Omega output type: yes, no, mean or all */
-    string output_orientation; /**< Orientation output type: yes, no, mean or all */
+    string
+        output_x_velocity; /**< X-velocity output type: yes, no, mean or all */
+    string
+        output_y_velocity; /**< Y-velocity output type: yes, no, mean or all */
+    string
+        output_z_velocity; /**< Z-velocity output type: yes, no, mean or all */
+    string
+        output_x_position; /**< X-position output type: yes, no, mean or all */
+    string
+        output_y_position; /**< Y-position output type: yes, no, mean or all */
+    string
+        output_z_position; /**< Z-position output type: yes, no, mean or all */
+    string output_x_omega; /**< X-Omega output type: yes, no, mean or all */
+    string output_y_omega; /**< Y-Omega output type: yes, no, mean or all */
+    string output_z_omega; /**< Z-Omega output type: yes, no, mean or all */
+    string output_orientation; /**< Orientation output type: yes, no, mean or
+                                  all */
 
     doubleArray2D *translational_velocity_nm1; /**< array containing the
     translational velocity of all particules at previous time */
@@ -340,7 +385,8 @@ private: //----------------------------------------------------------------
     FV_DiscreteField *pField; /**< Pointer to constrained field*/
     FV_Mesh const *MESH;
 
-    DLMFD_AllGeomBoundaries *GeoBoundaries; /**< geometric boundaries of the domain */
+    DLMFD_AllGeomBoundaries
+        *GeoBoundaries; /**< geometric boundaries of the domain */
 
     // Output
     size_t output_frequency;

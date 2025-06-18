@@ -1,21 +1,21 @@
 #ifndef DLMFD_PROJ_NAVIER_STOKES_HH
 #define DLMFD_PROJ_NAVIER_STOKES_HH
 
-#include <FV_OneStepIteration.hh>
-#include <geomVector.hh>
-#include <PAC_computingtime.hh>
-#include <PAC_solvercomputingtime.hh>
-#include <DLMFD_ProjectionNavierStokesSystem.hh>
-#include <DLMFD_FictitiousDomain.hh>
 #include <DLMFD_AllRigidBodies.hh>
+#include <DLMFD_FictitiousDomain.hh>
+#include <DLMFD_ProjectionNavierStokesSystem.hh>
 #include <FS_SolidPlugIn.hh>
 #include <FV_DiscreteField.hh>
-#include <vector>
-#include <string>
-#include <iostream>
+#include <FV_OneStepIteration.hh>
+#include <PAC_computingtime.hh>
+#include <PAC_solvercomputingtime.hh>
 #include <fstream>
+#include <geomVector.hh>
+#include <iostream>
 #include <sstream>
+#include <string>
 #include <utility>
+#include <vector>
 using namespace std;
 
 class MAC_Communicator;
@@ -31,7 +31,7 @@ class DLMFD_ProjectionNavierStokes : public FV_OneStepIteration,
                                      public PAC_ComputingTime,
                                      public PAC_SolverComputingTime
 {
-public: //-----------------------------------------------------------------
+  public: //-----------------------------------------------------------------
     // Public static attributes
     static bool b_pressure_drop_each_time;
 
@@ -50,13 +50,11 @@ public: //-----------------------------------------------------------------
 
     /** @brief Tasks performed at initialization of each time step
     @param t_it time iterator */
-    virtual void do_before_inner_iterations_stage(
-        FV_TimeIterator const *t_it);
+    virtual void do_before_inner_iterations_stage(FV_TimeIterator const *t_it);
 
     /** @brief Tasks performed after of each time step
     @param t_it time iterator */
-    virtual void do_after_inner_iterations_stage(
-        FV_TimeIterator const *t_it);
+    virtual void do_after_inner_iterations_stage(FV_TimeIterator const *t_it);
 
     /** @brief Tasks performed at the end of the time stepping loop */
     virtual void do_after_time_stepping(void);
@@ -68,26 +66,35 @@ public: //-----------------------------------------------------------------
                                        int const &cycleNumber);
 
     // Save other data than FV fields for restart
-    virtual void do_additional_save_for_restart(
-        FV_TimeIterator const *t_it,
-        size_t const &restartCycleNumber, string const &basename);
+    virtual void
+    do_additional_save_for_restart(FV_TimeIterator const *t_it,
+                                   size_t const &restartCycleNumber,
+                                   string const &basename);
     //@}
 
     //-- Set methods
     /** @name Set methods */
     //@{
 
-    /** @brief Setting the translation vector */
+    /** @brief Set translation vector and direction */
     void set_translation_vector();
 
     //@}
 
+    /** @brief Projection of the field on the translated position of the grid */
     void fields_projection();
 
+    /** @brief Synchronize velocity field
+    @param level field storage level */
     void synchronize_velocity_field(size_t level);
 
+    /** @brief Synchronize pressure field
+    @param level field storage level */
     void synchronize_pressure_field(size_t level);
 
+    /** @brief Synchronize the DLMFD forcing term computed at previous time
+    using the velocity field (same numbering)
+    @param level field storage level */
     void synchronize_DLMFD_Nm1_rhs(size_t level);
 
     //-- Persistence
@@ -97,9 +104,9 @@ public: //-----------------------------------------------------------------
     // `FV_OneStepIteration::' base class subobject.
     virtual void add_storable_objects(MAC_ListIdentity *list);
 
-protected: //--------------------------------------------------------------
-private:   //----------------------------------------------------------------
-           //-- Constructors & Destructor
+  protected: //--------------------------------------------------------------
+  private:   //----------------------------------------------------------------
+             //-- Constructors & Destructor
     /** @name Constructors & Destructor */
     //@{
     /** @brief Destructor */
@@ -110,8 +117,8 @@ private:   //----------------------------------------------------------------
 
     /** @brief Operator ==
     @param other the right hand side */
-    DLMFD_ProjectionNavierStokes &operator=(
-        DLMFD_ProjectionNavierStokes const &other);
+    DLMFD_ProjectionNavierStokes &
+    operator=(DLMFD_ProjectionNavierStokes const &other);
 
     /** @brief Constructor with arguments
     @param a_owner the PEL-based object
@@ -128,10 +135,9 @@ private:   //----------------------------------------------------------------
     @param a_owner the PEL-based object
     @param dom mesh and fields
     @param exp to read the data file */
-    virtual DLMFD_ProjectionNavierStokes *create_replica(
-        MAC_Object *a_owner,
-        FV_DomainAndFields const *dom,
-        MAC_ModuleExplorer *exp) const;
+    virtual DLMFD_ProjectionNavierStokes *
+    create_replica(MAC_Object *a_owner, FV_DomainAndFields const *dom,
+                   MAC_ModuleExplorer *exp) const;
     //@}
 
     //-- Basic discrete system building
@@ -141,14 +147,12 @@ private:   //----------------------------------------------------------------
     /** @brief Assemble pressure boundary conditions in
     Navier-Stokes momentum equation vector
     @param VEC_rhs distributed vector */
-    void assemble_pressure_DirichletBC_in_momentumEquation(
-        LA_Vector *VEC_rhs);
+    void assemble_pressure_DirichletBC_in_momentumEquation(LA_Vector *VEC_rhs);
 
     /** @brief Assemble periodic pressure gradient in Navier-Stokes momentum
     equation vector for dp/dl=1
     @param VEC_rhs distributed vector */
-    void assemble_unitary_periodic_pressure_gradient_rhs(
-        LA_Vector *VEC_rhs);
+    void assemble_unitary_periodic_pressure_gradient_rhs(LA_Vector *VEC_rhs);
 
     /** @brief Assemble periodic pressure gradient in Navier-Stokes momentum
     equation vector */
@@ -165,14 +169,14 @@ private:   //----------------------------------------------------------------
 
     /** @brief Advection-diffusion velocity solver
     @param t_it time iterator */
-    void NavierStokes_AdvectionDiffusion_PredictionStep(
-        FV_TimeIterator const *t_it);
+    void
+    NavierStokes_AdvectionDiffusion_PredictionStep(FV_TimeIterator const *t_it);
 
     /** @brief Solver that projects velocity on a divergence free space by
     solving a pressure Poisson problem, and update velocity and pressure
     @param t_it time iterator */
-    void NavierStokes_VelocityPressure_CorrectionStep(
-        FV_TimeIterator const *t_it);
+    void
+    NavierStokes_VelocityPressure_CorrectionStep(FV_TimeIterator const *t_it);
     //@}
 
     //-- Utilities
@@ -184,8 +188,7 @@ private:   //----------------------------------------------------------------
 
     /** @ brief Update pressure drop in case of periodic imposed flow rate
     @param t_it time iterator */
-    void update_pressure_drop_imposed_flow_rate(
-        FV_TimeIterator const *t_it);
+    void update_pressure_drop_imposed_flow_rate(FV_TimeIterator const *t_it);
 
     /** @brief Periodic flow rate update
     @param t_it time iterator */
@@ -199,11 +202,12 @@ private:   //----------------------------------------------------------------
     @param check_restart check for time consistency at restart */
     void compute_flow_rate(FV_TimeIterator const *t_it, bool check_restart);
 
+    /** @brief Build the field projection-translation interpolations */
     void build_links_translation();
 
     //@}
 
-private: //----------------------------------------------------------------
+  private: //----------------------------------------------------------------
     //-- Class attributes
     static DLMFD_ProjectionNavierStokes const *PROTOTYPE;
 
