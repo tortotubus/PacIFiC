@@ -823,12 +823,6 @@ void DLMFD_FictitiousDomain::DLMFD_solving(FV_TimeIterator const *t_it)
     // Copy back the fluid velocity values to the field
     UU->update_free_DOFs_value(levelDiscrField, GLOBAL_EQ->get_solution_U());
 
-    // Transfer values from the level of computation to additional levels if
-    // needed
-    if (!b_DLMFD_before_projection)
-        for (size_t i = 1; i < nb_levels; i++)
-            UU->copy_DOFs_value(levelDiscrField, i);
-
     if ((my_rank == is_master) && (b_particles_verbose))
     {
         gettimeofday(&total_end, &tz);

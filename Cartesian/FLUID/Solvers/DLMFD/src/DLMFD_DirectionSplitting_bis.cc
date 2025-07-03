@@ -397,6 +397,7 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: do_one_inner_iteration");
+    MAC_CHECK_PRE(do_one_inner_iteration_PRE(t_it));
 
     start_total_timer("DLMFD_DirectionSplitting:: do_one_inner_iteration");
     start_solving_timer();
@@ -428,8 +429,6 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
     if (my_rank == is_master)
         SCT_get_elapsed_time("Pressure Update");
 
-    UF->copy_DOFs_value(0, 1);
-
     if (!b_DLMFD_before_projection)
     {
         // Initialize velocity vector at the matrix level to use in the DLMFD
@@ -442,6 +441,7 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
             SCT_set_start("FluidSolid_CorrectionStep");
 
         dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+        UF->set_neumann_DOF_values();
 
         if (my_rank == is_master)
             SCT_get_elapsed_time("FluidSolid_CorrectionStep");
@@ -627,6 +627,11 @@ void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
     MAC_LABEL(
         "DLMFD_DirectionSplitting_bis:: do_before_inner_iterations_stage");
 
+    start_total_timer(
+        "DLMFD_DirectionSplitting_bis:: do_before_inner_iterations_stage");
+
+    FV_OneStepIteration::do_before_inner_iterations_stage(t_it);
+
     if (my_rank == is_master)
         SCT_set_start("Matrix_RE_Assembly&Initialization");
 
@@ -680,13 +685,11 @@ void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
     if (my_rank == is_master)
         SCT_get_elapsed_time("Matrix_RE_Assembly&Initialization");
 
-    // // Correct periodic pressure drop in case of periodic imposed flow rate
-    // if (UF->primary_grid()->is_periodic_flow_rate())
-    //     predicted_pressure_drop(t_it);
-
     // Correct periodic pressure drop in case of periodic imposed flow rate
     if (UF->primary_grid()->is_periodic_flow_rate())
         periodic_flow_rate_update(t_it);
+
+    stop_total_timer();
 }
 
 //---------------------------------------------------------------------------
@@ -695,6 +698,11 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: do_after_inner_iterations_stage");
+
+    start_total_timer(
+        "DLMFD_DirectionSplitting_bis:: do_after_inner_iterations_stage");
+
+    FV_OneStepIteration::do_after_inner_iterations_stage(t_it);
 
     // // Compute hydrodynamic forces by surface viscous stress
     // if (my_rank == is_master)
@@ -723,7 +731,7 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
             bottom_coordinate, translation_direction);
 
         if (my_rank == is_master)
-            MAC::out() << "         Distance to bottom = "
+            MAC::out() << "    Distance to bottom = "
                        << MAC::doubleToString(ios::scientific, 5,
                                               distance_to_bottom)
                        << endl;
@@ -742,7 +750,7 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
             translated_distance +=
                 MVQ_translation_vector(translation_direction);
             if (my_rank == is_master)
-                MAC::out() << "         Translated distance = "
+                MAC::out() << "    Translated distance = "
                            << translated_distance << endl;
 
             fields_projection();
@@ -763,9 +771,36 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
         }
     }
 
+    // Compute velocity change over the time step
+    double velocity_time_change =
+        compute_DS_velocity_change() / t_it->time_step();
+    if (my_rank == is_master)
+        cout << "    Velocity change = "
+             << MAC::doubleToString(ios::scientific, 5, velocity_time_change)
+             << endl;
+
+    if (my_rank == is_master)
+    {
+        string file_name;
+        string path_name = "Res/";
+        file_name = path_name + "velocity-change_time.res";
+        ofstream vc(file_name.c_str(), ios::app);
+        vc.setf(ios::scientific, ios::floatfield);
+        vc.precision(6);
+        vc << t_it->time();
+        vc << " " << velocity_time_change;
+        vc << endl;
+        vc.close();
+    }
+
+    // Copy back level 0 into level 1
+    UF->copy_DOFs_value(0, 1);
+
     double cfl = UF->compute_CFL(t_it, 0);
     if (my_rank == is_master)
-        MAC::out() << "CFL: " << cfl << endl;
+        MAC::out() << "    CFL = " << cfl << endl;
+
+    stop_total_timer();
 }
 
 //---------------------------------------------------------------------------
@@ -1501,10 +1536,6 @@ void DLMFD_DirectionSplitting_bis::NS_first_step(FV_TimeIterator const *t_it)
 
     sub_prob_number = 1;
 
-    // Compute CFL
-    double computed_CFL = UF->compute_CFL(t_it, 0);
-    size_t n_advection_subtimesteps = unsigned(computed_CFL / imposed_CFL) + 1;
-
     if (my_rank == is_master)
     {
         MAC::out() << "------------------------------------------------------"
@@ -1512,10 +1543,6 @@ void DLMFD_DirectionSplitting_bis::NS_first_step(FV_TimeIterator const *t_it)
         MAC::out() << "Sub-problem " << sub_prob_number << " : NS_first_step"
                    << endl;
         MAC::out() << "------------------------------------------------------"
-                   << endl;
-        MAC::out() << "CFL : imposed = " << imposed_CFL
-                   << " computed = " << computed_CFL
-                   << "  Nb of sub time steps = " << n_advection_subtimesteps
                    << endl;
     }
 
@@ -3530,10 +3557,14 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(
     size_t_vector min_unknown_index(3, 0);
     size_t_vector max_unknown_index(3, 0);
 
-    doubleArray2D *CC_vol = 0;
+    // doubleArray2D* CC_vol = (is_solids) ?
+    // 						allrigidbodies->get_CC_cell_volume(UF)
+    // : 0;
     vector<doubleVector *> advection = GLOBAL_EQ->get_velocity_advection();
     vector<doubleVector *> vel_diffusion = GLOBAL_EQ->get_velocity_diffusion();
-    size_t_array2D *void_frac = 0;
+    // size_t_array2D* void_frac = (is_solids) ?
+    // 						allrigidbodies->get_void_fraction_on_grid(UF)
+    // : 0;
 
     for (size_t comp = 0; comp < nb_comps[1]; comp++)
     {
@@ -3825,6 +3856,7 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
         SCT_set_start("Velocity update : RHS solving");
 
     assemble_DS_un_at_rhs(t_it, gamma);
+    UF->set_neumann_DOF_values();
 
     if (my_rank == is_master)
         SCT_get_elapsed_time("Velocity update : RHS solving");
@@ -3846,6 +3878,7 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
             SCT_set_start("FluidSolid_CorrectionStep");
 
         dlmfd_solver->do_one_inner_iteration(t_it, sub_prob_number);
+        UF->set_neumann_DOF_values();
 
         if (my_rank == is_master)
             SCT_get_elapsed_time("FluidSolid_CorrectionStep");
@@ -3853,7 +3886,6 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
 
     // Update gamma based for invidual direction
     gamma = mu / 2.0;
-    UF->set_neumann_DOF_values();
 
     if (my_rank == is_master)
     {
@@ -3897,18 +3929,6 @@ void DLMFD_DirectionSplitting_bis::NS_velocity_update(
     if (my_rank == is_master)
         SCT_get_elapsed_time("Velocity update : Projection solving");
     ++sub_prob_number;
-
-    // // Correct periodic pressure drop in case of periodic imposed flow rate
-    // if (UF->primary_grid()->is_periodic_flow_rate())
-    //     periodic_flow_rate_update(t_it);
-
-    // Compute velocity change over the time step
-    double velocity_time_change =
-        compute_DS_velocity_change() / t_it->time_step();
-    if (my_rank == is_master)
-        cout << "Velocity change = "
-             << MAC::doubleToString(ios::scientific, 5, velocity_time_change)
-             << endl;
 
     compute_velocity_divergence(PF);
 
@@ -4894,10 +4914,12 @@ void DLMFD_DirectionSplitting_bis::NS_final_step(FV_TimeIterator const *t_it)
 
     doubleArray2D *divergencePF = GLOBAL_EQ->get_node_divergence(0);
     doubleArray2D *divergenceUF = GLOBAL_EQ->get_node_divergence(1);
-    doubleArray2D *CC_volPF = 0;
-    doubleArray2D *CC_volUF = 0;
-    size_t_array2D *void_fracPF = 0;
-    size_t_array2D *void_fracUF = 0;
+    // doubleArray2D* CC_volPF = (is_solids) ?
+    // allrigidbodies->get_CC_cell_volume(PF) : 0; doubleArray2D* CC_volUF =
+    // (is_solids) ? allrigidbodies->get_CC_cell_volume(UF) : 0; size_t_array2D*
+    // void_fracPF = (is_solids) ? allrigidbodies->get_void_fraction_on_grid(PF)
+    // : 0; size_t_array2D* void_fracUF = (is_solids) ?
+    // allrigidbodies->get_void_fraction_on_grid(UF) : 0;
 
     for (size_t l = 0; l < dim; ++l)
     {
@@ -4967,7 +4989,11 @@ void DLMFD_DirectionSplitting_bis::NS_final_step(FV_TimeIterator const *t_it)
     PF->set_neumann_DOF_values();
 
     if (my_rank == is_master)
+    {
         MAC::out() << "Navier-Stokes final step completed" << endl;
+        if (b_DLMFD_before_projection)
+            cout << endl;
+    }
     ++sub_prob_number;
 }
 
@@ -5109,7 +5135,8 @@ void DLMFD_DirectionSplitting_bis::output_L2norm_divergence()
     div_velocity = MAC::sqrt(div_velocity);
     max_divu = macCOMM->max(max_divu);
     if (my_rank == is_master)
-        MAC::out() << "Norm L2 div(u) = "
+        MAC::out() << endl
+                   << "    Norm L2 div(u) = "
                    << MAC::doubleToString(ios::scientific, 12, div_velocity)
                    << " Max div(u) = "
                    << MAC::doubleToString(ios::scientific, 12, max_divu)
@@ -5141,8 +5168,8 @@ void DLMFD_DirectionSplitting_bis::compute_flow_rate(
                 PAC_Misc::compute_flow_rate(UF, 0, compute_flow_rate_on);
             if (my_rank == is_master)
             {
-                MAC::out() << "         Flow rate through "
-                           << compute_flow_rate_on << " boundary = "
+                MAC::out() << "    Flow rate through " << compute_flow_rate_on
+                           << " boundary = "
                            << MAC::doubleToString(ios::scientific, 6, flow_rate)
                            << endl;
                 string filename = resultsDirectory + "/" + "flowrate_" +
@@ -5713,11 +5740,6 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
     // UF->translation_projection(4, 5, 1);
     UF->synchronize(4);
 
-    // GLOBAL_EQ->initialize_DS_velocity();
-
-    // // Synchronize velocity field at grid and matrix levels
-    // synchronize_velocity_field(0);
-
     // Pressure Translation-Projection
     PF->translation_projection(0, 2, 0);
     PF->synchronize(0);
@@ -5727,6 +5749,10 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
 
     if (b_ExplicitDLMFD)
     {
+        string error_message = "Translation-Projection + Explicit DLMFD ";
+        error_message += "is not ready yet !! Please deactivate DLMFD Explicit";
+        MAC_Error::object()->raise_plain(error_message);
+
         // Copy the current grid velocity field in the velocity matrix
         GLOBAL_EQ->initialize_DS_velocity();
         GLOBAL_EQ->synchronize_velocity_unknown_vector();
