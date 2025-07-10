@@ -1,12 +1,12 @@
-# Welcome to Pacific!
+# Welcome to PacIFiC!
 
-Pacific is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. Pacific stands for "PArtiCle In FluId Computations".
+PacIFiC is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. PacIFiC stands for "PArtiCle In FluId Computations".
 
 ```mermaid
 graph TD;
-  Pacific-->Octree;
-  Pacific-->Cartesian;
-  Pacific-->GRAINS3D;
+  pacific-->Octree;
+  pacific-->Cartesian;
+  pacific-->GRAINS3D;
   Octree-.->basilisk;
   Octree-->FDM1[DLMFD];
   Octree-->LBM;
