@@ -2,6 +2,7 @@
 using std::endl;
 
 
+
 vector<string> FS_RigidBody::GEOMETRICSHAPE_name = { "Sphere", "2D cylinder",
 	"3D cylinder", "General polygon", "General polyhedron", "Square",
 	"3D Box", "Equilateral triangle", "Regular tetrahedron" };
@@ -330,6 +331,26 @@ std::tuple<double,double,double> FS_RigidBody:: get_mass_and_density_and_moi() c
 
 }
 
+//---------------------------------------------------------------------------
+vector<vector<double>> FS_RigidBody:: get_inertia() const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "FS_RigidBody:: get_inertia()" ) ;
+
+  vector<vector<double>> transition_array;
+  vector<double> tmp(3, 0.);
+  transition_array.reserve(3);
+  for (size_t i = 0; i < 3; ++i)
+  	transition_array.push_back(tmp); 
+  
+  for (size_t i = 0; i < 3; ++i)
+    for (size_t j = 0; j < 3; ++j)
+      transition_array[i][j] = m_inertia[i][j];
+
+  return ( transition_array );
+
+}
+
 
 
 
@@ -399,7 +420,7 @@ void FS_RigidBody:: update_RB_position_and_velocity(geomVector const& pos,
 
 
 //---------------------------------------------------------------------------
-vector<geomVector> const* FS_RigidBody:: get_ptr_to_periodic_directions() const
+vector<geomVector> * FS_RigidBody:: get_ptr_to_periodic_directions() const
 //---------------------------------------------------------------------------
 {
   MAC_LABEL( "FS_RigidBody:: get_ptr_to_periodic_directions" ) ;
@@ -431,6 +452,19 @@ geomVector FS_RigidBody:: rigid_body_angular_velocity( ) const
   MAC_LABEL( "FS_RigidBody:: rigid_body_angular_velocity" ) ;
 
   return (m_angular_velocity);
+
+}
+
+
+
+
+//---------------------------------------------------------------------------
+geomVector FS_RigidBody:: rigid_body_translational_velocity( ) const
+//---------------------------------------------------------------------------
+{
+  MAC_LABEL( "FS_RigidBody:: rigid_body_translational_velocity" ) ;
+
+  return (m_translational_velocity);
 
 }
 

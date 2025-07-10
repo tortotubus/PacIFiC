@@ -512,6 +512,19 @@ class FV_DiscreteField : public MAC_Object
       	std::ostream& os, size_t indent_width ) ;
 
 
+      //-- DLMFD constrained DOFs
+
+      void allocate_DLMFDconstrainedDOFs( void );
+
+      int DOF_is_constrained( size_t i, size_t j, size_t k,
+      	size_t component ) const;
+      
+      void set_DOF_constrained( size_t i, size_t j, size_t k,
+            size_t component, bool b_has_extended_constrained = 0 );
+
+      void initialize_DLMFDconstrainedDOFs( void );
+
+
    //-- Utilities
 
       virtual double compute_boundary_cell_centered_DOF_integral(
@@ -678,6 +691,7 @@ class FV_DiscreteField : public MAC_Object
 
       vector< intArray3D >* DOFcolors;
       vector< intArray3D >* DOFstatus;
+      vector< intArray3D >* DLMFDconstrainedDOFs; 
 
       boolVector* PERIODIC;
       vector< FV_SHIFT_TRIPLET >* PERIODIC_SHIFT;

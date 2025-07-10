@@ -1,0 +1,72 @@
+#include <DLMFD_3Dbox.hh>
+#include <DLMFD_3Dcylinder.hh>
+#include <DLMFD_GeneralPolyhedron.hh>
+#include <DLMFD_RigidBody.hh>
+#include <DLMFD_RigidBody_BuilderFactory.hh>
+#include <DLMFD_Sphere.hh>
+#include <FS_RigidBody.hh>
+#include <MAC.hh>
+using namespace std;
+
+//---------------------------------------------------------------------------
+DLMFD_RigidBody *DLMFD_RigidBody_BuilderFactory::create(
+    FS_RigidBody *ptr_geom_rb, const bool &are_particles_fixed,
+    FV_DiscreteField *pField_, double const critical_distance_)
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL("DLMFD_RigidBody_BuilderFactory:: create");
+
+    DLMFD_RigidBody *ptr_dlmfd_rb = NULL;
+
+    switch (ptr_geom_rb->get_shape_type())
+    {
+    case GEOM_SPHERE:
+        ptr_dlmfd_rb = new DLMFD_Sphere(ptr_geom_rb, are_particles_fixed,
+                                        pField_, critical_distance_);
+        break;
+
+    case GEOM_3DBOX:
+        ptr_dlmfd_rb = new DLMFD_3Dbox(ptr_geom_rb, are_particles_fixed,
+                                       pField_, critical_distance_);
+        break;
+
+    case GEOM_3DCYLINDER:
+        ptr_dlmfd_rb = new DLMFD_3Dcylinder(ptr_geom_rb, are_particles_fixed,
+                                            pField_, critical_distance_);
+        break;
+
+    case GEOM_GENERAL_POLYHEDRON:
+        ptr_dlmfd_rb = new DLMFD_GeneralPolyhedron(
+            ptr_geom_rb, are_particles_fixed, pField_, critical_distance_);
+        break;
+
+    default:
+        MAC::out() << "Unknown geometric shape in "
+                      "DLMFD_RigidBody_BuilderFactory::create"
+                   << endl;
+    }
+
+    return (ptr_dlmfd_rb);
+}
+
+
+
+
+//---------------------------------------------------------------------------
+DLMFD_RigidBody_BuilderFactory::DLMFD_RigidBody_BuilderFactory()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL(
+        "DLMFD_RigidBody_BuilderFactory:: DLMFD_RigidBody_BuilderFactory");
+}
+
+
+
+
+//---------------------------------------------------------------------------
+DLMFD_RigidBody_BuilderFactory::~DLMFD_RigidBody_BuilderFactory()
+//---------------------------------------------------------------------------
+{
+    MAC_LABEL(
+        "DLMFD_RigidBody_BuilderFactory:: ~DLMFD_RigidBody_BuilderFactory");
+}
