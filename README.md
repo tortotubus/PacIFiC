@@ -1,23 +1,31 @@
 # Welcome to Pacific!
 
-Pacific is a high-performance c/c++ software to simulate multiscale behavior of particle-laden flows. It is composed of Grains3D - a Descrete Element Method  (DEM) solver - as well as a Cartesian CFD solver. It is also linked to the octree-adaptative grid CFD solver Basilisk, for which we provide additional features.
+Pacific is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. Pacific stands for "PArtiCle In FluId Computations".
 
 ```mermaid
 graph TD;
   Pacific-->Octree;
   Pacific-->Cartesian;
-  Pacific-->GRAINS;
+  Pacific-->GRAINS3D;
   Octree-.->basilisk;
-  Octree-->DLMFD;
+  Octree-->FDM1[DLMFD];
+  Octree-->LBM;
+  Octree-->MovingCutCell;
+  Octree-->VTKHyperTree;
+  Octree-->eulerian_caps;
+  Octree-->lagrangian_caps
   Cartesian-->FLUID;
+  FLUID-->FDM2[DLMFD];
+  FLUID-->DirectionSplitting;
   Cartesian-->MacWorld;
   MacWorld-->MAC;
   MacWorld-.->HYPRE;
   MacWorld-.->PETSc;
 ```
 
+Documentation will come soon.
 
-
+<!--
 ## I. Installation
 There are few steps that need to be done before you can enjoy a functional installation of Pacific. First, check the installation of OpenMPI, GCC, GFORTAN, libfortran, libblas, libaltas, liblapack and libm before providing the correct path in environment file. It's important to install libfortran before building OpenMPI.
 Some ARC systems may require special commands for the environemnt variables. Please refer to Wiki page to check few examples for setting-up a environment variables. Now follow the guide once completing the preliminary steps !!!
@@ -115,3 +123,4 @@ To be completed soon.
  `for i in {1..N}; do screen -S simu$i -d -m; screen -r simu$i -X stuff " cd folder$i \n source [path to pacific environment file] \n grains_mpi 3 Grains/Init/insert.xml \n grains_mpi 3 Grains/Simu/simul.xml \n "; sleep 30.; done`
   where in this example, the code Grains3D is used in MPI on 3 cores twice in a row - using the `insert.xml` input file first, then the `simul.xml` input file. The `sleep` command is not necessary, but in case your simulations use a clock-generated seed for randomness (as it is the case with Grains3D in the "Aleatoire total" particle insertion mode), it ensures the same seed won't be used twice and you won't end up with N times the same simulation.
   Good practice is to be more descriptive than this example for the name of your screen session and simulation folders, for instance "dam_break_aspect_ratio_$i" instead of "simu$i" and "folder$i".
+-->
