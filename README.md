@@ -8,7 +8,7 @@ PacIFiC is open-sourced under the MIT license, and is developed by the research 
 graph TD;
   pacific-->Octree;
   pacific-->Cartesian;
-  pacific-->GRAINS3D;
+  pacific-->Grains3D;
   Octree-.->basilisk;
   Octree-->FDM1[DLMFD];
   Octree-->LBM;
