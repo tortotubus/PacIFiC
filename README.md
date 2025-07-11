@@ -2,6 +2,8 @@
 
 PacIFiC is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. PacIFiC stands for "PArtiCle In FluId Computations".
 
+PacIFiC is open-sourced under the [MIT license](https://gitlab.math.ubc.ca/pacific-devel-team/pacific/-/blob/7e0f1f99b67e19bbf5d24b87cb59c85b1d7a66cd/LICENSE).
+
 ```mermaid
 graph TD;
   pacific-->Octree;
