@@ -1,5 +1,5 @@
 // LEVEL macro is undefined in MAC_assertions.hh
-int const a_compilation_level = LEVEL ;
+int const a_compilation_level = 2 ;
 
 #include <MAC.hh>
 #include <MAC_Exec.hh>
@@ -157,7 +157,7 @@ MAC_Exec:: create_module_with_data( MAC_Object* a_owner,
 
          if( args.size()!=0 && args(0)=="-MAC_Application" )
          {
-//             // la structure de modules est écrite en ligne....
+//             // la structure de modules est ï¿½crite en ligne....
 //             MAC_ASSERT( args.size() > 1 ) ;
 //             args.remove_at(0) ;
 //             std::string api = args(0) ;

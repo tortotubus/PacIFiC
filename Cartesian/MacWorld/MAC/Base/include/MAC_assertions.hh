@@ -130,13 +130,13 @@ class MAC_Marker
    }
 
 #if !defined(LEVEL) || LEVEL<0 || LEVEL>2
-error
-Macro LEVEL must be set when compiling Pelicans (opt: -DLEVEL=<value>).
-LEVEL value meaning is :
-0 : no assertion checking
-1 : only preconditions will be checked (recommended).
-2 : preconditions, postconditions, invariant and simple checks will be tested
-    depending on dynamic level.
+// error
+// Macro LEVEL must be set when compiling Pelicans (opt: -DLEVEL=<value>).
+// LEVEL value meaning is :
+// 0 : no assertion checking
+// 1 : only preconditions will be checked (recommended).
+// 2 : preconditions, postconditions, invariant and simple checks will be tested
+//     depending on dynamic level.
 #endif
 
 //----------------------------------------------------------------------
