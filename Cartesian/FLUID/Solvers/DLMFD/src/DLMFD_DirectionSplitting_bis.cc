@@ -39,6 +39,9 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis()
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: DLMFD_DirectionSplitting_bis");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_DirectionSplitting_bis *
 DLMFD_DirectionSplitting_bis::create_replica(MAC_Object *a_owner,
@@ -55,6 +58,9 @@ DLMFD_DirectionSplitting_bis::create_replica(MAC_Object *a_owner,
     MAC_CHECK(create_replica_POST(result, a_owner, dom, exp));
     return (result);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
@@ -382,6 +388,9 @@ DLMFD_DirectionSplitting_bis::DLMFD_DirectionSplitting_bis(
     b_DLMFD_before_projection = dlmfd_solver->get_DLMFD_before_projection();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 DLMFD_DirectionSplitting_bis::~DLMFD_DirectionSplitting_bis(void)
 //---------------------------------------------------------------------------
@@ -390,6 +399,9 @@ DLMFD_DirectionSplitting_bis::~DLMFD_DirectionSplitting_bis(void)
 
     free_DS_subcommunicators();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
@@ -450,6 +462,9 @@ void DLMFD_DirectionSplitting_bis::do_one_inner_iteration(
     stop_solving_timer();
     stop_total_timer();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_before_time_stepping(
@@ -586,6 +601,9 @@ void DLMFD_DirectionSplitting_bis::do_before_time_stepping(
         SCT_get_elapsed_time("Matrix_Assembly&Initialization");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_after_time_stepping(void)
 //---------------------------------------------------------------------------
@@ -618,6 +636,9 @@ void DLMFD_DirectionSplitting_bis::do_after_time_stepping(void)
 
     deallocate_mpi_variables();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
@@ -691,6 +712,9 @@ void DLMFD_DirectionSplitting_bis::do_before_inner_iterations_stage(
 
     stop_total_timer();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
@@ -803,6 +827,9 @@ void DLMFD_DirectionSplitting_bis::do_after_inner_iterations_stage(
     stop_total_timer();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::do_additional_savings(
     FV_TimeIterator const *t_it, int const &cycleNumber)
@@ -826,6 +853,9 @@ void DLMFD_DirectionSplitting_bis::do_additional_savings(
     GLOBAL_EQ->display_debug();
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::add_storable_objects(MAC_ListIdentity *list)
 //---------------------------------------------------------------------------
@@ -834,6 +864,9 @@ void DLMFD_DirectionSplitting_bis::add_storable_objects(MAC_ListIdentity *list)
 
     GLOBAL_EQ->add_storable_objects(list);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::ugradu_initialization()
@@ -844,6 +877,9 @@ void DLMFD_DirectionSplitting_bis::ugradu_initialization()
     for (size_t comp = 0; comp < nb_comps[1]; comp++)
         UF->set_DOFs_value(comp, 2, 0.);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::calculate_row_indexes(
@@ -923,6 +959,9 @@ void DLMFD_DirectionSplitting_bis::calculate_row_indexes(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_field_matrix(
@@ -1245,6 +1284,9 @@ void DLMFD_DirectionSplitting_bis::assemble_field_matrix(
     // 	SCT_get_elapsed_time("Stencil");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_field_schur_matrix(
     FV_DiscreteField const *FF)
@@ -1515,6 +1557,9 @@ void DLMFD_DirectionSplitting_bis::assemble_field_schur_matrix(
     // 	SCT_get_elapsed_time("Schur");
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_1D_matrices(
     FV_DiscreteField const *FF, FV_TimeIterator const *t_it)
@@ -1527,6 +1572,9 @@ void DLMFD_DirectionSplitting_bis::assemble_1D_matrices(
     // Calculate and assemble Schur complement
     assemble_field_schur_matrix(FF);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::NS_first_step(FV_TimeIterator const *t_it)
@@ -1589,6 +1637,9 @@ void DLMFD_DirectionSplitting_bis::NS_first_step(FV_TimeIterator const *t_it)
 
     ++sub_prob_number;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_velocity_diffusion_terms()
@@ -1704,6 +1755,9 @@ void DLMFD_DirectionSplitting_bis::assemble_velocity_diffusion_terms()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::compute_un_component(
     size_t const &comp, size_t const &i, size_t const &j, size_t const &k,
@@ -1725,6 +1779,9 @@ double DLMFD_DirectionSplitting_bis::compute_un_component(
 
     return (value);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 std::tuple<double, double>
@@ -2064,6 +2121,9 @@ DLMFD_DirectionSplitting_bis::compute_first_derivative(
 
     return (std::make_tuple(value, dC));
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::compute_un_component_FD(
@@ -2634,6 +2694,9 @@ double DLMFD_DirectionSplitting_bis::velocity_local_rhs(
     return fe;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::unpack_compute_ue_pack(size_t const &comp,
                                                           size_t const &dir,
@@ -2725,6 +2788,9 @@ void DLMFD_DirectionSplitting_bis::unpack_compute_ue_pack(size_t const &comp,
     }
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::DS_interface_unknown_solver(
     LA_SeqVector *interface_rhs, size_t const &comp, size_t const &dir,
@@ -2788,6 +2854,9 @@ void DLMFD_DirectionSplitting_bis::DS_interface_unknown_solver(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::unpack_ue(size_t const &comp,
                                              double *received_data,
@@ -2822,6 +2891,9 @@ void DLMFD_DirectionSplitting_bis::unpack_ue(size_t const &comp,
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::solve_interface_unknowns(
@@ -2956,6 +3028,9 @@ void DLMFD_DirectionSplitting_bis::solve_interface_unknowns(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::compute_p_component(size_t const &comp,
                                                          size_t const &i,
@@ -3012,6 +3087,9 @@ double DLMFD_DirectionSplitting_bis::compute_p_component(size_t const &comp,
 
     return (value);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::compute_adv_component(
@@ -3081,6 +3159,9 @@ double DLMFD_DirectionSplitting_bis::compute_adv_component(
 
     return (value);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::divergence_of_U_noCorrection(
@@ -3300,6 +3381,9 @@ double DLMFD_DirectionSplitting_bis::divergence_of_U_noCorrection(
     return (flux);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::get_current_mean_flow_speed()
 //---------------------------------------------------------------------------
@@ -3345,6 +3429,9 @@ double DLMFD_DirectionSplitting_bis::get_current_mean_flow_speed()
 
     return (value / volume);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
@@ -3495,6 +3582,9 @@ void DLMFD_DirectionSplitting_bis::predicted_pressure_drop(
     // const_cast<FV_Mesh *>(UF->primary_grid())
     //     ->set_periodic_pressure_drop(pressure_drop);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(
@@ -3657,6 +3747,9 @@ void DLMFD_DirectionSplitting_bis::assemble_DS_un_at_rhs(
         MAC::out() << "Navier-Stokes velocity update RHS completed" << endl;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::Solve_i_in_jk(
     FV_DiscreteField *FF, FV_TimeIterator const *t_it, size_t const &dir_i,
@@ -3735,6 +3828,9 @@ void DLMFD_DirectionSplitting_bis::Solve_i_in_jk(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::data_packing(FV_DiscreteField const *FF,
                                                 size_t const &p,
@@ -3783,6 +3879,9 @@ void DLMFD_DirectionSplitting_bis::data_packing(FV_DiscreteField const *FF,
     packed_data[3 * p + 2] = fe;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::compute_Aei_ui(struct TDMatrix *arr,
                                                   struct LocalVector *VEC,
@@ -3813,6 +3912,9 @@ void DLMFD_DirectionSplitting_bis::compute_Aei_ui(struct TDMatrix *arr,
         VEC[dir].local_solution_T[comp], VEC[dir].T[comp]);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::assemble_local_rhs(
     size_t const &j, size_t const &k, double const &gamma,
@@ -3832,6 +3934,9 @@ double DLMFD_DirectionSplitting_bis::assemble_local_rhs(
     }
     return (fe);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::NS_velocity_update(
@@ -4163,6 +4268,9 @@ double DLMFD_DirectionSplitting_bis::assemble_velocity_gradients(
     return (beta);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::calculate_velocity_divergence_FD(
     size_t const &i, size_t const &j, size_t const &k, size_t const &level)
@@ -4178,6 +4286,9 @@ double DLMFD_DirectionSplitting_bis::calculate_velocity_divergence_FD(
 
     return (value);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::assemble_velocity_advection_terms(
@@ -4300,6 +4411,9 @@ void DLMFD_DirectionSplitting_bis::assemble_velocity_advection_terms(
         // }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::compute_velocity_divergence(
@@ -4507,6 +4621,9 @@ void DLMFD_DirectionSplitting_bis::compute_velocity_divergence(
         }
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::pressure_local_rhs(
@@ -4842,6 +4959,9 @@ void DLMFD_DirectionSplitting_bis::correct_mean_pressure(size_t const &level)
     PF->synchronize(level);
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::NS_pressure_update(
     FV_TimeIterator const *t_it)
@@ -4892,6 +5012,9 @@ void DLMFD_DirectionSplitting_bis::NS_pressure_update(
         MAC::out() << "Navier-Stokes pressure update completed" << endl;
     ++sub_prob_number;
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::NS_final_step(FV_TimeIterator const *t_it)
@@ -4997,6 +5120,9 @@ void DLMFD_DirectionSplitting_bis::NS_final_step(FV_TimeIterator const *t_it)
     ++sub_prob_number;
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::write_output_field(
     FV_DiscreteField const *FF)
@@ -5086,6 +5212,9 @@ void DLMFD_DirectionSplitting_bis::write_output_field(
     outputFile.close();
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::output_L2norm_divergence()
 //----------------------------------------------------------------------
@@ -5151,6 +5280,9 @@ void DLMFD_DirectionSplitting_bis::output_L2norm_divergence()
     // }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::compute_flow_rate(
     FV_TimeIterator const *t_it, bool check_restart)
@@ -5193,6 +5325,9 @@ void DLMFD_DirectionSplitting_bis::compute_flow_rate(
             flow_rate_counter = 0;
     }
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::periodic_flow_rate_update(
@@ -5242,6 +5377,9 @@ void DLMFD_DirectionSplitting_bis::periodic_flow_rate_update(
     UF->add_to_DOFs_value(periodic_flow_direction, 0, ppd * per_vel);
     // GLOBAL_EQ->initialize_DS_velocity();
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::output_L2norm_pressure(size_t const &level)
@@ -5299,6 +5437,9 @@ void DLMFD_DirectionSplitting_bis::output_L2norm_pressure(size_t const &level)
                    << MAC::doubleToString(ios::scientific, 12, max_P) << endl;
 }
 
+
+
+
 //----------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::compute_DS_velocity_change(void)
 //----------------------------------------------------------------------
@@ -5342,6 +5483,9 @@ double DLMFD_DirectionSplitting_bis::compute_DS_velocity_change(void)
 
     return (MAC::sqrt(sum_sq_dU / sum_sq_U));
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::output_L2norm_velocity(size_t const &level)
@@ -5406,6 +5550,9 @@ void DLMFD_DirectionSplitting_bis::output_L2norm_velocity(size_t const &level)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::create_DS_subcommunicators(void)
 //---------------------------------------------------------------------------
@@ -5459,6 +5606,9 @@ void DLMFD_DirectionSplitting_bis::create_DS_subcommunicators(void)
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::processor_splitting(int const &color,
                                                        int const &key,
@@ -5471,6 +5621,9 @@ void DLMFD_DirectionSplitting_bis::processor_splitting(int const &color,
     MPI_Comm_size(DS_Comm_i[dir], &nb_ranks_comm_i[dir]);
     MPI_Comm_rank(DS_Comm_i[dir], &rank_in_i[dir]);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::allocate_mpi_variables(
@@ -5579,6 +5732,9 @@ void DLMFD_DirectionSplitting_bis::allocate_mpi_variables(
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::deallocate_mpi_variables()
 //---------------------------------------------------------------------------
@@ -5619,12 +5775,18 @@ void DLMFD_DirectionSplitting_bis::deallocate_mpi_variables()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::free_DS_subcommunicators(void)
 //---------------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_DirectionSplitting_bis:: free_DS_subcommunicators");
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::set_translation_vector()
@@ -5637,6 +5799,9 @@ void DLMFD_DirectionSplitting_bis::set_translation_vector()
     MVQ_translation_vector(translation_direction) =
         primary_grid->get_translation_magnitude();
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::build_links_translation()
@@ -5679,6 +5844,9 @@ void DLMFD_DirectionSplitting_bis::build_links_translation()
         int(FV_DomainBuilder::get_color_number(outOfDomain_boundaryName));
 }
 
+
+
+
 //---------------------------------------------------------------------------
 doubleVector
 DLMFD_DirectionSplitting_bis::compute_outOfDomain_Pressure(size_t const &level)
@@ -5712,6 +5880,9 @@ DLMFD_DirectionSplitting_bis::compute_outOfDomain_Pressure(size_t const &level)
 
     return (Pref);
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::fields_projection()
@@ -5771,6 +5942,9 @@ void DLMFD_DirectionSplitting_bis::fields_projection()
     }
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::synchronize_velocity_field(size_t level)
 //---------------------------------------------------------------------------
@@ -5814,6 +5988,9 @@ void DLMFD_DirectionSplitting_bis::synchronize_velocity_field(size_t level)
     GLOBAL_EQ->synchronize_velocity_unknown_vector();
     UF->update_free_DOFs_value(level, GLOBAL_EQ->get_solution_U());
 }
+
+
+
 
 //---------------------------------------------------------------------------
 void DLMFD_DirectionSplitting_bis::synchronize_DLMFD_Nm1_rhs(size_t level)
@@ -5859,6 +6036,9 @@ void DLMFD_DirectionSplitting_bis::synchronize_DLMFD_Nm1_rhs(size_t level)
     // Transfer back values from the global vector to the field
     GLOBAL_EQ->synchronize_rhs_DLMFD_Nm1_vector();
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::assemble_advection_Centered(
@@ -6125,6 +6305,9 @@ double DLMFD_DirectionSplitting_bis::assemble_advection_Centered(
     }
     return (coef * flux);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::assemble_advection_Centered_FD(
@@ -6898,6 +7081,9 @@ double DLMFD_DirectionSplitting_bis::assemble_advection_Upwind(
     }
     return (coef * flux);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_DirectionSplitting_bis::assemble_advection_TVD(

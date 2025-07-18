@@ -24,6 +24,9 @@ DLMFD_System::DLMFD_System(MAC_Object *a_owner, MAC_ModuleExplorer const *exp,
         Uzawa_DLMFD_maxiter = exp->int_data("Uzawa_DLMFD_maxiter");
 }
 
+
+
+
 //----------------------------------------------------------------------
 DLMFD_System::DLMFD_System()
 //----------------------------------------------------------------------
@@ -31,12 +34,18 @@ DLMFD_System::DLMFD_System()
     MAC_LABEL("DLMFD_System:: DLMFD_System");
 }
 
+
+
+
 //----------------------------------------------------------------------
 DLMFD_System::~DLMFD_System()
 //----------------------------------------------------------------------
 {
     MAC_LABEL("DLMFD_System:: DLMFD_System");
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::at_each_time_step(void)
@@ -49,6 +58,9 @@ void DLMFD_System::at_each_time_step(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 double DLMFD_System::compute_velocity_change(void)
 //----------------------------------------------------------------------
@@ -59,6 +71,9 @@ double DLMFD_System::compute_velocity_change(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_System::compute_velocity_divergence_norm(void)
@@ -71,6 +86,9 @@ double DLMFD_System::compute_velocity_divergence_norm(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::nullify_velocity_advection_rhs(void)
 //----------------------------------------------------------------------
@@ -81,6 +99,9 @@ void DLMFD_System::nullify_velocity_advection_rhs(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_System::get_solution_velocity(void) const
@@ -93,6 +114,9 @@ LA_SeqVector const *DLMFD_System::get_solution_velocity(void) const
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_System::get_solution_pressure(void) const
 //----------------------------------------------------------------------
@@ -103,6 +127,9 @@ LA_SeqVector const *DLMFD_System::get_solution_pressure(void) const
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::initialize_velocity(void)
@@ -115,6 +142,9 @@ void DLMFD_System::initialize_velocity(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::initialize_pressure(void)
 //----------------------------------------------------------------------
@@ -126,6 +156,9 @@ void DLMFD_System::initialize_pressure(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::finalize_constant_matrices(void)
 //----------------------------------------------------------------------
@@ -136,6 +169,9 @@ void DLMFD_System::finalize_constant_matrices(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::compute_velocityAdvectionDiffusion_rhs(
@@ -152,6 +188,9 @@ void DLMFD_System::compute_velocityAdvectionDiffusion_rhs(
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_velocity_viscous_matrix_rhs(double const &coef_lap)
 //----------------------------------------------------------------------
@@ -164,6 +203,9 @@ void DLMFD_System::assemble_velocity_viscous_matrix_rhs(double const &coef_lap)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_velocity_unsteady_matrix(double const &coef)
 //----------------------------------------------------------------------
@@ -175,6 +217,9 @@ void DLMFD_System::assemble_velocity_unsteady_matrix(double const &coef)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_pdivv_matrix_rhs(double const &coef)
 //----------------------------------------------------------------------
@@ -185,6 +230,9 @@ void DLMFD_System::assemble_pdivv_matrix_rhs(double const &coef)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_velocity_advection(string const &AdvectionScheme,
@@ -200,6 +248,9 @@ void DLMFD_System::assemble_velocity_advection(string const &AdvectionScheme,
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_pressure_laplacian_matrix_rhs(
     double const &coef_lap)
@@ -213,6 +264,9 @@ void DLMFD_System::assemble_pressure_laplacian_matrix_rhs(
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::pressure_laplacian_correction(void)
 //----------------------------------------------------------------------
@@ -224,6 +278,9 @@ void DLMFD_System::pressure_laplacian_correction(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal,
                                                      size_t index, double coef)
@@ -231,6 +288,9 @@ void DLMFD_System::assemble_inExplicit_DLMFD_Cvector(double transferVal,
 {
     MAC_LABEL("DLMFD_System::assemble_inExplicit_DLMFDvector");
 }
+
+
+
 
 //----------------------------------------------------------------------
 bool DLMFD_System::VelocityDiffusion_solver(void)
@@ -242,6 +302,9 @@ bool DLMFD_System::VelocityDiffusion_solver(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 double DLMFD_System::VelocityPressure_correction_solver(double const &density,
@@ -256,6 +319,9 @@ double DLMFD_System::VelocityPressure_correction_solver(double const &density,
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_Vector *DLMFD_System::get_pressure_DirichletBC_vector(void)
 //----------------------------------------------------------------------
@@ -266,6 +332,9 @@ LA_Vector *DLMFD_System::get_pressure_DirichletBC_vector(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 LA_Vector *DLMFD_System::get_unitary_periodic_pressure_drop_vector(void)
@@ -280,6 +349,9 @@ LA_Vector *DLMFD_System::get_unitary_periodic_pressure_drop_vector(void)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::set_velocity_unknown(size_t i_row, double xx)
 //----------------------------------------------------------------------
@@ -290,6 +362,9 @@ void DLMFD_System::set_velocity_unknown(size_t i_row, double xx)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::set_pressure_unknown(size_t i_row, double xx)
@@ -302,6 +377,9 @@ void DLMFD_System::set_pressure_unknown(size_t i_row, double xx)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::synchronize_velocity_unknown_vector()
 //----------------------------------------------------------------------
@@ -312,6 +390,9 @@ void DLMFD_System::synchronize_velocity_unknown_vector()
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::synchronize_pressure_unknown_vector()
@@ -324,6 +405,9 @@ void DLMFD_System::synchronize_pressure_unknown_vector()
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::nullify_DLMFD_Nm1_rhs()
 //----------------------------------------------------------------------
@@ -334,6 +418,9 @@ void DLMFD_System::nullify_DLMFD_Nm1_rhs()
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::set_rhs_DLMFD_Nm1(size_t i_row, double xx)
@@ -346,6 +433,9 @@ void DLMFD_System::set_rhs_DLMFD_Nm1(size_t i_row, double xx)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 LA_SeqVector const *DLMFD_System::get_rhs_DLMFD_Nm1()
 //----------------------------------------------------------------------
@@ -357,6 +447,9 @@ LA_SeqVector const *DLMFD_System::get_rhs_DLMFD_Nm1()
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::synchronize_rhs_DLMFD_Nm1_vector()
 //----------------------------------------------------------------------
@@ -367,6 +460,9 @@ void DLMFD_System::synchronize_rhs_DLMFD_Nm1_vector()
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::synchronize_rhs_periodic_pressure_vector()
@@ -380,6 +476,9 @@ void DLMFD_System::synchronize_rhs_periodic_pressure_vector()
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 void DLMFD_System::set_periodic_pressure_rhs_item(size_t i_row, double xx)
 //----------------------------------------------------------------------
@@ -390,6 +489,9 @@ void DLMFD_System::set_periodic_pressure_rhs_item(size_t i_row, double xx)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::store_ugradu_Nm2(size_t const &n_advection_subtimesteps)
@@ -402,6 +504,9 @@ void DLMFD_System::store_ugradu_Nm2(size_t const &n_advection_subtimesteps)
     MAC_Error::object()->raise_plain(error_message);
 }
 
+
+
+
 //----------------------------------------------------------------------
 bool DLMFD_System::VelocityAdvection_solver(void)
 //----------------------------------------------------------------------
@@ -412,6 +517,9 @@ bool DLMFD_System::VelocityAdvection_solver(void)
     error_message += "should not be called !! Check implementation";
     MAC_Error::object()->raise_plain(error_message);
 }
+
+
+
 
 //----------------------------------------------------------------------
 void DLMFD_System::initialize_QUvector_with_divv_rhs()
@@ -437,6 +545,9 @@ double const DLMFD_System::get_DLMFD_convergence_criterion() const
 
     return Uzawa_DLMFD_precision;
 }
+
+
+
 
 //----------------------------------------------------------------------
 int const DLMFD_System::get_DLMFD_maxiter() const

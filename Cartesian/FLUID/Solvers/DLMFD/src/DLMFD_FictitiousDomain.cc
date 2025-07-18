@@ -456,6 +456,9 @@ bool const DLMFD_FictitiousDomain::get_DLMFD_before_projection() const
     return b_DLMFD_before_projection;
 }
 
+
+
+
 //---------------------------------------------------------------------------
 void DLMFD_FictitiousDomain::finalize_construction(
     MAC_ModuleExplorer const *exp)
