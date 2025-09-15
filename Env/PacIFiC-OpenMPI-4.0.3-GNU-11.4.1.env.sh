@@ -2,19 +2,8 @@
 # PacIFiC 64 bits + OpenMPI + GNU
 #
 
-# Modules
-module purge
-module load StdEnv/2020
-module load gcc/9.3.0
-module load openmpi/4.0.3
-module load imkl/2020.1.217
-module load python/2.7.18
-
-
 # PacIFiC home
-export PACIFIC_HOME=/home/awachs/PacIFiC-Git/pacific
-export PACIFIC_EXE_SCRIPTS=${PACIFIC_HOME}/ExeScripts
-export PATH="${PACIFIC_EXE_SCRIPTS}:${PATH}"
+export PACIFIC_HOME=${HOME}/Multiphase/PacIFiC
 export PACIFIC_BITS_DEFAULT="64"
 export PACIFIC_BITS_EXT="64"
 echo -e '\033[94m*** PacIFiC shell variables\033[0m'
@@ -25,20 +14,26 @@ echo -e '  '
 
 
 # MPI
-export PACIFIC_MPI_ROOT=/cvmfs/soft.computecanada.ca/easybuild/software/2020/avx2/Compiler/gcc9/openmpi/4.0.3
-export PACIFIC_MPI_DISTRIB=OpenMPI
+export PACIFIC_MPI_ROOT="${HOME}/local/openmpi-4.0.3"
+export PACIFIC_MPI_DISTRIB="OpenMPI"
 export PACIFIC_MPI_VERSION="4.0.3"
 export PACIFIC_MPI_INCDIR="${PACIFIC_MPI_ROOT}/include"
 export PACIFIC_MPI_GFORTRAN_INCDIR="${PACIFIC_MPI_ROOT}/include"
 export PACIFIC_MPI_BINDIR="${PACIFIC_MPI_ROOT}/bin"
 export PATH="${PACIFIC_MPI_BINDIR}:${PATH}"
 export PACIFIC_MPI_LIBDIR="${PACIFIC_MPI_ROOT}/lib"
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PACIFIC_MPI_LIBDIR}"
+if [[ -z $LD_LIBRARY_PATH ]]
+then 
+  LD_LIBRARY_PATH="${PACIFIC_MPI_LIBDIR}"
+else
+  LD_LIBRARY_PATH="${PACIFIC_MPI_LIBDIR}:${LD_LIBRARY_PATH}"
+fi
+export LD_LIBRARY_PATH
 export PACIFIC_MPI_C="mpicc"
-export PACIFIC_MPI_CXX="mpic++"
+export PACIFIC_MPI_CXX="mpicxx"
 export PACIFIC_MPI_F77="mpifort"
 export PACIFIC_MPI_F90="mpifort" 
-export PACIFIC_MPI_LIBS="mpi mpi_cxx mpi_mpifh"
+export PACIFIC_MPI_LIBS="mpi mpi_mpifh"
 export PACIFIC_MPI_CPPLIBS="mpi mpi_cxx"
 export PACIFIC_MPI_CFLIBS="mpi mpi_mpifh"
 echo -e '\033[32m*** MPI shell variables\033[0m'
@@ -61,7 +56,7 @@ echo -e '  '
 
 # Serial compiler and low level librairies
 export PACIFIC_SERCOMPIL_ENV="GNU"
-export PACIFIC_SERCOMPIL_VERSION="9.3.0"
+export PACIFIC_SERCOMPIL_VERSION="11.4.1"
 if [[ "${PACIFIC_SERCOMPIL_ENV}" == "GNU" ]] 
 then
   PACIFIC_SERCOMPIL_C=$(which gcc)
@@ -78,23 +73,40 @@ fi
 export PACIFIC_SERCOMPIL_C
 export PACIFIC_SERCOMPIL_CPP
 export PACIFIC_OPT_FLAGS="-O3"
-export PACIFIC_BLAS_LIBDIR=/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/imkl/2020.1.217/mkl/lib/intel64
-export PACIFIC_BLAS_LIBS="mkl_blas95_lp64 mkl_intel_lp64 mkl_sequential mkl_core mkl_gf_lp64"
-export PACIFIC_ATLAS_LIBDIR=/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/imkl/2020.1.217/mkl/lib/intel64
-export PACIFIC_ATLAS_LIBS="mkl_blas95_lp64 mkl_intel_lp64 mkl_sequential mkl_core mkl_gf_lp64"
-export PACIFIC_LAPACK_LIBDIR=/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/imkl/2020.1.217/mkl/lib/intel64
-export PACIFIC_LAPACK_LIBS="mkl_lapack95_lp64 mkl_intel_lp64 mkl_sequential mkl_core mkl_gf_lp64"
-export PACIFIC_GFORTRAN_LIBDIR=/cvmfs/soft.computecanada.ca/easybuild/software/2020/Core/gcccore/9.3.0/lib64
-export PACIFIC_GFORTRAN_LIBS="gfortran"
+export PACIFIC_BLAS_LIBDIR=/usr/lib64
+export PACIFIC_BLAS_LIBS="openblas"
+export PACIFIC_ATLAS_LIBDIR=/usr/lib64
+export PACIFIC_ATLAS_LIBS="openblas"
+export PACIFIC_LAPACK_LIBDIR=/usr/lib64
+export PACIFIC_LAPACK_LIBS="lapack"
+export PACIFIC_GFORTRAN_LIBDIR=/usr/lib64/11
+export PACIFIC_GFORTRAN_LIBS=gfortran
 export PACIFIC_INTEL_LIBDIR=""
 export PACIFIC_INTEL_LIBS=""
-export PACIFIC_M_LIBDIR=/cvmfs/soft.computecanada.ca/gentoo/2020/usr/lib64
-export PACIFIC_Z_DIR=/cvmfs/soft.computecanada.ca/gentoo/2020/usr
-export PACIFIC_Z_INCDIR="${PACIFIC_Z_DIR}/include"
-export PACIFIC_Z_LIBDIR="${PACIFIC_Z_DIR}/lib64"
-export PACIFIC_X11_DIR=/cvmfs/soft.computecanada.ca/gentoo/2020/usr
-export PACIFIC_X11_INCDIR="${PACIFIC_X11_DIR}/include/X11"
-export PACIFIC_X11_LIBDIR="${PACIFIC_X11_DIR}/lib64"
+export PACIFIC_M_LIBDIR=/usr/lib64
+export PACIFIC_Z_DIR=""
+export PACIFIC_Z_INCDIR="/usr/include"
+export PACIFIC_Z_LIBDIR="/usr/lib64"
+export PACIFIC_X11_DIR=""
+export PACIFIC_X11_INCDIR="/usr/include/X11"
+export PACIFIC_X11_LIBDIR="/usr/lib64"
+export PACIFIC_MESA_GLU_RECOM=1
+if [[ "${PACIFIC_MESA_GLU_RECOM}" == "0" ]] 
+then
+  PACIFIC_MESA_INCDIR=""
+  PACIFIC_MESA_LIBDIR=""  
+  PACIFIC_GLU_INCDIR=""
+  PACIFIC_GLU_LIBDIR=""
+else
+  PACIFIC_MESA_INCDIR="${PACIFIC_HOME}/Octree/MESAGLU/include"
+  PACIFIC_MESA_LIBDIR="${PACIFIC_HOME}/Octree/MESAGLU/lib${PACIFIC_BITS_EXT}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}"
+  PACIFIC_GLU_INCDIR="${PACIFIC_HOME}/Octree/MESAGLU/include"
+  PACIFIC_GLU_LIBDIR="${PACIFIC_HOME}/Octree/MESAGLU/lib${PACIFIC_BITS_EXT}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}"     
+fi
+export PACIFIC_MESA_INCDIR
+export PACIFIC_MESA_LIBDIR
+export PACIFIC_GLU_INCDIR
+export PACIFIC_GLU_LIBDIR
 
 echo -e '\033[32m*** Serial compiler and low level librairies shell variables\033[0m'
 echo -e '\033[32mPACIFIC_SERCOMPIL_ENV\033[0m =' $PACIFIC_SERCOMPIL_ENV
@@ -119,6 +131,11 @@ echo -e '\033[32mPACIFIC_Z_LIBDIR\033[0m =' $PACIFIC_Z_LIBDIR
 echo -e '\033[32mPACIFIC_X11_DIR\033[0m =' $PACIFIC_X11_DIR
 echo -e '\033[32mPACIFIC_X11_INCDIR\033[0m =' $PACIFIC_X11_INCDIR
 echo -e '\033[32mPACIFIC_X11_LIBDIR\033[0m =' $PACIFIC_X11_LIBDIR
+echo -e '\033[32mPACIFIC_MESA_GLU_RECOM\033[0m =' $PACIFIC_MESA_GLU_RECOM
+echo -e '\033[32mPACIFIC_MESA_INCDIR\033[0m =' $PACIFIC_MESA_INCDIR
+echo -e '\033[32mPACIFIC_MESA_LIBDIR\033[0m =' $PACIFIC_MESA_LIBDIR
+echo -e '\033[32mPACIFIC_GLU_INCDIR\033[0m =' $PACIFIC_GLU_INCDIR
+echo -e '\033[32mPACIFIC_GLU_LIBDIR\033[0m =' $PACIFIC_GLU_LIBDIR
 echo -e '  '
 
 
@@ -137,9 +154,9 @@ echo -e '  '
 if [[ ${PACIFIC_AUTO_CONFIG} -eq 1 ]]
 then
   echo -e '\033[31mUsing grains_env_template.env.sh as env file\033[0m'
-  cp ${PACIFIC_HOME}/GRAINS/Env/grains_env_template.env.sh ${PACIFIC_HOME}/GRAINS/Env/grains-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
+  cp ${PACIFIC_HOME}/Grains3D/Env/grains_env_template.env.sh ${PACIFIC_HOME}/Grains3D/Env/grains-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 fi
-source ${PACIFIC_HOME}/GRAINS/Env/grains-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
+source ${PACIFIC_HOME}/Grains3D/Env/grains-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPI_VERSION}-${PACIFIC_SERCOMPIL_ENV}-${PACIFIC_SERCOMPIL_VERSION}.env.sh
 echo -e '  '
 
 
