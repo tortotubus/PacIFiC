@@ -376,7 +376,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     sprintf( filename_htg, "%s", RESULT_DIR );
     strcat( filename_htg, "/" );  
     strcat( filename_htg, RESULT_FLUID_ROOTFILENAME );
-    sprintf( suffix, "_T%d.htg", cycle_number );
+    sprintf( suffix, "_T%d.hdf", cycle_number );
     strcat( filename_htg, suffix );
 
     vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init(list, vlist, filename_htg);
