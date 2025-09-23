@@ -1,6 +1,31 @@
 #include "vtkHDF.h"
 #include "vtkHDFHyperTreeGridData.h"
 
+
+static inline int isfinite_noraise(double x) {
+  uint64_t u; memcpy(&u, &x, sizeof u);
+  uint64_t exp  = (u >> 52) & 0x7FFull;
+  uint64_t frac =  u & 0xFFFFFFFFFFFFFull;
+  // finite if exponent != all 1s OR (all 1s and frac==0 means inf -> not finite)
+  return !(exp == 0x7FFull);                  // treat inf/NaN as not finite
+}
+
+static inline int isnan_signaling(double x) {
+  uint64_t u; memcpy(&u, &x, sizeof u);
+  uint64_t exp  = (u >> 52) & 0x7FFull;
+  uint64_t frac =  u & 0xFFFFFFFFFFFFFull;
+  if (exp != 0x7FFull || frac == 0) return 0; // not NaN
+  return ((frac >> 51) & 1ull) == 0;          // quiet bit 51 == 0 → sNaN
+}
+
+static inline double quiet_or_zero(double x) {
+  if (!isnan_signaling(x)) return x;
+  uint64_t u; memcpy(&u, &x, sizeof u);
+  u |= (1ull << 51);                          // set quiet bit → qNaN (no trap)
+  memcpy(&x, &u, sizeof x);
+  return x;
+}
+
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
 #define CHUNK_SIZE (1 << (4))
@@ -1593,7 +1618,24 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 #else // dimension == 3
       v_data[vi * dimension + 0] = write ? (float)val(v.x) : 0.0;
       v_data[vi * dimension + 1] = write ? (float)val(v.y) : 0.0;
-      v_data[vi * dimension + 2] = write ? (float)val(v.z) : 0.0;
+
+      // TODO: Figure out why val(v.z) raises a floating point exception here 
+      // when npe() >= 4 and is even...?
+
+      //v_data[vi * dimension + 2] = write ? (float)val(v.z) : 0.0;
+      double vz = val(v.z);               // may trap if val() itself does invalid ops
+      vz = quiet_or_zero(vz);             // defang sNaN → qNaN (no FE_INVALID)
+
+      if (!isfinite_noraise(vz)) {
+        vz = 0.0;                         // your policy for NaN/±inf
+        printf("!isfinite_noraise\n");
+      } else {
+        if (vz >  FLT_MAX) vz = 0.0f;
+        if (vz < -FLT_MAX) vz = 0.0f;
+      }
+
+      v_data[vi * dimension + 2] = write ? (float)vz : 0.0f;
+
 #endif
       vi++;
     }
