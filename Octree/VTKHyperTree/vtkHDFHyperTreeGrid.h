@@ -70,7 +70,12 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
                                      .dset_space_id = -1,
                                      .dcpl_id = -1,
                                      .dset_dtype_id = -1,
-                                     .dset_id = -1};
+                                     .dset_id = -1,
+
+                                     .file_space = -1,
+                                     .mem_space = -1,
+                                     .xfer_plist = -1,
+                                    };
 
   /**
   # BranchFactor
@@ -353,9 +358,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+    H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -451,9 +456,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+    H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -544,9 +549,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+    H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -646,9 +651,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+    H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -738,9 +743,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+    H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -838,9 +843,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -930,9 +935,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1024,9 +1029,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1118,9 +1123,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1210,9 +1215,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1308,9 +1313,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1401,9 +1406,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1522,9 +1527,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
       vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
     }
 
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -1690,9 +1695,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
     }
 
     /* 11) close everything in reverse order */
-    H5Pclose(vtk_hdf_htg.xfer_plist);
-    H5Sclose(vtk_hdf_htg.mem_space);
-    H5Sclose(vtk_hdf_htg.file_space);
+   H5Pclose(vtk_hdf_htg.xfer_plist); vtk_hdf_htg.xfer_plist = -1;
+    H5Sclose(vtk_hdf_htg.mem_space); vtk_hdf_htg.mem_space = -1;
+    H5Sclose(vtk_hdf_htg.file_space); vtk_hdf_htg.file_space = -1;
     H5Tclose(vtk_hdf_htg.dset_dtype_id);
     H5Pclose(vtk_hdf_htg.dcpl_id);
     H5Sclose(vtk_hdf_htg.dset_space_id);
