@@ -371,6 +371,21 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
 
 # if PARAVIEW_HTG 
+    if (cycle_number == 0) 
+    {
+      printf("TEST");
+      mpi_boundary_update(list);
+      for (scalar s in list) {
+        s.dirty = true;
+      }
+      for (vector v in vlist) {
+        foreach_dimension()
+          v.x.dirty = true;
+      }
+      boundary(list);
+      boundary(vlist);
+    }    
+
     char filename_htg[80] = "";             
     // Write the HTG file
     sprintf( filename_htg, "%s", RESULT_DIR );

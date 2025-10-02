@@ -1,30 +1,8 @@
 #include "vtkHDF.h"
 #include "vtkHDFHyperTreeGridData.h"
 
-
-static inline int isfinite_noraise(double x) {
-  uint64_t u; memcpy(&u, &x, sizeof u);
-  uint64_t exp  = (u >> 52) & 0x7FFull;
-  uint64_t frac =  u & 0xFFFFFFFFFFFFFull;
-  // finite if exponent != all 1s OR (all 1s and frac==0 means inf -> not finite)
-  return !(exp == 0x7FFull);                  // treat inf/NaN as not finite
-}
-
-static inline int isnan_signaling(double x) {
-  uint64_t u; memcpy(&u, &x, sizeof u);
-  uint64_t exp  = (u >> 52) & 0x7FFull;
-  uint64_t frac =  u & 0xFFFFFFFFFFFFFull;
-  if (exp != 0x7FFull || frac == 0) return 0; // not NaN
-  return ((frac >> 51) & 1ull) == 0;          // quiet bit 51 == 0 → sNaN
-}
-
-static inline double quiet_or_zero(double x) {
-  if (!isnan_signaling(x)) return x;
-  uint64_t u; memcpy(&u, &x, sizeof u);
-  u |= (1ull << 51);                          // set quiet bit → qNaN (no trap)
-  memcpy(&x, &u, sizeof x);
-  return x;
-}
+#include <math.h>
+#include <float.h>
 
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
@@ -1471,10 +1449,10 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
         if (is_local(cell)) {
           write = true;
         } else {
-          foreach_neighbor(1) {
-            if (is_local(cell))
-              write = true;
-          }
+          // foreach_neighbor(1) {
+          //   if (is_local(cell))
+          //     write = true;
+          // }
         }
       }
       s_data[vi++] = write ? (float)val(s) : 0.0;
@@ -1570,6 +1548,13 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 */
 
   for (vector v in vector_list) {
+
+    char* vector_name;
+    size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
+    vector_name = malloc((trunc_len + 1) * sizeof(char));
+    strncpy( vector_name, v.x.name, trunc_len );
+    vector_name[trunc_len] = '\0';
+    
     /* Compute local_size, global_size, offset exactly as you did before… */
 #if MPI_SINGLE_FILE
     hsize_t local_size = (hsize_t)vtk_hdf_htg_data->number_of_cells;
@@ -1610,6 +1595,8 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
         }
       }
 
+
+
 #if dimension == 1
       v_data[vi * dimension + 0] = write ? (float)val(v.x) : 0.0;
 #elif dimension == 2
@@ -1618,23 +1605,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 #else // dimension == 3
       v_data[vi * dimension + 0] = write ? (float)val(v.x) : 0.0;
       v_data[vi * dimension + 1] = write ? (float)val(v.y) : 0.0;
-
-      // TODO: Figure out why val(v.z) raises a floating point exception here 
-      // when npe() >= 4 and is even...?
-
-      //v_data[vi * dimension + 2] = write ? (float)val(v.z) : 0.0;
-      double vz = val(v.z);               // may trap if val() itself does invalid ops
-      vz = quiet_or_zero(vz);             // defang sNaN → qNaN (no FE_INVALID)
-
-      if (!isfinite_noraise(vz)) {
-        vz = 0.0;                         // your policy for NaN/±inf
-        printf("!isfinite_noraise\n");
-      } else {
-        if (vz >  FLT_MAX) vz = 0.0f;
-        if (vz < -FLT_MAX) vz = 0.0f;
-      }
-
-      v_data[vi * dimension + 2] = write ? (float)vz : 0.0f;
+      v_data[vi * dimension + 2] = write ? (float)val(v.z) : 0.0;
 
 #endif
       vi++;
@@ -1671,7 +1642,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 
     /* 6) create the dataset under CellData (collectively if MPI_SINGLE_FILE) */
     vtk_hdf_htg.dset_id = H5Dcreate2(
-        vtk_hdf_htg.grp_celldata_id, v.x.name, /* e.g. "u" or "velocity" */
+        vtk_hdf_htg.grp_celldata_id, vector_name, /* e.g. "u" or "velocity" */
         vtk_hdf_htg.dset_dtype_id, vtk_hdf_htg.dset_space_id,
         H5P_DEFAULT,         /* link creation */
         vtk_hdf_htg.dcpl_id, /* chunking */
