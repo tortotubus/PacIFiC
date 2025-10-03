@@ -3,7 +3,7 @@
 # ----------------
 update:
 	@echo 'Updating Grains3D Doxygen doc'	
-	cd ../Grains/ ; make CPINC; cd ../DoxyGRAINS/
+	cd ../Grains/ ; make cpinc; cd ../DoxyGRAINS/
 	doxygen Doxyfile
 
 cleanhtml:
