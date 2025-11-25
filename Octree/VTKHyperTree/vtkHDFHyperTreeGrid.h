@@ -13,6 +13,7 @@ typedef struct {
   vtkHDF vtk_hdf;
 
   hid_t grp_celldata_id;
+  // hid_t grp_steps_id;
 
   /* Dataspace, datatype, and property-list identifiers */
   hid_t attr_space_id;
@@ -36,6 +37,9 @@ void vtk_HDF_hypertreegrid_close(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
   //
   if (vtk_hdf_htg->grp_celldata_id >= 0)
     H5Gclose(vtk_hdf_htg->grp_celldata_id);
+
+  // if (vtk_hdf_htg->grp_steps_id >= 0)
+  //   H5Gclose(vtk_hdf_htg->grp_steps_id);
 
   if (vtk_hdf_htg->xfer_plist >= 0)
     H5Pclose(vtk_hdf_htg->xfer_plist);
@@ -62,6 +66,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
   vtkHDF vtk_hdf = vtk_HDF_init(fname);
   vtkHDFHyperTreeGrid vtk_hdf_htg = {.vtk_hdf = vtk_hdf,
                                      .grp_celldata_id = -1,
+                                    //  .grp_steps_id = -1,
 
                                      .attr_space_id = -1,
                                      .attr_dtype_id = -1,
@@ -79,8 +84,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 
   /**
   # BranchFactor
-  */
-  // if (pid() == 0)
+  */ 
   {
     int64_t bf_value = 2;
     hsize_t dims_attr[1] = {1};
@@ -109,8 +113,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
   }
   /**
   # Dimensions
-  */
-  // if (pid() == 0)
+  */ 
   {
 #if dimension == 1
     int64_t dims_value[3] = {2, 1, 1};
@@ -151,8 +154,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 
   /**
   # TransposedRootIndexing
-  */
-  // if (pid() == 0)
+  */ 
   {
     int64_t tri_value = 0;
     hsize_t dims_attr[1] = {1};
@@ -179,12 +181,12 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
     H5Tclose(vtk_hdf_htg.attr_dtype_id);
     H5Sclose(vtk_hdf_htg.attr_space_id);
   }
+  
   /**
   # Type:
   For hypertree grids, this need to be a fixed-length string of size 13, value =
   "HyperTreeGrid"
-  */
-  // if (pid() == 0)
+  */ 
   {
     const char *type_str = "HyperTreeGrid";
     // hsize_t scalar_dims = 1;
@@ -222,8 +224,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
   /**
   # Version
   2-element int64 array {2,4}
-  */
-  // if (pid() == 0)
+  */ 
   {
     int64_t vers_value[2] = {2, 4};
     hsize_t dims_attr[1] = {2};
@@ -249,6 +250,78 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
     H5Tclose(vtk_hdf_htg.attr_dtype_id);
     H5Sclose(vtk_hdf_htg.attr_space_id);
   }
+
+  /**
+  # Steps group
+  */
+
+  // vtk_hdf_htg.grp_steps_id =
+  //     H5Gcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Steps", H5P_DEFAULT,
+  //                H5P_DEFAULT, H5P_DEFAULT);
+  // if (vtk_hdf_htg.grp_steps_id < 0)
+  //   vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  /**
+  # NSteps
+  1-element int64 array {2,4}
+  */ 
+  // {
+  //   int64_t nsteps_value[2] = {1};
+  //   hsize_t dims_attr[1] = {1};
+  //   vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
+  //   if (vtk_hdf_htg.attr_space_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
+  //   if (vtk_hdf_htg.attr_dtype_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   vtk_hdf_htg.attr_id = H5Acreate2(
+  //       vtk_hdf_htg.grp_steps_id, "NSteps", vtk_hdf_htg.attr_dtype_id,
+  //       vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
+  //   if (vtk_hdf_htg.attr_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, nsteps_value) < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   H5Aclose(vtk_hdf_htg.attr_id);
+  //   H5Tclose(vtk_hdf_htg.attr_dtype_id);
+  //   H5Sclose(vtk_hdf_htg.attr_space_id);
+  // }
+  /**
+  # NSteps
+  1-element int64 array {2,4}
+  */ 
+  // {
+  //   float time_arr[1] = {(float) time};
+  //   hsize_t dims_attr[1] = {1};
+
+  //   /* Create a 1D dataspace of length 3 */
+  //   vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
+  //   if (vtk_hdf_htg.attr_space_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   /* Use a 64-bit‐int little‐endian type */
+  //   vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_IEEE_F32LE);
+  //   if (vtk_hdf_htg.attr_dtype_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   vtk_hdf_htg.attr_id =
+  //       H5Acreate2(vtk_hdf_htg.grp_steps_id, "Values",
+  //                   vtk_hdf_htg.attr_dtype_id, vtk_hdf_htg.attr_space_id,
+  //                   H5P_DEFAULT, H5P_DEFAULT);
+  //   if (vtk_hdf_htg.attr_id < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   /* Now actually write time into the attribute */
+  //   if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, time_arr) < 0)
+  //     vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+  //   H5Aclose(vtk_hdf_htg.attr_id);
+  //   H5Tclose(vtk_hdf_htg.attr_dtype_id);
+  //   H5Sclose(vtk_hdf_htg.attr_space_id);
+  // }
 
   /**
   # CellData group
@@ -872,7 +945,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 #else
     hsize_t local_nx = (hsize_t)vtk_hdf_htg_data->n_x;
     hsize_t global_nx = (hsize_t)local_nx;
-    hsize_t offset_nx = 0;
+    hsize_t offset_nx = 0; NOT_UNUSED(offset_nx);
 #endif
 
     double *xc_data = vtk_hdf_htg_data->x;
@@ -966,7 +1039,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 #else
     hsize_t local_ny = (hsize_t)vtk_hdf_htg_data->n_y;
     hsize_t global_ny = (hsize_t)local_ny;
-    hsize_t offset_ny = 0;
+    hsize_t offset_ny = 0; NOT_UNUSED(offset_ny);
 #endif
 
     double *yc_data = vtk_hdf_htg_data->y;
@@ -1060,7 +1133,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 #else
     hsize_t local_nz = (hsize_t)vtk_hdf_htg_data->n_z;
     hsize_t global_nz = (hsize_t)local_nz;
-    hsize_t offset_nz = 0;
+    hsize_t offset_nz = 0; NOT_UNUSED(offset_nz);
 #endif
 
     double *zc_data = vtk_hdf_htg_data->z;
@@ -1723,3 +1796,4 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
 
   return vtk_hdf_htg;
 }
+

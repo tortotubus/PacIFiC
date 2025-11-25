@@ -24,8 +24,8 @@
 # endif
 
 # include "DLMFD_Output_vtu_foreach.h"
-//# include "vtkXMLHyperTreeGrid.h"
 # include "vtkHDFHyperTreeGrid.h"
+# include "vtkHDFHyperTreeGridTemporalVDS.h"
 
 //----------------------------------------------------------------------------
 void output_pvd( FILE* fp, char const* times_series )
@@ -51,8 +51,6 @@ void output_series( FILE* fp, char const* times_series )
   fputs("\t]\n", fp);
   fputs("}", fp);
 }
-
-
 
 
 //----------------------------------------------------------------------------
@@ -419,8 +417,16 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init(list, vlist, filename_htg);
     vtk_HDF_hypertreegrid_close(&vtk_hdf);
 
+    if (cycle_number == 0) 
+    {
+      vtkHDFHyperTreeGridTemporalVDS vtk_hdf_tvds = vtk_HDF_hypertreegrid_tvds_init(list, vlist, time, filename_htg, "transient.vtkhdf");
+      vtk_HDF_hypertreegrid_tvds_close(&vtk_hdf_tvds);
+    } else {
+      vtkHDFHyperTreeGridTemporalVDS vtk_hdf_tvds = vtk_HDF_hypertreegrid_tvds_append(list, vlist, time, filename_htg, "transient.vtkhdf");
+      vtk_HDF_hypertreegrid_tvds_close(&vtk_hdf_tvds);
+    }
+
     // Rewrite our vtkhdf.series file
-      // Write the PVD file  
     if ( pid() == 0 ) 
     {  
       char time_line[200] = "";
