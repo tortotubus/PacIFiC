@@ -582,10 +582,11 @@ void do_output( char const* mess )
 # endif
 
 # if VORTICITY
-    vector omega[];
 #   if dimension == 2
+      scalar omega[];
       vorticity( u, omega );
 #   else
+      vector omega[];      
       vorticity_3D( u, omega ); 
 #   endif            
 # endif
@@ -595,6 +596,11 @@ void do_output( char const* mess )
     scalar* paraview_scalarlist = {PARAVIEW_SCALAR_LIST
 #   if LAMBDA2
       , l2
+#   endif
+#   if VORTICITY
+#     if dimension == 2
+        , omega
+#     endif            
 #   endif         
     };
     vector* paraview_vectorlist = {PARAVIEW_VECTOR_LIST

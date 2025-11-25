@@ -40,6 +40,9 @@ void output_pvd( FILE* fp, char const* times_series )
   fputs( "</VTKFile>\n", fp );
 }
 
+
+
+
 //----------------------------------------------------------------------------
 void output_series( FILE* fp, char const* times_series )
 //----------------------------------------------------------------------------
@@ -379,7 +382,6 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     }
 # endif
 
-
 # if PARAVIEW_HTG 
     char filename_htg[80] = "";             
     char filename_htg_series[80] = "";             
@@ -387,66 +389,49 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
 
     // Create the vtkhdf file name
-    sprintf(filename_htg, "%s", RESULT_DIR );
-    strcat(filename_htg, "/" );  
-    strcat(filename_htg, RESULT_FLUID_ROOTFILENAME );
-    sprintf(suffix, "_%d.vtkhdf", cycle_number );
-    strcat(filename_htg, suffix );
+    sprintf( filename_htg, "%s", RESULT_DIR );
+    strcat( filename_htg, "/" );  
+    strcat( filename_htg, RESULT_FLUID_ROOTFILENAME );
+    sprintf( suffix, "_%d.vtkhdf", cycle_number );
+    strcat( filename_htg, suffix );
 
     // Create the vtkhdf.series filename
-    sprintf(filename_htg_series, "%s", RESULT_DIR );
-    strcat(filename_htg_series, "/" );  
-    strcat(filename_htg_series, RESULT_FLUID_ROOTFILENAME );
-    strcat(filename_htg_series, ".vtkhdf.series" ); 
+    sprintf( filename_htg_series, "%s", RESULT_DIR );
+    strcat( filename_htg_series, "/" );  
+    strcat( filename_htg_series, RESULT_FLUID_ROOTFILENAME );
+    strcat( filename_htg_series, ".vtkhdf.series" ); 
 
     // Update if dirty
-    if (cycle_number == 0) 
+    if ( cycle_number == 0 ) 
     {
-      for (scalar s in list) {
-        s.dirty = true;
-      }
-      for (vector v in vlist) {
-        foreach_dimension()
-          v.x.dirty = true;
-      }
-      boundary(list);
-      boundary(vlist);
+      synchronize( list );
+      for (vector v in vlist) synchronize((scalar*){v});     
     }
 
     // Write our .vtkhdf file
-    vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init(list, vlist, filename_htg);
-    vtk_HDF_hypertreegrid_close(&vtk_hdf);
+    vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, 
+    	filename_htg );
+    vtk_HDF_hypertreegrid_close( &vtk_hdf );
 
-    if (cycle_number == 0) 
-    {
-      vtkHDFHyperTreeGridTemporalVDS vtk_hdf_tvds = vtk_HDF_hypertreegrid_tvds_init(list, vlist, time, filename_htg, "transient.vtkhdf");
-      vtk_HDF_hypertreegrid_tvds_close(&vtk_hdf_tvds);
-    } else {
-      vtkHDFHyperTreeGridTemporalVDS vtk_hdf_tvds = vtk_HDF_hypertreegrid_tvds_append(list, vlist, time, filename_htg, "transient.vtkhdf");
-      vtk_HDF_hypertreegrid_tvds_close(&vtk_hdf_tvds);
-    }
-
-    // Rewrite our vtkhdf.series file
+    // Write our vtkhdf.series file
     if ( pid() == 0 ) 
     {  
       char time_line[200] = "";
-      snprintf(time_line, sizeof(time_line), "\t\t{ \"name\": \"%s_%d.vtkhdf\", \"time\": %f },\n", RESULT_FLUID_ROOTFILENAME, cycle_number, time);
-      strcat(htg_field_times_series, time_line);    
+      snprintf( time_line, sizeof(time_line), 
+      	"\t\t{ \"name\": \"%s_%d.vtkhdf\", \"time\": %f },\n", 
+	RESULT_FLUID_ROOTFILENAME, cycle_number, time );
+      strcat( htg_field_times_series, time_line );    
 
-      fp_htg_series = fopen(filename_htg_series, "w" );
+      fp_htg_series = fopen( filename_htg_series, "w" );
 
-      if (!fp_htg_series) {
-        //perror(fp_htg_series);
-      } else {
-        output_series(fp_htg_series, htg_field_times_series );  
-        fclose(fp_htg_series);
+      if ( fp_htg_series )
+      {
+        output_series( fp_htg_series, htg_field_times_series );  
+        fclose( fp_htg_series );
       }
     }
-
-
 # endif
-    
-  
+      
   // Write the last cycle number in a file for restart  
   if ( pid() == 0 ) 
   {
@@ -563,17 +548,18 @@ void reinitialize_vtk_restart( void )
   if ( pid() == 0 ) 
   {    
     // Field files 
-    char filename_pvd_root[80] = "";
+    char filename_root[80] = "";
     char time_line[256] = "";
-    char start[9] = ""; 
-    char start_ref[20] = "<DataSet";    
-    sprintf( filename_pvd_root, "%s", RESULT_DIR );
-    strcat( filename_pvd_root, "/" );  
-    strcat( filename_pvd_root, RESULT_FLUID_ROOTFILENAME );
+    char start[12] = ""; 
+    char start_ref_pvd[20] = "<DataSet";
+    char start_ref_series[30] = "{ \"name\":";    
+    sprintf( filename_root, "%s", RESULT_DIR );
+    strcat( filename_root, "/" );  
+    strcat( filename_root, RESULT_FLUID_ROOTFILENAME );
     
 #   if PARAVIEW_VTU
       char filename_vtu_pvd[80] = "";
-      strcpy( filename_vtu_pvd, filename_pvd_root );      
+      strcpy( filename_vtu_pvd, filename_root );      
       strcat( filename_vtu_pvd, "_vtu.pvd" ); 
 
       fpvtk = fopen( filename_vtu_pvd, "r" ); 
@@ -586,7 +572,7 @@ void reinitialize_vtk_restart( void )
 
         // If 8 first characters equal "<DataSet", it is an output time line
         // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
+        if ( ! strcmp( start, start_ref_pvd ) )
           strcat( vtu_field_times_series, time_line );      
       }
     
@@ -594,22 +580,25 @@ void reinitialize_vtk_restart( void )
 #   endif
 
 #   if PARAVIEW_HTG
-      char filename_htg_pvd[80] = "";
-      strcpy( filename_htg_pvd, filename_pvd_root );      
-      strcat( filename_htg_pvd, "_htg.pvd" ); 
+      char filename_htg_series[80] = "";
+      strcpy( filename_htg_series, filename_root );      
+      strcat( filename_htg_series, ".vtkhdf.series" ); 
 
-      fpvtk = fopen( filename_htg_pvd, "r" ); 
+      fpvtk = fopen( filename_htg_series, "r" ); 
     
       while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
       {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
+        // Extract 9 first characters without the 2 first tabs
+        strncpy( start, time_line, 11 );
+	start[11] = '\0';
+	for (size_t k=0;k<9;++k) start[k] = start[k+2];
+	start[9] = '\0';
+	printf( "%s %s\n", start, start_ref_series );
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( htg_field_times_series, time_line );      
+        // If 9 first characters equal "{ "name":", it is an output time line
+        // We add to the htg time series string
+        if ( ! strcmp( start, start_ref_series ) )
+	  strcat( htg_field_times_series, time_line );
       }
     
       fclose( fpvtk );
@@ -632,8 +621,8 @@ void reinitialize_vtk_restart( void )
 
         // If 8 first characters equal "<DataSet", it is an output time line
         // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( vtk_bndpts_times_series, time_line );      
+        if ( ! strcmp( start, start_ref_pvd ) )
+	  strcat( vtk_bndpts_times_series, time_line );
       }
       
       fclose( fpvtk );             
@@ -656,7 +645,7 @@ void reinitialize_vtk_restart( void )
 
         // If 8 first characters equal "<DataSet", it is an output time line
         // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
+        if ( ! strcmp( start, start_ref_pvd ) )
           strcat( vtk_intpts_times_series, time_line );      
       }
       

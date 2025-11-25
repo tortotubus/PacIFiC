@@ -1845,6 +1845,8 @@ void vorticity_3D( const vector u, vector omega )
     foreach_dimension()
       omega.x[] = ( ( u.z[0,1,0] - u.z[0,-1,0] )  
       	- ( u.y[0,0,1] - u.y[0,0,-1] ) ) / ( 2. * Delta );
+	
+  synchronize((scalar*){omega});
 }
 
 
