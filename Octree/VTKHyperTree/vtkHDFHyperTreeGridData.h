@@ -1,7 +1,8 @@
 #include "foreach_cell_bfs.h"
 #include "vtkType.h"
 
-typedef struct {
+typedef struct
+{
   size_t max_vertices;
 
   int64_t depth_per_tree;
@@ -26,7 +27,11 @@ typedef struct {
 
 } vtkHDFHyperTreeGridData;
 
-void hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
+/**
+ * @brief ...
+ */
+void hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
 
 #if dimension >= 1
   vtk_hdf_hypertreegrid_data->n_x = 2;
@@ -64,8 +69,12 @@ void hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
   // return vtk_hdf_hypertreegrid_data;
 }
 
+/**
+ * @brief ...
+ */
 void hdf_get_number_of_vertices_per_depth(
-    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
+    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
 
   int depth;
   depth = grid->maxdepth;
@@ -73,13 +82,17 @@ void hdf_get_number_of_vertices_per_depth(
   int64_t depth_per_tree_old = vtk_hdf_hypertreegrid_data->depth_per_tree;
   vtk_hdf_hypertreegrid_data->depth_per_tree = (int64_t)(depth + 1);
 
-  if (vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth != NULL) {
-    if (vtk_hdf_hypertreegrid_data->depth_per_tree != depth_per_tree_old) {
+  if (vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth != NULL)
+  {
+    if (vtk_hdf_hypertreegrid_data->depth_per_tree != depth_per_tree_old)
+    {
       free(vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth);
       vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth =
           malloc(vtk_hdf_hypertreegrid_data->depth_per_tree * sizeof(int64_t));
     }
-  } else {
+  }
+  else
+  {
     vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth =
         malloc(vtk_hdf_hypertreegrid_data->depth_per_tree * sizeof(int64_t));
   }
@@ -88,14 +101,16 @@ void hdf_get_number_of_vertices_per_depth(
          vtk_hdf_hypertreegrid_data->depth_per_tree * sizeof(int64_t));
 
   // count your local cells per levelmax_depth
-  foreach_cell_BFS() {
+  foreach_cell_BFS()
+  {
     vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth[level]++;
   }
 
   // compute the max and total
   vtk_hdf_hypertreegrid_data->max_vertices = 0;
   vtk_hdf_hypertreegrid_data->number_of_cells = 0;
-  for (size_t i = 0; i < vtk_hdf_hypertreegrid_data->depth_per_tree; i++) {
+  for (size_t i = 0; i < vtk_hdf_hypertreegrid_data->depth_per_tree; i++)
+  {
     int64_t nv = vtk_hdf_hypertreegrid_data->number_of_cells_per_tree_depth[i];
     if (nv > vtk_hdf_hypertreegrid_data->max_vertices)
       vtk_hdf_hypertreegrid_data->max_vertices = nv;
@@ -103,7 +118,8 @@ void hdf_get_number_of_vertices_per_depth(
   }
 }
 
-void hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
+void hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
 
   size_t number_of_cells = vtk_hdf_hypertreegrid_data->number_of_cells;
   // size_t max_depth = vtk_hdf_hypertreegrid_data->depth_per_tree;
@@ -119,11 +135,15 @@ void hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
   uint8_t bit_count = 0;
   size_t byte_count = 0;
 
-  foreach_cell_BFS() {
-    if (!(is_local(cell)) && is_leaf(cell)) {
+  foreach_cell_BFS()
+  {
+    if (!(is_local(cell)) && is_leaf(cell))
+    {
       bool val = true;
-      foreach_neighbor(1) {
-        if (is_local(cell)) {
+      foreach_neighbor(1)
+      {
+        if (is_local(cell))
+        {
           val = false;
         }
       }
@@ -138,7 +158,8 @@ void hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
 
     bit_count++;
 
-    if (bit_count == 8) {
+    if (bit_count == 8)
+    {
       bit_count = 0;
       byte_count++;
     }
@@ -147,7 +168,11 @@ void hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
   vtk_hdf_hypertreegrid_data->has_mask = true;
 }
 
-void hdf_get_descriptors(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
+/**
+ * @brief ...
+ */
+void hdf_get_descriptors(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
 
   size_t total_vertices = vtk_hdf_hypertreegrid_data->number_of_cells;
   size_t max_depth = vtk_hdf_hypertreegrid_data->depth_per_tree;
@@ -169,23 +194,30 @@ void hdf_get_descriptors(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
   uint8_t bit_count = 0;
   size_t byte_count = 0;
 
-  foreach_cell_BFS() {
+  foreach_cell_BFS()
+  {
     if (!is_leaf(cell))
       vtk_hdf_hypertreegrid_data->descriptors[byte_count] |=
           (uint8_t)(1 << (7 - bit_count));
 
     bit_count++;
 
-    if (bit_count == 8) {
+    if (bit_count == 8)
+    {
       bit_count = 0;
       byte_count++;
     }
   }
 }
 
+/**
+ * @brief ...
+ */
 void vtk_hdf_hypertreegrid_data_free(
-    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
-  if (vtk_hdf_hypertreegrid_data) {
+    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
+  if (vtk_hdf_hypertreegrid_data)
+  {
     free(vtk_hdf_hypertreegrid_data->x);
     free(vtk_hdf_hypertreegrid_data->y);
     free(vtk_hdf_hypertreegrid_data->z);
@@ -195,15 +227,21 @@ void vtk_hdf_hypertreegrid_data_free(
   }
 }
 
-vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(void) {
+/**
+ * @brief ...
+ */
+vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(void)
+{
   vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data =
       calloc(1, sizeof(vtkHDFHyperTreeGridData));
 
-  if (!vtk_hdf_hypertreegrid_data) {
+  if (!vtk_hdf_hypertreegrid_data)
+  {
     // handle malloc error
   };
 
-  if (!grid) {
+  if (!grid)
+  {
     fprintf(stderr, "Grid has not yet been initialized: Please initialize the "
                     "grid first.\n");
     // abort();
@@ -222,9 +260,12 @@ vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(void) {
 
   return vtk_hdf_hypertreegrid_data;
 }
-
+/**
+ * @brief ...
+ */
 void vtk_hdf_hypertreegrid_data_update(
-    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data) {
+    vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
+{
   hdf_get_number_of_vertices_per_depth(vtk_hdf_hypertreegrid_data);
   hdf_get_descriptors(vtk_hdf_hypertreegrid_data);
 }
