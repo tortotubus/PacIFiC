@@ -39,15 +39,15 @@ typedef struct {
 } vtkHDFHyperTreeGrid;
 
 /**
- * @brief This function
+ * @brief This function closes all objects (if any are still open).
+ *
+ * @param vtk_hdf_htg Struct holding the object ids for our file
+ *
+ * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_close(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
-    //
     if (vtk_hdf_htg->grp_celldata_id >= 0)
         H5Gclose(vtk_hdf_htg->grp_celldata_id);
-
-    // if (vtk_hdf_htg->grp_steps_id >= 0)
-    //   H5Gclose(vtk_hdf_htg->grp_steps_id);
 
     if (vtk_hdf_htg->xfer_plist >= 0)
         H5Pclose(vtk_hdf_htg->xfer_plist);
@@ -62,19 +62,36 @@ void vtk_HDF_hypertreegrid_close(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
 }
 
 /**
- * @brief
+ * @brief This function is called on error, and immediately closes any open objects, so that information already written
+ * is saved correctly. Then an error is raised to alert the user.
+ *
+ * @param vtk_hdf_htg Struct holding the object ids for our file
  */
 void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
     vtk_HDF_hypertreegrid_close(vtk_hdf_htg);
     assert(1 == 2);
 }
 
+macro ON_ERROR_VTK_HDF_HTG(herr_t result, vtkHDFHyperTreeGrid *vtk_hdf_htg) {
+    if (result < 0) {
+        vtk_HDF_hypertreegrid_error(vtk_hdf_htg);
+    }
+}
+
+macro ON_ERROR_OBJ_ID_VTK_HDF_HTG(hid_t obj_id, vtkHDFHyperTreeGrid *vtk_hdf_htg) {
+    if (obj_id < 0) {
+        vtk_HDF_hypertreegrid_error(vtk_hdf_htg);
+    }
+}
+
 /**
  * @brief This function does the actual writing of the HyperTreeGrid/PHyperTreeGrid in the HDF5 format.
  *
- * @param scalar_list
- * @param vector_list
- * @param fname
+ * @param scalar_list List of any basilisk scalar fields
+ * @param vector_list List of any basilisk vector fields
+ * @param fname The filename to write the vtkhdf (HDF5) file to
+ *
+ * @memberof vtkHDFHyperTreeGrid
  *
  * The HyperTreeGrid in [VTK](https://vtk.org/) is a
  * [class](https://vtk.org/doc/nightly/html/classvtkHyperTreeGrid.html#details) that is intended exactly for
@@ -131,23 +148,15 @@ void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
  * or PHyperTree.
  *
  *  - **Attribute**: "TransposedRootIndexing"
+ *    - **Datatype**: `int64`
+ *    - **Dimension**: `{1}`
+ *    - **Value**: `{0}`
+ *    - **Description**: I am unsure what the significance of this one is, but we do not seem to need this feature.
  *
- *  - **Dataset**: "XCoordinates"
- *    - **Datatype**: `double`
- *    - **Dimension**: `{2}`
- *    - **Description**: The x coordinate of two corners of our tree.
- *
- *  - **Dataset**: "YCoordinates"
- *    - **Datatype**: `double`
- *    - **Dimension**: `{2} or {1}`
- *    - **Description**: The y coordinate of two corners of our tree. If the tree is really a binary tree, just write 0
- * as the single entry.
- *
- *  - **Dataset**: ZCoordinates
- *    - **Datatype**: `double`
- *    - **Dimension**: `{2} or {1}`
- *    - **Description**: The z coordinate of two corners of our tree. If the tree is really a quad tree, just write 0 as
- * the single entry. *
+ *  - **Dataset**: "DepthPerTree"
+ *    - **Datatype**: `int64`
+ *    - **Dimension**: `{1}`
+ *    - **Description**: The maximum depth of the tree. In the case of basilisk we only have one.
  *
  *  - **Dataset**: "Descriptors"
  *    - **Datatype**: `char`
@@ -161,34 +170,59 @@ void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
  * (or parallel copies of the same tree), so that the VTK reader knows where the descriptors of each tree starts and
  * ends in the concatenation of all descriptors.
  *
- *  - **Dataset**: "TreeIds"
+ *  - **Dataset**: "NumberOfCells"
  *    - **Datatype**: `int64`
- *    - **Dimension**: `{1}`
- *    - **Value**: `0`
- *    - **Description**: TODO
+ *    - **Dimension**: {1}
+ *    - **Description**: Cell count across the entire tree, for each tree. Since we have only one tree in basilisk, this
+ * has dimension 1.
  *
- *  - **Dataset**: "DepthPerTree"
+ *  - **Dataset**: "NumberOfCellsPerDepth"
  *    - **Datatype**: `int64`
- *    - **Dimension**: `{1}`
- *    - **Description**: The maximum depth of the tree. In the case of basilisk we only have one.
- *
- *  - **Dataset**: "NumberOfTrees"
- *    - **Datatype**: `int64`
- *    - **Dimension**: `{1}`
- *    - **Value**: `1`
- *    - **Description**:
+ *    - **Dimension**: {NumberOfDepths}
+ *    - **Description**: Cell count on each depth level of the tree.
  *
  *  - **Dataset**: "NumberOfDepths"
  *    - **Datatype**: `int64`
  *    - **Dimension**: `{1}`
- *    - **Value**: `1`
- *    - **Description**:
+ *    - **Description**: I am not sure what the significance of this is, but we just write the same value(s) as
+ * DepthPerTree, which is the maximum depth of the tree.
+ *
+ *  - **Dataset**: "NumberOfTrees"
+ *    - **Datatype**: `int64`
+ *    - **Dimension**: `{}`
+ *    - **Value**: `{1}`
+ *    - **Description**: The total number of trees. In basilisk we have just one.
  *
  *  - **Dataset**: "Mask"
  *    - **Datatype**: `char`
  *    - **Dimension**: `{}`
  *    - **Description**: This field is entirely optional. If it is included, VTK will hide or show certain cells. The
  * format is nearly identical to that of the descriptors dataset.
+ *
+ *  - **Dataset**: "TreeIds"
+ *    - **Datatype**: `int64`
+ *    - **Dimension**: `{1}`
+ *    - **Value**: `{0}`
+ *    - **Description**: There is only one tree in basilisk, and the ID of the first tree in a HyperTreeGrid should be
+ * zero. If we had more than one tree, the placement/ordering of the trees into the regular grid (forest) is determined
+ * by the IDs given here.
+ *
+ *  - **Dataset**: "XCoordinates"
+ *    - **Datatype**: `double`
+ *    - **Dimension**: `{2}`
+ *    - **Description**: The x coordinate of two corners of our tree.
+ *
+ *  - **Dataset**: "YCoordinates"
+ *    - **Datatype**: `double`
+ *    - **Dimension**: `{2} or {1}`
+ *    - **Description**: The y coordinate of two corners of our tree. If the tree is really a binary tree, just write 0
+ * as the single entry.
+ *
+ *  - **Dataset**: "ZCoordinates"
+ *    - **Datatype**: `double`
+ *    - **Dimension**: `{2}` or `{1}`
+ *    - **Description**: The z coordinate of two corners of our tree. If the tree is really a quad tree, just write 0 as
+ * the single entry.
  *
  *  - **Group**: "/VTKHDF/CellData"
  *
@@ -197,7 +231,7 @@ void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
  *      - **Dimension**: `{}`
  *    - **Dataset**: "MyCellCenteredVectorField"
  *      - **DataType**: `float` or `double`
- *      - **Dimension**: `{}`
+ *      - **Dimension**: `{,d}`
  *
  * If done correctly, we should be able to run `h5dump -H` on our file and get something like
  *
@@ -233,56 +267,56 @@ void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
  *        GROUP "CellData" {
  *           DATASET "p" {
  *              DATATYPE  H5T_IEEE_F32LE
- *              DATASPACE  SIMPLE { ( 87381 ) / ( H5S_UNLIMITED ) }
+ *              DATASPACE  SIMPLE { ( 87381 ) / ( 87381 ) }
  *           }
  *           DATASET "u" {
  *              DATATYPE  H5T_IEEE_F32LE
- *              DATASPACE  SIMPLE { ( 87381, 2 ) / ( H5S_UNLIMITED, 2 ) }
+ *              DATASPACE  SIMPLE { ( 87381, 2 ) / ( 87381, 2 ) }
  *           }
  *        }
  *        DATASET "DepthPerTree" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "Descriptors" {
  *           DATATYPE  H5T_STD_U8LE
- *           DATASPACE  SIMPLE { ( 2731 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 2731 ) / ( 2731 ) }
  *        }
  *        DATASET "DescriptorsSize" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "NumberOfCells" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "NumberOfCellsPerTreeDepth" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 9 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 9 ) / ( 9 ) }
  *        }
  *        DATASET "NumberOfDepths" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "NumberOfTrees" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "TreeIds" {
  *           DATATYPE  H5T_STD_I64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *        DATASET "XCoordinates" {
  *           DATATYPE  H5T_IEEE_F64LE
- *           DATASPACE  SIMPLE { ( 2 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
  *        }
  *        DATASET "YCoordinates" {
  *           DATATYPE  H5T_IEEE_F64LE
- *           DATASPACE  SIMPLE { ( 2 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
  *        }
  *        DATASET "ZCoordinates" {
  *           DATATYPE  H5T_IEEE_F64LE
- *           DATASPACE  SIMPLE { ( 1 ) / ( H5S_UNLIMITED ) }
+ *           DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
  *        }
  *     }
  *  }
@@ -327,31 +361,33 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * factor and \f(d\f) is the dimension of the tree. In basilisk \f(n=2\f) always.
      */
     {
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
+
         // Value for the BranchFactor attrbiute
         int64_t bf_value = 2;
+
+        // Dimensions of the attribute
         hsize_t dims_attr[1] = {1};
 
         // Create the attribute space
         vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
-        if (vtk_hdf_htg.attr_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_space_id, &vtk_hdf_htg);
 
         // Set the datatype
         vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.attr_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_dtype_id, &vtk_hdf_htg);
 
         // Create the attribute
         vtk_hdf_htg.attr_id = H5Acreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "BranchFactor", vtk_hdf_htg.attr_dtype_id,
                                          vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.attr_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_id, &vtk_hdf_htg);
 
         // Write the attribute
-        if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, &bf_value) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, &bf_value);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // Close
+        // Close the open objects
         H5Aclose(vtk_hdf_htg.attr_id);
         H5Tclose(vtk_hdf_htg.attr_dtype_id);
         H5Sclose(vtk_hdf_htg.attr_space_id);
@@ -366,35 +402,38 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * never be greater than 2, since we can only have 1 tree.
      */
     {
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
+
+        // Set the value of this attribute, depending on the compile-time definition of dimension in basilisk
 #if dimension == 1
-        int64_t dims_value[3] = {2, 1, 1};
+        const int64_t dims_value[3] = {2, 1, 1};
 #elif dimension == 2
-        int64_t dims_value[3] = {2, 2, 1};
+        const int64_t dims_value[3] = {2, 2, 1};
 #else
-        int64_t dims_value[3] = {2, 2, 2};
+        const int64_t dims_value[3] = {2, 2, 2};
 #endif
+        // Dimensions of the attribute
+        const hsize_t dims_attr[1] = {3};
 
-        hsize_t dims_attr[1] = {3};
-
-        /* Create a 1D dataspace of length 3 */
+        // Create the attribute space
         vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
-        if (vtk_hdf_htg.attr_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_space_id, &vtk_hdf_htg);
 
-        /* Use a 64-bit‐int little‐endian type */
+        // Set the datatype
         vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.attr_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_dtype_id, &vtk_hdf_htg);
 
+        // Create the attribute
         vtk_hdf_htg.attr_id = H5Acreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Dimensions", vtk_hdf_htg.attr_dtype_id,
                                          vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.attr_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_id, &vtk_hdf_htg);
 
-        /* Now actually write dims_value[3] into the attribute */
-        if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, dims_value) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Write the attribute
+        result = H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, dims_value);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close the open objects
         H5Aclose(vtk_hdf_htg.attr_id);
         H5Tclose(vtk_hdf_htg.attr_dtype_id);
         H5Sclose(vtk_hdf_htg.attr_space_id);
@@ -406,25 +445,34 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * Dimension: {1}
      */
     {
-        int64_t tri_value = 0;
-        hsize_t dims_attr[1] = {1};
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
+
+        // Value for the TransposedRootIndexing attribute
+        const int64_t tri_value = 0;
+
+        // Dimensions for the attribute
+        const hsize_t dims_attr[1] = {1};
+
+        // Create the attribute space
         vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
-        if (vtk_hdf_htg.attr_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_space_id, &vtk_hdf_htg);
 
+        // Set the datatype
         vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.attr_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_dtype_id, &vtk_hdf_htg);
 
+        // Create the attribute
         vtk_hdf_htg.attr_id =
             H5Acreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "TransposedRootIndexing", vtk_hdf_htg.attr_dtype_id,
                        vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.attr_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_id, &vtk_hdf_htg);
 
-        if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, &tri_value) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Write the attribute
+        result = H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, &tri_value);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close the open objects
         H5Aclose(vtk_hdf_htg.attr_id);
         H5Tclose(vtk_hdf_htg.attr_dtype_id);
         H5Sclose(vtk_hdf_htg.attr_space_id);
@@ -438,41 +486,42 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * This should be "HyperTreeGrid" to distinguish from other supported types (e.g. "ImageData")
      */
     {
-        // Value of the attribute
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
+
+        // Value of the Type attribute
         const char *type_str = "HyperTreeGrid";
 
         // Create the attribute space
         vtk_hdf_htg.attr_space_id = H5Screate(H5S_SCALAR);
-        if (vtk_hdf_htg.attr_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_space_id, &vtk_hdf_htg);
 
         // Create a fixed-length string datatype of length 13, null-padded, ASCII
         vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_C_S1);
-        if (vtk_hdf_htg.attr_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_dtype_id, &vtk_hdf_htg);
 
         // Set the size
-        if (H5Tset_size(vtk_hdf_htg.attr_dtype_id, (size_t)13) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Tset_size(vtk_hdf_htg.attr_dtype_id, (size_t)13);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
         // Pad the string
-        if (H5Tset_strpad(vtk_hdf_htg.attr_dtype_id, H5T_STR_NULLPAD) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Tset_strpad(vtk_hdf_htg.attr_dtype_id, H5T_STR_NULLPAD);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
         // Set the string value
-        if (H5Tset_cset(vtk_hdf_htg.attr_dtype_id, H5T_CSET_ASCII) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Tset_cset(vtk_hdf_htg.attr_dtype_id, H5T_CSET_ASCII);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
         // Create the attribute
         vtk_hdf_htg.attr_id = H5Acreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Type", vtk_hdf_htg.attr_dtype_id,
                                          vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.attr_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_id, &vtk_hdf_htg);
 
         /* Write the string (automatically null‐padded up to length 13) */
-        if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, type_str) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, type_str);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close the open objects
         H5Aclose(vtk_hdf_htg.attr_id);
         H5Tclose(vtk_hdf_htg.attr_dtype_id);
         H5Sclose(vtk_hdf_htg.attr_space_id);
@@ -484,24 +533,33 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * Dimension: {2}
      */
     {
-        int64_t vers_value[2] = {2, 4};
-        hsize_t dims_attr[1] = {2};
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
+
+        // Value of the VTKHDF version attribute
+        const int64_t vers_value[2] = {2, 4};
+
+        // Dimensions of the attribute
+        const hsize_t dims_attr[1] = {2};
+
+        // Create the attribute space
         vtk_hdf_htg.attr_space_id = H5Screate_simple(1, dims_attr, dims_attr);
-        if (vtk_hdf_htg.attr_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_space_id, &vtk_hdf_htg);
 
+        // Set the datatype
         vtk_hdf_htg.attr_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.attr_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_dtype_id, &vtk_hdf_htg);
 
+        // Create the attribute
         vtk_hdf_htg.attr_id = H5Acreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Version", vtk_hdf_htg.attr_dtype_id,
                                          vtk_hdf_htg.attr_space_id, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.attr_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.attr_id, &vtk_hdf_htg);
 
-        if (H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, vers_value) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Write the attribute
+        result = H5Awrite(vtk_hdf_htg.attr_id, vtk_hdf_htg.attr_dtype_id, vers_value);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close the open objects
         H5Aclose(vtk_hdf_htg.attr_id);
         H5Tclose(vtk_hdf_htg.attr_dtype_id);
         H5Sclose(vtk_hdf_htg.attr_space_id);
@@ -509,7 +567,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 
     /*
      * Create the vtkHDFHyperTreeGridData object: This object contains a lot of local-view data that we will write after
-     * this. See @ref vtk_hdf_hypertreegrid_data_init in @ref vtkHDFHyperTreeGridData.h
+     * this. See @ref vtk_hdf_hypertreegrid_data_init in vtkHDFHyperTreeGridData.h
      */
     vtkHDFHyperTreeGridData *vtk_hdf_htg_data = vtk_hdf_hypertreegrid_data_init();
 
@@ -519,11 +577,12 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      * Here we place all of our grid, tree, and field data. This group does not require any attributes.
      */
     {
+        // Create the new CellData group inside group VTKHDF
         vtk_hdf_htg.grp_celldata_id =
             H5Gcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "CellData", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        if (vtk_hdf_htg.grp_celldata_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.grp_celldata_id, &vtk_hdf_htg);
     }
+    
 
 #if MPI_SINGLE_FILE
     MPI_Barrier(MPI_COMM_WORLD);
@@ -546,79 +605,96 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the DepthPerTree dataset
         int64_t *depth_per_tree = &vtk_hdf_htg_data->depth_per_tree;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "DepthPerTree", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
 
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     depth_per_tree             /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Actually do the collective write to the file
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          depth_per_tree             /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, depth_per_tree) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result =
+            H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, depth_per_tree);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -673,97 +749,78 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         hsize_t global_size = local_size;
 
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
-        // Pointer to the actual data to write
+        // Value for the Descriptors dataset
         Bit_t *descriptors = vtk_hdf_htg_data->descriptors;
 
-        // Create a 1D array dimensions with unlimited size to allow resizing during writes
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        // H5Screate_simple: Create a simple dataspace for the descriptors dataset
-        // Allows unlimited growth, enabling scalable parallel I/O
+        // Chunk size for the dataset
+        hsize_t chunk_dims[1] = {global_size};
+
+        // Create the data space with dimensions and maximum dimensions
         vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
 
-        // H5Pcreate: Create a dataset creation property list
-        // Used to configure parameters for the new dataset (e.g., chunking, compression)
+        // Create a property list for this dataset
         vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
 
-        // H5Pset_chunk: Define chunked storage layout with chunk size matching total dimensions
-        // Chunking is required for datasets with unlimited dimensions in HDF5
-        // Improves performance for parallel I/O and enables resizing
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, dims_d) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // H5Tcopy: Create a copy of the 8-bit unsigned integer little-endian datatype (H5T_STD_U8LE)
-        // Stores descriptor information as individual bytes with platform-independent representation
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_STD_U8LE);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
-        // H5Dcreate2: Create a new dataset named "Descriptors" in the VTK-HDF group
-        // Associates the dataspace, datatype, and creation properties defined above
-        // This dataset will hold all HyperTree descriptor data
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Descriptors", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        // H5Pcreate: Create a dataset transfer (I/O) property list for controlling write behavior
+
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        // H5Pset_dxpl_mpio: Set collective MPI-IO mode for the transfer property
-        // Enables all ranks to participate in coordinated, efficient parallel writes to the same file
-        // COLLECTIVE mode optimizes MPI-IO by allowing the MPI library to coordinate I/O patterns
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // H5Dget_space: Retrieve the file dataspace from the dataset
-        // Allows selection of the specific region in the file where this rank will write its data
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
-        // H5Sselect_hyperslab: Select a contiguous region (hyperslab) in the file dataspace
-        // Defines where this MPI rank's data will be written: starting at 'offset', for 'local_size' elements
-        // Non-overlapping hyperslabs ensure each rank writes to a unique region
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // H5Screate_simple: Create a simple memory dataspace matching the local data size
-        // Describes the layout of data in the rank's local memory (a 1D array of 'local_size' elements)
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        // H5Dwrite: Write local descriptor data to the HDF5 dataset
-        // Maps data from memory (mem_space) to a specific region in the file (file_space) using collective MPI-IO
-        // The xfer_plist ensures all ranks coordinate their writes for optimal performance
-        // Significance: This is the actual parallel I/O operation that flushes descriptors to disk
+        // Actually do the collective write to the file
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_STD_U8LE: 8-bit unsigned integer type */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          descriptors                /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_STD_U8LE: 8-bit unsigned integer type */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     descriptors                /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
-        // Resource cleanup: Close all HDF5 objects in reverse order of creation
-        // This prevents resource leaks and ensures all data is properly flushed to disk
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
         vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
@@ -774,13 +831,13 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        // Single-process write path: Use H5S_ALL to select the entire dataspace
-        // Simpler than the parallel path since there's no need for hyperslab selection or MPI coordination
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, descriptors) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-        // Resource cleanup: Close all HDF5 objects created for this dataset
+#else // Single-process write
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, descriptors);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
@@ -805,8 +862,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #else
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
-
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
         // The actual value of this locally is found from @ref vtkHDFHyperTreeGridData
         int64_t descriptors_size = vtk_hdf_htg_data->n_descriptors;
@@ -817,81 +875,82 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         // Set the maximum size of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        // Create the dataspace
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        // Create property list
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        // Set chunking size on the property list
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-        // Set datatype for the dataset
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
         // Create the dataset
         vtk_hdf_htg.dset_id =
             H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "DescriptorsSize", vtk_hdf_htg.dset_dtype_id,
                        vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
 
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     &descriptors_size          /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Actually do the collective write to the file
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          &descriptors_size          /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, &descriptors_size) <
-            0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+#else // Single-process write
+
+        // actua
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, &descriptors_size);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
@@ -900,6 +959,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #endif
     }
 
+
     /*
      * Dataset: /VTKHDF/Mask
      * Datatype: H5T_STD_U8LE / UInt8_t
@@ -907,7 +967,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      */
     if (vtk_hdf_htg_data->has_mask) {
 #if MPI_SINGLE_FILE
-
         // Compute the offset by
         hsize_t local_size = (hsize_t)vtk_hdf_htg_data->mask_size;
         hsize_t global_size = local_size;
@@ -923,82 +982,95 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         hsize_t local_size = (hsize_t)vtk_hdf_htg_data->mask_size;
         hsize_t global_size = local_size;
         hsize_t chunk_size = local_size;
-
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the DepthPerTree dataset
         Bit_t *mask = vtk_hdf_htg_data->mask;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {chunk_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_UINT8);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "Mask", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
+
 #if MPI_SINGLE_FILE
+
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,
-                     /* file dataspace with hyperslab selected
-                      */
-                     vtk_hdf_htg.xfer_plist,
-                     /* collective MPI‐IO transfer property
-                      */
-                     mask /* pointer to local data */) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          mask /* pointer to local data */);
 
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mask) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mask);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1021,80 +1093,96 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #else
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
-
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the DepthPerTree dataset
         int64_t *number_of_cells = &vtk_hdf_htg_data->number_of_cells;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "NumberOfCells", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
+
 #if MPI_SINGLE_FILE
+
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     number_of_cells            /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          number_of_cells            /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, number_of_cells) <
-            0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result =
+            H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, number_of_cells);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1132,81 +1220,98 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #else
         hsize_t local_size = (hsize_t)vtk_hdf_htg_data->depth_per_tree;
         hsize_t global_size = local_size;
-
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the NumberOfCellsPerTreeDepth dataset
         int64_t *number_of_cells_per_tree_depth = vtk_hdf_htg_data->number_of_cells_per_tree_depth;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id =
             H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "NumberOfCellsPerTreeDepth", vtk_hdf_htg.dset_dtype_id,
                        vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
+
 #if MPI_SINGLE_FILE
+
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,           /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id,     /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,         /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,        /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,        /* collective MPI‐IO transfer property */
-                     number_of_cells_per_tree_depth /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Actually do the collective write to the file
+        result = H5Dwrite(vtk_hdf_htg.dset_id,           /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id,     /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,         /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,        /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,        /* collective MPI‐IO transfer property */
+                          number_of_cells_per_tree_depth /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                     number_of_cells_per_tree_depth) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+                          number_of_cells_per_tree_depth);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1223,84 +1328,101 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      */
     {
 #if MPI_SINGLE_FILE
-        hsize_t local_nx = (hsize_t)vtk_hdf_htg_data->n_x;
-        hsize_t global_nx = (hsize_t)npe() * local_nx;
-        hsize_t offset_nx = pid() * local_nx;
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_x;
+        hsize_t global_size = (hsize_t)npe() * local_size;
+        hsize_t offset = pid() * local_size;
 #else
-        hsize_t local_nx = (hsize_t)vtk_hdf_htg_data->n_x;
-        hsize_t global_nx = (hsize_t)local_nx; 
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_x;
+        hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the XCoordinates dataset
         double *xc_data = vtk_hdf_htg_data->x;
-        hsize_t dims_d[1] = {global_nx};
-        hsize_t maxdims_d[1] = {global_nx};
 
+        // Dimensions of the dataset
+        hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
+        hsize_t maxdims_d[1] = {global_size};
+
+        // Chunk size for the dataset
+        hsize_t chunk_dims[1] = {local_size};
+
+        // Create the data space with dimensions and maximum dimensions
         vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
 
+        // Create a property list for this dataset
         vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        hsize_t chunk_dims[1] = {local_nx};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
 
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_IEEE_F64LE);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "XCoordinates", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-        hsize_t start[1] = {offset_nx};
-        hsize_t count[1] = {local_nx};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
-        hsize_t m_dims[1] = {local_nx};
-        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     xc_data                    /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Get the dataset space
+        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+        // Select a hyperslab for our process
+        hsize_t start[1] = {offset};
+        hsize_t count[1] = {local_size};
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Create a memory dataspace for our process
+        hsize_t m_dims[1] = {local_size};
+        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          xc_data                    /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, xc_data) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, xc_data);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1317,85 +1439,99 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      */
     {
 #if MPI_SINGLE_FILE
-        hsize_t local_ny = (hsize_t)vtk_hdf_htg_data->n_y;
-        hsize_t global_ny = (hsize_t)npe() * local_ny;
-        hsize_t offset_ny = pid() * local_ny;
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_y;
+        hsize_t global_size = (hsize_t)npe() * local_size;
+        hsize_t offset = pid() * local_size;
 #else
-        hsize_t local_ny = (hsize_t)vtk_hdf_htg_data->n_y;
-        hsize_t global_ny = (hsize_t)local_ny; 
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_y;
+        hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the XCoordinates dataset
         double *yc_data = vtk_hdf_htg_data->y;
-        hsize_t dims_d[1] = {global_ny};
-        hsize_t maxdims_d[1] = {global_ny};
 
+        // Dimensions of the dataset
+        hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
+        hsize_t maxdims_d[1] = {global_size};
+
+        // Chunk size for the dataset
+        hsize_t chunk_dims[1] = {local_size};
+
+        // Create the data space with dimensions and maximum dimensions
         vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
 
+        // Create a property list for this dataset
         vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
 
-        hsize_t chunk_dims[1] = {local_ny};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_IEEE_F64LE);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "YCoordinates", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-        hsize_t start[1] = {offset_ny};
-        hsize_t count[1] = {local_ny};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
-        hsize_t m_dims[1] = {local_ny};
-        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_ny] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     yc_data                    /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Get the dataset space
+        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+        // Select a hyperslab for our process
+        hsize_t start[1] = {offset};
+        hsize_t count[1] = {local_size};
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Create a memory dataspace for our process
+        hsize_t m_dims[1] = {local_size};
+        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          yc_data                    /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
 #else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, yc_data) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, yc_data);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1412,85 +1548,99 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
      */
     {
 #if MPI_SINGLE_FILE
-        hsize_t local_nz = (hsize_t)vtk_hdf_htg_data->n_z;
-        hsize_t global_nz = (hsize_t)npe() * local_nz;
-        hsize_t offset_nz = pid() * local_nz;
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_z;
+        hsize_t global_size = (hsize_t)npe() * local_size;
+        hsize_t offset = pid() * local_size;
 #else
-        hsize_t local_nz = (hsize_t)vtk_hdf_htg_data->n_z;
-        hsize_t global_nz = (hsize_t)local_nz; 
+        hsize_t local_size = (hsize_t)vtk_hdf_htg_data->n_z;
+        hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the XCoordinates dataset
         double *zc_data = vtk_hdf_htg_data->z;
-        hsize_t dims_d[1] = {global_nz};
-        hsize_t maxdims_d[1] = {global_nz};
 
+        // Dimensions of the dataset
+        hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
+        hsize_t maxdims_d[1] = {global_size};
+
+        // Chunk size for the dataset
+        hsize_t chunk_dims[1] = {local_size};
+
+        // Create the data space with dimensions and maximum dimensions
         vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
 
+        // Create a property list for this dataset
         vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
 
-        hsize_t chunk_dims[1] = {local_nz};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_IEEE_F64LE);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "ZCoordinates", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-        hsize_t start[1] = {offset_nz};
-        hsize_t count[1] = {local_nz};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
-        hsize_t m_dims[1] = {local_nz};
-        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nz] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     zc_data                    /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Get the dataset space
+        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+        // Select a hyperslab for our process
+        hsize_t start[1] = {offset};
+        hsize_t count[1] = {local_size};
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Create a memory dataspace for our process
+        hsize_t m_dims[1] = {local_size};
+        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          zc_data                    /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
 #else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, zc_data) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, zc_data);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1514,78 +1664,95 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the NumberOfDepths dataset
         int64_t *number_of_depths = &vtk_hdf_htg_data->depth_per_tree;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "NumberOfDepths", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-#if MPI_SINGLE_FILE
-        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
+#if MPI_SINGLE_FILE
+
+        // Create a property list for MPI-IO transfer
+        vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
+
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
+        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_size] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          number_of_depths           /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_size] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     number_of_depths           /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, number_of_depths) <
-            0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result =
+            H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, number_of_depths);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1608,86 +1775,96 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #else
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
-
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the NumberOfTrees dataset
         int64_t number_of_trees = vtk_hdf_htg_data->number_of_trees;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "NumberOfTrees", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        // Set up dataset transfer property list for collective I/O
+
+        // Create a property list for MPI-IO transfer
         vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // Create memory dataspace for a single scalar
-        hsize_t m_dims[1] = {1};
-        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        // Create and select a hyperslab
+        // Get the dataset space
         vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
 
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
-        hsize_t count[1] = {1};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        hsize_t count[1] = {local_size};
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        // Write
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     &number_of_trees           /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        // Create a memory dataspace for our process
+        hsize_t m_dims[1] = {local_size};
+        vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          &number_of_trees           /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, &number_of_trees) <
-            0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result =
+            H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, &number_of_trees);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1713,78 +1890,93 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         hsize_t local_size = (hsize_t)1;
         hsize_t global_size = (hsize_t)local_size;
 #endif
+        // Store the result of HDF5 functions that do not return an identifier
+        herr_t result = 0;
 
+        // Value for the TreeIds dataset
         int64_t *tree_ids = &vtk_hdf_htg_data->tree_ids;
+
+        // Dimensions of the dataset
         hsize_t dims_d[1] = {global_size};
+
+        // Maximum dimensions of the dataset
         hsize_t maxdims_d[1] = {global_size};
 
-        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-        if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-        if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+        // Chunk size for the dataset
         hsize_t chunk_dims[1] = {local_size};
-        if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+        // Create the data space with dimensions and maximum dimensions
+        vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+        // Create a property list for this dataset
+        vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+        // Set the chunk size for the dataset
+        result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Set the datatype
         vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_NATIVE_INT64);
-        if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+        // Create the dataset
         vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, "TreeIds", vtk_hdf_htg.dset_dtype_id,
                                          vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-        if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-        if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        // Create a property list for MPI-IO transfer
+        vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
 
+        // Set MPIO_COLLECTIVE writing
+        result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Get the dataset space
+        vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+        // Select a hyperslab for our process
         hsize_t start[1] = {offset};
         hsize_t count[1] = {local_size};
-        if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
+        result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+        // Create a memory dataspace for our process
         hsize_t m_dims[1] = {local_size};
         vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-        if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-        vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-        if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+        result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                          vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                          vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                          vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                          tree_ids                   /* pointer to local data */
+        );
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-        if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                     vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                     vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                     vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                     vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                     tree_ids                   /* pointer to local data */
-                     ) < 0) {
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-        }
-
+        // Close opened objects
         H5Pclose(vtk_hdf_htg.xfer_plist);
-        vtk_hdf_htg.xfer_plist = -1;
+        vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.mem_space);
-        vtk_hdf_htg.mem_space = -1;
+        vtk_hdf_htg.mem_space = H5I_INVALID_HID;
         H5Sclose(vtk_hdf_htg.file_space);
-        vtk_hdf_htg.file_space = -1;
+        vtk_hdf_htg.file_space = H5I_INVALID_HID;
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
         H5Sclose(vtk_hdf_htg.dset_space_id);
         H5Dclose(vtk_hdf_htg.dset_id);
-#else
-        if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, tree_ids) < 0)
-            vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+        result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, tree_ids);
+        ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+        // Close opened objects
         H5Dclose(vtk_hdf_htg.dset_id);
         H5Tclose(vtk_hdf_htg.dset_dtype_id);
         H5Pclose(vtk_hdf_htg.dcpl_id);
@@ -1828,7 +2020,13 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
          * Scalars
          */
         for (scalar s in scalar_list) {
+            // Store the result of HDF5 functions that do not return an identifier
+            herr_t result = 0;
+
+            // Value for the Scalar dataset
             float *s_data = malloc(sizeof(float) * local_size);
+
+            // Copy the data from the tree into s_data
             size_t vi = 0;
             foreach_cell_BFS() {
                 bool write = false;
@@ -1837,94 +2035,110 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                         write = true;
                     } else {
                         foreach_neighbor(1) {
-                          if (is_local(cell))
-                            write = true;
+                            if (is_local(cell))
+                                write = true;
                         }
                     }
                 }
                 s_data[vi++] = write ? (float)val(s) : 0.0;
             }
 
+            // Dimensions of the dataset
             hsize_t dims_d[1] = {global_size};
+
+            // Maximum dimensions of the dataset
             hsize_t maxdims_d[1] = {global_size};
 
-            vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
-            if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-            vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
-            if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
+            // Chunk size for the dataset
             hsize_t chunk_dims[1] = {chunk_size};
-            if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims) < 0)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
+            // Create the data space with dimensions and maximum dimensions
+            vtk_hdf_htg.dset_space_id = H5Screate_simple(1, dims_d, maxdims_d);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_space_id, &vtk_hdf_htg);
+
+            // Create a property list for this dataset
+            vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dcpl_id, &vtk_hdf_htg);
+
+            // Set the chunk size for the dataset
+            result = H5Pset_chunk(vtk_hdf_htg.dcpl_id, 1, chunk_dims);
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
 #if COMPRESSION
-            if (H5Pset_deflate(vtk_hdf_htg.dcpl_id, COMPRESSION_LEVEL) < 0)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+            // Set compression on the dataset
+            result = H5Pset_deflate(vtk_hdf_htg.dcpl_id, COMPRESSION_LEVEL);
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 #endif
 
+            // Set the datatype
             vtk_hdf_htg.dset_dtype_id = H5Tcopy(H5T_IEEE_F32LE);
-            if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_dtype_id, &vtk_hdf_htg);
 
+            // Create the dataset
             vtk_hdf_htg.dset_id = H5Dcreate2(vtk_hdf_htg.grp_celldata_id, s.name, vtk_hdf_htg.dset_dtype_id,
                                              vtk_hdf_htg.dset_space_id, H5P_DEFAULT, vtk_hdf_htg.dcpl_id, H5P_DEFAULT);
-            if (vtk_hdf_htg.dset_id == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-#if MPI_SINGLE_FILE
-            vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
-            if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.dset_id, &vtk_hdf_htg);
 
+#if MPI_SINGLE_FILE
+
+            // Create a property list for MPI-IO transfer
+            vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.xfer_plist, &vtk_hdf_htg);
+
+            // Set MPIO_COLLECTIVE writing
+            result = H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE);
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+            // Get the dataset space
+            vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.file_space, &vtk_hdf_htg);
+
+            // Select a hyperslab for our process
             hsize_t start[1] = {offset};
             hsize_t count[1] = {local_size};
-            if (H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL) < 0) {
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-            }
+            result = H5Sselect_hyperslab(vtk_hdf_htg.file_space, H5S_SELECT_SET, start, NULL, count, NULL);
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
+            // Create a memory dataspace for our process
             hsize_t m_dims[1] = {local_size};
             vtk_hdf_htg.mem_space = H5Screate_simple(1, m_dims, NULL);
-            if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+            ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg.mem_space, &vtk_hdf_htg);
 
-            vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
-            if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-            if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+            // Actually do the collective write to the file
+            result = H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
+                              vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
+                              vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
+                              vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
+                              vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
+                              s_data                     /* pointer to local data */
+            );
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
 
-            if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
-                         vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F64LE */
-                         vtk_hdf_htg.mem_space,     /* memory dataspace [local_nx] */
-                         vtk_hdf_htg.file_space,    /* file dataspace with hyperslab selected */
-                         vtk_hdf_htg.xfer_plist,    /* collective MPI‐IO transfer property */
-                         s_data                     /* pointer to local data */
-                         ) < 0) {
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-            }
-
+            // Close opened objects
             H5Pclose(vtk_hdf_htg.xfer_plist);
-            vtk_hdf_htg.xfer_plist = -1;
+            vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
             H5Sclose(vtk_hdf_htg.mem_space);
-            vtk_hdf_htg.mem_space = -1;
+            vtk_hdf_htg.mem_space = H5I_INVALID_HID;
             H5Sclose(vtk_hdf_htg.file_space);
-            vtk_hdf_htg.file_space = -1;
+            vtk_hdf_htg.file_space = H5I_INVALID_HID;
             H5Tclose(vtk_hdf_htg.dset_dtype_id);
             H5Pclose(vtk_hdf_htg.dcpl_id);
             H5Sclose(vtk_hdf_htg.dset_space_id);
             H5Dclose(vtk_hdf_htg.dset_id);
-#else
-            if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, s_data) < 0)
-                vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
+#else // Single-process write
+
+            result = H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, xc_data);
+            ON_ERROR_VTK_HDF_HTG(result, &vtk_hdf_htg);
+
+            // Close opened objects
             H5Dclose(vtk_hdf_htg.dset_id);
             H5Tclose(vtk_hdf_htg.dset_dtype_id);
             H5Pclose(vtk_hdf_htg.dcpl_id);
             H5Sclose(vtk_hdf_htg.dset_space_id);
 #endif
 
+            // Free the copied data
             free(s_data);
 
         } /* end of “for (scalar s in scalar_list)” */
@@ -1934,35 +2148,19 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
          */
         for (vector v in vector_list) {
 
+            // Obtain the name of the vector
             char *vector_name;
             size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
             vector_name = malloc((trunc_len + 1) * sizeof(char));
             strncpy(vector_name, v.x.name, trunc_len);
             vector_name[trunc_len] = '\0';
 
-#if MPI_SINGLE_FILE
-            hsize_t local_size = (hsize_t)vtk_hdf_htg_data->number_of_cells;
-            hsize_t global_size;
-            MPI_Allreduce(&local_size, &global_size, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
-
-            hsize_t offset = 0;
-            MPI_Exscan(&local_size, &offset, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
-            if (pid() == 0)
-                offset = 0;
-#else
-            hsize_t local_size = (hsize_t)vtk_hdf_htg_data->number_of_cells;
-            hsize_t global_size = local_size;
-
-#endif
-
-            /* 1) allocate one big flat buffer */
             float *v_data = malloc(local_size * dimension * sizeof(float));
             if (!v_data) {
                 perror("malloc(v_data)");
                 exit(1);
             }
 
-            /* 2) fill it row‐major: every cell’s D components */
             size_t vi = 0;
             foreach_cell_BFS() {
                 bool write = false;
@@ -1991,7 +2189,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                 vi++;
             }
 
-            /* 3) create a rank‐2 dataspace { global_size, D } */
             hsize_t dims_d[2] = {global_size, (hsize_t)dimension};
             hsize_t maxdims_d[2] = {global_size, (hsize_t)dimension};
 
@@ -1999,7 +2196,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
             if (vtk_hdf_htg.dset_space_id == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-            /* 4) create a chunked property list, rank=2 with 2‐element chunk dims */
             vtk_hdf_htg.dcpl_id = H5Pcreate(H5P_DATASET_CREATE);
             if (vtk_hdf_htg.dcpl_id == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
@@ -2007,9 +2203,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
             hsize_t chunk_dims[2] = {chunk_size, (hsize_t)dimension};
             if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 2, chunk_dims) < 0)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
-
-            // if (H5Pset_chunk(vtk_hdf_htg.dcpl_id, 2, dims_d) < 0)
-            //   vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
 #if COMPRESSION
             if (H5Pset_deflate(vtk_hdf_htg.dcpl_id, COMPRESSION_LEVEL) < 0)
@@ -2020,7 +2213,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
             if (vtk_hdf_htg.dset_dtype_id == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-            /* 6) create the dataset under CellData (collectively if MPI_SINGLE_FILE) */
             vtk_hdf_htg.dset_id =
                 H5Dcreate2(vtk_hdf_htg.grp_celldata_id, vector_name, /* e.g. "u" or "velocity" */
                            vtk_hdf_htg.dset_dtype_id, vtk_hdf_htg.dset_space_id, H5P_DEFAULT, /* link creation */
@@ -2031,7 +2223,6 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
 #if MPI_SINGLE_FILE
-            /* 7) select a 2D hyperslab [offset..offset+local_size-1] × [0..D-1] */
             vtk_hdf_htg.file_space = H5Dget_space(vtk_hdf_htg.dset_id);
             if (vtk_hdf_htg.file_space == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
@@ -2048,14 +2239,13 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
             if (vtk_hdf_htg.mem_space == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-            /* 9) set up a collective transfer property list */
             vtk_hdf_htg.xfer_plist = H5Pcreate(H5P_DATASET_XFER);
             if (vtk_hdf_htg.xfer_plist == H5I_INVALID_HID)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
+
             if (H5Pset_dxpl_mpio(vtk_hdf_htg.xfer_plist, H5FD_MPIO_COLLECTIVE) < 0)
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
 
-            /* 10) write the slab */
             if (H5Dwrite(vtk_hdf_htg.dset_id,       /* dataset handle */
                          vtk_hdf_htg.dset_dtype_id, /* H5T_IEEE_F32LE */
                          vtk_hdf_htg.mem_space,     /* memory = {local_size,D} */
@@ -2068,18 +2258,16 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 
             /* 11) close everything in reverse order */
             H5Pclose(vtk_hdf_htg.xfer_plist);
-            vtk_hdf_htg.xfer_plist = -1;
+            vtk_hdf_htg.xfer_plist = H5I_INVALID_HID;
             H5Sclose(vtk_hdf_htg.mem_space);
-            vtk_hdf_htg.mem_space = -1;
+            vtk_hdf_htg.mem_space = H5I_INVALID_HID;
             H5Sclose(vtk_hdf_htg.file_space);
-            vtk_hdf_htg.file_space = -1;
+            vtk_hdf_htg.file_space = H5I_INVALID_HID;
             H5Tclose(vtk_hdf_htg.dset_dtype_id);
             H5Pclose(vtk_hdf_htg.dcpl_id);
             H5Sclose(vtk_hdf_htg.dset_space_id);
             H5Dclose(vtk_hdf_htg.dset_id);
 #else
-            /* Serial (no MPI_SINGLE_FILE) version: write the entire dataset in one go
-             */
             if (H5Dwrite(vtk_hdf_htg.dset_id, vtk_hdf_htg.dset_dtype_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, v_data) < 0) {
                 vtk_HDF_hypertreegrid_error(&vtk_hdf_htg);
             }
