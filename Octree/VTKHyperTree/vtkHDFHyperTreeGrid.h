@@ -67,7 +67,7 @@ void vtk_HDF_hypertreegrid_close(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
  * error is raised to alert the user.
  *
  * @param vtk_hdf_htg Struct holding the object ids for our file
- * 
+ *
  * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_error(vtkHDFHyperTreeGrid *vtk_hdf_htg) {
@@ -96,7 +96,7 @@ macro ON_ERROR_OBJ_ID_VTK_HDF_HTG(hid_t obj_id, vtkHDFHyperTreeGrid *vtk_hdf_htg
  * @param group_id The HDF5 group to write the attribute in
  * @param dims The dimensions of the data
  * @param vtk_hdf_htg Pointer or reference to vtkHDFHyperTreeGrid object/struct
- * 
+ *
  * @memberof vtkHDFHyperTreeGrids
  */
 void vtk_HDF_hypertreegrid_write_attribute(const char *attribute_name, const void *data, const hid_t dtype_id,
@@ -135,18 +135,20 @@ void vtk_HDF_hypertreegrid_write_attribute(const char *attribute_name, const voi
  * @param data Pointer to the array of data
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
+ * @param rank
  * @param dims The dimensions of the dataset
  * @param vtk_hdf_htg Pointer or reference to vtkHDFHyperTreeGrid object/struct
- * 
+ *
  * @memberof vtkHDFHyperTreeGrids
  */
 void vtk_HDF_hypertreegrid_write_dataset(const char *dataset_name, const void *data, const hid_t dtype_id,
-                                         const hid_t group_id, const hsize_t dims[], vtkHDFHyperTreeGrid *vtk_hdf_htg) {
+                                         const hid_t group_id, const int rank, const hsize_t dims[],
+                                         vtkHDFHyperTreeGrid *vtk_hdf_htg) {
     // Store the result of HDF5 functions that do not return an identifier
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Create a property list for this dataset
@@ -179,20 +181,22 @@ void vtk_HDF_hypertreegrid_write_dataset(const char *dataset_name, const void *d
  * @param data Pointer to the array of data
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
+ * @param rank
  * @param dims The dimensions of the dataset
  * @param max_dims The maximum dimensions of the dataset
  * @param chunk_dims The chunk dimensions
  * @param vtk_hdf_htg Pointer or reference to vtkHDFHyperTreeGrid object/struct
  */
 void vtk_HDF_hypertreegrid_write_chunked_dataset(const char *dataset_name, const void *data, const hid_t dtype_id,
-                                                 const hid_t group_id, const hsize_t dims[], const hsize_t max_dims[],
-                                                 const hsize_t chunk_dims[], vtkHDFHyperTreeGrid *vtk_hdf_htg) {
+                                                 const hid_t group_id, const int rank, const hsize_t dims[],
+                                                 const hsize_t max_dims[], const hsize_t chunk_dims[],
+                                                 vtkHDFHyperTreeGrid *vtk_hdf_htg) {
 
     // Store the result of HDF5 functions that do not return an identifier
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, max_dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, max_dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Create a property list for this dataset
@@ -200,7 +204,7 @@ void vtk_HDF_hypertreegrid_write_chunked_dataset(const char *dataset_name, const
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dcpl_id, vtk_hdf_htg);
 
     // Set the chunk size for the dataset
-    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, 1, chunk_dims);
+    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, rank, chunk_dims);
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Set the datatype
@@ -229,6 +233,7 @@ void vtk_HDF_hypertreegrid_write_chunked_dataset(const char *dataset_name, const
  * @param data Pointer to the array of data
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
+ * @param rank
  * @param dims The dimensions of the dataset
  * @param max_dims The maximum dimensions of the dataset
  * @param chunk_dims The chunk dimensions
@@ -238,7 +243,7 @@ void vtk_HDF_hypertreegrid_write_chunked_dataset(const char *dataset_name, const
  * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_write_compressed_dataset(const char *dataset_name, const void *data, const hid_t dtype_id,
-                                                    const hid_t group_id, const hsize_t dims[],
+                                                    const hid_t group_id, const int rank, const hsize_t dims[],
                                                     const hsize_t max_dims[], const hsize_t chunk_dims[],
                                                     unsigned int compression_level, vtkHDFHyperTreeGrid *vtk_hdf_htg) {
 
@@ -246,7 +251,7 @@ void vtk_HDF_hypertreegrid_write_compressed_dataset(const char *dataset_name, co
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, max_dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, max_dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Create a property list for this dataset
@@ -254,7 +259,7 @@ void vtk_HDF_hypertreegrid_write_compressed_dataset(const char *dataset_name, co
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dcpl_id, vtk_hdf_htg);
 
     // Set the chunk size for the dataset
-    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, 1, chunk_dims);
+    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, rank, chunk_dims);
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Set compression on the dataset
@@ -287,6 +292,7 @@ void vtk_HDF_hypertreegrid_write_compressed_dataset(const char *dataset_name, co
  * @param data Pointer to the array of data
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
+ * @param rank
  * @param dims The dimensions of the dataset
  * @param max_dims The maximum dimensions of the dataset
  * @param local_size The size of the sub-array this process writes into
@@ -296,7 +302,7 @@ void vtk_HDF_hypertreegrid_write_compressed_dataset(const char *dataset_name, co
  * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_collective_write_dataset(const char *dataset_name, const void *data, const hid_t dtype_id,
-                                                    const hid_t group_id, const hsize_t dims[],
+                                                    const hid_t group_id, const int rank, const hsize_t dims[],
                                                     const hsize_t local_size[], const hsize_t local_offset[],
                                                     vtkHDFHyperTreeGrid *vtk_hdf_htg) {
 
@@ -304,7 +310,7 @@ void vtk_HDF_hypertreegrid_collective_write_dataset(const char *dataset_name, co
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Set the datatype
@@ -333,7 +339,7 @@ void vtk_HDF_hypertreegrid_collective_write_dataset(const char *dataset_name, co
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Create a memory dataspace for our process
-    vtk_hdf_htg->mem_space = H5Screate_simple(1, local_size, NULL);
+    vtk_hdf_htg->mem_space = H5Screate_simple(rank, local_size, NULL);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->mem_space, vtk_hdf_htg);
 
     // Actually do the collective write to the file
@@ -366,6 +372,7 @@ void vtk_HDF_hypertreegrid_collective_write_dataset(const char *dataset_name, co
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
  * @param dims The dimensions of the dataset
+ * @param rank
  * @param max_dims The maximum dimensions of the dataset
  * @param chunk_dims The chunk dimensions
  * @param local_size The size of the sub-array this process writes into
@@ -375,7 +382,7 @@ void vtk_HDF_hypertreegrid_collective_write_dataset(const char *dataset_name, co
  * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_name, const void *data,
-                                                            const hid_t dtype_id, const hid_t group_id,
+                                                            const hid_t dtype_id, const hid_t group_id, const int rank,
                                                             const hsize_t dims[], const hsize_t max_dims[],
                                                             const hsize_t chunk_dims[], const hsize_t local_size[],
                                                             const hsize_t local_offset[],
@@ -385,7 +392,7 @@ void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, max_dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, max_dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Create a property list for this dataset
@@ -393,7 +400,7 @@ void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dcpl_id, vtk_hdf_htg);
 
     // Set the chunk size for the dataset
-    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, 1, chunk_dims);
+    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, rank, chunk_dims);
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Set the datatype
@@ -422,7 +429,7 @@ void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Create a memory dataspace for our process
-    vtk_hdf_htg->mem_space = H5Screate_simple(1, local_size, NULL);
+    vtk_hdf_htg->mem_space = H5Screate_simple(rank, local_size, NULL);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->mem_space, vtk_hdf_htg);
 
     // Actually do the collective write to the file
@@ -455,6 +462,7 @@ void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_
  * @param data Pointer to the array of data
  * @param dtype_id The HDF5 datatype ID
  * @param group_id The HDF5 group to write the data in
+ * @param rank
  * @param dims The dimensions of the dataset
  * @param max_dims The maximum dimensions of the dataset
  * @param chunk_dims The chunk dimensions
@@ -466,14 +474,14 @@ void vtk_HDF_hypertreegrid_collective_write_chunked_dataset(const char *dataset_
  * @memberof vtkHDFHyperTreeGrid
  */
 void vtk_HDF_hypertreegrid_collective_write_compressed_dataset(
-    const char *dataset_name, const void *data, const hid_t dtype_id, const hid_t group_id, const hsize_t dims[],
-    const hsize_t max_dims[], const hsize_t chunk_dims[], const hsize_t local_size[], const hsize_t local_offset[],
-    unsigned int compression_level, vtkHDFHyperTreeGrid *vtk_hdf_htg) {
+    const char *dataset_name, const void *data, const hid_t dtype_id, const hid_t group_id, const int rank,
+    const hsize_t dims[], const hsize_t max_dims[], const hsize_t chunk_dims[], const hsize_t local_size[],
+    const hsize_t local_offset[], unsigned int compression_level, vtkHDFHyperTreeGrid *vtk_hdf_htg) {
     // Store the result of HDF5 functions that do not return an identifier
     herr_t result = 0;
 
     // Create the data space with dimensions and maximum dimensions
-    vtk_hdf_htg->dset_space_id = H5Screate_simple(1, dims, max_dims);
+    vtk_hdf_htg->dset_space_id = H5Screate_simple(rank, dims, max_dims);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dset_space_id, vtk_hdf_htg);
 
     // Create a property list for this dataset
@@ -481,7 +489,7 @@ void vtk_HDF_hypertreegrid_collective_write_compressed_dataset(
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->dcpl_id, vtk_hdf_htg);
 
     // Set the chunk size for the dataset
-    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, 1, chunk_dims);
+    result = H5Pset_chunk(vtk_hdf_htg->dcpl_id, rank, chunk_dims);
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Set compression on the dataset
@@ -514,7 +522,7 @@ void vtk_HDF_hypertreegrid_collective_write_compressed_dataset(
     ON_ERROR_VTK_HDF_HTG(result, vtk_hdf_htg);
 
     // Create a memory dataspace for our process
-    vtk_hdf_htg->mem_space = H5Screate_simple(1, local_size, NULL);
+    vtk_hdf_htg->mem_space = H5Screate_simple(rank, local_size, NULL);
     ON_ERROR_OBJ_ID_VTK_HDF_HTG(vtk_hdf_htg->mem_space, vtk_hdf_htg);
 
     // Actually do the collective write to the file
@@ -1024,6 +1032,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->depth_per_tree, /* pointer to data */
                                                        H5T_NATIVE_INT64,                  /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1097,8 +1106,10 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        vtk_hdf_htg_data->descriptors,     /* pointer to data */
                                                        H5T_STD_U8LE,                      /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
-                                                       &global_size,                      /* dimensions of dataset */
-                                                       &local_size,                       /* dimensions of local size */
+                                                       1,                                 /* rank */
+
+                                                       &global_size,  /* dimensions of dataset */
+                                                       &local_size,   /* dimensions of local size */
                                                        &local_offset, /* where in the global dataset to write */
                                                        &vtk_hdf_htg   /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1110,7 +1121,9 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->descriptors,     /* pointer to data */
                                             H5T_STD_U8LE,                      /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
-                                            local_size,                        /*dimensions of dataset */
+                                            1,                                 /* rank */
+
+                                            local_size,  /*dimensions of dataset */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
 #endif
@@ -1136,8 +1149,10 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->n_descriptors,  /* pointer to data */
                                                        H5T_NATIVE_INT64,                  /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
-                                                       global_size,                       /* dimensions of dataset */
-                                                       local_size,                        /* dimensions of local size */
+                                                       1,                                 /* rank */
+
+                                                       global_size,  /* dimensions of dataset */
+                                                       local_size,   /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
                                                        &vtk_hdf_htg  /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1148,6 +1163,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             &vtk_hdf_htg_data->n_descriptors,  /* pointer to data */
                                             H5T_NATIVE_INT64,                  /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /*dimensions of dataset */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1177,6 +1193,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        vtk_hdf_htg_data->mask,            /* pointer to data */
                                                        H5T_STD_U8LE,                      /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        &global_size,                      /* dimensions of dataset */
                                                        &local_size,                       /* dimensions of local size */
                                                        &local_offset, /* where in the global dataset to write */
@@ -1189,6 +1206,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->mask,            /* pointer to data */
                                             H5T_STD_U8LE,                      /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of dataset */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1212,6 +1230,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->number_of_cells, /* pointer to data */
                                                        H5T_NATIVE_INT64,                   /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,  /* group id */
+                                                       1,                                  /* rank */
                                                        global_size,                        /* dimensions of dataset */
                                                        local_size,   /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1224,6 +1243,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             &vtk_hdf_htg_data->number_of_cells, /* pointer to data */
                                             H5T_NATIVE_INT64,                   /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,  /* group id */
+                                            1,                                  /* rank */
                                             local_size,                         /*dimensions of dataset */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1264,6 +1284,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
             vtk_hdf_htg_data->number_of_cells_per_tree_depth, /* pointer to data */
             H5T_NATIVE_INT64,                                 /* datatype */
             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,                /* group id */
+            1,                                                /*rank*/
             &global_size,                                     /* dimensions of dataset */
             &local_size,                                      /* dimensions of local size */
             &local_offset,                                    /* where in the global dataset to write */
@@ -1276,6 +1297,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->number_of_cells_per_tree_depth, /* pointer to data */
                                             H5T_NATIVE_INT64,                                 /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,                /* group id */
+                                            1,                                                /* rank */
                                             local_size,  /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1299,6 +1321,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        vtk_hdf_htg_data->x,               /* pointer to data */
                                                        H5T_IEEE_F64LE,                    /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1310,6 +1333,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->x,               /* pointer to data */
                                             H5T_IEEE_F64LE,                    /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1333,6 +1357,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        vtk_hdf_htg_data->y,               /* pointer to data */
                                                        H5T_IEEE_F64LE,                    /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1344,6 +1369,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->y,               /* pointer to data */
                                             H5T_IEEE_F64LE,                    /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1367,6 +1393,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        vtk_hdf_htg_data->z,               /* pointer to data */
                                                        H5T_IEEE_F64LE,                    /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1378,6 +1405,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             vtk_hdf_htg_data->z,               /* pointer to data */
                                             H5T_IEEE_F64LE,                    /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1400,6 +1428,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->depth_per_tree, /* pointer to data */
                                                        H5T_NATIVE_INT64,                  /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1411,6 +1440,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             &vtk_hdf_htg_data->depth_per_tree, /* pointer to data */
                                             H5T_NATIVE_INT64,                  /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1434,6 +1464,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->number_of_trees, /* pointer to data */
                                                        H5T_NATIVE_INT64,                   /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,  /* group id */
+                                                       1,                                  /* rank */
                                                        global_size,                        /* dimensions of dataset */
                                                        local_size,   /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1445,6 +1476,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             &vtk_hdf_htg_data->number_of_trees, /* pointer to data */
                                             H5T_NATIVE_INT64,                   /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id,  /* group id */
+                                            1,                                  /* rank */
                                             local_size,                         /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1470,6 +1502,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg_data->tree_ids,       /* pointer to data */
                                                        H5T_NATIVE_INT64,                  /* datatype */
                                                        vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                                       1,                                 /* rank */
                                                        global_size,                       /* dimensions of dataset */
                                                        local_size,                        /* dimensions of local size */
                                                        local_offset, /* where in the global dataset to write */
@@ -1481,6 +1514,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                             &vtk_hdf_htg_data->tree_ids,       /* pointer to data */
                                             H5T_NATIVE_INT64,                  /* datatype */
                                             vtk_hdf_htg.vtk_hdf.grp_vtkhdf_id, /* group id */
+                                            1,                                 /* rank */
                                             local_size,                        /* dimensions of local size */
                                             &vtk_hdf_htg /* pointer to vtkHDFHyperTreeGrid object */
         );
@@ -1567,6 +1601,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                                       s_data,                      /* data */
                                                                       H5T_IEEE_F32LE,              /* dtype_id */
                                                                       vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                                      1,                           /* rank */
                                                                       dims,                        /* dims[] */
                                                                       max_dims,                    /* max_dims[] */
                                                                       chunk_dims,                  /* chunk_dims[] */
@@ -1583,6 +1618,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                            s_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           1,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            chunk_dims,                  /* chunk_dims[] */
@@ -1598,6 +1634,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                            s_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           1,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            local_size,                  /* local_size[] */
@@ -1611,6 +1648,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                            s_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           1,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            &vtk_hdf_htg                 /* vtkHDFHyperTreeGrid */
@@ -1656,7 +1694,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                         }
                     }
                 }
-                v_data[vi * dimension + 0] = (float)write ? val(v.x) : 0.;
+                v_data[vi * dimension + 0] = write ? (float)val(v.x) : 0.;
                 vi++;
             }
 #elif dimension == 2
@@ -1697,16 +1735,16 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
 #endif
 
 #if COMPRESSION && MPI_SINGLE_FILE
-            hsize_t dims[] = {scalar_global_size, dimension};
-            hsize_t max_dims[] = {scalar_global_size, dimension};
-            hsize_t chunk_dims[] = {scalar_chunk_size, dimension};
-            hsize_t local_size[] = {scalar_local_size, dimension};
-            hsize_t local_offset[] = {scalar_local_offset, dimension};
-
+            hsize_t dims[2] = {scalar_global_size, dimension};
+            hsize_t max_dims[2] = {scalar_global_size, dimension};
+            hsize_t chunk_dims[2] = {scalar_chunk_size, dimension};
+            hsize_t local_size[2] = {scalar_local_size, dimension};
+            hsize_t local_offset[2] = {scalar_local_offset, 0};
             vtk_HDF_hypertreegrid_collective_write_compressed_dataset(vector_name,                 /* dataset_name */
                                                                       v_data,                      /* data */
                                                                       H5T_IEEE_F32LE,              /* dtype_id */
                                                                       vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                                      2,                           /* rank */
                                                                       dims,                        /* dims[] */
                                                                       max_dims,                    /* max_dims[] */
                                                                       chunk_dims,                  /* chunk_dims[] */
@@ -1716,13 +1754,14 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                                       &vtk_hdf_htg       /* vtkHDFHyperTreeGrid */
             );
 #elif COMPRESSION && !MPI_SINGLE_FILE
-            hsize_t dims[] = {scalar_local_size, dimension};
-            hsize_t max_dims[] = {scalar_local_size, dimension};
+            hsize_t dims[] = {scalar_global_size, dimension};
+            hsize_t max_dims[] = {scalar_global_size, dimension};
             hsize_t chunk_dims[] = {scalar_chunk_size, dimension};
             vtk_HDF_hypertreegrid_write_compressed_dataset(vector_name,                 /* dataset_name */
                                                            v_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           2,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            chunk_dims,                  /* chunk_dims[] */
@@ -1730,14 +1769,16 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                            &vtk_hdf_htg                 /* vtkHDFHyperTreeGrid */
             );
 #elif !COMPRESSION && MPI_SINGLE_FILE
-            hsize_t dims[] = {scalar_global_size, dimension};
-            hsize_t max_dims[] = {scalar_global_size, dimension};
-            hsize_t local_size[] = {scalar_local_size, dimension};
-            hsize_t local_offset[] = {scalar_local_offset, dimension};
+            hsize_t dims[2] = {scalar_global_size, dimension};
+            hsize_t max_dims[2] = {scalar_global_size, dimension};
+            hsize_t chunk_dims[2] = {scalar_chunk_size, dimension};
+            hsize_t local_size[2] = {scalar_local_size, dimension};
+            hsize_t local_offset[2] = {scalar_local_offset, 0};
             vtk_HDF_hypertreegrid_collective_write_dataset(vector_name,                 /* dataset_name */
                                                            v_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           2,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            local_size,                  /* local_size[] */
@@ -1745,12 +1786,13 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                            &vtk_hdf_htg                 /* vtkHDFHyperTreeGrid */
             );
 #else // !COMPRESSION && !MPI_SINGLE_FILE
-            hsize_t dims[] = {scalar_local_size, dimension};
-            hsize_t max_dims[] = {scalar_local_size, dimension};
+            hsize_t dims[] = {scalar_global_size, dimension};
+            hsize_t max_dims[] = {scalar_global_size, dimension};
             vtk_HDF_hypertreegrid_collective_write_dataset(vector_name,                 /* dataset_name */
                                                            v_data,                      /* data */
                                                            H5T_IEEE_F32LE,              /* dtype_id */
                                                            vtk_hdf_htg.grp_celldata_id, /* group_id */
+                                                           2,                           /* rank */
                                                            dims,                        /* dims[] */
                                                            max_dims,                    /* max_dims[] */
                                                            &vtk_hdf_htg                 /* vtkHDFHyperTreeGrid */
