@@ -7,8 +7,6 @@
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
 
-// #define CHUNK_SIZE (1 << (4))
-
 /**
  * @brief This struct holds various IDs needed by the HDF5 library to read and
  * write HDF5 files for our particular HyperTreeGrid/PHyperTreeGrid schema.
@@ -1551,6 +1549,10 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
         if (pid() == 0) {
             scalar_local_offset = 0;
         }
+
+        // hsize_t scalar_target_chunk_size = (1 << 20) / (hsize_t) sizeof(float); // 1 MB
+        // hsize_t scalar_chunk_size = scalar_global_size < scalar_target_chunk_size ? scalar_global_size : scalar_target_chunk_size;
+
         hsize_t scalar_chunk_size = scalar_global_size / (hsize_t)npe();
 #else
         hsize_t scalar_local_size = (hsize_t)vtk_hdf_htg_data->number_of_cells;
