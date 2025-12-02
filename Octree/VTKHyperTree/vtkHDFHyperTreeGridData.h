@@ -141,18 +141,8 @@ void vtk_hdf_get_local_mask(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data)
     foreach_cell_BFS() {
         if (!(is_local(cell)) && is_leaf(cell)) {
             bool val = true;
-            foreach_neighbor(1) {
-                if (is_local(cell)) {
-                    val = false;
-                }
-            }
             vtk_hdf_hypertreegrid_data->mask[byte_count] |= (uint8_t)(val << (7 - bit_count));
         }
-
-        // if (!(is_local(cell)) && is_leaf(cell)) {
-        //   vtk_hdf_hypertreegrid_data->mask[byte_count] |=
-        //       (uint8_t)(1 << (7 - bit_count));
-        // }
 
         bit_count++;
 
