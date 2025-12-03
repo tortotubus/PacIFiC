@@ -6,10 +6,6 @@
 
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
-<<<<<<< HEAD
-=======
-#define CHUNK_SIZE (1 << (4))
->>>>>>> 8af4217d (Typo)
 
 
 /**
@@ -1814,7 +1810,4 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
     vtk_hdf_hypertreegrid_data_free(vtk_hdf_htg_data);
 
     return vtk_hdf_htg;
-=======
-  return vtk_hdf_htg;
->>>>>>> a991681e (First draft of DLMFD + Embed)
 }
