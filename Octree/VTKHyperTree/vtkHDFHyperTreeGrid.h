@@ -7,6 +7,7 @@
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
 
+
 /**
  * @brief This struct holds various IDs needed by the HDF5 library to read and
  * write HDF5 files for our particular HyperTreeGrid/PHyperTreeGrid schema.
@@ -1037,6 +1038,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
                                                        &vtk_hdf_htg  /* pointer to vtkHDFHyperTreeGrid object */
         );
 
+<<<<<<< HEAD
 #else
         hsize_t local_size[] = {1};
 
@@ -1808,4 +1810,7 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
     vtk_hdf_hypertreegrid_data_free(vtk_hdf_htg_data);
 
     return vtk_hdf_htg;
+=======
+  return vtk_hdf_htg;
+>>>>>>> a991681e (First draft of DLMFD + Embed)
 }

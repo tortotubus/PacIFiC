@@ -283,7 +283,7 @@ void append_dynPDBarray( dynPDBarray* a, double* newelem )
 
 
 /** Force synchronization of a field in parallel by setting the dirty flag
-of the fields to true */
+of the field to true */
 //----------------------------------------------------------------------------
 trace void synchronize( scalar* list )
 //----------------------------------------------------------------------------

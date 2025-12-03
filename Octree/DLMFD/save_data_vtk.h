@@ -404,12 +404,12 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     strcat( filename_htg_series, RESULT_FLUID_ROOTFILENAME );
     strcat( filename_htg_series, ".vtkhdf.series" ); 
 
-    // Update if dirty
+    // Synchronize if cycle number is 0
     if ( cycle_number == 0 ) 
     {
       synchronize( list );
       for (vector v in vlist) synchronize((scalar*){v});     
-    }
+    }     
 
     // Write our .vtkhdf file
     vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, 

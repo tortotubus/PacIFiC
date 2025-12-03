@@ -191,6 +191,13 @@ size_t nbParticles = 0;
 size_t NbObstacles = 0;
 
 
+# if EMBED
+    scalar rhov[];
+    face vector muv[];
+    face vector alphav[];
+# endif
+
+
 /** Fictitious domain implementation */
 # include "DLMFD_Uzawa_velocity.h"
 
@@ -238,6 +245,16 @@ event GranularSolver_saveResults (t < -1.)
 
 
 
+/** Generic static embedded boundary cs and fs calculation event: TO BE 
+OVERLOADED BY THE USER */
+//----------------------------------------------------------------------------
+event Compute_cs (t < -1.)
+//----------------------------------------------------------------------------
+{}
+
+
+
+
 /** Overloading of the init event: initialize fluid and rigid bodies */
 //----------------------------------------------------------------------------
 event init (i = 0) 
@@ -248,23 +265,7 @@ event init (i = 0)
     printf( "==================================\n" );
     printf( "======   Basilisk + DLMFD   ======\n" );
     printf( "==================================\n" );        
-  }
-
-# ifndef FLUID_DENSITY
-#   define FLUID_DENSITY 1.
-# endif
-  
-  /* Initialize the density field */
-  const scalar rhoc[] = FLUID_DENSITY;
-  rho = rhoc;
-
-# ifndef FLUID_VISCOSITY
-#   define FLUID_VISCOSITY 1.
-# endif
-  
-  /* Initialize the viscosity field */
-  const face vector muc[] = {FLUID_VISCOSITY, FLUID_VISCOSITY, FLUID_VISCOSITY};
-  mu = muc;
+  }   
 
   // Output basic fluid and geometric parameters
   if ( pid() == 0 )
@@ -275,6 +276,32 @@ event init (i = 0)
     printf( "Domain size = %6.3e\n", L0 );
     printf( "\n" );            
   }  
+
+# ifndef FLUID_DENSITY
+#   define FLUID_DENSITY 1.
+# endif
+  
+  // Initialize the density field
+# if EMBED
+    alpha = alphav;
+    rho = rhov;
+# else
+    const scalar rhoc[] = FLUID_DENSITY;
+    rho = rhoc;
+# endif    
+
+# ifndef FLUID_VISCOSITY
+#   define FLUID_VISCOSITY 1.
+# endif
+  
+  // Initialize the viscosity field
+# if EMBED
+    mu = muv;
+# else
+    const face vector muc[] = {FLUID_VISCOSITY, FLUID_VISCOSITY, 
+    	FLUID_VISCOSITY};
+    mu = muc;
+# endif 
   
   // Initialize all DLMFD fields
   initialize_DLMFD_fields_to_zero();
@@ -502,6 +529,9 @@ event init (i = 0)
       rigidbody_data( allRigidBodies, nbRigidBodies, t, i, pdata );  
   }
 
+# if EMBED
+    event( "Compute_cs" ); 
+# endif 
   
   // Simulation time interval
   maxtime = trestart + SIMUTIMEINTERVAL;
@@ -919,9 +949,31 @@ event adapt (i++)
 
     astats s = adapt_wavelet( (scalar *){DLM_FlagMesh, u}, 
 	(double[]){FLAG_ADAPT_CRIT, UX_ADAPT_CRIT, UY_ADAPT_CRIT, 
-	UZ_ADAPT_CRIT}, maxlevel = MAXLEVEL, minlevel = LEVEL );		
+	UZ_ADAPT_CRIT}, maxlevel = MAXLEVEL, minlevel = LEVEL );
+	
+# if EMBED
+    event( "Compute_cs" ); 
+# endif
 
     if ( pid() == 0 ) 
       printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+# endif
+}
+
+
+
+
+/* Update fluid viscosity and density in case of embedded boundaries */
+//----------------------------------------------------------------------------
+event properties (i++) 
+//----------------------------------------------------------------------------
+{
+# if EMBED
+    foreach_face() 
+    {
+      muv.x[] = FLUID_VISCOSITY * fm.x[];
+      alphav.x[] = fm.x[] / FLUID_DENSITY ;
+    }
+    foreach() rhov[] = FLUID_DENSITY * cm[];
 # endif
 }

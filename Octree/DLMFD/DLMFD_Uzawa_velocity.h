@@ -1,43 +1,5 @@
 /**
-# Fictitious-domain method with distributed Lagrangian multipliers 
-
-We are looking for a numerical approximation for the solution of the
-following equations 
-$$
-\rho\left(\partial_t{\mathbf{u}} 
-+ \mathbf{u}\cdot \mathbf{\nabla}\mathbf{u}\right) = 
--\mathbf{\nabla} p + \mathbf{\nabla} \cdot\left(2\mu\mathbf{D}\right) 
-+ \rho\mathbf{a} + \mathbf{\lambda}~\text{over}~\Omega
-$$
-$$
-\left(1-\frac{\rho}{\rho_s}\right)
-\left(M\left(\partial_t{\mathbf{U}}-\mathbf{g}\right)\right)=
--\int_{P(t)} {\mathbf{\lambda}} dv~\text{over}~P(t)
-$$
-$$
-\left(1-\frac{\rho}{\rho_s}\right)
-\left(\mathbf{I}\partial_t{\mathbf{\omega}} 
-+ \mathbf{\omega} \times\mathbf{I}\mathbf{\omega}\right) = 
--\int_{P(t)}\mathbf{r}\times{\mathbf{\lambda}} dv~\text{over}~P(t)
-$$
-$$
-\mathbf{u}-\left(\mathbf{U}+\mathbf{\omega}\times \mathbf{r}\right)=
-0~\text{over}~P(t)
-$$
-$$
-\mathbf{\nabla}\cdot\mathbf{u} = \mathbf{0} ~\text{over}~\Omega
-$$
-
-From a numerical point of view, this is a complicated set of equations
-to solve directly. One has to deal with three main difficulties:
-
-  * an advection-diffusion equation
-  * the imcompressibility constraint with the pressure $p$ as unknown 
-  * the rigid body's constraint with the Lagrange
-multipliers as unknow.
-
-The classic strategy is to split the problem into subproblems and
-solve them successively. We chose here a two-steps time-spliting.
+# Distributed Lagrange Multiplier/Fictitious Domain method for velocity coupling
 */
 
 # define BGHOSTS 2
@@ -98,13 +60,11 @@ solve them successively. We chose here a two-steps time-spliting.
 # endif
 
 
-/** Functions and structures needed for the implementation of
-    fictitious domain method. */
+/** Functions and structures for the implementation of the DLMFD method. */
 # include "DLMFD_Functions.h"
 
 
-/** Basilisk scalars and vectors needed for the implementation of the
-    fictitious domain method. */
+/** Basilisk scalars and vectors for the implementation of the DLMFD method. */
 vector DLM_lambda[];
 scalar DLM_Flag[];
 scalar DLM_FlagMesh[];
@@ -119,6 +79,7 @@ vector DLM_tu[];
     vector DLM_explicit[];
 # endif
 
+
 /** Number of rigid body dependent arrays */
 RigidBody* allRigidBodies = NULL;
 double** DLMFDtoGS_vel = NULL;
@@ -132,21 +93,6 @@ FILE* cellvstime = NULL;
 dynUIarray deactivatedBPindices;
 dynPDBarray deactivatedIndexFieldValues;
 
-/**
-## First sub-problem: Navier Stokes problem
-
-We are using the centred solver for this problem.
-$$
-\rho\left(\partial_t{\mathbf{u}}
-+\mathbf{u}\cdot {\mathbf{\nabla}}\mathbf{u}\right) = 
--{\mathbf{\nabla}}p + {\mathbf{\nabla}}\cdot\left(2\mu\mathbf{D}\right) 
-+ \rho\mathbf{a}~\text{over}~\Omega
-$$
-$$
-{\mathbf{\nabla}}\cdot\mathbf{u} = \mathbf{0} ~\text{over}~\Omega. 
-$$
-*/
-
 # include "DLMFD_ns-centered.h"
 
 
@@ -158,39 +104,6 @@ $$
 # else // dimension == 3
 #   define dlmfd_dv() (cube(Delta))
 # endif
-
-
-/**
-## Second sub-problem: Fictitious-domain problem
-We are solving a fictitious problem given by:
-$$
-\rho \partial_t\mathbf{u} = {\mathbf{\lambda}}~\text{over}~\Omega
-$$
-$$
-\left(1-\frac{\rho}{\rho_s}\right)
-\left(M\left(\partial_t\mathbf{U}-\mathbf{g}\right)\right)=
--\int_{P(t)}{\mathbf{\lambda}} dv~\text{over}~P(t)
-$$
-$$
-\left(1-\frac{\rho}{\rho_s}\right)
-\left(\mathbf{I}\partial_t {\mathbf{\omega}} 
-+ {\mathbf{\omega}} \times\mathbf{I}{\mathbf{\omega}}\right) = 
--\int_{P(t)}\mathbf{r}\times{\mathbf{\lambda}} dv~\text{over}~P(t)
-$$
-$$
-\mathbf{u}-\left(\mathbf{U}+{\mathbf{\omega}}\times \mathbf{r}\right)=
-0~\text{over}~P(t),
-$$
-with unknowns $\mathbf{u}, \mathbf{U}, {\mathbf{\omega}}$ and 
-${\mathbf{\lambda}}$ being respectively the fluid velocity field, 
-the particle's translational velocity, the particle's rotational velocity and 
-the Lagrange multipliers. The particle occupies the domain $P(t)$ with density 
-$\rho_s$, Inertia tensor $\mathbf{I}$ and mass $M$. The vector $\mathbf{g}$ is 
-the gravity acceleration here.
-
-This leads to a saddle-point problem which is solved with an iterative solver 
-(Uzawa, conjugate gradient algorithm). It is implemented in the function below. 
-*/
 
 
 /* Timings and statistics */
