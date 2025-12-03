@@ -6,6 +6,10 @@
 
 #define COMPRESSION 1
 #define COMPRESSION_LEVEL 7
+<<<<<<< HEAD
+=======
+#define CHUNK_SIZE (1 << (4))
+>>>>>>> 8af4217d (Typo)
 
 
 /**
