@@ -121,12 +121,6 @@
 #   define PARAVIEW_HTG 0
 # endif
 
-# if PARAVIEW_VTU || PARAVIEW_HTG
-#   define PARAVIEW 1
-# else 
-#   define PARAVIEW 0
-# endif
-
 # ifndef PARAVIEW_SCALAR_LIST
 #   define PARAVIEW_SCALAR_LIST p
 # endif
@@ -161,6 +155,13 @@
 #   ifndef PARAVIEW_DLMFD_BNDPTS_FILENAME
 #     define PARAVIEW_DLMFD_BNDPTS_FILENAME "dlmfd_boundary_points"
 #   endif      
+# endif
+
+# if PARAVIEW_VTU || PARAVIEW_HTG || PARAVIEW_DLMFD_INTPTS \
+	|| PARAVIEW_DLMFD_BNDPTS
+#   define PARAVIEW 1
+# else 
+#   define PARAVIEW 0
 # endif
 
 

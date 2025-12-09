@@ -366,7 +366,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       strcpy( filename_vtu, RESULT_FLUID_ROOTFILENAME );    
@@ -421,7 +421,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     {  
       char time_line[200] = "";
       snprintf( time_line, sizeof(time_line), 
-      	"\t\t{ \"name\": \"%s_%d.vtkhdf\", \"time\": %f },\n", 
+      	"\t\t{ \"name\": \"%s_%d.vtkhdf\", \"time\": %.6e },\n", 
 	RESULT_FLUID_ROOTFILENAME, cycle_number, time );
       strcat( htg_field_times_series, time_line );    
 
@@ -472,7 +472,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       sprintf( filename_bnd_vtu, PARAVIEW_DLMFD_BNDPTS_FILENAME );
@@ -508,7 +508,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       sprintf( filename_int_vtu, PARAVIEW_DLMFD_INTPTS_FILENAME );
@@ -542,10 +542,12 @@ void reinitialize_vtk_restart( void )
 
   FILE * fpvtk = fopen( filename_lcn, "r" );    
 
-  fscanf ( fpvtk, "%d", &init_cycle_number );
-  ++init_cycle_number;
-    
-  fclose( fpvtk ); 
+  if ( fpvtk )
+  {
+    fscanf ( fpvtk, "%d", &init_cycle_number );
+    ++init_cycle_number;
+    fclose( fpvtk );     
+  } 
   
   // Re-initialize the time output series string
   if ( pid() == 0 ) 
@@ -567,19 +569,22 @@ void reinitialize_vtk_restart( void )
 
       fpvtk = fopen( filename_vtu_pvd, "r" ); 
     
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
+      if ( fpvtk )
+      {
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref_pvd ) )
-          strcat( vtu_field_times_series, time_line );      
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+            strcat( vtu_field_times_series, time_line );      
+        }
+	
+        fclose( fpvtk );	
       }
-    
-      fclose( fpvtk );
 #   endif
 
 #   if PARAVIEW_HTG
@@ -589,22 +594,24 @@ void reinitialize_vtk_restart( void )
 
       fpvtk = fopen( filename_htg_series, "r" ); 
     
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 9 first characters without the 2 first tabs
-        strncpy( start, time_line, 11 );
-	start[11] = '\0';
-	for (size_t k=0;k<9;++k) start[k] = start[k+2];
-	start[9] = '\0';
-	printf( "%s %s\n", start, start_ref_series );
+      if ( fpvtk )
+      {
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 9 first characters without the 2 first tabs
+          strncpy( start, time_line, 11 );
+	  start[11] = '\0';
+	  for (size_t k=0;k<9;++k) start[k] = start[k+2];
+	  start[9] = '\0';
 
-        // If 9 first characters equal "{ "name":", it is an output time line
-        // We add to the htg time series string
-        if ( ! strcmp( start, start_ref_series ) )
-	  strcat( htg_field_times_series, time_line );
+          // If 9 first characters equal "{ "name":", it is an output time line
+          // We add to the htg time series string
+          if ( ! strcmp( start, start_ref_series ) )
+	    strcat( htg_field_times_series, time_line );
+        }
+	
+	fclose( fpvtk );
       }
-    
-      fclose( fpvtk );
 #   endif          
     
 #   if PARAVIEW_DLMFD_BNDPTS
@@ -615,20 +622,23 @@ void reinitialize_vtk_restart( void )
       strcat( filename_bnd_pvd, ".pvd" ); 
 
       fpvtk = fopen( filename_bnd_pvd, "r" ); 
-    
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref_pvd ) )
-	  strcat( vtk_bndpts_times_series, time_line );
-      }
+      if ( fpvtk )
+      {    
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
+
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+	    strcat( vtk_bndpts_times_series, time_line );
+        }
       
-      fclose( fpvtk );             
+        fclose( fpvtk );
+      }             
 #   endif 
 
 #   if PARAVIEW_DLMFD_INTPTS
@@ -639,20 +649,23 @@ void reinitialize_vtk_restart( void )
       strcat( filename_int_pvd, ".pvd" ); 
 
       fpvtk = fopen( filename_int_pvd, "r" ); 
-    
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref_pvd ) )
-          strcat( vtk_intpts_times_series, time_line );      
-      }
+      if ( fpvtk )
+      {    
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
+
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+            strcat( vtk_intpts_times_series, time_line );      
+        }
       
-      fclose( fpvtk );             
+        fclose( fpvtk );
+      }             
 #   endif  
   }         
 }

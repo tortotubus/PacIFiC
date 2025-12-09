@@ -401,7 +401,8 @@ void RawDataPostProcessingWriter::one_output_Standard( double const& time,
   }
   else
   {
-    string stime = GrainsExec::doubleToString( ios::scientific, 6, time );
+    string stime = GrainsExec::doubleToString( ios::scientific, FORMAT6DIGITS, 
+    	time );
     m_gc_coordinates_x << stime;
     m_gc_coordinates_y << stime;
     m_gc_coordinates_z << stime;
