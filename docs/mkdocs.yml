@@ -1,0 +1,23 @@
+site_name: PacIFiC
+
+theme:
+  name: mkdocs
+  custom_dir: 'theme/'
+  color_mode: light
+
+docs_dir: pages
+
+site_url: https://tortotubus.github.io/mkdocs-any-doxygen/
+repo_url: https://gitlab.math.ubc.ca/PacIFiC-devel-team/PacIFiC/
+repo_name: 'GitLab'
+edit_uri: -/edit/master/docs/docs/
+
+#https://gitlab.math.ubc.ca/PacIFiC-devel-team/PacIFiC/-/edit/master/Cartesian/FLUID/Makefile?ref_type=heads
+
+nav: 
+  - Features: 'features.md'
+  - Examples: 'examples/index.md'
+  - Documentation:
+    - Grains: 'doxygen/grains/'
+  - Gallery: 'gallery.md'
+  - Download: 'download.md'
