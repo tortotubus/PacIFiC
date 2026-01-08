@@ -1,0 +1,15 @@
+// main.scss
+
+$color-mode-type: media-query;
+
+// 2. Import Bootstrap itself
+@import "bootstrap-5.3.8/scss/bootstrap.scss";
+
+pre code {
+  display: block;
+  background-color: rgba($dark, 1.0) ;
+  color: $light;
+  padding: 1rem;
+  border-radius: 0.4rem;
+  overflow-x: auto;
+}
