@@ -67,7 +67,7 @@ void output_vtu_dlmfd_bndpts( RigidBody const* allrb, const int np,
 # if DLMFD_BOUNDARYPOINTS
     if ( pid() == 0 ) 
     {    
-      uint32_t total_boundary_points = 0;
+      int total_boundary_points = 0;
       for (size_t k = 0; k < np; k++) 
       {
         RigidBodyBoundary const* sbb = &(allrb[k].s);
@@ -81,21 +81,21 @@ void output_vtu_dlmfd_bndpts( RigidBody const* allrb, const int np,
   	"<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" "
 	"byte_order=\"LittleEndian\" header_type=\"UInt64\">\n", fdlm );
       fputs( "<UnstructuredGrid>\n", fdlm );
-      fprintf( fdlm, "<Piece NumberOfPoints=\"%u\" NumberOfCells=\"%u\">\n", 
+      fprintf( fdlm, "<Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\n", 
       	total_boundary_points, total_boundary_points ); 
       fputs( "<Points>\n", fdlm );  
-      fprintf( fdlm, "<DataArray type=\"%s\" NumberOfComponents=\"3\" "
-      	"format=\"ascii\">\n", PARAVIEW_DATANAME );
+      fputs( "<DataArray type=\"Float64\" NumberOfComponents=\"3\" "
+      	"format=\"ascii\">\n", fdlm );
       for (size_t k = 0; k < np; k++) 
       {
         RigidBodyBoundary const* sbb = &(allrb[k].s);
-	size_t m = (size_t) sbb->m;
+	int m = sbb->m;
 	for (size_t j = 0; j < m; j++)
 	  if ( sbb->deactivated[j] == 0 )
 	  {  
-	    fprintf( fdlm, "%12.5e %12.5e", sbb->x[j], sbb->y[j] );
+	    fprintf( fdlm, "%g %g", sbb->x[j], sbb->y[j] );
 #           if dimension == 3  
-              fprintf( fdlm, " %12.5e\n", sbb->z[j] );
+              fprintf( fdlm, " %g\n", sbb->z[j] );
 #           else
               fprintf( fdlm, " 0.\n" );
 #           endif	
@@ -104,21 +104,21 @@ void output_vtu_dlmfd_bndpts( RigidBody const* allrb, const int np,
       fputs( "</DataArray>\n", fdlm );  
       fputs( "</Points>\n", fdlm );
       fputs( "<Cells>\n", fdlm );
-      fputs( "<DataArray type=\"UInt32\" Name=\"connectivity\" "
+      fputs( "<DataArray type=\"Int64\" Name=\"connectivity\" "
       	"format=\"ascii\">\n", fdlm );
-      for (uint32_t j = 0; j < total_boundary_points; j++)
-        fprintf( fdlm, "%u ", j );
+      for (int j = 0; j < total_boundary_points; j++)
+        fprintf( fdlm, "%d ", j );
       fprintf( fdlm, "\n" );
       fputs( "</DataArray>\n", fdlm ); 
-      fputs( "<DataArray type=\"UInt32\" Name=\"offsets\" "
+      fputs( "<DataArray type=\"Int64\" Name=\"offsets\" "
       	"format=\"ascii\">\n", fdlm );
-      for (uint32_t j = 0; j < total_boundary_points; j++)
-        fprintf( fdlm, "%u ", j+1 );
+      for (int j = 0; j < total_boundary_points; j++)
+        fprintf( fdlm, "%d ", j+1 );
       fprintf( fdlm, "\n" );		
       fputs( "</DataArray>\n", fdlm );
-      fputs( "<DataArray type=\"UInt8\" Name=\"types\" "
+      fputs( "<DataArray type=\"Int8\" Name=\"types\" "
       	"format=\"ascii\">\n", fdlm );
-      for (uint32_t j = 0; j < total_boundary_points; j++)
+      for (int j = 0; j < total_boundary_points; j++)
         fprintf( fdlm, "1 " );
       fprintf( fdlm, "\n" ); 	
       fputs( "</DataArray>\n", fdlm ); 
@@ -230,15 +230,15 @@ void output_vtu_dlmfd_intpts( RigidBody const* allrb, const int np,
       fprintf( fdlm, "<Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\n", 
       	total_interior_points, total_interior_points); 
       fputs( "<Points>\n", fdlm );  
-      fprintf( fdlm, "<DataArray type=\"%s\" NumberOfComponents=\"3\" "
-      	"format=\"ascii\">\n", PARAVIEW_DATANAME );
+      fputs( "<DataArray type=\"Float64\" NumberOfComponents=\"3\" "
+      	"format=\"ascii\">\n", fdlm );
       	
       for(int i = 0; i < total_interior_points; i++)
       {
-        fprintf( fdlm, "%12.5e %12.5e", All_interior_coordx[i], 
+        fprintf( fdlm, "%g %g", All_interior_coordx[i], 
 	  	All_interior_coordy[i] );
 #       if dimension == 3  
-          fprintf( fdlm, " %12.5e\n", All_interior_coordz[i] );
+          fprintf( fdlm, " %g\n", All_interior_coordz[i] );
 #       else
           fprintf( fdlm, " 0.\n" );
 #       endif	
@@ -247,19 +247,19 @@ void output_vtu_dlmfd_intpts( RigidBody const* allrb, const int np,
       fputs( "</DataArray>\n", fdlm );  
       fputs( "</Points>\n", fdlm );
       fputs( "<Cells>\n", fdlm );
-      fputs( "<DataArray type=\"UInt32\" Name=\"connectivity\" "
+      fputs( "<DataArray type=\"Int64\" Name=\"connectivity\" "
       	"format=\"ascii\">\n", fdlm );
-      for (uint32_t j = 0; j < (uint32_t)total_interior_points; j++)
-        fprintf( fdlm, "%u ", j );
+      for (int j = 0; j < total_interior_points; j++)
+        fprintf( fdlm, "%d ", j );
       fprintf( fdlm, "\n" );
       fputs( "</DataArray>\n", fdlm ); 
-      fputs( "<DataArray type=\"UInt32\" Name=\"offsets\" "
+      fputs( "<DataArray type=\"Int64\" Name=\"offsets\" "
       	"format=\"ascii\">\n", fdlm );
-      for (uint32_t j = 0; j < (uint32_t)total_interior_points; j++)
-        fprintf( fdlm, "%u ", j+1 );
+      for (int j = 0; j < total_interior_points; j++)
+        fprintf( fdlm, "%d ", j+1 );
       fprintf( fdlm, "\n" );		
       fputs( "</DataArray>\n", fdlm );
-      fputs( "<DataArray type=\"UInt8\" Name=\"types\" "
+      fputs( "<DataArray type=\"Int8\" Name=\"types\" "
       	"format=\"ascii\">\n", fdlm );
       for (int j = 0; j < total_interior_points; j++)
         fprintf( fdlm, "1 " );
@@ -404,21 +404,11 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     strcat( filename_htg_series, RESULT_FLUID_ROOTFILENAME );
     strcat( filename_htg_series, ".vtkhdf.series" ); 
 
-    // If cycle number is 0
+    // Synchronize if cycle number is 0
     if ( cycle_number == 0 ) 
     {
-      // Synchronize fields
       synchronize( list );
-      for (vector v in vlist) synchronize((scalar*){v});
-      
-      // Write computational cubic domain file
-      char filename_domain[80] = "";
-      sprintf( filename_domain, "%s", RESULT_DIR );
-      strcat( filename_domain, "/" );  
-      strcat( filename_domain, RESULT_FLUID_ROOTFILENAME ); 
-      sprintf( suffix, "_domain.vtu" );
-      strcat( filename_domain, suffix );
-      output_vtu_domain( filename_domain );   
+      for (vector v in vlist) synchronize((scalar*){v});     
     }     
 
     // Write our .vtkhdf file

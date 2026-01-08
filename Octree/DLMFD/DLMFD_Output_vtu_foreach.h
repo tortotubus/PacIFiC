@@ -1359,7 +1359,6 @@ void flush_binary()
 
 
 
-
 /**
 # output_vtu_bin_foreach_MPIIO
 This function writes a single XML VTK file regardless of the number of processes
@@ -1742,65 +1741,3 @@ void output_vtu_bin_foreach_MPIIO( scalar* list, vector* vlist,
 }
 # endif
 
-
-
-
-/**
-# output_vtu_domain
-This function writes the cubic computational domain as a single XML VTK file. 
-Results are written in ASCII format.
-*/
-void output_vtu_domain( char* filename )
-{
-  if ( pid() == 0 ) 
-  { 
-    FILE* fvtk = fopen( filename, "w" ); ;
-          
-    fputs( "<?xml version=\"1.0\"?>\n"
-  	"<VTKFile type=\"UnstructuredGrid\" version=\"1.0\" "
-	"byte_order=\"LittleEndian\" header_type=\"UInt64\">\n", fvtk );
-    fputs( "<UnstructuredGrid>\n", fvtk );
-    fprintf( fvtk,  "<Piece NumberOfPoints=\"%u\" NumberOfCells=\"1\">\n", 
-    	NVERTCELL );      
-    fputs( "<Points>\n", fvtk );   
-    fprintf( fvtk, "<DataArray type=\"%s\" NumberOfComponents=\"3\" "
-  	"format=\"ascii\">\n", PARAVIEW_DATANAME );
-#   if dimension == 2   
-      fprintf( fvtk, "%12.5e %12.5e 0.\n", X0, Y0 );
-      fprintf( fvtk, "%12.5e %12.5e 0.\n", X0 + L0, Y0 ); 
-      fprintf( fvtk, "%12.5e %12.5e 0.\n", X0 + L0, Y0 + L0 );
-      fprintf( fvtk, "%12.5e %12.5e 0.\n", X0, Y0 + L0 ); 
-#   else
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0, Y0, Z0 );
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0 + L0, Y0, Z0 ); 
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0 + L0, Y0 + L0, Z0 );
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0, Y0 + L0, Z0 );     
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0, Y0, Z0 + L0 );
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0 + L0, Y0, Z0 + L0 ); 
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0 + L0, Y0 + L0, Z0 + L0 );
-      fprintf( fvtk, "%12.5e %12.5e %12.5e\n", X0, Y0 + L0, Z0 + L0 );
-#   endif
-    fputs( "</DataArray>\n", fvtk );  
-    fputs( "</Points>\n", fvtk );
-    fputs( "<Cells>\n", fvtk );
-    fputs( "<DataArray type=\"UInt32\" Name=\"connectivity\" "
-      	"format=\"ascii\">\n", fvtk );
-    for (uint32_t j = 0; j < NVERTCELL; j++) fprintf( fvtk, "%u ", j );
-    fputs( "\n", fvtk );
-    fputs( "</DataArray>\n", fvtk ); 
-    fputs( "<DataArray type=\"UInt32\" Name=\"offsets\" "
-      	"format=\"ascii\">\n", fvtk );
-    fprintf( fvtk, "%u\n", NVERTCELL );		
-    fputs( "</DataArray>\n", fvtk );
-    fputs( "<DataArray type=\"UInt8\" Name=\"types\" "
-      	"format=\"ascii\">\n", fvtk );
-    fprintf( fvtk,  "%u\n", CELLTYPE );		
-    fputs( "</DataArray>\n", fvtk ); 
-    fputs( "</Cells>\n", fvtk );
-    fputs( "</Piece>\n", fvtk );
-    fputs( "</UnstructuredGrid>\n", fvtk );            
-    fputs( "</VTKFile>\n", fvtk );
-      
-    fclose( fvtk );
-  }  
-}
