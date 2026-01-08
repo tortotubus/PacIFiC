@@ -81,8 +81,12 @@
 #   define RIGIDBODIES_AS_FIXED_OBSTACLES 0
 # endif
 
+# ifndef LEVELDIFF_FLAG_U
+#   define LEVELDIFF_FLAG_U 0
+# endif
+
 # ifndef FLAG_ADAPT_CRIT
-#   define FLAG_ADAPT_CRIT (1.E-9)
+#   define FLAG_ADAPT_CRIT (1.E-16)
 # endif
 
 # ifndef UX_ADAPT_CRIT
@@ -505,7 +509,7 @@ event init (i = 0)
                 }
 
           // Run refinement using the noisy distance function
-          ss = adapt_wavelet( {DLM_Flag}, (double[]) {1.e-30}, 
+          ss = adapt_wavelet( {DLM_Flag}, (double[]) {1.e-16}, 
 		maxlevel = MAXLEVEL, minlevel = LEVEL );
 
           totalcell = totalcells();
@@ -948,9 +952,11 @@ event adapt (i++)
       printf( "total = %d, ", totalcell );
     }
 
-    astats s = adapt_wavelet( (scalar *){DLM_FlagMesh, u}, 
+    astats s = adapt_wavelet_multimaxlevel( (scalar *){DLM_FlagMesh, u}, 
 	(double[]){FLAG_ADAPT_CRIT, UX_ADAPT_CRIT, UY_ADAPT_CRIT, 
-	UZ_ADAPT_CRIT}, maxlevel = MAXLEVEL, minlevel = LEVEL );
+	UZ_ADAPT_CRIT}, (int[]){MAXLEVEL, MAXLEVEL-LEVELDIFF_FLAG_U, 
+	MAXLEVEL-LEVELDIFF_FLAG_U, MAXLEVEL-LEVELDIFF_FLAG_U}, 
+	minlevel = LEVEL );	
 	
 # if EMBED
     event( "Compute_cs" ); 

@@ -1696,9 +1696,8 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list, vector *vect
       // Obtain the name of the vector
       char *vector_name;
       size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-      vector_name = malloc((trunc_len + 1) * sizeof(char));
-      strncpy(vector_name, v.x.name, trunc_len);
-      vector_name[trunc_len] = '\0';
+      vector_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+      snprintf( vector_name, trunc_len + 1, "%s", v.x.name );
 
       // Create the BFS-ordered array
       float *v_data = malloc(scalar_local_size * dimension * sizeof(float));

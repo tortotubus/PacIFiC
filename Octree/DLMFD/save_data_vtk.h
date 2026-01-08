@@ -544,7 +544,11 @@ void reinitialize_vtk_restart( void )
 
   if ( fpvtk )
   {
-    fscanf ( fpvtk, "%d", &init_cycle_number );
+    int result = fscanf( fpvtk, "%d", &init_cycle_number );
+    if ( result != 3 ) 
+      if ( pid() == 0 )
+        printf( "WARNING: problem when reading cycle number in file %s\n", 
+		filename_lcn );    
     ++init_cycle_number;
     fclose( fpvtk );     
   } 

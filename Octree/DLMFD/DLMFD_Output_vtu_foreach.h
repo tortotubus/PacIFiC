@@ -113,9 +113,8 @@ void output_pvtu_ascii( scalar* list, vector* vlist, FILE* fp,
   {
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name ); 
     fprintf( fp, "<PDataArray type=\"%s\" "
     	"NumberOfComponents=\"3\" Name=\"%s\" format=\"ascii\">\n", 
 	PARAVIEW_DATANAME, paraview_name );
@@ -219,9 +218,8 @@ void output_vtu_ascii_foreach( scalar* list, vector* vlist, FILE* fp )
   {
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name );
     fprintf( fp, "<DataArray type=\"%s\" "
     	"NumberOfComponents=\"3\" Name=\"%s\" format=\"ascii\">\n", 
 	PARAVIEW_DATANAME, paraview_name );
@@ -378,9 +376,8 @@ void output_pvtu_bin( scalar* list, vector* vlist,  FILE* fp, char* subname )
   {
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name );
     fprintf( fp,"<PDataArray type=\"%s\" NumberOfComponents=\"3\""
     	" Name=\"%s\" format=\"appended\">\n", PARAVIEW_DATANAME, 
 	paraview_name );
@@ -486,9 +483,8 @@ void output_vtu_bin_foreach( scalar* list, vector* vlist, FILE* fp )
   {
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name );
     fprintf( fp,"<DataArray type=\"%s\" Name=\"%s\" "
     	"NumberOfComponents=\"3\" format=\"appended\" offset=\"%lu\">\n", 
 	PARAVIEW_DATANAME, paraview_name, count );
@@ -1162,9 +1158,8 @@ void output_vtu_ascii_foreach_MPIIO( scalar* list, vector* vlist,
   {
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name );
     mpifile_offset += strlen(header) * sizeof(char);    
     sprintf( header, "<DataArray type=\"%s\" "
     	"NumberOfComponents=\"3\" Name=\"%s\" format=\"ascii\">\n", 
@@ -1676,9 +1671,8 @@ void output_vtu_bin_foreach_MPIIO( scalar* list, vector* vlist,
   {  
     char* paraview_name;
     size_t trunc_len = (size_t)(strlen(v.x.name) - 2);
-    paraview_name = malloc((trunc_len + 1) * sizeof(char));
-    strncpy( paraview_name, v.x.name, trunc_len );
-    paraview_name[trunc_len] = '\0';
+    paraview_name = (char*) malloc((trunc_len + 1) * sizeof(char));
+    snprintf( paraview_name, trunc_len + 1, "%s", v.x.name );
     sprintf( line, "<DataArray type=\"%s\" Name=\"%s\" "
     	"NumberOfComponents=\"3\" offset=\""
     	"%lu\" format=\"appended\"></DataArray>\n", 
