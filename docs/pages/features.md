@@ -25,6 +25,7 @@ fortis sed dominos [Veneris](#palles-animosa-dissimilem-transfert), non.
 Fit fuerat harenas iuvenali `lion`. Est et mirabile, nec est solido Cadmi hic
 pro *praeruptam*, harenam vitiantes fatorum hoc quae.
 
+```javascript
     favicon_function.pad_dv(executableMacro, outbox_ppl + hotVariable);
     dvAddressCarrier.infringement_intellectual =
             deprecated_cybersquatter_hyper.cardMashup(alert(vector, 4),
@@ -39,6 +40,7 @@ pro *praeruptam*, harenam vitiantes fatorum hoc quae.
         telecommunicationsNanometerPad = 3;
         pci = header_megabyte * rippingSrgb;
     }
+```
 
 ## Te cunctis quippe ira
 
