@@ -27,6 +27,7 @@
 //# include "vtkXMLHyperTreeGrid.h"
 # include "vtkHDFHyperTreeGrid.h"
 
+
 //----------------------------------------------------------------------------
 void output_pvd( FILE* fp, char const* times_series )
 //----------------------------------------------------------------------------
@@ -38,6 +39,21 @@ void output_pvd( FILE* fp, char const* times_series )
   fputs( times_series, fp );
   fputs( "</Collection>\n", fp );
   fputs( "</VTKFile>\n", fp );
+}
+
+
+
+
+//----------------------------------------------------------------------------
+void output_series( FILE* fp, char const* times_series )
+//----------------------------------------------------------------------------
+{
+  fputs("{\n", fp);
+  fputs("\t\"file-series-version\" : \"1.0\",\n", fp);
+  fputs("\t\"files\" : [\n", fp);
+  fputs( times_series, fp );
+  fputs("\t]\n", fp);
+  fputs("}", fp);
 }
 
 
@@ -350,7 +366,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       strcpy( filename_vtu, RESULT_FLUID_ROOTFILENAME );    
@@ -369,74 +385,56 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     }
 # endif
 
-
 # if PARAVIEW_HTG 
     char filename_htg[80] = "";             
-    // Write the HTG file
+    char filename_htg_series[80] = "";             
+    FILE * fp_htg_series; 
+
+
+    // Create the vtkhdf file name
     sprintf( filename_htg, "%s", RESULT_DIR );
     strcat( filename_htg, "/" );  
     strcat( filename_htg, RESULT_FLUID_ROOTFILENAME );
-    sprintf( suffix, "_T%d.htg", cycle_number );
+    sprintf( suffix, "_%d.vtkhdf", cycle_number );
     strcat( filename_htg, suffix );
 
-    vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init(list, vlist, filename_htg);
-    vtk_HDF_hypertreegrid_close(&vtk_hdf);
+    // Create the vtkhdf.series filename
+    sprintf( filename_htg_series, "%s", RESULT_DIR );
+    strcat( filename_htg_series, "/" );  
+    strcat( filename_htg_series, RESULT_FLUID_ROOTFILENAME );
+    strcat( filename_htg_series, ".vtkhdf.series" ); 
 
-//    vtkXMLHyperTreeGrid *vtk_xml_hypertreegrid = NULL; 
+    // Synchronize if cycle number is 0
+    if ( cycle_number == 0 ) 
+    {
+      synchronize( list );
+      for (vector v in vlist) synchronize((scalar*){v});     
+    }     
 
+    // Write our .vtkhdf file
+    vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, 
+    	filename_htg );
+    vtk_HDF_hypertreegrid_close( &vtk_hdf );
 
+    // Write our vtkhdf.series file
+    if ( pid() == 0 ) 
+    {  
+      char time_line[200] = "";
+      snprintf( time_line, sizeof(time_line), 
+      	"\t\t{ \"name\": \"%s_%d.vtkhdf\", \"time\": %.6e },\n", 
+	RESULT_FLUID_ROOTFILENAME, cycle_number, time );
+      strcat( htg_field_times_series, time_line );    
 
-// #   if _MPI
-//       MPI_File fp;
-//       MPI_File_open( MPI_COMM_WORLD, filename_htg,
-//                 MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fp );
-//       vtk_xml_hypertreegrid =
-//       	vtk_xml_hypertreegrid_init( 2, PARAVIEW_DATATYPE_DOUBLE ? 9: 8, 1, 
-// 		true, list, vlist, time );
-//       vtk_xml_hypertreegrid_to_file( vtk_xml_hypertreegrid, fp );
-//       vtk_xml_hypertreegrid_free( vtk_xml_hypertreegrid );
-//       MPI_File_close( &fp );
-// #   else
-//       FILE *fp = fopen( filename_htg, "w");
-//       if ( PARAVIEW_BINFILE )
-//         vtk_xml_hypertreegrid = vtk_xml_hypertreegrid_init( 2, PARAVIEW_DATATYPE_DOUBLE ? 9: 8, 1, true, list, vlist, time );
-//       else 
-//         vtk_xml_hypertreegrid = vtk_xml_hypertreegrid_init( 2, PARAVIEW_DATATYPE_DOUBLE ? 9: 8, 0, false, list, vlist, time );
-//       vtk_xml_hypertreegrid_to_file( vtk_xml_hypertreegrid, fp );
-//       fclose(fp);
-//       vtk_xml_hypertreegrid_free( vtk_xml_hypertreegrid );
-// #   endif
-         
-    // Write the PVD file  
-    // if ( pid() == 0 ) 
-    // {  
-    //   sprintf( filename_pvd, "%s", RESULT_DIR );
-    //   strcat( filename_pvd, "/" );  
-    //   strcat( filename_pvd, RESULT_FLUID_ROOTFILENAME );
-    //   strcat( filename_pvd, "_htg.pvd" ); 
+      fp_htg_series = fopen( filename_htg_series, "w" );
 
-    //   fpvtk = fopen( filename_pvd, "w" );
-
-    //   char time_line[200] = "";
-    //   strcpy( time_line, "<DataSet timestep=" );
-    //   sprintf( suffix, "\"%.4e\"", time );
-    //   strcat( time_line, suffix );
-    //   strcat( time_line, " group=\"\" part=\"0\" file=\"" );
-    //   strcpy( filename_htg, RESULT_FLUID_ROOTFILENAME );
-    //   sprintf( suffix, "_T%d.htg", cycle_number );     
-    //   strcat( filename_htg, suffix );        
-    //   strcat( time_line, filename_htg );        
-    //   strcat( time_line, "\"/>\n" );  
-    //   strcat( htg_field_times_series, time_line );    
-    //   output_pvd( fpvtk, htg_field_times_series );
-  
-    //   fclose( fpvtk );
-    // }
-
-
+      if ( fp_htg_series )
+      {
+        output_series( fp_htg_series, htg_field_times_series );  
+        fclose( fp_htg_series );
+      }
+    }
 # endif
-    
-  
+      
   // Write the last cycle number in a file for restart  
   if ( pid() == 0 ) 
   {
@@ -474,7 +472,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       sprintf( filename_bnd_vtu, PARAVIEW_DLMFD_BNDPTS_FILENAME );
@@ -510,7 +508,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
       char time_line[200] = "";
       strcpy( time_line, "<DataSet timestep=" );
-      sprintf( suffix, "\"%.4e\"", time );
+      sprintf( suffix, "\"%.6e\"", time );
       strcat( time_line, suffix );
       strcat( time_line, " group=\"\" part=\"0\" file=\"" );
       sprintf( filename_int_vtu, PARAVIEW_DLMFD_INTPTS_FILENAME );
@@ -544,65 +542,80 @@ void reinitialize_vtk_restart( void )
 
   FILE * fpvtk = fopen( filename_lcn, "r" );    
 
-  fscanf ( fpvtk, "%d", &init_cycle_number );
-  ++init_cycle_number;
-    
-  fclose( fpvtk ); 
+  if ( fpvtk )
+  {
+    int result = fscanf( fpvtk, "%d", &init_cycle_number );
+    if ( result != 3 ) 
+      if ( pid() == 0 )
+        printf( "WARNING: problem when reading cycle number in file %s\n", 
+		filename_lcn );    
+    ++init_cycle_number;
+    fclose( fpvtk );     
+  } 
   
   // Re-initialize the time output series string
   if ( pid() == 0 ) 
   {    
     // Field files 
-    char filename_pvd_root[80] = "";
+    char filename_root[80] = "";
     char time_line[256] = "";
-    char start[9] = ""; 
-    char start_ref[20] = "<DataSet";    
-    sprintf( filename_pvd_root, "%s", RESULT_DIR );
-    strcat( filename_pvd_root, "/" );  
-    strcat( filename_pvd_root, RESULT_FLUID_ROOTFILENAME );
+    char start[12] = ""; 
+    char start_ref_pvd[20] = "<DataSet";
+    char start_ref_series[30] = "{ \"name\":";    
+    sprintf( filename_root, "%s", RESULT_DIR );
+    strcat( filename_root, "/" );  
+    strcat( filename_root, RESULT_FLUID_ROOTFILENAME );
     
 #   if PARAVIEW_VTU
       char filename_vtu_pvd[80] = "";
-      strcpy( filename_vtu_pvd, filename_pvd_root );      
+      strcpy( filename_vtu_pvd, filename_root );      
       strcat( filename_vtu_pvd, "_vtu.pvd" ); 
 
       fpvtk = fopen( filename_vtu_pvd, "r" ); 
     
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
+      if ( fpvtk )
+      {
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( vtu_field_times_series, time_line );      
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+            strcat( vtu_field_times_series, time_line );      
+        }
+	
+        fclose( fpvtk );	
       }
-    
-      fclose( fpvtk );
 #   endif
 
 #   if PARAVIEW_HTG
-      char filename_htg_pvd[80] = "";
-      strcpy( filename_htg_pvd, filename_pvd_root );      
-      strcat( filename_htg_pvd, "_htg.pvd" ); 
+      char filename_htg_series[80] = "";
+      strcpy( filename_htg_series, filename_root );      
+      strcat( filename_htg_series, ".vtkhdf.series" ); 
 
-      fpvtk = fopen( filename_htg_pvd, "r" ); 
+      fpvtk = fopen( filename_htg_series, "r" ); 
     
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
+      if ( fpvtk )
+      {
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 9 first characters without the 2 first tabs
+          strncpy( start, time_line, 11 );
+	  start[11] = '\0';
+	  for (size_t k=0;k<9;++k) start[k] = start[k+2];
+	  start[9] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( htg_field_times_series, time_line );      
+          // If 9 first characters equal "{ "name":", it is an output time line
+          // We add to the htg time series string
+          if ( ! strcmp( start, start_ref_series ) )
+	    strcat( htg_field_times_series, time_line );
+        }
+	
+	fclose( fpvtk );
       }
-    
-      fclose( fpvtk );
 #   endif          
     
 #   if PARAVIEW_DLMFD_BNDPTS
@@ -613,20 +626,23 @@ void reinitialize_vtk_restart( void )
       strcat( filename_bnd_pvd, ".pvd" ); 
 
       fpvtk = fopen( filename_bnd_pvd, "r" ); 
-    
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( vtk_bndpts_times_series, time_line );      
-      }
+      if ( fpvtk )
+      {    
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
+
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+	    strcat( vtk_bndpts_times_series, time_line );
+        }
       
-      fclose( fpvtk );             
+        fclose( fpvtk );
+      }             
 #   endif 
 
 #   if PARAVIEW_DLMFD_INTPTS
@@ -637,20 +653,23 @@ void reinitialize_vtk_restart( void )
       strcat( filename_int_pvd, ".pvd" ); 
 
       fpvtk = fopen( filename_int_pvd, "r" ); 
-    
-      while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
-      {      
-        // Extract 8 first characters
-        strncpy( start, time_line, 8 );
-        start[8] = '\0';
 
-        // If 8 first characters equal "<DataSet", it is an output time line
-        // We add to the vtk time series string
-        if ( ! strcmp( start, start_ref ) )
-          strcat( vtk_intpts_times_series, time_line );      
-      }
+      if ( fpvtk )
+      {    
+        while ( fgets( time_line, sizeof(time_line), fpvtk ) ) 
+        {      
+          // Extract 8 first characters
+          strncpy( start, time_line, 8 );
+          start[8] = '\0';
+
+          // If 8 first characters equal "<DataSet", it is an output time line
+          // We add to the vtk time series string
+          if ( ! strcmp( start, start_ref_pvd ) )
+            strcat( vtk_intpts_times_series, time_line );      
+        }
       
-      fclose( fpvtk );             
+        fclose( fpvtk );
+      }             
 #   endif  
   }         
 }

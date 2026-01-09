@@ -81,8 +81,12 @@
 #   define RIGIDBODIES_AS_FIXED_OBSTACLES 0
 # endif
 
+# ifndef LEVELDIFF_FLAG_U
+#   define LEVELDIFF_FLAG_U 0
+# endif
+
 # ifndef FLAG_ADAPT_CRIT
-#   define FLAG_ADAPT_CRIT (1.E-9)
+#   define FLAG_ADAPT_CRIT (1.E-16)
 # endif
 
 # ifndef UX_ADAPT_CRIT
@@ -121,12 +125,6 @@
 #   define PARAVIEW_HTG 0
 # endif
 
-# if PARAVIEW_VTU || PARAVIEW_HTG
-#   define PARAVIEW 1
-# else 
-#   define PARAVIEW 0
-# endif
-
 # ifndef PARAVIEW_SCALAR_LIST
 #   define PARAVIEW_SCALAR_LIST p
 # endif
@@ -163,6 +161,13 @@
 #   endif      
 # endif
 
+# if PARAVIEW_VTU || PARAVIEW_HTG || PARAVIEW_DLMFD_INTPTS \
+	|| PARAVIEW_DLMFD_BNDPTS
+#   define PARAVIEW 1
+# else 
+#   define PARAVIEW 0
+# endif
+
 
 double deltau;
 int restarted_simu = 0;
@@ -189,6 +194,13 @@ double imposed_periodicflowrate = 0.;
 size_t nbRigidBodies = 0;
 size_t nbParticles = 0;
 size_t NbObstacles = 0;
+
+
+# if EMBED
+    scalar rhov[];
+    face vector muv[];
+    face vector alphav[];
+# endif
 
 
 /** Fictitious domain implementation */
@@ -238,6 +250,16 @@ event GranularSolver_saveResults (t < -1.)
 
 
 
+/** Generic static embedded boundary cs and fs calculation event: TO BE 
+OVERLOADED BY THE USER */
+//----------------------------------------------------------------------------
+event Compute_cs (t < -1.)
+//----------------------------------------------------------------------------
+{}
+
+
+
+
 /** Overloading of the init event: initialize fluid and rigid bodies */
 //----------------------------------------------------------------------------
 event init (i = 0) 
@@ -248,23 +270,7 @@ event init (i = 0)
     printf( "==================================\n" );
     printf( "======   Basilisk + DLMFD   ======\n" );
     printf( "==================================\n" );        
-  }
-
-# ifndef FLUID_DENSITY
-#   define FLUID_DENSITY 1.
-# endif
-  
-  /* Initialize the density field */
-  const scalar rhoc[] = FLUID_DENSITY;
-  rho = rhoc;
-
-# ifndef FLUID_VISCOSITY
-#   define FLUID_VISCOSITY 1.
-# endif
-  
-  /* Initialize the viscosity field */
-  const face vector muc[] = {FLUID_VISCOSITY, FLUID_VISCOSITY, FLUID_VISCOSITY};
-  mu = muc;
+  }   
 
   // Output basic fluid and geometric parameters
   if ( pid() == 0 )
@@ -275,6 +281,32 @@ event init (i = 0)
     printf( "Domain size = %6.3e\n", L0 );
     printf( "\n" );            
   }  
+
+# ifndef FLUID_DENSITY
+#   define FLUID_DENSITY 1.
+# endif
+  
+  // Initialize the density field
+# if EMBED
+    alpha = alphav;
+    rho = rhov;
+# else
+    const scalar rhoc[] = FLUID_DENSITY;
+    rho = rhoc;
+# endif    
+
+# ifndef FLUID_VISCOSITY
+#   define FLUID_VISCOSITY 1.
+# endif
+  
+  // Initialize the viscosity field
+# if EMBED
+    mu = muv;
+# else
+    const face vector muc[] = {FLUID_VISCOSITY, FLUID_VISCOSITY, 
+    	FLUID_VISCOSITY};
+    mu = muc;
+# endif 
   
   // Initialize all DLMFD fields
   initialize_DLMFD_fields_to_zero();
@@ -477,7 +509,7 @@ event init (i = 0)
                 }
 
           // Run refinement using the noisy distance function
-          ss = adapt_wavelet( {DLM_Flag}, (double[]) {1.e-30}, 
+          ss = adapt_wavelet( {DLM_Flag}, (double[]) {1.e-16}, 
 		maxlevel = MAXLEVEL, minlevel = LEVEL );
 
           totalcell = totalcells();
@@ -502,6 +534,9 @@ event init (i = 0)
       rigidbody_data( allRigidBodies, nbRigidBodies, t, i, pdata );  
   }
 
+# if EMBED
+    event( "Compute_cs" ); 
+# endif 
   
   // Simulation time interval
   maxtime = trestart + SIMUTIMEINTERVAL;
@@ -582,10 +617,11 @@ void do_output( char const* mess )
 # endif
 
 # if VORTICITY
-    vector omega[];
 #   if dimension == 2
+      scalar omega[];
       vorticity( u, omega );
 #   else
+      vector omega[];      
       vorticity_3D( u, omega ); 
 #   endif            
 # endif
@@ -595,6 +631,11 @@ void do_output( char const* mess )
     scalar* paraview_scalarlist = {PARAVIEW_SCALAR_LIST
 #   if LAMBDA2
       , l2
+#   endif
+#   if VORTICITY
+#     if dimension == 2
+        , omega
+#     endif            
 #   endif         
     };
     vector* paraview_vectorlist = {PARAVIEW_VECTOR_LIST
@@ -911,11 +952,35 @@ event adapt (i++)
       printf( "total = %d, ", totalcell );
     }
 
-    astats s = adapt_wavelet( (scalar *){DLM_FlagMesh, u}, 
+    astats s = adapt_wavelet_multimaxlevel( (scalar *){DLM_FlagMesh, u}, 
 	(double[]){FLAG_ADAPT_CRIT, UX_ADAPT_CRIT, UY_ADAPT_CRIT, 
-	UZ_ADAPT_CRIT}, maxlevel = MAXLEVEL, minlevel = LEVEL );		
+	UZ_ADAPT_CRIT}, (int[]){MAXLEVEL, MAXLEVEL-LEVELDIFF_FLAG_U, 
+	MAXLEVEL-LEVELDIFF_FLAG_U, MAXLEVEL-LEVELDIFF_FLAG_U}, 
+	minlevel = LEVEL );	
+	
+# if EMBED
+    event( "Compute_cs" ); 
+# endif
 
     if ( pid() == 0 ) 
       printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+# endif
+}
+
+
+
+
+/* Update fluid viscosity and density in case of embedded boundaries */
+//----------------------------------------------------------------------------
+event properties (i++) 
+//----------------------------------------------------------------------------
+{
+# if EMBED
+    foreach_face() 
+    {
+      muv.x[] = FLUID_VISCOSITY * fm.x[];
+      alphav.x[] = fm.x[] / FLUID_DENSITY ;
+    }
+    foreach() rhov[] = FLUID_DENSITY * cm[];
 # endif
 }

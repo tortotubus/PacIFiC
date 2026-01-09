@@ -1,0 +1,28 @@
+// main.scss
+
+$color-mode-type: media-query;
+
+// 2. Import Bootstrap itself
+@import "bootstrap-5.3.8/scss/bootstrap.scss";
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--bs-border-radius);
+}
+
+pre {
+  display: block;
+  margin-top: 0; // 1
+  margin-bottom: 0; // 2
+  overflow: auto; // 3
+  @include font-size($code-font-size);
+  color: $pre-color;
+
+  // Account for some code outputs that place code tags in pre tags
+  code {
+    @include font-size(inherit);
+    color: inherit;
+    word-break: normal;
+  }
+}

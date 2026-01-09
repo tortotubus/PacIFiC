@@ -1,9 +1,9 @@
 <!-- Grains2D DTD -->
 
-<!ENTITY % Convex.dtd SYSTEM "@CONVEX_DTD@">
+<!ENTITY % Convex.dtd SYSTEM "/home/wachs/Multiphase/PacIFiC/Grains3D/Main/dtd/Convex.dtd">
 %Convex.dtd;
 
-<!ENTITY % Contact.dtd SYSTEM "@CONTACT_DTD@">
+<!ENTITY % Contact.dtd SYSTEM "/home/wachs/Multiphase/PacIFiC/Grains3D/Main/dtd/Contact.dtd">
 %Contact.dtd;
 
 <!ELEMENT Point EMPTY>

@@ -1,0 +1,29 @@
+site_name: PacIFiC
+docs_dir: pages
+site_url: https://anthonywachs.github.io/PacIFiC/
+
+markdown_extensions: 
+  - fenced_code
+
+repo_url: https://gitlab.math.ubc.ca/PacIFiC-devel-team/PacIFiC/
+repo_name: 'GitLab'
+edit_uri: -/edit/master/docs/pages/
+
+copyright: Footer text
+
+
+theme:
+  name: mkdocs
+  custom_dir: 'theme2/'
+
+extra:
+  include_next_prev: false  # turn off next/previous buttons
+
+nav: 
+  - Features: 'features.md'
+  - Examples: 'examples/index.md'
+  - Documentation:
+    - Grains: 'doxygen/grains/'
+  - Gallery: 'gallery.md'
+  - Download: 'download.md'
+

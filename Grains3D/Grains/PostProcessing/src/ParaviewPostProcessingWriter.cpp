@@ -572,7 +572,9 @@ void ParaviewPostProcessingWriter::one_output(
   Scalars.push_back("CoordNumb");
   ostringstream ossCN, ossRK;
   ossCN << m_ParaviewCycleNumber; 
-  ossRK << m_rank;   
+  ossRK << m_rank; 
+  string stime = GrainsExec::doubleToString( ios::scientific, FORMAT6DIGITS, 
+  	time );  
 
   // Obstacles
   if ( m_postProcessObstacle )
@@ -585,7 +587,7 @@ void ParaviewPostProcessingWriter::one_output(
      
       string obsFilename = m_ParaviewFilename + "_Obstacles_T" + ossCN.str() + 
    	".vtu";
-      m_Paraview_saveObstacles_pvd << "<DataSet timestep=\"" << time 
+      m_Paraview_saveObstacles_pvd << "<DataSet timestep=\"" << stime 
       	<< "\" " << "group=\"\" part=\"0\" file=\"" << obsFilename << "\"/>\n"; 
 	              
       ofstream f( ( m_ParaviewFilename_dir + "/" + m_ParaviewFilename
@@ -606,7 +608,7 @@ void ParaviewPostProcessingWriter::one_output(
     string partFilename = m_ParaviewFilename + "_Particles_T" + ossCN.str();
     if ( m_rank == 0 ) 
     {     
-      *m_Paraview_saveParticles_pvd[0] << "<DataSet timestep=\"" << time 
+      *m_Paraview_saveParticles_pvd[0] << "<DataSet timestep=\"" << stime 
       	<< "\" " << "group=\"\" part=\"0\" file=\"" << partFilename 
 	<< ( m_nprocs > 1 && !m_mpiio_singlefile ? 
 	  ".pvtu\"/>" : ".vtu\"/>" ) << endl;             
@@ -690,7 +692,7 @@ void ParaviewPostProcessingWriter::one_output(
 
       if ( m_rank == 0 ) 
       { 	
-        *m_Paraview_saveParticles_pvd[i] << "<DataSet timestep=\"" << time 
+        *m_Paraview_saveParticles_pvd[i] << "<DataSet timestep=\"" << stime 
        		<< "\" " << "group=\"\" part=\"0\" file=\"" << partFilename 
 		<< ( m_nprocs > 1 && !m_mpiio_singlefile ? 
 	  	".pvtu\"/>" : ".vtu\"/>" ) << endl;  
@@ -767,7 +769,7 @@ void ParaviewPostProcessingWriter::one_output(
     if ( m_rank == 0 ) 
     {
       m_Paraview_savePeriodicCloneParticles_pvd << "<DataSet timestep=\"" 
-      	<< time << "\" " << "group=\"\" part=\"0\" file=\"" << partFilename
+      	<< stime << "\" " << "group=\"\" part=\"0\" file=\"" << partFilename
 	<< ( m_nprocs > 1 && !m_mpiio_singlefile ? ".pvtu\"/>" : ".vtu\"/>" ) 
 	<< endl; 	
        
@@ -836,7 +838,7 @@ void ParaviewPostProcessingWriter::one_output(
   {       
     string IWFilename = m_ParaviewFilename + "_InsertionWindows_T" 
     	+ ossCN.str() + ".vtu";
-    m_Paraview_saveInsertionWindow_pvd << "<DataSet timestep=\"" << time 
+    m_Paraview_saveInsertionWindow_pvd << "<DataSet timestep=\"" << stime 
       	<< "\" " << "group=\"\" part=\"0\" file=\"" << IWFilename << "\"/>\n"; 
 	              
     ofstream f( ( m_ParaviewFilename_dir + "/" + m_ParaviewFilename
@@ -858,7 +860,7 @@ void ParaviewPostProcessingWriter::one_output(
     if ( m_rank == 0 ) 
     {   
       m_Paraview_saveParticleVelocityVectors_pvd << "<DataSet timestep=\"" 
-      	<< time << "\" " << "group=\"\" part=\"0\" file=\"" << vectFilename
+      	<< stime << "\" " << "group=\"\" part=\"0\" file=\"" << vectFilename
 	<< ( m_nprocs > 1 && !m_mpiio_singlefile ? ".pvtu\"/>" : ".vtu\"/>" ) 
 	<< endl; 	
        
@@ -901,7 +903,7 @@ void ParaviewPostProcessingWriter::one_output(
 	
     if ( m_rank == 0 ) 
     {   
-      m_Paraview_saveContactForceVectors_pvd << "<DataSet timestep=\"" << time 
+      m_Paraview_saveContactForceVectors_pvd << "<DataSet timestep=\"" << stime 
 	<< "\" " << "group=\"\" part=\"0\" file=\"" << forceFilename
  	<< ( m_nprocs > 1 && !m_mpiio_singlefile ? ".pvtu\"/>" : ".vtu\"/>" ) 
 	<< endl; 	
@@ -946,8 +948,8 @@ void ParaviewPostProcessingWriter::one_output(
 	
       if ( m_rank == 0 )
       {
-        m_Paraview_saveContactForceChains_pvd << "<DataSet timestep=\"" << time 
-          	<< "\" " << "group=\"\" part=\"0\" file=\"" << 
+        m_Paraview_saveContactForceChains_pvd << "<DataSet timestep=\"" << 
+		stime << "\" " << "group=\"\" part=\"0\" file=\"" << 
 		forceChainFilename << 
 		( m_nprocs > 1 && !m_mpiio_singlefile ? ".pvtp\"/>" 
 		: ".vtp\"/>" ) << endl; 	

@@ -36,10 +36,8 @@
 *.pyo
 
 # Others
-#*.dtd
 *.so.*
-#PacIFiC-*.env.sh
-GRAINS/Env/grains-*.env.sh
+Grains3D/Env/grains-*.env.sh
 Cartesian/FLUID/Env/fluid-*.env.sh
 Cartesian/MacWorld/Env/macworld-*.env.sh
 Cartesian/MacWorld/MAC/include/*
@@ -47,7 +45,8 @@ Cartesian/MacWorld/MAC/include/*
 .tags*
 Makedepend
 Maketmp
-Grains3D/Env/grains-*.env.sh
+
+*Makedepend
 
 # Basilisk test files
 *.tst
@@ -59,20 +58,17 @@ Cartesian/MacWorld/hypre
 Cartesian/MacWorld/petsc-3.2.0-p7/*
 Cartesian/MacWorld/MAC/lib/*
 Cartesian/FLUID/lib/*
-Octree/basilisk/*
-Grains3D/Archives*
-Grains3D/diffGrains*
-Grains3D/DoxyGRAINS/Files
-Grains3D/DoxyGRAINS/html
-Grains3D/DoxyGRAINS/Images
-Grains3D/DoxyGRAINS/Pages
-Grains3D/DoxyGRAINS/Pages_style
+
 Grains3D/Main/bin64*/*
 Grains3D/Grains/lib64-*/*
 Grains3D/Grains/lib64-*
-Grains3D/NotIncluded
+Grains3D/DoxyGRAINS*
+Grains3D/README
 Grains3D/XERCES*
-build
-.vscode
-
-
+Grains3D/Tools/PrePost/Position/bin64*
+Grains3D/Tools/PrePost/Position/obj64*
+Grains3D/Tools/PrePost/ShapeFile/bin64*
+Grains3D/Tools/PrePost/ShapeFile/obj64*
+Grains3D/Tools/PrePost/RotationMatrix/bin64*
+Grains3D/Tools/PrePost/RotationMatrix/obj64*
+Octree/basilisk*
