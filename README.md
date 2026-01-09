@@ -27,6 +27,21 @@ graph TD;
 
 Documentation will come soon.
 
+## CMake Installation
+
+### Requirements
+For sockeye.arc.ubc.ca
+```
+module load intel-oneapi-compilers intel-mkl openmpi hdf5 zlib
+```
+
+### Build
+```
+mkdir -p build
+cd build
+cmake .. && make
+```
+
 <!--
 ## I. Installation
 There are few steps that need to be done before you can enjoy a functional installation of Pacific. First, check the installation of OpenMPI, GCC, GFORTAN, libfortran, libblas, libaltas, liblapack and libm before providing the correct path in environment file. It's important to install libfortran before building OpenMPI.

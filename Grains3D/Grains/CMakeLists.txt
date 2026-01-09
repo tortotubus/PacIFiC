@@ -152,6 +152,13 @@ list(APPEND GRAINS_SOURCES
   XML/src/WriterXML.cpp
 )
 
+list(APPEND GRAINS_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/InterfaceCBasilisk/include>")
+
+list(APPEND GRAINS_SOURCES
+  InterfaceCBasilisk/src/InterfaceGrains3DBasilisk.cpp
+)
+
+
 #
 # Build grains shared object
 #
@@ -195,23 +202,9 @@ target_include_directories(grains_headers
 # Build InterfaceCBasilisk shared object
 #
 
-# set(GRAINS_BASILISK_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/InterfaceCBasilisk/src/InterfaceGrains3DBasilisk.cpp)
-# set(GRAINS_BASILISK_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/InterfaceCBasilisk/include)
-
-# add_library(InterfaceGrains3DBasilisk SHARED
-#   ${GRAINS_BASILISK_SOURCES}
-# )
-
-# add_library(Pacific::InterfaceGrains3DBasilisk ALIAS InterfaceGrains3DBasilisk)
-
-# target_include_directories(InterfaceGrains3DBasilisk
-#   PUBLIC
-#     ${GRAINS_BASILISK_INCLUDE_DIRS}
-#     ${GRAINS_INCLUDE_DIRS}
-# )
-
-# target_link_libraries(InterfaceGrains3DBasilisk
-#   PUBLIC
-#     grains
-#     MPI::MPI_CXX
-# )
+set(GRAINS_BASILISK_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/InterfaceCBasilisk/include)
+add_library(InterfaceCBasilisk INTERFACE ${GRAINS_BASILISK_INCLUDE_DIRS})
+target_include_directories(InterfaceCBasilisk
+  INTERFACE
+    ${GRAINS_BASILISK_INCLUDE_DIRS}
+)
