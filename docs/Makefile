@@ -23,7 +23,9 @@ all: build
 .PHONY: doxygen
 doxygen:
 	@echo ">>> Generating Doxygen documentation..."
-	$(DOXYGEN) $(DOXYFILE)
+	$(DOXYGEN) DoxyFLUID
+	$(DOXYGEN) DoxyMAC
+	$(DOXYGEN) DoxyGrains
 
 build: clean doxygen 
 	mkdocs build
@@ -32,4 +34,4 @@ develop: doxygen
 	mkdocs serve
 
 clean: 
-	rm -rf site pages/doxygen/grains_html
+	rm -rf site pages/doxygen/grains_html pages/doxygen/fluid_html pages/doxygen/mac_html

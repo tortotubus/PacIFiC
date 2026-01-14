@@ -1,2 +1,0 @@
-add_subdirectory(MacWorld)
-add_subdirectory(FLUID)

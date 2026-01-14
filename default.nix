@@ -20,8 +20,12 @@ let
       cmake 
       ninja 
       pkg-config 
+      mkdocs
       doxygen
       gtest
+      xercesc
+      petsc
+      gdb
     ];
 
     buildInputs = with pkgs; [ 

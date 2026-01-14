@@ -24,6 +24,8 @@ nav:
   - Examples: 'examples/index.md'
   - Documentation:
     - Grains: 'doxygen/grains/'
+    - FLUID: 'doxygen/fluid/'
+    - MAC: 'doxygen/mac/'
   - Gallery: 'gallery.md'
   - Download: 'download.md'
 
