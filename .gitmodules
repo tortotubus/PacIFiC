@@ -1,3 +1,0 @@
-[submodule "src/Octree/basilisk"]
-	path = src/Octree/basilisk
-	url = git@gitlab.math.ubc.ca:pacific-devel-team/pacific-basilisk

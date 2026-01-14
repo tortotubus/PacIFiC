@@ -1,0 +1,17 @@
+<Grains3D Type="CoupledFluid">
+  <Construction>
+    <LinkedCell MX="0.2" MY="0.2" MZ="0.2" CellSizeFactor="1."/>
+    <Origin OX="0." OY="0." OZ="0."/>
+    <Periodicity PX="0" PY="0" PZ="0"/>     
+    <Reload Filename="Grains/Init/insertA" Type="new"/>  
+  </Construction>
+
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="0.0"/>
+  </Forces>
+
+  <Simulation>
+    <TimeStep mindt="1.e-8" maxdt="2.5e-7" ndt="1"/>
+    <RestartFile Name="Grains/Simu/simul" WritingMode="Hybrid"/>
+  </Simulation>
+</Grains3D>

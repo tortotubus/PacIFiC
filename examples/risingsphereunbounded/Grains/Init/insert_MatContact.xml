@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<GRAINS>
+
+  <Materials>
+    <Material value="1">matP</Material>
+  </Materials>
+
+  <ContactForceModels>
+    <ContactForceModel type="0" value="1">
+      <Parameters>
+        <Parameter name="en">0.7</Parameter>
+        <Parameter name="etat">-1</Parameter>
+        <Parameter name="kn">1e+06</Parameter>
+        <Parameter name="kr">0</Parameter>
+        <Parameter name="muc">0.4</Parameter>
+      </Parameters>
+    </ContactForceModel>
+  </ContactForceModels>
+
+</GRAINS>

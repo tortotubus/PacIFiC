@@ -1,0 +1,74 @@
+<Grains3D Type="Standard">
+  <Construction>
+    <LinkedCell MX="0.2" MY="0.2" MZ="0.2" CellSizeFactor="10."/>
+    <Origin OX="0." OY="0." OZ="0."/>
+    <Periodicity PX="0" PY="0" PZ="0"/>    
+    
+
+    <ContactForceModels>
+      <ContactForceModel>
+	<Material materialA="matP" materialB="matP"/>
+	<Hooke>
+	  <kn>1.e+6</kn>
+	  <muc>0.4</muc>
+	  <en>0.7</en>
+	  <kr>0.</kr>
+	</Hooke>	  
+      </ContactForceModel>                       
+    </ContactForceModels>
+
+
+    <Particles>
+      <Particle Number="1" Density="900.">
+        <Convex CrustThickness="0.00025">
+          <Sphere Radius="0.001"/>
+        </Convex>
+        <AngularPosition Type="Identity"></AngularPosition>
+        <Material>matP</Material>
+      </Particle>
+    </Particles>
+
+  
+  </Construction>
+
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="0."/>  
+  </Forces>
+
+
+  <Simulation>
+    <TimeInterval Start="0." End="1.e-5"/> 
+    <TimeStep dt="1.e-5"/>
+    <RestartFile Name="Grains/Init/insert" WritingMode="Hybrid"/>
+    <TimeSave Start="0." End="1.e-5" Every="1.e-5"/>         
+    <CollisionalRelativeVelocity value="1.5"/> 
+    
+    <ParticleInsertion>
+      <Mode Type="OverTime"/>
+      <Order Type="Ordered"/>
+      <InitialAngularPosition Type="Fixed"/>
+      <RandomGeneratorSeed Type="Default"/> 
+      <Frequency TryEvery="1"/> 
+      <ForceInsertion Value="False"/>    
+      <ParticlePosition>
+	<Windows>
+	  <Window Type="Box">
+	  <Point X="0.100001" Y="0.100001" Z="0.100001"/>
+	  <Point X="0.100001" Y="0.100001" Z="0.100001"/>
+	  </Window> 
+	</Windows>		
+      </ParticlePosition>
+      
+      <InitialVelocity Mode="Zero">
+      </InitialVelocity> 
+    </ParticleInsertion> 
+
+    <PostProcessing>   
+      <Writers>
+        <Paraview RootName="insert" Directory="Grains/Init" WritingMode="Binary"/>
+        <RawData Name="Grains/Init/insert"/>
+      </Writers>     
+    </PostProcessing>
+  </Simulation>      
+</Grains3D>
+
