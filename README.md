@@ -44,7 +44,7 @@ In addition, the following toolchain is required or reccomended
 On rpm-based distributions, these can be obtained using 
 
 ```bash
-sudo dnf install -y gcc cmake make openmpi-devel xerces-c-devel zlib-ng-devel cmake 
+sudo dnf install -y gcc cmake make openmpi-devel xerces-c-devel zlib-ng-devel 
 ```
 
 ## Building 
@@ -70,3 +70,7 @@ If you wish to install to your system, run
 ```bash
 sudo cmake --build build --target install
 ```
+
+## Documentation
+
+Additional documentation may be found by visiting the [documentation website](https://anthonywachs.github.io/PacIFiC/).
