@@ -27,19 +27,46 @@ graph TD;
 
 Documentation will come soon.
 
-## CMake Installation
 
-### Requirements
+## Requirements
 
-For RPM-based distributions
-```
-  sudo dnf install 
+The following depenencies are required:
+
+ * [OpenMPI](https://www.open-mpi.org/)
+ * [Xerces-C++](https://xerces.apache.org/xerces-c/)
+ * [zlib](https://www.zlib.net/)
+
+In addition, the following toolchain is required or reccomended
+ * [GCC](https://gcc.gnu.org/) (Reccomended for Basilisk/Octree)
+ * [CMake](https://cmake.org/)
+ * [Make](https://www.gnu.org/software/make/)
+
+On rpm-based distributions, these can be obtained using 
+
+```bash
+sudo dnf install -y gcc cmake make openmpi-devel xerces-c-devel zlib-ng-devel cmake 
 ```
 
-### Build
-```
-mkdir -p build
-cd build
-cmake .. && make
+## Building 
+
+The PacIFiC project requires the CMake meta-build tool and a build tool. We will use ninja here. 
+
+First, create a build directory where you would like to build the system. Here, we will create a build folder in the PacIFiC root folder: To do so, configure and generate the build system by running
+
+```bash
+cmake -S . -B build
 ```
 
+To build all targets in the project, simply run
+
+```bash
+cmake --build build 
+```
+
+## Install
+
+If you wish to install to your system, run
+
+```bash
+sudo cmake --build build --target install
+```

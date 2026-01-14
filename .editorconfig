@@ -1,0 +1,29 @@
+# Root EditorConfig file
+root = true
+
+# Default for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+indent_style = space
+indent_size = 2
+
+# C and C++
+[*.{c,cc,cpp,cxx,h,hh,hpp,hxx}]
+indent_size = 2
+continuation_indent_size = 4
+
+# Markdown / text
+[*.{md,txt}]
+trim_trailing_whitespace = false
+
+# CMake
+[*.cmake]
+indent_size = 2
+
+# YAML (GitHub Actions, CI, etc.)
+[*.yml]
+indent_size = 2
