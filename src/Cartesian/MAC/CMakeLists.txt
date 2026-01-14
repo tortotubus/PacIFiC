@@ -16,7 +16,7 @@ project(MAC
 #
 # ================================================================================
 
-# find_package(MPI REQUIRED COMPONENTS C CXX Fortran)
+find_package(MPI REQUIRED COMPONENTS CXX)
 
 # ================================================================================
 #
@@ -225,10 +225,10 @@ list(APPEND MAC_SOURCES
 add_library(MAC SHARED ${MAC_SOURCES})
 add_library(PacIFiC::MAC ALIAS MAC)
 
-# target_link_libraries(mac 
-#   PUBLIC
-#     MPI::MPI_CXX
-# )
+target_link_libraries(MAC 
+  PUBLIC
+    MPI::MPI_CXX
+)
 
 include(GNUInstallDirs)
 
