@@ -9,13 +9,24 @@ FetchContent_Declare(PacIFiC
 
 FetchContent_MakeAvailable(PacIFiC)
 
+set_target_properties(FLUID  PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(Grains PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(Grains_main PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(Grains_position PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(Grains_rotationmatrix PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(Grains_shapefile PROPERTIES EXCLUDE_FROM_ALL TRUE)
+set_target_properties(MAC PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
 message(STATUS "PacIFiC source: ${PacIFiC_SOURCE_DIR}")
 
 # Enable C language
 enable_language(C)
 
-find_package(HDF5 REQUIRED COMPONENTS C HL)
+
+set(HDF5_PREFER_PARALLEL TRUE) 
+find_package(HDF5 COMPONENTS C HL REQUIRED)
 find_package(MPI REQUIRED)
+
 #
 #
 #

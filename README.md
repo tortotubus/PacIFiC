@@ -41,10 +41,13 @@ In addition, the following toolchain is required or reccomended
  * [CMake](https://cmake.org/)
  * [Make](https://www.gnu.org/software/make/)
 
-On rpm-based distributions, these can be obtained using 
-
+On RPM-based distributions (e.g. RedHat, Fedora) these can be obtained using 
 ```bash
-sudo dnf install -y gcc cmake make openmpi-devel xerces-c-devel zlib-ng-devel 
+sudo dnf install -y gcc g++ make make git openmpi-devel xerces-c-devel zlib-ng-devel hdf5-openmpi-devel
+```
+On apt-based distributions (e.g. Ubuntu, Debian), use
+```bash
+sudo apt-get install -y build-essential cmake make git libopenmpi-dev libxerces-c-dev zlib1g-dev libhdf5-openmpi-dev
 ```
 
 ## Building 
@@ -54,13 +57,13 @@ The PacIFiC project requires the CMake meta-build tool and a build tool. We will
 First, create a build directory where you would like to build the system. Here, we will create a build folder in the PacIFiC root folder: To do so, configure and generate the build system by running
 
 ```bash
-cmake -S . -B build
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 ```
 
 To build all targets in the project, simply run
 
 ```bash
-cmake --build build 
+cmake --build build-release --parallel
 ```
 
 ## Install
