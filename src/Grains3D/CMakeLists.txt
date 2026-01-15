@@ -16,7 +16,7 @@ project(Grains
 #
 # ================================================================================
 
-find_package(MPI REQUIRED COMPONENTS CXX)
+find_package(MPI REQUIRED COMPONENTS C)
 find_package(ZLIB REQUIRED)
 find_package(XercesC REQUIRED)
 
@@ -29,7 +29,7 @@ find_package(XercesC REQUIRED)
 
 add_subdirectory(Grains)
 add_subdirectory(Main)
-add_subdirectory(Tools)
+# add_subdirectory(Tools)
 
 option(GRAINS_BUILD_TESTS "Build Grains tests" OFF)
 
@@ -78,6 +78,13 @@ if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd")
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Dtd
     FILES_MATCHING PATTERN "*.dtd"
+  )
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools")
+  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Tools
+    FILES_MATCHING PATTERN "*.exec"
   )
 endif()
 

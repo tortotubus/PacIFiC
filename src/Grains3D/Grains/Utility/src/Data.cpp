@@ -13,8 +13,24 @@ std::filesystem::path get_library_dir() {
 std::filesystem::path get_dtd_dir() {
   std::filesystem::path libdir = get_library_dir();
   std::vector<std::filesystem::path> candidates = {
-      libdir / "../share/grains/Dtd", // install prefix
-      libdir / "./Dtd"                  // in-tree build
+      libdir / "../share/Grains/Dtd", // install prefix
+      libdir / "./Dtd"                // in-tree build
+  };
+
+  for (auto &p : candidates) {
+    std::error_code ec;
+    if (std::filesystem::exists(p, ec))
+      return std::filesystem::canonical(p, ec);
+  }
+
+  throw std::runtime_error("Cannot find DTD directory near " + libdir.string());
+}
+
+std::filesystem::path get_tools_dir() {
+  std::filesystem::path libdir = get_library_dir();
+  std::vector<std::filesystem::path> candidates = {
+      libdir / "../share/Grains/Tools", // install prefix
+      libdir / "./Tools"                // in-tree build
   };
 
   for (auto &p : candidates) {

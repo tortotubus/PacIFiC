@@ -12,20 +12,12 @@ let
 
     nativeBuildInputs = with pkgs; [ 
       gcc
-      gfortran
-      mpi
-      hdf5-mpi
-      zlib
-      blas
       cmake 
-      ninja 
-      pkg-config 
-      mkdocs
-      doxygen
-      gtest
+      gnumake
+      mpi
+      zlib
       xercesc
-      petsc
-      gdb
+      hdf5-mpi
     ];
 
     buildInputs = with pkgs; [ 

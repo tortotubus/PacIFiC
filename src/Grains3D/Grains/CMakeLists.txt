@@ -3,6 +3,7 @@
 #
 
 add_subdirectory(Dtd)
+add_subdirectory(Tools)
 
 #
 # Collect Grains sources
@@ -194,7 +195,7 @@ target_include_directories(Grains
 
 target_link_libraries(Grains 
   PUBLIC
-    MPI::MPI_CXX
+    MPI::MPI_C
     ZLIB::ZLIB
     XercesC::XercesC
 )

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+QCC_REAL="${QCC_REAL:-@QCC_INSTALL_LOCATION@}"
+QCC_EXTRA_OPTS="@QCC_EXTRA_OPTS@"
+exec env CC="mpicc -D_MPI=1" "$QCC_REAL" "$@" $QCC_EXTRA_OPTS

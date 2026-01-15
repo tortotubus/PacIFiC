@@ -16,7 +16,7 @@ project(MAC
 #
 # ================================================================================
 
-find_package(MPI REQUIRED COMPONENTS CXX)
+find_package(MPI REQUIRED COMPONENTS C)
 
 # ================================================================================
 #
@@ -227,7 +227,7 @@ add_library(PacIFiC::MAC ALIAS MAC)
 
 target_link_libraries(MAC 
   PUBLIC
-    MPI::MPI_CXX
+    MPI::MPI_C
 )
 
 include(GNUInstallDirs)
