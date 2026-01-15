@@ -1,0 +1,144 @@
+<Grains3D Type="Standard">
+  <Construction>
+    <LinkedCell MX="0.1" MY="0.1" MZ="0.499" CellSizeFactor="1."/>
+    <Origin OX="0." OY="0." OZ="0."/>
+    <Periodicity PX="1" PY="1" PZ="0"/> 
+    <PartialPeriodicity Comp="Lower" Dir="Z" Limit="0.174"/>      
+    <DomainDecomposition NX="1" NY="1" NZ="1"/>
+    <Verbosity Level="1"/> 
+
+
+    <ContactForceModels>
+      <ContactForceModel>
+	<Material materialA="matP" materialB="matP"/>
+        <HookeMemory>
+      	  <kn>2.e+7</kn>	  
+	  <en>0.85</en>
+	  <muc>0.5</muc>
+	  <kt>2.e+7</kt>
+	  <etarpf>0.</etarpf>
+	  <mur>0.01</mur> 
+	</HookeMemory>	  
+      </ContactForceModel>   
+      
+      <ContactForceModel>
+	<Material materialA="matP" materialB="matS"/>
+        <HookeMemory>
+      	  <kn>2.e+7</kn>	  
+	  <en>0.85</en>
+	  <muc>0.</muc>
+	  <kt>2.e+7</kt>
+	  <etarpf>0.</etarpf>
+	  <mur>0.</mur> 
+	</HookeMemory>	  
+      </ContactForceModel>                      
+    </ContactForceModels>      
+
+    <Particles>                        
+      <Particle Number="790" Density="2410.">
+        <Convex CrustThickness="1.733e-04">
+          <Cylinder Radius="5.00000e-03" Height="1.00000e-02"/>
+        </Convex>
+        <AngularPosition Type="Identity"></AngularPosition>
+        <Material>matP</Material>
+      </Particle>                             
+    </Particles>   
+
+    <Obstacles>
+      	<TruncatedConicalShell name="Cone">
+          <Geometry Height="0.046" SmallRadius="0.025" LargeRadius="0.05" Width="0.005" N="32" CrustThickness="1.733e-04"/>
+    	  <BottomCentre X="0.05" Y="0.05" Z="0.151"/>
+          <AngularPosition Type="Identity"></AngularPosition>
+          <Material>matP</Material>
+        </TruncatedConicalShell>
+      <CylindricalShell name="UpperCyl">
+          <Geometry Height="0.302" Radius="0.05" Width="0.005" N="32" CrustThickness="1.733e-04"/>
+          <Centre X="0.05" Y="0.05" Z="0.345"/>
+        <AngularPosition Type="Identity"></AngularPosition>
+        <Material>matP</Material>
+      </CylindricalShell>
+      <Obstacle name="ConeBottom">
+          <Convex CrustThickness="1.733e-04">
+            <Rectangle LX="0.07" LY="0.07"/>
+          </Convex>
+          <Centre X="0.05" Y="0.05" Z="0.151"/>
+          <AngularPosition Type="Identity"></AngularPosition>
+          <Material>matS</Material>
+      </Obstacle>                   
+      <Obstacle name="Bottom">
+          <Convex CrustThickness="1.733e-04">
+            <Rectangle LX="0.121" LY="0.121"/>
+          </Convex>
+          <Centre X="0.05" Y="0.05" Z="0."/>
+          <AngularPosition Type="Identity"></AngularPosition>
+          <Material>matP</Material>
+      </Obstacle>
+      <Obstacle name="UpperBottom">
+          <Convex CrustThickness="1.733e-04">
+            <Rectangle LX="0.121" LY="0.121"/>
+          </Convex>
+          <Centre X="0.05" Y="0.05" Z="0.499"/>
+          <AngularPosition Type="Identity"></AngularPosition>
+          <Material>matP</Material>
+      </Obstacle>                       
+    </Obstacles>   
+
+    <CollisionDetectionAlgorithm>
+	<CollisionDetection Type="GJK" Tolerance="1e-08" Acceleration="OFF" History="OFF"/>
+	<BoundingVolume Type="OBB"/>
+    </CollisionDetectionAlgorithm>  
+
+  </Construction>
+
+
+  <Forces>
+    <Gravity GX="0." GY="0." GZ="-9.807"/>
+  </Forces>
+
+
+  <Simulation>
+    <TimeInterval Start="0." End="3."/> 
+    <TimeStep dt="1.e-6"/>
+    <RestartFile Name="Grains/Init/insert" WritingMode="Hybrid" SingleFile="True" Clones="None"/>
+    <TimeSave Start="0." End="10." Every="0.1"/>         
+    <CollisionalRelativeVelocity value="1.721"/> 
+    <MovingObstacles LinkUpdateEvery="1" GeometricallyMove="True"/>    
+
+    <ParticleInsertion>
+      <Mode Type="OverTime"/>
+      <Order Type="Random"/>
+      <InitialAngularPosition Type="Random"/>
+      <RandomGeneratorSeed Type="Random"/> 
+      <Frequency TryEvery="3"/> 
+      <ForceInsertion Value="False"/>    
+
+      <ParticlePosition>
+        <Windows>
+          <Window Type="Cylinder" Name="IZone">
+            <BottomCentre X="0.05" Y="0.05" Z="0.207"/>
+            <Cylinder Radius="0.039" Height="0.0" Direction="Z"/>      
+          </Window>            
+        </Windows>
+      </ParticlePosition>  
+
+      <InitialVelocity Mode="Zero">
+      </InitialVelocity>
+    </ParticleInsertion>
+
+    <InsertionWindowMotion>
+      <IWMotion ObstacleName="IZone">
+        <TimeInterval Start="0.1" End="1.6"/>
+    <ConstantTranslation>
+      <TranslationalVelocity VX="0." VY="0." VZ="0.161"/>
+    </ConstantTranslation>       
+      </IWMotion>                    
+    </InsertionWindowMotion>  
+
+    <PostProcessing>   
+      <Writers>
+        <Paraview RootName="insert" Directory="Grains/Init" WritingMode="Binary" PerType="True" ForceNetwork="True" MPIIO="True"/>
+        <RawData Name="Grains/Init/insert" WritingMode="Binary"/>
+      </Writers>              
+    </PostProcessing>
+  </Simulation>      
+</Grains3D>
