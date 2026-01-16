@@ -225,6 +225,13 @@ list(APPEND MAC_SOURCES
 add_library(MAC SHARED ${MAC_SOURCES})
 add_library(PacIFiC::MAC ALIAS MAC)
 
+set_target_properties(MAC
+  PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
+
 target_link_libraries(MAC 
   PUBLIC
     MPI::MPI_C

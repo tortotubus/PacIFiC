@@ -180,8 +180,13 @@ set(CMAKE_CXX_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN  OFF)
 
 add_library(Grains SHARED ${GRAINS_SOURCES})
-
 add_library(PacIFiC::Grains ALIAS Grains) 
+
+set_target_properties(Grains
+  PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
 
 set_target_properties(Grains PROPERTIES
   CXX_VISIBILITY_PRESET default
