@@ -57,23 +57,23 @@ list(APPEND FLUID_SOURCES
 # Solvers
 #
 
-list(APPEND FLUID_SOURCES
-  Solvers/DirectionSplitting/src/DS_2Dcylinder.cc
-  Solvers/DirectionSplitting/src/DS_AllRigidBodies.cc
-  Solvers/DirectionSplitting/src/DS_HeatTransfer.cc
-  Solvers/DirectionSplitting/src/DS_NavierStokesSystem.cc
-  Solvers/DirectionSplitting/src/DS_RigidBody.cc
-  Solvers/DirectionSplitting/src/DS_3Dbox.cc
-  Solvers/DirectionSplitting/src/DS_DirectionSplitting.cc
-  Solvers/DirectionSplitting/src/DS_HeatTransferSystem.cc
-  Solvers/DirectionSplitting/src/DS_PID.cc
-  Solvers/DirectionSplitting/src/DS_Sphere.cc
-  Solvers/DirectionSplitting/src/DS_3Dcylinder.cc
-  Solvers/DirectionSplitting/src/DS_GeneralPolyhedron.cc
-  Solvers/DirectionSplitting/src/DS_NavierStokes.cc
-  Solvers/DirectionSplitting/src/DS_RigidBody_BuilderFactory.cc
-  Solvers/DirectionSplitting/src/DS_STL.cc
-)
+# list(APPEND FLUID_SOURCES
+#   Solvers/DirectionSplitting/src/DS_2Dcylinder.cc
+#   Solvers/DirectionSplitting/src/DS_AllRigidBodies.cc
+#   Solvers/DirectionSplitting/src/DS_HeatTransfer.cc
+#   Solvers/DirectionSplitting/src/DS_NavierStokesSystem.cc
+#   Solvers/DirectionSplitting/src/DS_RigidBody.cc
+#   Solvers/DirectionSplitting/src/DS_3Dbox.cc
+#   Solvers/DirectionSplitting/src/DS_DirectionSplitting.cc
+#   Solvers/DirectionSplitting/src/DS_HeatTransferSystem.cc
+#   Solvers/DirectionSplitting/src/DS_PID.cc
+#   Solvers/DirectionSplitting/src/DS_Sphere.cc
+#   Solvers/DirectionSplitting/src/DS_3Dcylinder.cc
+#   Solvers/DirectionSplitting/src/DS_GeneralPolyhedron.cc
+#   Solvers/DirectionSplitting/src/DS_NavierStokes.cc
+#   Solvers/DirectionSplitting/src/DS_RigidBody_BuilderFactory.cc
+#   Solvers/DirectionSplitting/src/DS_STL.cc
+# )
 
 list(APPEND FLUID_SOURCES
   Solvers/DLMFD/src/DLMFD_3Dbox.cc
@@ -110,12 +110,18 @@ list(APPEND FLUID_SOURCES
 add_library(FLUID SHARED ${FLUID_SOURCES} )
 add_library(PacIFiC::FLUID ALIAS FLUID)
 
+set_target_properties(FLUID
+  PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
 target_include_directories(FLUID
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/FluidSolidInterface/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Misc/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/PostProcessing/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Solvers/DirectionSplitting/include>
+    # $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Solvers/DirectionSplitting/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Solvers/DLMFD/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Solvers/Viscoplastic_HeatTransfer/include>
 
