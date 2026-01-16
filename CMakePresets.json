@@ -1,0 +1,20 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+      "name": "RelWithWarnings",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/rel-with-warnings",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithWarnings"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "RelWithWarnings",
+      "configurePreset": "RelWithWarnings",
+      "jobs": 16
+    }
+  ]
+}
