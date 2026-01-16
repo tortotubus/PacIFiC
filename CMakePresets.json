@@ -1,9 +1,40 @@
 {
   "version": 4,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 12,
+    "patch": 0
+  },
   "configurePresets": [
     {
-      "name": "RelWithWarnings",
+      "name": "Default",
+      "displayName": "Default (Release)",
+      "description": "Release build with system default generator.",
       "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install",
+        "CMAKE_MPI_INSTALL_LIBDIR": "${sourceDir}/install/lib64/openmpi/lib",
+        "CMAKE_MPI_INSTALL_BINDIR": "${sourceDir}/install/lib64/openmpi/bin",
+        "CMAKE_MPI_INSTALL_INCLUDEDIR": "${sourceDir}/install/include/openmpi-x86_64"
+      }
+    },
+    {
+      "name": "Debug",
+      "displayName": "Debug",
+      "description": "Build with debug info and no optimization.",
+      "inherits": "Default",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "RelWithWarnings",
+      "displayName": "RelWithWarnings",
+      "description": "Custom build with extra warnings enabled.",
+      "inherits": "Default",
       "binaryDir": "${sourceDir}/build/rel-with-warnings",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithWarnings"
@@ -12,9 +43,38 @@
   ],
   "buildPresets": [
     {
+      "name": "Default",
+      "configurePreset": "Default",
+      "description": "Build the release configuration",
+      "jobs": 16
+    },
+    {
+      "name": "Debug",
+      "configurePreset": "Debug",
+      "description": "Build the debug configuration",
+      "jobs": 16
+    },
+    {
       "name": "RelWithWarnings",
       "configurePreset": "RelWithWarnings",
+      "description": "Build the RelWithWarnings configuration",
       "jobs": 16
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "Default",
+      "configurePreset": "Default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "Debug",
+      "configurePreset": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
