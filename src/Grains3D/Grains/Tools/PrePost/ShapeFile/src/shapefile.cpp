@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
   double pi = fabs(acos(-1.));
   double x, y, z ;
   double cote, rayon_sphere, arete, half_arete, longueur, largeur, hauteur ;  
-  double dtheta, theta, theta0, rc, rd, surface, zzz ; 
+  double dtheta, theta, theta0, rc, rd, surface = 0.0, zzz ; 
   double rcirc, h, l ;
   double golden_number = 0.5 * ( 1. + sqrt(5.) ) ;
      
