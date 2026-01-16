@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Force the use of the chosen C++ s
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 project(FLUID
-  VERSION 1.0.0
+  VERSION 0.0.1
   LANGUAGES CXX
 )
 
@@ -148,10 +148,11 @@ include(CMakePackageConfigHelpers)
 # ---- 1. Install the shared library ------------------------------------------------
 install(TARGETS FLUID
   EXPORT FLUIDTargets
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}      
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}      
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}      
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} 
+  LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}      
+  COMPONENT FLUID_Runtime
+  RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}      
+  COMPONENT FLUID_Runtime
+  INCLUDES DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR} 
 )
 
 # ---- 2. Install all public headers -------------------------------------------------
@@ -163,12 +164,13 @@ install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Solvers/DirectionSplitting/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Solvers/DLMFD/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Solvers/Viscoplastic_HeatTransfer/include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FLUID
+  DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}/FLUID
+  COMPONENT FLUID_Devel
   FILES_MATCHING PATTERN "*.h*"      # match .h, .hh, .hpp
 )
 
 # ---- 4. Generate CMake package configuration --------------------------------------
-set(FLUID_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/FLUID)
+set(FLUID_INSTALL_CMAKEDIR ${PACIFIC_MPI_INSTALL_LIBDIR}/cmake/FLUID)
 
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FLUIDConfig.cmake.in
@@ -187,12 +189,14 @@ install(EXPORT FLUIDTargets
   FILE FLUIDTargets.cmake
   NAMESPACE PacIFiC::
   DESTINATION ${FLUID_INSTALL_CMAKEDIR}
+  COMPONENT FLUID_Devel
 )
 
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfigVersion.cmake
   DESTINATION ${FLUID_INSTALL_CMAKEDIR}
+  COMPONENT FLUID_Devel
 )
 
 # ---- 6. Export from the build tree for development -------------------------------

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Force the use of the chosen C++ s
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 project(Grains
-  VERSION 1.0.0
+  VERSION 0.0.1
   LANGUAGES CXX
 )
 
@@ -16,7 +16,10 @@ project(Grains
 #
 # ================================================================================
 
-find_package(MPI REQUIRED COMPONENTS C)
+if (PACIFIC_ENABLE_MPI)
+  find_package(MPI REQUIRED COMPONENTS C)
+endif()
+
 find_package(ZLIB REQUIRED)
 find_package(XercesC REQUIRED)
 
@@ -28,8 +31,7 @@ find_package(XercesC REQUIRED)
 # ================================================================================
 
 add_subdirectory(Grains)
-add_subdirectory(Main)
-# add_subdirectory(Tools)
+add_subdirectory(Main) 
 
 option(GRAINS_BUILD_TESTS "Build Grains tests" OFF)
 
@@ -52,14 +54,14 @@ include(CMakePackageConfigHelpers)
 # ---- 1. Install the shared library ------------------------------------------------
 install(TARGETS Grains Grains_main
   EXPORT GrainsTargets
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}      # libgrains.so
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}      # static lib (if any)
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}      # Windows DLLs / executables
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} # for consumers
+  LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}      # libgrains.so
+  COMPONENT Grains_Runtime
+  RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}
+  COMPONENT Grains_Runtime
+  INCLUDES DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR} # for consumers
 )
 
 # ---- 2. Install all public headers -------------------------------------------------
-# If your project has multiple include roots, add them all.
 install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Base/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Component/include/
@@ -69,28 +71,27 @@ install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/TimeIntegration/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/XML/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/InterfaceCBasilisk/include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Grains
-  FILES_MATCHING PATTERN "*.h*"      # match .h, .hh, .hpp
+  DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}/Grains
+  COMPONENT Grains_Devel
+  FILES_MATCHING PATTERN "*.h*" # match .h, .hh, .hpp
 )
 
-# ---- 3. Install extra data/config files (optional) --------------------------------
-if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd")
-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd/
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Dtd
-    FILES_MATCHING PATTERN "*.dtd"
-  )
-endif()
+# ---- 3. Install data/config files --------------------------------
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd/
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Dtd
+  COMPONENT Grains_Data
+  FILES_MATCHING PATTERN "*.dtd"
+)
 
-if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools")
-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools/
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Tools
-    FILES_MATCHING PATTERN "*.exec"
-  )
-endif()
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools/
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains/Tools
+  COMPONENT Grains_Data
+  FILES_MATCHING PATTERN "*.exec"
+)
 
 # ---- 4. Generate CMake package configuration --------------------------------------
-# This makes your project discoverable via find_package(Grains CONFIG)
-set(GRAINS_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Grains)
+# This makes the project discoverable via find_package(Grains CONFIG)
+set(GRAINS_INSTALL_CMAKEDIR ${PACIFIC_MPI_INSTALL_LIBDIR}/cmake/Grains)
 
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GrainsConfig.cmake.in
@@ -109,12 +110,14 @@ install(EXPORT GrainsTargets
   FILE GrainsTargets.cmake
   NAMESPACE PacIFiC::
   DESTINATION ${GRAINS_INSTALL_CMAKEDIR}
+  COMPONENT Grains_Devel
 )
 
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/GrainsConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/GrainsConfigVersion.cmake
   DESTINATION ${GRAINS_INSTALL_CMAKEDIR}
+  COMPONENT Grains_Devel
 )
 
 # ---- 6. Export from the build tree for development -------------------------------

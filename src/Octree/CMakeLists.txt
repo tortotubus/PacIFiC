@@ -14,19 +14,27 @@ find_package(MPI REQUIRED)
 #
 
 include(FetchContent)
+ 
+set(_basilisk_vendor_dir "${CMAKE_CURRENT_SOURCE_DIR}/third_party/basilisk")
 
-if(DEFINED BASILISK_SRC)
-  FetchContent_Declare(Basilisk
-    SOURCE_DIR ${BASILISK_SRC}
-  )
-else()
-  FetchContent_Declare(Basilisk
-    GIT_REPOSITORY https://github.com/tortotubus/beam-basilisk.git
-  )
+if (EXISTS "${_basilisk_vendor_dir}/CMakeLists.txt")
+  # Force FetchContent to use the vendored copy (no network)
+  set(FETCHCONTENT_SOURCE_DIR_DEP "${_basilisk_vendor_dir}" CACHE PATH "" FORCE)
 endif()
 
-FetchContent_MakeAvailable(Basilisk)
+# Optional: forbid any downloading if you're expecting vendored deps
+option(OFFLINE "Disallow network fetches" OFF)
+if (OFFLINE)
+  set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
+  set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+endif()
 
+FetchContent_Declare(
+  Basilisk
+  GIT_REPOSITORY https://github.com/tortotubus/beam-basilisk.git
+)
+
+FetchContent_MakeAvailable(Basilisk)
 
 #
 #

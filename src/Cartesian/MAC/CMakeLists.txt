@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Force the use of the chosen C++ s
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 project(MAC
-  VERSION 1.0.0
+  VERSION 0.0.1
   LANGUAGES CXX
 )
 
@@ -264,10 +264,11 @@ include(CMakePackageConfigHelpers)
 # ---- 1. Install the shared library ------------------------------------------------
 install(TARGETS MAC
   EXPORT MACTargets
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}      
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}      
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}      
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} 
+  LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}     
+  COMPONENT MAC_Runtime
+  RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}      
+  COMPONENT MAC_Runtime
+  INCLUDES DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}  
 )
 
 # ---- 2. Install all public headers -------------------------------------------------
@@ -277,12 +278,13 @@ install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Base/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/FiniteVolume/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/LinearAlgebra/include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MAC
+  DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}/MAC
+  COMPONENT MAC_Devel
   FILES_MATCHING PATTERN "*.h*"      # match .h, .hh, .hpp
 )
 
 # ---- 4. Generate CMake package configuration --------------------------------------
-set(MAC_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/MAC)
+set(MAC_INSTALL_CMAKEDIR ${PACIFIC_MPI_INSTALL_LIBDIR}/cmake/MAC)
 
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MACConfig.cmake.in
@@ -301,12 +303,14 @@ install(EXPORT MACTargets
   FILE MACTargets.cmake
   NAMESPACE PacIFiC::
   DESTINATION ${MAC_INSTALL_CMAKEDIR}
+  COMPONENT MAC_Devel
 )
 
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/MACConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/MACConfigVersion.cmake
   DESTINATION ${MAC_INSTALL_CMAKEDIR}
+  COMPONENT MAC_Devel
 )
 
 # ---- 6. Export from the build tree for development -------------------------------
