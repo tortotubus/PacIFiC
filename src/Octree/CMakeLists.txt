@@ -25,6 +25,8 @@ else()
   )
 endif()
 
+FetchContent_MakeAvailable(Basilisk)
+
 
 #
 #
