@@ -1,9 +1,14 @@
 # PacIFiC Fedora Specfile (MPI flavors, CMake)
 # ============================================
 
+%global snap 0
+%global git_date 19700101
+%global git_sha 000000000000
+%global shortsha %(echo %{git_sha} | cut -c1-12)
+
 Name:           pacific
 Version:        0.0.1
-Release:        1%{?dist}
+Release:        %{?snap:0.%{git_date}git%{shortsha}%{?dist}}%{?!snap:1%{?dist}}
 Summary:        PacIFiC toolkit (FSI + granular mechanics)
 License:        MIT
 URL:            https://gitlab.math.ubc.ca/pacific-devel-team/pacific
