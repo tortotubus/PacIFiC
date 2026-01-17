@@ -6,6 +6,18 @@ add_subdirectory(Dtd)
 add_subdirectory(Tools)
 
 #
+#
+#
+
+# ---- Generate Version.hh ----
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Utility/include/Version.hh.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Utility/include/Version.hh"
+  @ONLY
+)
+
+
+#
 # Collect Grains sources
 #
 
@@ -151,6 +163,7 @@ list(APPEND GRAINS_SOURCES
 )
 
 list(APPEND GRAINS_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Utility/include>")
+list(APPEND GRAINS_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/Utility/include>")
 
 list(APPEND GRAINS_SOURCES
   Utility/src/Data.cpp

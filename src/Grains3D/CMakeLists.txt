@@ -1,12 +1,11 @@
 cmake_minimum_required(VERSION 3.12.0...4.0.0)
-message(STATUS "CMake version: ${CMAKE_VERSION}")
 
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use")
 set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "Force the use of the chosen C++ standard.")
 set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 project(Grains
-  VERSION 0.0.1
+  VERSION ${PACIFIC_VERSION_SEMVER}
   LANGUAGES CXX
 )
 
