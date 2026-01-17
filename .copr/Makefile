@@ -32,23 +32,14 @@ spec:
 
 # Create tarball matching Source0 = %{name}-%{version}.tar.gz
 .PHONY: sources
+# inside .copr/Makefile
 sources:
-	@set -euo pipefail; \
-	ver="$$(rpmspec -q --qf '%{VERSION}\n' $(SPECDIR)/$(NAME).spec | head -n 1)"; \
-	tarname="$(NAME)-$${ver}.tar.gz"; \
-	topdir="$(NAME)-$${ver}"; \
-	echo "ver=$${ver}"; \
-	echo "tarname=$${tarname}"; \
-	echo "topdir=$${topdir}"; \
-	rm -rf "$(SOURCES)/$${topdir}"; \
-	mkdir -p "$(SOURCES)/$${topdir}"; \
-	rsync -a --delete \
-	  --exclude '.git' \
-	  --exclude 'rpmbuild' \
-	  --exclude '*.swp' \
-	  --exclude '*.swo' \
-	  ./ "$(SOURCES)/$${topdir}/"; \
-	( cd "$(SOURCES)" && tar -czf "$${tarname}" "$${topdir}" ); \
-	test -f "$(SOURCES)/$${tarname}"; \
-	echo "Wrote $(SOURCES)/$${tarname}"; \
-	rm -rf "$(SOURCES)/$${topdir}"
+	ver=0.0.1; \
+	tarname=pacific-$$ver.tar.gz; \
+	topdir=pacific-$$ver; \
+	rm -rf "$$topdir"; \
+	mkdir -p "$$topdir"; \
+	tar --exclude-vcs --exclude='./.git' -cf - . | tar -C "$$topdir" -xf - ; \
+	tar -czf "$$tarname" "$$topdir"; \
+	mv "$$tarname" "$(outdir)/"
+
