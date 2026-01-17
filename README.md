@@ -1,4 +1,5 @@
 # Welcome to PacIFiC!
+[![Copr build status](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/package/pacific/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/package/pacific/)
 
 PacIFiC is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. PacIFiC stands for "PArtiCles In FluId Computations".
 
@@ -68,11 +69,22 @@ cmake --build build-release --parallel
 
 ### Install
 
+### From Source 
+
 If you wish to install to your system, run
 
 ```bash
 sudo cmake --build build --target install
 ```
+
+### Package
+
+On an RPM-based distro you may install from our copr repo
+```bash
+sudo dnf copr enable colive/PacIFiC 
+sudo dnf install -y pacific-openmpi pacific-openmpi-devel
+```
+Installation on Enterprise Linux requires the `copr` plugin in addition to CodeReady Builder (CRB) and EPEL release repositories, if they have not already been enabled.
 
 ## Documentation
 
