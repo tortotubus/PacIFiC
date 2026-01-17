@@ -1,5 +1,3 @@
-
-
 # PacIFiC Fedora Specfile (MPI flavors, CMake)
 # ============================================
 
@@ -9,7 +7,8 @@ Release:        1%{?dist}
 Summary:        PacIFiC toolkit (FSI + granular mechanics)
 License:        MIT
 URL:            https://gitlab.math.ubc.ca/pacific-devel-team/pacific
-Source0:        PacIFiC-%{version}.tar.gz
+Source0: %{name}-%{version}.tar.gz
+
 
 BuildRequires:  environment-modules
 BuildRequires:  rpm-mpi-hooks
@@ -62,7 +61,7 @@ Requires:       zlib-devel
 Headers and CMake package files for developing against PacIFiC built with OpenMPI.
 
 %prep
-%autosetup -n PacIFiC-%{version}
+%autosetup -n %{name}-%{version}
 
 %build
 %{_openmpi_load}
