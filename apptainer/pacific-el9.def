@@ -1,0 +1,32 @@
+Bootstrap: docker
+From: rockylinux:9
+
+%labels
+  Author Conor Olive
+  Description "HPC container with OpenMPI + HDF5 + PacIFiC"
+
+%files
+  ../  /opt/pacific/src
+
+%post
+  set -eux
+  dnf -y install dnf-plugins-core
+  dnf config-manager --set-enabled crb
+  dnf -y install epel-release 
+  dnf -y groupinstall "Development Tools"
+  dnf -y install gcc gcc-c++ cmake make zlib-devel xerces-c-devel openmpi openmpi-devel zlib-devel hdf5-openmpi hdf5-openmpi-devel 
+  if [ -d /usr/lib64/openmpi/bin ]; then
+    export PATH=/usr/lib64/openmpi/bin:$PATH
+  fi
+  export CC=mpicc CXX=mpicxx FC=mpifort
+  cmake -S /opt/pacific/src -B /opt/pacific/build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/pacific/install 
+  cmake --build /opt/pacific/build --parallel
+  cmake --install /opt/pacific/build
+  dnf -y clean all
+  rm -rf /var/cache/dnf
+
+%environment
+  export PATH=/opt/pacific/install/bin:$PATH
+  export LD_LIBRARY_PATH=/opt/pacific/install/lib:/opt/pacific/install/lib64:$LD_LIBRARY_PATH

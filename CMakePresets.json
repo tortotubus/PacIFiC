@@ -14,10 +14,7 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install",
-        "CMAKE_MPI_INSTALL_LIBDIR": "${sourceDir}/install/lib64/openmpi/lib",
-        "CMAKE_MPI_INSTALL_BINDIR": "${sourceDir}/install/lib64/openmpi/bin",
-        "CMAKE_MPI_INSTALL_INCLUDEDIR": "${sourceDir}/install/include/openmpi-x86_64"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install"
       }
     },
     {

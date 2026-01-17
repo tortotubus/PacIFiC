@@ -3,7 +3,7 @@
 #
 
 add_subdirectory(Dtd)
-# add_subdirectory(Tools)
+add_subdirectory(Tools)
 
 #
 # Collect Grains sources

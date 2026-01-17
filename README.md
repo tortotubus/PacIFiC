@@ -86,6 +86,10 @@ sudo dnf install -y pacific-openmpi pacific-openmpi-devel
 ```
 Installation on Enterprise Linux requires the `copr` plugin in addition to CodeReady Builder (CRB) and EPEL release repositories, if they have not already been enabled.
 
+### Apptainer
+
+
+
 ## Documentation
 
 Additional documentation may be found by visiting the [documentation website](https://anthonywachs.github.io/PacIFiC/).
