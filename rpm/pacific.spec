@@ -7,8 +7,7 @@ Release:        1%{?dist}
 Summary:        PacIFiC toolkit (FSI + granular mechanics)
 License:        MIT
 URL:            https://gitlab.math.ubc.ca/pacific-devel-team/pacific
-Source0: %{name}-%{version}.tar.gz
-
+Source0:        https://github.com/tortotubus/PacIFiC/archive/refs/heads/cmake-dev.tar.gz
 
 BuildRequires:  environment-modules
 BuildRequires:  rpm-mpi-hooks
@@ -22,7 +21,7 @@ BuildRequires:  gcc-c++
 BuildRequires:  make
 BuildRequires:  xerces-c-devel
 BuildRequires:  zlib-devel
-
+ 
 %description
 PacIFiC: high-performance fluid–structure interaction and granular mechanics toolkit.
 
@@ -61,7 +60,7 @@ Requires:       zlib-devel
 Headers and CMake package files for developing against PacIFiC built with OpenMPI.
 
 %prep
-%autosetup -n %{name}-%{version}
+%autosetup -n PacIFiC-cmake-dev.tar.gz
 
 %build
 %{_openmpi_load}
