@@ -60,7 +60,7 @@ Requires:       zlib-devel
 Headers and CMake package files for developing against PacIFiC built with OpenMPI.
 
 %prep
-%autosetup -n PacIFiC-cmake-dev.tar.gz
+%autosetup -n PacIFiC-cmake-dev
 
 %build
 %{_openmpi_load}
