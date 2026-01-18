@@ -16,6 +16,7 @@ cp rpm/pacific.spec "$HOME/rpmbuild/SPECS/pacific.spec"
 
 # fetch Source0 into SOURCES
 spectool -g -R "$HOME/rpmbuild/SPECS/pacific.spec"
+# git archive --format=tar.gz HEAD > pacific-0.0.1.tar.gz
 
 # build SRPM
 rpmbuild -bs \
