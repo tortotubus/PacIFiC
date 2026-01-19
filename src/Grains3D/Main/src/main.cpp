@@ -117,8 +117,6 @@ int main(int argc, char *argv[]) {
     if (rank == 0) {
       std::cout << "PacIFiC " << Version::semver << " (" << Version::full
                 << ")\n"
-                << "Commit: " << Version::git_sha << "\n"
-                << "Built:  " << Version::build_time << "\n"
                 << "Type:   " << Version::build_type << "\n";
     }
     return 0;
