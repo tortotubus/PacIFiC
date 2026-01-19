@@ -1,0 +1,46 @@
+Source: pacific
+Section: science
+Priority: optional
+Maintainer: Ubuntu <colive@unknown>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake,
+ pkg-config,
+ g++,
+ mpi-default-dev,
+ libhdf5-mpi-dev,
+ libxerces-c-dev,
+ zlib1g-dev
+Standards-Version: 4.6.2
+Homepage: https://anthonywachs.github.io/Pacific/
+
+Package: pacific-common
+Section: science
+Architecture: all
+Depends: ${misc:Depends}
+Description: PacIFiC common data files
+ Common runtime data for PacIFiC (e.g. Grains data tables).
+
+Package: pacific-tools
+Section: science
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libpacific-mpi1 (>= ${binary:Version}), pacific-common
+Description: PacIFiC command-line tools
+ Command-line executables for PacIFiC.
+
+Package: libpacific-mpi0
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: PacIFiC shared libraries (built with default MPI)
+ Shared libraries for PacIFiC built against the distro default MPI.
+
+Package: libpacific-mpi-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: foreign
+Depends: libpacific-mpi1 (= ${binary:Version}), ${misc:Depends}
+Description: PacIFiC development files (default MPI)
+ Headers and CMake package files for developing against PacIFiC.

@@ -15,19 +15,19 @@ find_package(MPI REQUIRED)
 
 include(FetchContent)
  
-set(_basilisk_vendor_dir "${CMAKE_CURRENT_SOURCE_DIR}/third_party/basilisk")
+# set(_basilisk_vendor_dir "${CMAKE_CURRENT_SOURCE_DIR}/third_party/basilisk")
 
-if (EXISTS "${_basilisk_vendor_dir}/CMakeLists.txt")
-  # Force FetchContent to use the vendored copy (no network)
-  set(FETCHCONTENT_SOURCE_DIR_DEP "${_basilisk_vendor_dir}" CACHE PATH "" FORCE)
-endif()
+# if (EXISTS "${_basilisk_vendor_dir}/CMakeLists.txt")
+#   # Force FetchContent to use the vendored copy (no network)
+#   set(FETCHCONTENT_SOURCE_DIR_DEP "${_basilisk_vendor_dir}" CACHE PATH "" FORCE)
+# endif()
 
-# Optional: forbid any downloading if you're expecting vendored deps
-option(OFFLINE "Disallow network fetches" OFF)
-if (OFFLINE)
-  set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
-  set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
-endif()
+# # Optional: forbid any downloading if you're expecting vendored deps
+# option(OFFLINE "Disallow network fetches" OFF)
+# if (OFFLINE)
+#   set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
+#   set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+# endif()
 
 FetchContent_Declare(
   Basilisk
