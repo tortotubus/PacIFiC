@@ -1,7 +1,7 @@
 .PHONY: srpm
 
 install_buildreqs:
-	sudo dnf -y install rpmdevtools rpm-build git || true
+	dnf -y install rpmdevtools rpm-build git || true
 
 test_srpm:
 	mkdir -p test_output
