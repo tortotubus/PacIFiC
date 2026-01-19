@@ -4,12 +4,12 @@
 %global shortsha %(echo %{git_sha} | cut -c1-12)
 
 Name:           pacific
-Version:        0.0.1
+Version:        %{?version}%{!?version:0.0.1}
 Release:        %{?snap:0.%{git_date}git%{shortsha}%{?dist}}%{?!snap:1%{?dist}}
 Summary:        PacIFiC toolkit (FSI + granular mechanics)
 License:        MIT
 URL:            https://gitlab.math.ubc.ca/pacific-devel-team/pacific
-Source0:        https://github.com/tortotubus/PacIFiC/archive/refs/heads/cmake-dev.tar.gz
+Source0:        pacific-%{version}.tar.gz
 
 BuildRequires:  environment-modules
 BuildRequires:  rpm-mpi-hooks
@@ -62,7 +62,7 @@ Requires:       zlib-devel
 Headers and CMake package files for developing against PacIFiC built with OpenMPI.
 
 %prep
-%autosetup -n PacIFiC-cmake-dev
+%autosetup 
 
 %build
 %{_openmpi_load}
