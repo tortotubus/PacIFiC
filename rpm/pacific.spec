@@ -106,6 +106,7 @@ DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component FLUID_Devel
 %files common
 %license LICENSE
 %doc README.md
+%{_includedir}/Octree/*
 %{_datadir}/Grains
 
 %files openmpi
