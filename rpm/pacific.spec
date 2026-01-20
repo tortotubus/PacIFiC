@@ -98,6 +98,8 @@ DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component MAC_Runtime
 DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component MAC_Devel
 DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component FLUID_Runtime
 DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component FLUID_Devel
+DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component Octree_DLMFD_Devel
+DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component Octree_VTKHypertree_Devel
 %{_openmpi_unload}
 
 %post openmpi -p /sbin/ldconfig
