@@ -2,9 +2,6 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-override_dh_shlibdeps:
-	dh_shlibdeps --exclude=libpacific
-
 %:
 	dh $@ --buildsystem=cmake
 
@@ -13,6 +10,13 @@ override_dh_auto_configure:
 		-DCMAKE_BUILD_TYPE=Release \
 		-DBUILD_SHARED_LIBS=ON \
 		-DCMAKE_SKIP_RPATH=ON \
-		-DCMAKE_CXX_COMPILER=mpicxx \
 		-DCMAKE_C_COMPILER=mpicc \
-	    -DOCTREE_BASILISK_PROVIDER=SYSTEM
+		-DCMAKE_CXX_COMPILER=mpicxx \
+		-DOCTREE_BASILISK_PROVIDER=SYSTEM
+
+
+# Prevent dh_shlibdeps / dpkg-shlibdeps from auto-generating (>= ...) deps
+# on our *own* PacIFiC shared libraries. We want internal deps to be the
+# exact-version in debian/control.
+override_dh_shlibdeps:
+	dh_shlibdeps -Xlibpacific -XlibPacIFiC
