@@ -17,6 +17,12 @@ project(MAC
 
 find_package(MPI REQUIRED COMPONENTS C)
 
+if (BUILD_THIRD_PARTY_ZLIB)
+  # find_package(ZLIB REQUIRED)
+else()
+  find_package(ZLIB REQUIRED)
+endif()
+
 # ================================================================================
 #
 # Source tree targets/projects
@@ -234,6 +240,7 @@ set_target_properties(MAC
 target_link_libraries(MAC 
   PUBLIC
     MPI::MPI_C
+    ZLIB::ZLIB
 )
 
 include(GNUInstallDirs)

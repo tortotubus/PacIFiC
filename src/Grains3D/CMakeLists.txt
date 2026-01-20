@@ -19,8 +19,17 @@ if (PACIFIC_ENABLE_MPI)
   find_package(MPI REQUIRED COMPONENTS C)
 endif()
 
-find_package(ZLIB REQUIRED)
-find_package(XercesC REQUIRED)
+if (BUILD_THIRD_PARTY_ZLIB)
+  # find_package(ZLIB REQUIRED)
+else()
+  find_package(ZLIB REQUIRED)
+endif()
+
+if (BUILD_THIRD_PARTY_XERCESC)
+  # find_package(XercesC REQUIRED)
+else()
+  find_package(XercesC REQUIRED)
+endif()
 
 
 # ================================================================================

@@ -151,34 +151,16 @@ endif()
 
 # ================================================================================
 #
+# Build and install third-party dependencies as part of CMake build
+#
+# ================================================================================
+
+add_subdirectory(third_party)  
+
+# ================================================================================
+#
 # Source tree targets/projects
 #
 # ================================================================================
 
 add_subdirectory(src)
-
-
-# ================================================================================
-#
-# Packaging 
-#
-# ================================================================================
-
-
-set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}")
- 
-set(CPACK_SOURCE_IGNORE_FILES
-  "/build/;/.git/;/.github/;/.idea/;/.vscode/;~$;[.]swp$;/install/;/_CPack_Packages/;CMakeCache.txt;"
-)
-
-include(CPack)
-
-# --- Utility target ---
-add_custom_target(source_tar
-  COMMAND "${CMAKE_CPACK_COMMAND}"
-          --config "${CMAKE_BINARY_DIR}/CPackSourceConfig.cmake"
-  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-  COMMENT "Generating source tarball with CPack (TGZ)"
-  VERBATIM
-)

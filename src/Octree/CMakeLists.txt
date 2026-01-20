@@ -4,9 +4,16 @@ project(Octree LANGUAGES C)
 # ------------------------------------------------------------------------------
 # Core deps
 # ------------------------------------------------------------------------------
-set(HDF5_PREFER_PARALLEL TRUE)
-find_package(HDF5 REQUIRED COMPONENTS C HL)
-find_package(MPI REQUIRED)
+
+if (PACIFIC_ENABLE_MPI)
+  find_package(MPI REQUIRED)
+endif()
+
+if (BUILD_THIRD_PARTY_HDF5)
+else()
+  set(HDF5_PREFER_PARALLEL TRUE)
+  find_package(HDF5 REQUIRED COMPONENTS C HL)
+endif()
 
 include(GNUInstallDirs)
 include(FetchContent)

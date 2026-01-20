@@ -1,0 +1,31 @@
+include(ExternalProject)
+include(GNUInstallDirs)
+
+ExternalProject_Add(hdf5_ep
+  GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
+  GIT_TAG        hdf5_2.0.0
+
+  SOURCE_DIR  "${CMAKE_BINARY_DIR}/_deps/hdf5-src"
+  BINARY_DIR  "${CMAKE_BINARY_DIR}/_deps/hdf5-build"
+  INSTALL_DIR "${HDF5_PREFIX}"
+ 
+
+  CMAKE_ARGS
+    -HDF5_ENABLE_PARALLEL=${PACIFIC_ENABLE_MPI}
+    -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DHDF5_ONLY_SHARED_LIBS=ON
+    -DHDF5_USE_GNU_DIRS=ON
+
+    -DHDF5_ALLOW_EXTERNAL_SUPPORT:STRING=GIT
+    -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON
+    -DHDF5_ENABLE_SZIP_SUPPORT:BOOL=ON
+    
+  UPDATE_DISCONNECTED 1
+  BUILD_ALWAYS OFF
+)
+
+
+# ExternalProject_Add_StepDependencies(hdf5_ep configure zlibng_ep)
+
+list(PREPEND CMAKE_PREFIX_PATH "${HDF5_PREFIX}")
