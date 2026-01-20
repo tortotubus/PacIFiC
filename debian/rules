@@ -19,7 +19,9 @@ override_dh_auto_configure:
 # on our *own* PacIFiC shared libraries. We want internal deps to be the
 # exact-version in debian/control.
 override_dh_shlibdeps:
-	dh_shlibdeps -Xlibpacific -XlibPacIFiC \
-		-Xlibpacific-grains.so \
-		-Xlibpacific-fluid.so \
-		-Xlibpacific-mac.so
+	dh_shlibdeps \
+		-Xlibpacific \
+		-Xpacific \
+		-XlibFLUID.so \
+		-XlibGrains.so \
+		-XlibMAC.so

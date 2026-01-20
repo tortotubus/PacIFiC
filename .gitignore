@@ -1,4 +1,6 @@
 .vscode
+.direnv*
+.envrc
 build
 install
 rpmbuild
