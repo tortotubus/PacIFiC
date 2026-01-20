@@ -2,6 +2,9 @@
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+override_dh_shlibdeps:
+	dh_shlibdeps --exclude=libpacific
+
 %:
 	dh $@ --buildsystem=cmake
 
@@ -11,4 +14,5 @@ override_dh_auto_configure:
 		-DBUILD_SHARED_LIBS=ON \
 		-DCMAKE_SKIP_RPATH=ON \
 		-DCMAKE_CXX_COMPILER=mpicxx \
-		-DCMAKE_C_COMPILER=mpicc 
+		-DCMAKE_C_COMPILER=mpicc \
+	    -DOCTREE_BASILISK_PROVIDER=SYSTEM
