@@ -4,7 +4,7 @@ let
   lib = pkgs.lib;
 
   pname = "pacific";
-  version = "0.1.0";
+  version = "0.0.1";
 
   package = pkgs.stdenv.mkDerivation {
     inherit pname version;
@@ -24,7 +24,7 @@ let
     ];
 
     configurePhase = ''
-      cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX=$out
+      cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$out
     '';
 
     buildPhase = ''cmake --build build'';
@@ -38,6 +38,7 @@ let
       gdb 
       strace
       doxygen
+      ninja
     ];
   };
 

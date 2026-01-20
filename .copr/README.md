@@ -1,0 +1,3 @@
+## About
+
+This directory allows the project to be built by [Fedora COPR](https://copr.fedorainfracloud.org/). Once a project is created, this repository may be built as a package `pacific` using the option `scm` as source type and `make srpm` as the build option. With `make srpm` the service automatically runs the Makefile in this folder to create a source rpm that can be build into a binary rpm for multiple RPM-based distros.

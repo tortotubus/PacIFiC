@@ -1,0 +1,3 @@
+usr/include/MAC/*
+usr/lib/*/libMAC.so
+usr/lib/*/cmake/MAC/*

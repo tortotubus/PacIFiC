@@ -1,0 +1,3 @@
+usr/include/FLUID/*
+usr/lib/*/libFLUID.so
+usr/lib/*/cmake/FLUID/*

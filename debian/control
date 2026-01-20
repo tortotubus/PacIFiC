@@ -1,7 +1,7 @@
 Source: pacific
 Section: science
 Priority: optional
-Maintainer: Ubuntu <colive@unknown>
+Maintainer: Conor Olive <colive@math.ubc.ca>
 Rules-Requires-Root: no
 Build-Depends:
  debhelper-compat (= 13),
@@ -15,6 +15,7 @@ Build-Depends:
 Standards-Version: 4.6.2
 Homepage: https://anthonywachs.github.io/Pacific/
 
+
 Package: pacific-common
 Section: science
 Architecture: all
@@ -22,25 +23,90 @@ Depends: ${misc:Depends}
 Description: PacIFiC common data files
  Common runtime data for PacIFiC (e.g. Grains data tables).
 
+
 Package: pacific-tools
 Section: science
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libpacific-mpi0 (>= ${binary:Version}), pacific-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, pacific-common
 Description: PacIFiC command-line tools
  Command-line executables for PacIFiC.
 
-Package: libpacific-mpi0
+
+Package: libpacific-mac0-mpi
 Section: libs
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: PacIFiC shared libraries (built with default MPI)
- Shared libraries for PacIFiC built against the distro default MPI.
+Description: PacIFiC MAC shared library (default MPI)
+ Shared library for the MAC module of PacIFiC built against the distro default MPI.
 
-Package: libpacific-mpi-dev
+
+Package: libpacific-fluid0-mpi
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}, libpacific-mac0-mpi (= ${binary:Version})
+Description: PacIFiC FLUID shared library (default MPI)
+ Shared library for the FLUID module of PacIFiC built against the distro default MPI.
+
+
+Package: libpacific-grains0-mpi
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: PacIFiC Grains shared library (default MPI)
+ Shared library for the Grains module of PacIFiC built against the distro default MPI.
+
+
+Package: libpacific-mac-mpi-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: foreign
-Depends: libpacific-mpi0 (= ${binary:Version}), ${misc:Depends}
-Description: PacIFiC development files (default MPI)
- Headers and CMake package files for developing against PacIFiC.
+Depends: libpacific-mac0-mpi (= ${binary:Version}), ${misc:Depends}
+Description: PacIFiC MAC development files (default MPI)
+ Headers and CMake package files for developing against PacIFiC MAC (default MPI build).
+
+
+Package: libpacific-fluid-mpi-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: foreign
+Depends: libpacific-fluid0-mpi (= ${binary:Version}), libpacific-mac-mpi-dev (= ${binary:Version}), ${misc:Depends}
+Description: PacIFiC FLUID development files (default MPI)
+ Headers and CMake package files for developing against PacIFiC FLUID (default MPI build).
+
+
+Package: libpacific-grains-mpi-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: foreign
+Depends: libpacific-grains0-mpi (= ${binary:Version}), ${misc:Depends}
+Description: PacIFiC Grains development files (default MPI)
+ Headers and CMake package files for developing against PacIFiC Grains (default MPI build).
+
+
+Package: libpacific-mpi0
+Section: libs
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ libpacific-mac0-mpi (= ${binary:Version}),
+ libpacific-fluid0-mpi (= ${binary:Version}),
+ libpacific-grains0-mpi (= ${binary:Version}),
+ ${misc:Depends}
+Description: PacIFiC MPI runtime libraries (meta-package)
+ Convenience package that pulls in all PacIFiC runtime shared libraries built with the distro default MPI.
+
+
+Package: libpacific-mpi-dev
+Section: libdevel
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ libpacific-mac-mpi-dev (= ${binary:Version}),
+ libpacific-fluid-mpi-dev (= ${binary:Version}),
+ libpacific-grains-mpi-dev (= ${binary:Version}),
+ ${misc:Depends}
+Description: PacIFiC MPI development files (meta-package)
+ Convenience package that pulls in all PacIFiC development components (headers + CMake package files) for the default MPI build.
