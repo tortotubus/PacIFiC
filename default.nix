@@ -14,13 +14,13 @@ let
       gcc
       cmake 
       gnumake
-      mpi
-      zlib
-      xercesc
-      hdf5-mpi
+      pkg-config
+      (hdf5-mpi.override { mpi = openmpi; })    
     ];
 
     buildInputs = with pkgs; [ 
+      zlib
+      xercesc
     ];
 
     configurePhase = ''
@@ -39,6 +39,7 @@ let
       strace
       doxygen
       ninja
+      apptainer
     ];
   };
 

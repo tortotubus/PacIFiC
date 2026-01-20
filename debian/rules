@@ -18,10 +18,13 @@ override_dh_auto_configure:
 # Prevent dh_shlibdeps / dpkg-shlibdeps from auto-generating (>= ...) deps
 # on our *own* PacIFiC shared libraries. We want internal deps to be the
 # exact-version in debian/control.
-override_dh_shlibdeps:
-	dh_shlibdeps \
-		-Xlibpacific \
-		-Xpacific \
-		-XlibFLUID.so \
-		-XlibGrains.so \
-		-XlibMAC.so
+# override_dh_shlibdeps:
+# 	dh_shlibdeps \
+# 		-Xlibpacific \
+# 		-Xpacific 
+
+override_dh_makeshlibs:
+	dh_makeshlibs -p libpacific-grains0-mpi -V 'libpacific-grains0-mpi (= ${binary:Version})'
+	dh_makeshlibs -p libpacific-fluid0-mpi -V 'libpacific-fluid0-mpi (= ${binary:Version})'
+	dh_makeshlibs -p libpacific-mac0-mpi -V 'libpacific-mac0-mpi (= ${binary:Version})'
+

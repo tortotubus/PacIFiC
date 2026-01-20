@@ -13,7 +13,7 @@ Build-Depends:
  libxerces-c-dev,
  zlib1g-dev
 Standards-Version: 4.6.2
-Homepage: https://anthonywachs.github.io/Pacific/
+Homepage: https://anthonywachs.github.io/PacIFiC/
 
 Package: pacific-common
 Section: science

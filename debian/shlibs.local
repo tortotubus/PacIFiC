@@ -1,0 +1,4 @@
+# soname            package                 dependency
+libGrains.so.0      libpacific-grains0-mpi   (= ${binary:Version})
+libFLUID.so.0       libpacific-fluid0-mpi    (= ${binary:Version})
+libMAC.so.0         libpacific-mac0-mpi      (= ${binary:Version})
