@@ -22,6 +22,8 @@ BuildRequires:  gcc-c++
 BuildRequires:  make
 BuildRequires:  xerces-c-devel
 BuildRequires:  zlib-devel
+
+BuildRequires: pacific-basilisk
  
 %description
 PacIFiC: high-performance fluid–structure interaction and granular mechanics toolkit.
@@ -44,6 +46,7 @@ Requires:       openmpi
 Requires:       hdf5-openmpi
 Requires:       xerces-c
 Requires:       zlib
+Requires:       pacific-basilisk
 
 %description openmpi
 PacIFiC libraries and executables compiled using OpenMPI.
@@ -81,7 +84,8 @@ export CC=mpicc CXX=mpicxx FC=mpifort
   -DCMAKE_MPI_INSTALL_INCLUDEDIR:PATH=$MPI_INCLUDE \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON \
   -DPACIFIC_VERSION_SEMVER_OVERRIDE=%{?version} \
-  -DPACIFIC_VERSION_FULL_OVERRIDE=%{?version}-%{?release}
+  -DPACIFIC_VERSION_FULL_OVERRIDE=%{?version}-%{?release} \
+  -DOCTREE_BASILISK_PROVIDER=SYSTEM
 %cmake_build 
 %{_openmpi_unload}
 
