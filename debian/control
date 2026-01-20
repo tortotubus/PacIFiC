@@ -25,7 +25,7 @@ Description: PacIFiC common data files
 Package: pacific-tools
 Section: science
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, pacific-common (= ${binary:Version}), libpacific-mpi0 (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, pacific-common, libpacific-mpi0 (= ${binary:Version})
 Description: PacIFiC command-line tools
  Command-line executables for PacIFiC.
 
