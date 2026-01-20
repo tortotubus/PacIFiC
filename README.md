@@ -26,10 +26,35 @@ graph TD;
   MacWorld-.->PETSc;
 ```
 
-Documentation will come soon.
 
+## Install
 
-## Requirements
+### Packages
+
+### Fedora
+
+On an RPM-based distro you may install from our [copr repo](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/):
+```bash
+sudo dnf copr enable colive/PacIFiC 
+sudo dnf install -y pacific-openmpi pacific-openmpi-devel
+```
+Installation on Enterprise Linux requires the `copr` plugin in addition to CodeReady Builder (CRB) and EPEL release repositories, if they have not already been enabled.
+
+### Ubuntu
+
+On Ubuntu, you may install from our [ppa archive](https://launchpad.net/~colive/+archive/ubuntu/pacific).
+```bash
+sudo apt-add-repository ppa:colive/pacific
+sudo apt update
+sudo apt install pacific-basilisk pacific-tools libpacific-mpi-dev
+```
+### Apptainer
+
+Sample container definitions may be found under `apptainer`. These images are ideal for situations where your HPC cluster may not offer some of the dependencies but do offer an apptainer module.
+
+## Building 
+
+### Requirements
 
 The following depenencies are required:
 
@@ -38,7 +63,7 @@ The following depenencies are required:
  * [zlib](https://www.zlib.net/)
 
 In addition, the following toolchain is required or reccomended
- * [GCC](https://gcc.gnu.org/) (Reccomended for Basilisk/Octree)
+ * [GCC](https://gcc.gnu.org/)  
  * [CMake](https://cmake.org/)
  * [Make](https://www.gnu.org/software/make/)
 
@@ -51,7 +76,7 @@ On apt-based distributions (e.g. Ubuntu, Debian), use
 sudo apt-get install -y build-essential make cmake git libopenmpi-dev libxerces-c-dev zlib1g-dev libhdf5-openmpi-dev
 ```
 
-## Building with CMake
+### Building with CMake
 
 The PacIFiC project requires the CMake meta-build tool and a build tool. We will use ninja here. 
 
@@ -66,35 +91,16 @@ To build all targets in the project, simply run
 ```bash
 cmake --build build-release --parallel
 ```
-
-### Install
-
-### From Source 
+### Installing From Source 
 
 If you wish to install to your system, run
 
 ```bash
 sudo cmake --build build --target install
 ```
+## Examples
 
-### Package
-
-On an RPM-based distro you may install from our [copr repo](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/):
-```bash
-sudo dnf copr enable colive/PacIFiC 
-sudo dnf install -y pacific-openmpi pacific-openmpi-devel
-```
-Installation on Enterprise Linux requires the `copr` plugin in addition to CodeReady Builder (CRB) and EPEL release repositories, if they have not already been enabled.
-
-On Ubuntu, you may install from our [ppa archive](https://launchpad.net/~colive/+archive/ubuntu/pacific).
-```bash
-sudo apt-add-repository ppa:colive/pacific
-sudo apt update
-sudo apt install pacific-tools libpacific-mpi libpacific-mpi-dev
-```
-### Apptainer
-
-
+Some examples may be found in `examples`: These can be relocated, and by default, use `FetchContent` to include copies of PacIFiC into their own build tree automatically. They therefore do not require installation of PacIFiC, although they still assume the project dependencies are installed.
 
 ## Documentation
 
