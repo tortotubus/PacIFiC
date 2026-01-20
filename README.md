@@ -40,6 +40,13 @@ sudo dnf install -y pacific-openmpi pacific-openmpi-devel
 ```
 Installation on Enterprise Linux requires the `copr` plugin in addition to CodeReady Builder (CRB) and EPEL release repositories, if they have not already been enabled.
 
+Since RPM-based distros require installation under `/usr/lib64/openmpi/` or similar, you will need to run
+```bash
+source /etc/profile.d/modules.sh
+module load mpi/openmpi-x86_64
+```
+Then our MPI-linked libraries and binaries become availible under `$PATH`, `$LD_LIBRARY_PATH` as well as the include path from `mpicc --showme`. You should now be able to run ``grains --version``. 
+
 ### Ubuntu
 
 On Ubuntu, you may install from our [ppa archive](https://launchpad.net/~colive/+archive/ubuntu/pacific).
