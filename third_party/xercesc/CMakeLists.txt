@@ -23,7 +23,7 @@ file(MAKE_DIRECTORY "${XERECESC_PREFIX}/include")
 file(MAKE_DIRECTORY "${XERECESC_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 
 add_library(XercesC::XercesC UNKNOWN IMPORTED GLOBAL)
-set(_xercesc_xercesc "${ZLIBNG_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libxerces-c.so")
+set(_xercesc_xercesc "${XERECESC_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libxerces-c.so")
 set_target_properties(XercesC::XercesC PROPERTIES
   IMPORTED_LOCATION "${_xercesc_xercesc}"
   INTERFACE_INCLUDE_DIRECTORIES "$<BUILD_INTERFACE:${XERECESC_PREFIX}/include>"

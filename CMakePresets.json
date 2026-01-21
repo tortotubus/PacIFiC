@@ -10,7 +10,7 @@
       "name": "Default",
       "displayName": "Default (Release)",
       "description": "Release build with system default generator.",
-      "generator": "Ninja",
+      "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",

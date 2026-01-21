@@ -1,0 +1,46 @@
+Bootstrap: docker
+From: rockylinux:9
+
+%labels
+  Author Conor Olive
+  Description "HPC container with OpenMPI + HDF5 + PacIFiC"
+
+%files
+  ../  /opt/pacific/src
+
+%environment
+  export MPI_HOME=/opt/mpi
+  export OMPI_VERSION=4.1.5
+  export PATH=$MPI_HOME/bin:/opt/pacific/install/bin:$PATH
+  export LD_LIBRARY_PATH=$MPI_HOME/lib:/opt/pacific/install/lib64:/opt/pacific/install/lib:$LD_LIBRARY_PATH
+
+%post
+  set -eux
+  dnf install -y gcc gcc-c++ make perl bzip2 tar libtool flex autoconf automake hwloc-devel libevent-devel numactl-devel 
+  echo "Installing MPI..."
+  export MPI_HOME=/opt/mpi
+  export OMPI_VERSION=4.1.5
+  export OMPI_URL="https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-$OMPI_VERSION.tar.bz2"
+  mkdir -p /tmp/mpi
+  mkdir -p /opt
+  cd /tmp/mpi && curl -L "$OMPI_URL" -o openmpi-$OMPI_VERSION.tar.bz2 && tar -xjf openmpi-$OMPI_VERSION.tar.bz2
+  cd /tmp/mpi/openmpi-$OMPI_VERSION && ./configure --prefix=$MPI_HOME && make -j$(nproc) install
+  export PATH=$MPI_HOME/bin:$PATH
+  export LD_LIBRARY_PATH=$MPI_HOME/lib:$LD_LIBRARY_PATH
+  echo "Installing PacIFiC..."
+  dnf -y install dnf-plugins-core
+  dnf config-manager --set-enabled crb
+  dnf -y install epel-release
+  dnf -y groupinstall "Development Tools"
+  dnf -y install cmake git zlib-devel xerces-c-devel
+  export CC=mpicc CXX=mpicxx FC=mpifort
+  cmake -S /opt/pacific/src -B /opt/pacific/build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/pacific/install \
+    -DBUILD_THIRD_PARTY_HDF5=ON \
+    -DBUILD_THIRD_PARTY_ZLIB=OFF \
+    -DBUILD_THIRD_PARTY_XERCESC=OFF 
+  cmake --build /opt/pacific/build --parallel
+  cmake --install /opt/pacific/build
+  dnf -y clean all
+  rm -rf /var/cache/dnf /opt/pacific/build
