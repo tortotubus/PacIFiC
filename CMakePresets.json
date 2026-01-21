@@ -36,6 +36,24 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithWarnings"
       }
+    },
+    {
+      "name": "HPC_Release_MyCluster",
+      "displayName": "HPC Release for MyCluster",
+      "description": "Release build for MyCluster with specific compiler and flags.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/hpc_release_mycluster",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "/nix/store/vr15iyyykg9zai6fpgvhcgyw7gckl78w-gcc-wrapper-14.3.0/bin/gcc",
+        "CMAKE_CXX_COMPILER": "/nix/store/vr15iyyykg9zai6fpgvhcgyw7gckl78w-gcc-wrapper-14.3.0/bin/g++",
+        "MPI_HOME": "/nix/store/hn0r5b0zfx1s0nqnvm0fv15fyxywy8b1-openmpi-5.0.9-dev/", 
+        "HDF5_NO_FIND_PACKAGE_CONFIG_FILE": "/nix/store/pgcnfcvvq1b0w0nsl9d62n5vw2mkkf1m-hdf5-mpi-1.14.6-dev/lib/cmake/hdf5-config.cmake",
+        "XercesC_LIBRARY_DEBUG": "/nix/store/qzyicnk6vn5vm1qj71r38ax3c9207qi0-xerces-c-3.3.0/lib/",
+        "XercesC_LIBRARY_RELEASE": "/nix/store/qzyicnk6vn5vm1qj71r38ax3c9207qi0-xerces-c-3.3.0/lib/",
+        "XercesC_INCLUDE_DIR": "/nix/store/qzyicnk6vn5vm1qj71r38ax3c9207qi0-xerces-c-3.3.0/include/",
+        "ZLIB_ROOT": "/nix/store/l7xwm1f6f3zj2x8jwdbi8gdyfbx07sh7-zlib-1.3.1/"
+      }
     }
   ],
   "buildPresets": [

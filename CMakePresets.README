@@ -1,0 +1,6 @@
+## Dependency hints
+
+ * [FindMPI](https://cmake.org/cmake/help/latest/module/FindMPI.html#variables-for-locating-mpi)
+ * [FindHDF5](https://cmake.org/cmake/help/latest/module/FindHDF5.html#hints)
+ * [FindXercesC](https://cmake.org/cmake/help/latest/module/FindXercesC.html#hints)
+ * [FindZLIB](https://cmake.org/cmake/help/latest/module/FindZLIB.html#hints)
