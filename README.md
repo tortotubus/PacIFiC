@@ -105,9 +105,62 @@ If you wish to install to your system, run
 ```bash
 sudo cmake --build build --target install
 ```
+
 ## Examples
 
 Some examples may be found in `examples`: These can be relocated, and by default, use `FetchContent` to include copies of PacIFiC into their own build tree automatically. They therefore do not require installation of PacIFiC, although they still assume the project dependencies are installed.
+
+## Building on HPC
+
+### Sockeye
+
+CMake presets are provided to help build on `sockeye.arc.ubc.ca`. It is reccomended to build inside of the compute nodes, which are offline. Since these do not have internet access, we must use git submodules to recursively clone the submodules in `third_party` to ensure they are available at configure and build time. 
+
+Start by cloning the submodule into scratch
+```bash
+cd ~/scratch/user
+git clone https://github.com/anthonywachs/PacIFiC.git --recurse-submodules
+```
+Next, start an interactive shell 
+```bash
+srun --pty -A st-wachs-1 -p interactive_cpu -t 00:10:00 -N 1 -c 8 --mem=16G bash -l
+```
+Inside the compute node, run
+```bash
+module load gcc cmake
+cmake --preset SockeyeRelease
+cmake --build --preset SockeyeRelease
+cmake --install build/sockeye_release
+exit
+```
+Now that you are off the compute node, the installed files (including XercesC) now live inside `~/scratch/user/PacIFiC/install/sockeye_release`. You may relocate this if you'd like with 
+```bash
+mv ~/scratch/user/PacIFiC ~/project/user
+```
+By default, the binaries and libraries are not yet availible on `$PATH` or `$LD_LIBRARY_PATH`. You may either `export` these manually to add them, or alternatively, write a `lmod` file such as 
+```lua
+whatis("Name : PacIFiC")
+whatis("Version : 0.0.1")
+whatis("Target : skylake_avx512")
+whatis("Short description : Particles In Fluid Computations ")
+help([[Name   : PacIFiC]])
+help([[Version: 0.0.1]])
+help([[Target : skylake_avx512]])
+help([[.]])
+depends_on("gcc/9.4.0")
+depends_on("zlib-ng/2.0.7")
+depends_on("openmpi/4.1.1-cuda11-3")
+depends_on("hdf5/1.10.7-additional-bindings")
+prepend_path{"PATH","/home/user/project/user/PacIFiC/install/sockeye_release/bin",delim=":"}
+prepend_path{"CMAKE_PREFIX_PATH","/home/user/project/user/PacIFiC/install/sockeye_release/.",delim=":"}
+append_path{"LD_LIBRARY_PATH","/home/user/project/user/PacIFiC/install/sockeye_release/lib64",delim=":"}
+setenv("UBC_CLUSTER","sockeye")
+```
+and saving this to `$HOME/project/user/modules/PacIFiC/0.0.1.lua`. This can then be used in slurm jobs by calling 
+```bash
+module use "$HOME/project/user/modules"
+module load PacIFiC/0.0.1
+```
 
 ## Documentation
 
