@@ -93,34 +93,23 @@ option(PACIFIC_ENABLE_MPI "Enable MPI-dependent targets" ON)
 # Custom build type: RelWithWarnings
 # ==========================================================
 
-set(CMAKE_CXX_FLAGS_RELWITHWARNINGS "${CMAKE_CXX_FLAGS_RELEASE}" CACHE STRING "" FORCE)
-set(CMAKE_C_FLAGS_RELWITHWARNINGS "${CMAKE_C_FLAGS_RELEASE}" CACHE STRING "" FORCE)
- 
+set(CMAKE_CXX_FLAGS_RELWITHWARNINGS "${CMAKE_CXX_FLAGS_RELEASE}")
+set(CMAKE_C_FLAGS_RELWITHWARNINGS  "${CMAKE_C_FLAGS_RELEASE}")
+
 set(_WARN_FLAGS
-  "-Werror=return-type \
-  -Werror=format-security \
-  -Werror=format=2 \
-  -Werror=nonnull \
-  -Werror=array-bounds \
-  -Werror=stringop-overflow \
-  -Werror=stringop-truncation \
-  -Werror=alloc-size-larger-than=9223372036854775807 \
-  -Werror=address \
-  -Werror=maybe-uninitialized"
+  "-Werror=return-type -Werror=format-security -Werror=format=2 \
+   -Werror=nonnull -Werror=array-bounds -Werror=stringop-overflow \
+   -Werror=stringop-truncation \
+   -Werror=alloc-size-larger-than=9223372036854775807 \
+   -Werror=address -Werror=maybe-uninitialized"
 )
- 
-set(_SANITIZER_FLAGS
-    "-fsanitize=address,undefined -fno-omit-frame-pointer"
-)
- 
-set(CMAKE_CXX_FLAGS_RELWITHWARNINGS
-    "${CMAKE_CXX_FLAGS_RELWITHWARNINGS} ${_WARN_FLAGS} ${_SANITIZER_FLAGS}"
-    CACHE STRING "Flags used by the RelWithWarnings configuration" FORCE
-)
-set(CMAKE_C_FLAGS_RELWITHWARNINGS
-    "${CMAKE_C_FLAGS_RELWITHWARNINGS} ${_WARN_FLAGS} ${_SANITIZER_FLAGS}"
-    CACHE STRING "Flags used by the RelWithWarnings configuration" FORCE
-)
+
+set(_SANITIZER_FLAGS "-fsanitize=address,undefined -fno-omit-frame-pointer")
+
+string(APPEND CMAKE_CXX_FLAGS_RELWITHWARNINGS
+       " ${_WARN_FLAGS} ${_SANITIZER_FLAGS}")
+string(APPEND CMAKE_C_FLAGS_RELWITHWARNINGS
+       " ${_WARN_FLAGS} ${_SANITIZER_FLAGS}")
 
 
 # ------------------------------------------------------------------------------
