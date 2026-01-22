@@ -28,8 +28,6 @@ include(FetchContent)
 set(OCTREE_BASILISK_PROVIDER "GIT" CACHE STRING "How to provide Basilisk/qcc: SYSTEM, VENDORED, or GIT")
 set_property(CACHE OCTREE_BASILISK_PROVIDER PROPERTY STRINGS SYSTEM VENDORED GIT)
 
-# User-provided Basilisk source directory for VENDORED mode
-set(BASILISK_DIR "" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
 
 # What the wrapper should execute. Default is plain 'qcc' (works if we install qcc to bindir).
 set(QCC_PROGRAM "qcc")
@@ -39,6 +37,9 @@ if(OCTREE_BASILISK_PROVIDER STREQUAL "SYSTEM")
   message(STATUS "Using system qcc: ${QCC_PROGRAM}")
 
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
+  # User-provided Basilisk source directory for VENDORED mode
+  set(BASILISK_DIR "" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
+
   if(BASILISK_DIR STREQUAL "")
     message(FATAL_ERROR
       "OCTREE_BASILISK_PROVIDER=VENDORED requires -DBASILISK_DIR=/path/to/basilisk")
@@ -50,9 +51,9 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
 
   # Tell FetchContent to use the user-provided source dir for Basilisk (no network).
   # NOTE: The variable name must match the declared content name: Basilisk -> BASILISK
-  set(FETCHCONTENT_SOURCE_DIR_BASILISK "${BASILISK_DIR}" CACHE PATH "" FORCE)
-  set(FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK ON CACHE BOOL "" FORCE)
-
+  set(FETCHCONTENT_SOURCE_DIR_BASILISK "${BASILISK_DIR}" CACHE PATH "" FORCE ADVANCED)
+  set(FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK ON CACHE BOOL "" FORCE ADVANCED)
+ 
   FetchContent_Declare(Basilisk)
   FetchContent_MakeAvailable(Basilisk)
 
@@ -74,6 +75,11 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "GIT")
   )
   FetchContent_MakeAvailable(Basilisk)
 
+  mark_as_advanced(
+    FETCHCONTENT_SOURCE_DIR_BASILISK
+    FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK
+  )
+
   if(TARGET qcc-toolchain)
     install(TARGETS qcc-toolchain RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
     message(STATUS "Git Basilisk provides target 'qcc-toolchain' (will be installed).")
@@ -92,6 +98,7 @@ endif()
 # ------------------------------------------------------------------------------
 set(OCTREE_DLMFD_DIR        "${CMAKE_CURRENT_SOURCE_DIR}/DLMFD"        CACHE PATH "Octree DLMFD directory")
 set(OCTREE_VTKHYPERTREE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/VTKHyperTree" CACHE PATH "Octree VTKHyperTree directory")
+mark_as_advanced(OCTREE_DLMFD_DIR OCTREE_VTKHYPERTREE_DIR)
 
 install(
   DIRECTORY "${OCTREE_DLMFD_DIR}/"

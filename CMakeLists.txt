@@ -71,7 +71,6 @@ elseif(PACIFIC_VERSION_USE_GIT AND GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.gi
 # Fallback already set above
 endif()
 
-
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 message(STATUS "PacIFiC version ${PACIFIC_VERSION_FULL}")
 
@@ -110,6 +109,8 @@ string(APPEND CMAKE_CXX_FLAGS_RELWITHWARNINGS
        " ${_WARN_FLAGS} ${_SANITIZER_FLAGS}")
 string(APPEND CMAKE_C_FLAGS_RELWITHWARNINGS
        " ${_WARN_FLAGS} ${_SANITIZER_FLAGS}")
+
+mark_as_advanced(CMAKE_CXX_FLAGS_RELWITHWARNINGS CMAKE_C_FLAGS_RELWITHWARNINGS)
 
 
 # ------------------------------------------------------------------------------
