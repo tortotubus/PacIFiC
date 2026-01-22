@@ -10305,12 +10305,20 @@ textarea.form-control-lg {
 
   .d-print-none {
     display: none !important; } }
-pre code {
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--bs-border-radius); }
+
+pre {
   display: block;
-  background-color: #212529;
-  color: #f8f9fa;
-  padding: 1rem;
-  border-radius: 0.4rem;
-  overflow-x: auto; }
+  margin-top: 0;
+  margin-bottom: 0;
+  overflow: auto;
+  font-size: 0.875em; }
+  pre code {
+    font-size: inherit;
+    color: inherit;
+    word-break: normal; }
 
 /*# sourceMappingURL=main.css.map */

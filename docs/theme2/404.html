@@ -2,11 +2,12 @@
 
 {% block content %}
 
-    <div class="row-fluid">
-      <div id="main-content" class="span12">
-        <h1 id="404-page-not-found" style="text-align: center">404</h1>
-        <p style="text-align: center"><strong>{% trans %}Page not found{% endtrans %}</strong></p>
-      </div>
+  <main class="flex-grow-1 d-flex justify-content-center align-items-center">
+    <div class="text-center p-4">
+      <h1 class="display-1 fw-bold mb-0">404</h1>
+      <p class="lead mt-3">Page not found.</p>
+      <a class="btn btn-primary" href="/">Home</a>
     </div>
+  </main>
 
 {% endblock %}

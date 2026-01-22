@@ -32,4 +32,4 @@ develop: doxygen
 	mkdocs serve
 
 clean: 
-	rm -rf site pages/doxygen/*
+	rm -rf site pages/doxygen/grains_html

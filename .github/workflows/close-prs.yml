@@ -1,0 +1,29 @@
+name: Close pull requests (read-only mirror)
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.createReview({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              body: "Thanks for your interest! This repository is a **read-only mirror**. We do not accept pull requests here.\n\nPlease open an **Issue** instead, or submit changes to the [canonical](https://gitlab.math.ubc.ca/PacIFiC-devel-team/PacIFiC/-/merge_requests) repository.",
+              event: "COMMENT"
+            })
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: "closed"
+            })
