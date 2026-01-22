@@ -38,38 +38,49 @@ if(OCTREE_BASILISK_PROVIDER STREQUAL "SYSTEM")
   message(STATUS "Using system qcc: ${QCC_PROGRAM}")
 
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
-  # User-provided Basilisk source directory for VENDORED mode
+elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
 
-  if(USE_SUBMODULES)
-    set(BASILISK_DIR "${CMAKE_SOURCE_DIR}/third_party/basilisk/basilisk_submodule" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
-  else()
-    set(BASILISK_DIR "" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
+  # Define the cache variable ONCE
+  set(BASILISK_DIR "" CACHE PATH
+      "Path to a Basilisk source tree (must contain CMakeLists.txt)")
+
+  # Compute effective directory
+  set(_basilisk_dir "${BASILISK_DIR}")
+
+  if(USE_SUBMODULES AND _basilisk_dir STREQUAL "")
+    set(_basilisk_dir
+        "${CMAKE_SOURCE_DIR}/third_party/basilisk/basilisk_submodule")
+    message(STATUS "USE_SUBMODULES=ON: using Basilisk submodule at ${_basilisk_dir}")
   endif()
 
-  if(BASILISK_DIR STREQUAL "")
+  if(_basilisk_dir STREQUAL "")
     message(FATAL_ERROR
-      "OCTREE_BASILISK_PROVIDER=VENDORED requires -DBASILISK_DIR=/path/to/basilisk")
-  endif()
-  if(NOT EXISTS "${BASILISK_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR
-      "BASILISK_DIR='${BASILISK_DIR}' does not look like a CMake Basilisk tree (missing CMakeLists.txt)")
+      "OCTREE_BASILISK_PROVIDER=VENDORED requires:\n"
+      "  -DBASILISK_DIR=/path/to/basilisk\n"
+      "or\n"
+      "  -DUSE_SUBMODULES=ON (expects submodule checkout)")
   endif()
 
-  # Tell FetchContent to use the user-provided source dir for Basilisk (no network).
-  # NOTE: The variable name must match the declared content name: Basilisk -> BASILISK
-  set(FETCHCONTENT_SOURCE_DIR_BASILISK "${BASILISK_DIR}" CACHE PATH "" FORCE ADVANCED)
-  set(FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK ON CACHE BOOL "" FORCE ADVANCED)
- 
+  if(NOT EXISTS "${_basilisk_dir}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "Basilisk dir '${_basilisk_dir}' is missing CMakeLists.txt.\n"
+      "If using submodules, run:\n"
+      "  git submodule update --init --recursive")
+  endif()
+
+  # Correct FetchContent override
+  set(FETCHCONTENT_SOURCE_DIR_BASILISK "${_basilisk_dir}" CACHE PATH "" FORCE)
+  set(FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK ON CACHE BOOL "" FORCE)
+  mark_as_advanced(
+    FETCHCONTENT_SOURCE_DIR_BASILISK
+    FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK
+  )
+
   FetchContent_Declare(Basilisk)
   FetchContent_MakeAvailable(Basilisk)
 
-  # If Basilisk provides a target called qcc, install it with us.
   if(TARGET qcc-toolchain)
     install(TARGETS qcc-toolchain RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-    message(STATUS "Vendored Basilisk provides target 'qcc-toolchain' (will be installed).")
-  else()
-    message(WARNING "Vendored Basilisk did not define a 'qcc-toolchain' target. "
-                    "Your wrapper will call '${QCC_PROGRAM}' so qcc must be available at runtime.")
   endif()
 
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "GIT")
