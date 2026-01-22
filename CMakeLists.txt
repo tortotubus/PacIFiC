@@ -6,7 +6,13 @@
 
 cmake_minimum_required(VERSION 3.12.0...4.0.0)
 
-# ---- Version selection policy (user -> git -> fallback) ----
+
+# ================================================================================
+#
+# Set the project version
+#
+# ================================================================================
+
 find_package(Git QUIET)
 
 set(PACIFIC_FALLBACK_VERSION "0.0.1")
@@ -71,6 +77,12 @@ elseif(PACIFIC_VERSION_USE_GIT AND GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.gi
 # Fallback already set above
 endif()
 
+# ================================================================================
+#
+# Project definition
+#
+# ================================================================================
+
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 message(STATUS "PacIFiC version ${PACIFIC_VERSION_FULL}")
 
@@ -79,7 +91,6 @@ project(PacIFiC
   LANGUAGES C CXX
 )
  
-
 option(PACIFIC_ENABLE_MPI "Enable MPI-dependent targets" ON)
 
 # ==========================================================
@@ -90,6 +101,9 @@ option(PACIFIC_ENABLE_MPI "Enable MPI-dependent targets" ON)
 
 # ==========================================================
 # Custom build type: RelWithWarnings
+#
+# This sets some flags similar to those used in packaging 
+# for various Linux distributions.
 # ==========================================================
 
 set(CMAKE_CXX_FLAGS_RELWITHWARNINGS "${CMAKE_CXX_FLAGS_RELEASE}")
@@ -114,7 +128,8 @@ mark_as_advanced(CMAKE_CXX_FLAGS_RELWITHWARNINGS CMAKE_C_FLAGS_RELWITHWARNINGS)
 
 
 # ------------------------------------------------------------------------------
-# Handle optional MPI install prefix
+# Handle optional MPI install prefix: This is entirely used for Fedora/RHEL 
+# packaging, where MPI libraries are installed in a non-standard location
 # ------------------------------------------------------------------------------
 
 include(GNUInstallDirs)
@@ -143,8 +158,13 @@ endif()
 #
 # Build and install third-party dependencies as part of CMake build
 #
+# By default, these are OFF. They can be enabled by setting the corresponding
+# BUILD_THIRD_PARTY_<LIBRARY> option to ON in ccmake or using 
+# -DBUILD_THIRD_PARTY_<LIBRARY>=ON
+# 
 # ================================================================================
 
+option(USE_SUBMODULES "Use git submodules for third-party dependencies where available" OFF)
 add_subdirectory(third_party)  
 
 # ================================================================================

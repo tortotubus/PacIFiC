@@ -58,6 +58,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/sockeye_release",
+        "USE_SUBMODULES": "ON",
+        "OCTREE_BASILISK_PROVIDER": "VENDORED",
         "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "ON",
         "BUILD_THIRD_PARTY_ZLIB": "OFF",

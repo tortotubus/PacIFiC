@@ -1,0 +1,12 @@
+[submodule "third_party/hdf5/hdf5_submodule"]
+	path = third_party/hdf5/hdf5_submodule
+	url = https://github.com/HDFGroup/hdf5.git
+[submodule "third_party/xercesc/xercesc_submodule"]
+	path = third_party/xercesc/xercesc_submodule
+	url = https://github.com/apache/xerces-c.git
+[submodule "third_party/zlib/zlib_submodule"]
+	path = third_party/zlib/zlib_submodule
+	url = https://github.com/zlib-ng/zlib-ng.git
+[submodule "third_party/basilisk/basilisk_submodule"]
+	path = third_party/basilisk/basilisk_submodule
+	url = https://github.com/tortotubus/pacific-basilisk.git

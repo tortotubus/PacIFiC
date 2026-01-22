@@ -25,7 +25,8 @@ include(FetchContent)
 #   VENDORED : use user-provided Basilisk source dir via -DBASILISK_DIR=/path/to/basilisk
 #   GIT    : fetch Basilisk from git
 # ------------------------------------------------------------------------------
-set(OCTREE_BASILISK_PROVIDER "GIT" CACHE STRING "How to provide Basilisk/qcc: SYSTEM, VENDORED, or GIT")
+ 
+set(OCTREE_BASILISK_PROVIDER "GIT" CACHE STRING "How to provide Basilisk/qcc: SYSTEM, VENDORED, GIT")
 set_property(CACHE OCTREE_BASILISK_PROVIDER PROPERTY STRINGS SYSTEM VENDORED GIT)
 
 
@@ -38,7 +39,12 @@ if(OCTREE_BASILISK_PROVIDER STREQUAL "SYSTEM")
 
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
   # User-provided Basilisk source directory for VENDORED mode
-  set(BASILISK_DIR "" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
+
+  if(USE_SUBMODULES)
+    set(BASILISK_DIR "${CMAKE_SOURCE_DIR}/third_party/basilisk/basilisk_submodule" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
+  else()
+    set(BASILISK_DIR "" CACHE PATH "Path to a Basilisk source tree (must contain CMakeLists.txt) used when OCTREE_BASILISK_PROVIDER=VENDORED")
+  endif()
 
   if(BASILISK_DIR STREQUAL "")
     message(FATAL_ERROR
@@ -70,8 +76,6 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "GIT")
   FetchContent_Declare(
     Basilisk
     GIT_REPOSITORY https://github.com/tortotubus/pacific-basilisk.git
-    # Optional pin:
-    # GIT_TAG v0.0.1
   )
   FetchContent_MakeAvailable(Basilisk)
 
