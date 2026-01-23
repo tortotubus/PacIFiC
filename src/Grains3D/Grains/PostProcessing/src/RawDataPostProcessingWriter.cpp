@@ -3,7 +3,7 @@
 #include "Particle.hh"
 #include "Obstacle.hh"
 #include "GrainsMPIWrapper.hh"
-
+#include "Exec.hh"
 
 
 // ----------------------------------------------------------------------------
@@ -311,10 +311,10 @@ void RawDataPostProcessingWriter::clearResultFiles() const
 {
   if ( m_rank == 0 ) 
   {
-
-    // REPLACE_EXEC_SCRIPTS
-    string cmd = "bash " + GrainsExec::m_GRAINS_HOME + "/Tools/ExecScripts/Text_clear.exec " + m_filerootname;
-    GrainsExec::m_return_syscmd = system( cmd.c_str() );
+    // REPLACED_EXEC_SCRIPTS
+    // string cmd = "bash " + GrainsExec::m_GRAINS_HOME + "/Tools/ExecScripts/Text_clear.exec " + m_filerootname;
+    // GrainsExec::m_return_syscmd = system( cmd.c_str() );
+    auto n = PacIFiC::Grains::cleanup_text_outputs(std::filesystem::current_path(), m_filerootname);
   }
 }
 

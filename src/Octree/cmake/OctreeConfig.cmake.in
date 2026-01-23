@@ -1,0 +1,20 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+if(@PACIFIC_ENABLE_MPI@)
+  find_dependency(MPI COMPONENTS C)
+  set(HDF5_PREFER_PARALLEL TRUE)
+endif()
+
+find_dependency(HDF5 REQUIRED COMPONENTS C HL)
+find_dependency(Grains)
+find_dependency(basilisk)
+
+set(Octree_DLMFD_INCLUDE_DIR "${PACKAGE_PREFIX_DIR}/include/Octree/DLMFD")
+set(Octree_VTKHYPERTREE_INCLUDE_DIR "${PACKAGE_PREFIX_DIR}/include/Octree/VTKHyperTree")
+
+include("${CMAKE_CURRENT_LIST_DIR}/OctreeTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/octree_add_executable.cmake")
+
+check_required_components(OctreeTargets)

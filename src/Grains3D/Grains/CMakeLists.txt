@@ -167,6 +167,7 @@ list(APPEND GRAINS_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/U
 
 list(APPEND GRAINS_SOURCES
   Utility/src/Data.cpp
+  Utility/src/Exec.cpp
 )
 
 list(APPEND GRAINS_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/XML3/include>")
@@ -211,10 +212,18 @@ target_include_directories(Grains
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_link_libraries(Grains 
-  PUBLIC
-    MPI::MPI_C
-    ZLIB::ZLIB
-    XercesC::XercesC
-)
+if (PACIFIC_ENABLE_MPI)
+  target_link_libraries(Grains 
+    PUBLIC
+      MPI::MPI_C
+      ZLIB::ZLIB
+      XercesC::XercesC
+  )
+else()
+  target_link_libraries(Grains 
+    PUBLIC
+      ZLIB::ZLIB
+      XercesC::XercesC
+  )
+endif()
  

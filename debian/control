@@ -18,7 +18,7 @@ Homepage: https://anthonywachs.github.io/PacIFiC/
 Package: pacific-common
 Section: science
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, pacific-basilisk
 Description: PacIFiC common data files
  Common runtime data for PacIFiC (e.g. Grains data tables).
 

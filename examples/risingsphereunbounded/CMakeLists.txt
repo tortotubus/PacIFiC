@@ -2,46 +2,21 @@ cmake_minimum_required(VERSION 3.14...4.0)
 project(RisingSphereUnbounded)
 enable_language(C)
 
-#
-#
-#
-#
-#
+# Needed for octree_add_executable
+find_package(Octree CONFIG REQUIRED) 
 
-include(FetchContent)
+set(GRAINS_DATA_SRC_DIR "${CMAKE_SOURCE_DIR}/Grains")
+set(GRAINS_DATA_BIN_DIR "${CMAKE_BINARY_DIR}/Grains")
 
-
-FetchContent_Declare(PacIFiC
-  SOURCE_DIR ../../../
-)
-
-# FetchContent_Declare(PacIFiC
-#   GIT_REPOSITORY https://github.com/anthonywachs/PacIFiC.git
-#)
-
-FetchContent_MakeAvailable(PacIFiC)
-
-set_target_properties(FLUID  PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(Grains PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(Grains_main PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(Grains_position PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(Grains_rotationmatrix PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(Grains_shapefile PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(MAC PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(qcc-grammar PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(qcc-install PROPERTIES EXCLUDE_FROM_ALL TRUE)
-set_target_properties(qcc-toolchain PROPERTIES EXCLUDE_FROM_ALL TRUE)
-
-message(STATUS "PacIFiC source: ${PacIFiC_SOURCE_DIR}")
-
-#
-#
-#
-#
-#
-  
-set (BASILISK_C_SRCS "${CMAKE_SOURCE_DIR}/risingsphereunbounded.c")
+add_custom_target(risingsphereunbounded_data ALL
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${GRAINS_DATA_BIN_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "Res"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "Savings"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${GRAINS_DATA_SRC_DIR}" "${GRAINS_DATA_BIN_DIR}"
+  COMMENT "Copying Grains/ into build tree"
+  VERBATIM
+) 
  
-foreach(basilisk_source ${BASILISK_C_SRCS})
-  add_basilisk_grains_executable(${basilisk_source})
-endforeach()
+octree_add_executable(${CMAKE_SOURCE_DIR}/risingsphereunbounded.c)
+
+add_dependencies(risingsphereunbounded risingsphereunbounded_data)

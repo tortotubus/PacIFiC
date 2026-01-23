@@ -1,8 +1,14 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
-find_dependency(MPI)
+
+if(@PACIFIC_ENABLE_MPI@)
+  find_dependency(MPI COMPONENTS C)
+endif()
+
 find_dependency(ZLIB)
 find_dependency(XercesC)
 
 include("${CMAKE_CURRENT_LIST_DIR}/GrainsTargets.cmake")
+
+check_required_components(Grains)

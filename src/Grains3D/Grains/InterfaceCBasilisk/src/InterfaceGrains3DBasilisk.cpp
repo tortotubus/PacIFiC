@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+#include <filesystem>
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,10 +34,15 @@ extern "C" {
     if ( b_restart ) grains->setReloadSame();
     grains->do_before_time_stepping( rootNode );
     ReaderXML::terminate();
+
+    // REPLACED_EXEC_SCRIPTS
     
-    string cmd = "/bin/rm " + simulation_file_exe;
-    GrainsExec::m_return_syscmd = system( cmd.c_str() );
+    // string cmd = "/bin/rm " + simulation_file_exe;
+    // GrainsExec::m_return_syscmd = system( cmd.c_str() );
     
+    std::error_code ec;
+    const bool removed = std::filesystem::remove(std::filesystem::path(simulation_file_exe), ec);
+
     if ( !b_fluidcorrectedacc )
       grains->setFluidCorrectedAcceleration( b_fluidcorrectedacc ); 
          

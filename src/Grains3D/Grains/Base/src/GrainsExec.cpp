@@ -2,6 +2,7 @@
 #include "GrainsMPIWrapper.hh"
 #include <sys/types.h>
 #include <unistd.h>
+#include "Data.hh"
 
 
 bool GrainsExec::m_MPI = false;
@@ -432,10 +433,11 @@ void GrainsExec::checkAllFilesForReload()
 {
   if ( !m_additionalDataFiles.empty() )
   {
+    // REPLACE_EXEC_SCRIPTS
+
     set<string>::iterator is;
     string fileName;
-    // REPLACE_EXEC_SCRIPTS
-    string cmd = "bash " + GrainsExec::m_GRAINS_HOME + "/Tools/ExecScripts/addFiles.exec";
+    string cmd = "bash " + get_tools_dir().string() + "/ExecScripts/addFiles.exec";
 
     for (is=m_additionalDataFiles.begin();is!=m_additionalDataFiles.end();is++)
     {

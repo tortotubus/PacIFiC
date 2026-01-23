@@ -109,6 +109,7 @@ DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component Octree_VTKH
 %license LICENSE
 %doc README.md
 %{_includedir}/Octree/*
+%{_libdir}/cmake/Octree/*
 %{_datadir}/Grains
 
 %files openmpi

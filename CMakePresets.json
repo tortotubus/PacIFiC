@@ -14,7 +14,10 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install"
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
+        "BUILD_THIRD_PARTY_HDF5": "OFF",
+        "BUILD_THIRD_PARTY_XERCESC": "OFF",
+        "BUILD_THIRD_PARTY_ZLIB": "OFF"
       }
     },
     {
@@ -24,7 +27,8 @@
       "inherits": "Default",
       "binaryDir": "${sourceDir}/build/debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/debug"
       }
     },
     {
@@ -34,7 +38,8 @@
       "inherits": "Default",
       "binaryDir": "${sourceDir}/build/rel-with-warnings",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithWarnings"
+        "CMAKE_BUILD_TYPE": "RelWithWarnings",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/rel_with_warnings"
       }
     },
     {

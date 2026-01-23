@@ -21,23 +21,24 @@ include(FetchContent)
 # ------------------------------------------------------------------------------
 # Basilisk / qcc provider selection
 #
-#   SYSTEM : use qcc found on PATH
-#   VENDORED : use user-provided Basilisk source dir via -DBASILISK_DIR=/path/to/basilisk
-#   GIT    : fetch Basilisk from git
+#   SYSTEM   : use qcc found on PATH
+#   VENDORED : use user-provided Basilisk source dir via 
+#              -DBASILISK_DIR=/path/to/basilisk, or git submodule if 
+#              -DUSE_SUBMODULES=ON
+#   GIT      : fetch Basilisk from git using CMake's FetchContent
 # ------------------------------------------------------------------------------
  
 set(OCTREE_BASILISK_PROVIDER "GIT" CACHE STRING "How to provide Basilisk/qcc: SYSTEM, VENDORED, GIT")
 set_property(CACHE OCTREE_BASILISK_PROVIDER PROPERTY STRINGS SYSTEM VENDORED GIT)
 
-
 # What the wrapper should execute. Default is plain 'qcc' (works if we install qcc to bindir).
 set(QCC_PROGRAM "qcc")
 
 if(OCTREE_BASILISK_PROVIDER STREQUAL "SYSTEM")
+
   find_program(QCC_PROGRAM qcc REQUIRED)
   message(STATUS "Using system qcc: ${QCC_PROGRAM}")
 
-elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
 
   # Define the cache variable ONCE
@@ -48,8 +49,7 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
   set(_basilisk_dir "${BASILISK_DIR}")
 
   if(USE_SUBMODULES AND _basilisk_dir STREQUAL "")
-    set(_basilisk_dir
-        "${CMAKE_SOURCE_DIR}/third_party/basilisk/basilisk_submodule")
+    set(_basilisk_dir "${CMAKE_SOURCE_DIR}/third_party/basilisk/basilisk_submodule")
     message(STATUS "USE_SUBMODULES=ON: using Basilisk submodule at ${_basilisk_dir}")
   endif()
 
@@ -75,13 +75,8 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "VENDORED")
     FETCHCONTENT_SOURCE_DIR_BASILISK
     FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK
   )
-
   FetchContent_Declare(Basilisk)
   FetchContent_MakeAvailable(Basilisk)
-
-  if(TARGET qcc-toolchain)
-    install(TARGETS qcc-toolchain RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-  endif()
 
 elseif(OCTREE_BASILISK_PROVIDER STREQUAL "GIT")
   FetchContent_Declare(
@@ -94,43 +89,79 @@ elseif(OCTREE_BASILISK_PROVIDER STREQUAL "GIT")
     FETCHCONTENT_SOURCE_DIR_BASILISK
     FETCHCONTENT_UPDATES_DISCONNECTED_BASILISK
   )
-
-  if(TARGET qcc-toolchain)
-    install(TARGETS qcc-toolchain RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-    message(STATUS "Git Basilisk provides target 'qcc-toolchain' (will be installed).")
-  else()
-    message(WARNING "Git Basilisk did not define a 'qcc-toolchain' target. "
-                    "Your wrapper will call '${QCC_PROGRAM}' so qcc must be available at runtime.")
-  endif()
-
 else()
   message(FATAL_ERROR
     "Unknown OCTREE_BASILISK_PROVIDER='${OCTREE_BASILISK_PROVIDER}'. Use SYSTEM, VENDORED, or GIT.")
 endif()
+
+
 
 # ------------------------------------------------------------------------------
 # Octree headers
 # ------------------------------------------------------------------------------
 set(OCTREE_DLMFD_DIR        "${CMAKE_CURRENT_SOURCE_DIR}/DLMFD"        CACHE PATH "Octree DLMFD directory")
 set(OCTREE_VTKHYPERTREE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/VTKHyperTree" CACHE PATH "Octree VTKHyperTree directory")
-mark_as_advanced(OCTREE_DLMFD_DIR OCTREE_VTKHYPERTREE_DIR)
+set(OCTREE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/Octree")
+mark_as_advanced(OCTREE_DLMFD_DIR OCTREE_VTKHYPERTREE_DIR OCTREE_INSTALL_CMAKEDIR)
 
-install(
-  DIRECTORY "${OCTREE_DLMFD_DIR}/"
+# Install
+
+include(CMakePackageConfigHelpers)
+
+add_library(Octree_headers INTERFACE)
+add_library(PacIFiC::Octree ALIAS Octree_headers)
+
+target_include_directories(Octree_headers INTERFACE
+  $<BUILD_INTERFACE:${OCTREE_DLMFD_DIR}>
+  $<BUILD_INTERFACE:${OCTREE_VTKHYPERTREE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/Octree>
+)
+
+install(DIRECTORY "${OCTREE_DLMFD_DIR}/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Octree/DLMFD"
-  COMPONENT Octree_DLMFD_Devel
   FILES_MATCHING PATTERN "*.h"
 )
 
-install(
-  DIRECTORY "${OCTREE_VTKHYPERTREE_DIR}/"
+install(DIRECTORY "${OCTREE_VTKHYPERTREE_DIR}/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Octree/VTKHyperTree"
-  COMPONENT Octree_VTKHypertree_Devel
   FILES_MATCHING PATTERN "*.h"
 )
 
+install(TARGETS Octree_headers
+  EXPORT OctreeTargets
+)
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BasiliskCTargets.cmake")
+install(EXPORT OctreeTargets
+  FILE OctreeTargets.cmake
+  NAMESPACE PacIFiC::
+  DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/OctreeConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfig.cmake"
+  INSTALL_DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+)
+
+# write_basic_package_version_file(
+#   "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfigVersion.cmake"
+#   VERSION "${PROJECT_VERSION}"
+#   COMPATIBILITY SameMajorVersion
+# )
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfig.cmake"
+  # "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfigVersion.cmake"
+  DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+)
+
+# --- Install helper CMake modules -------------------------------------------------
+install(FILES
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/octree_add_executable.cmake"
+  DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+)
+
+
 
 # ------------------------------------------------------------------------------
 # qcc wrapper script install

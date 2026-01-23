@@ -57,11 +57,12 @@ FS_Grains3DPlugIn::FS_Grains3DPlugIn( string const& insertion_file_,
     ReaderXML::terminate(); 
 
     // Delete input file with XML requirements, done by master process only
-    if ( m_my_rank == m_is_master ) 
-    { 
-      string cmd = "/bin/rm " + simulation_file_exe;
-      system( cmd.c_str() );
-    }
+    // if ( m_my_rank == m_is_master ) 
+    // { 
+    // REPLACE_EXEC_SCRIPTS
+    //   string cmd = "/bin/rm " + simulation_file_exe;
+    //   system( cmd.c_str() );
+    // }
   }
     
   // Output message  
