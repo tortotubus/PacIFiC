@@ -117,24 +117,30 @@ target_include_directories(Octree_headers INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/Octree>
 )
 
-install(DIRECTORY "${OCTREE_DLMFD_DIR}/"
+install(
+  DIRECTORY "${OCTREE_DLMFD_DIR}/"
+  COMPONENT Octree_Devel
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Octree/DLMFD"
   FILES_MATCHING PATTERN "*.h"
 )
 
-install(DIRECTORY "${OCTREE_VTKHYPERTREE_DIR}/"
+install(
+  DIRECTORY "${OCTREE_VTKHYPERTREE_DIR}/"
+  COMPONENT Octree_Devel
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/Octree/VTKHyperTree"
   FILES_MATCHING PATTERN "*.h"
 )
 
 install(TARGETS Octree_headers
   EXPORT OctreeTargets
+  COMPONENT Octree_Devel
 )
 
 install(EXPORT OctreeTargets
   FILE OctreeTargets.cmake
   NAMESPACE PacIFiC::
   DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+  COMPONENT Octree_Devel
 )
 
 configure_package_config_file(
@@ -153,12 +159,14 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfig.cmake"
   # "${CMAKE_CURRENT_BINARY_DIR}/OctreeConfigVersion.cmake"
   DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+  COMPONENT Octree_Devel
 )
 
 # --- Install helper CMake modules -------------------------------------------------
 install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/octree_add_executable.cmake"
   DESTINATION "${OCTREE_INSTALL_CMAKEDIR}"
+  COMPONENT Octree_Devel
 )
 
 
