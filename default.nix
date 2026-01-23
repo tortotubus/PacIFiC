@@ -1,48 +1,54 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
-  lib = pkgs.lib;
-
-  pname = "pacific";
+  pname   = "pacific";
   version = "0.0.1";
+
+  src = pkgs.fetchFromGitHub {
+    owner = "tortotubus";
+    repo  = "PacIFiC";
+    fetchSubmodules = true;
+  };
 
   package = pkgs.stdenv.mkDerivation {
     inherit pname version;
     src = ./.;
 
-    nativeBuildInputs = with pkgs; [ 
+    nativeBuildInputs = with pkgs; [
       gcc
-      cmake 
+      cmake
       gnumake
       pkg-config
-      (hdf5-mpi.override { mpi = openmpi; })    
+      (hdf5-mpi.override { mpi = openmpi; })
     ];
 
-    buildInputs = with pkgs; [ 
+    buildInputs = with pkgs; [
       zlib
       xercesc
     ];
 
-    configurePhase = ''
-      cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$out
-    '';
-
-    buildPhase = ''cmake --build build'';
-    
-    installPhase = ''cmake --install build'';
+    cmakeFlags = [
+      "-DCMAKE_BUILD_TYPE=Release"
+      "-DUSE_SUBMODULES=ON"
+      "-DOCTREE_BASILISK_PROVIDER=VENDORED"
+      "-DCMAKE_INSTALL_PREFIX=$out"
+    ];
   };
 
-  shell = pkgs.mkShell {
+  devShell = pkgs.mkShell {
     inputsFrom = [ package ];
-    packages = with pkgs; [ 
-      gdb 
+    packages = with pkgs; [
+      gdb
       strace
       doxygen
       ninja
       apptainer
     ];
   };
-
 in
-# nix-shell sets IN_NIX_SHELL, nix-build doesn't.
-if lib.inNixShell then shell else package
+{
+  inherit package devShell;
+
+  # Nice defaults for common commands:
+  default = package;
+}
