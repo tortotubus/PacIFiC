@@ -57,7 +57,7 @@ Package: libpacific-mac-mpi-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libpacific-mac0-mpi (= ${binary:Version}), ${misc:Depends}
+Depends: libpacific-mac0-mpi (= ${binary:Version}), ${misc:Depends}, zlib1g-dev, mpi-default-dev
 Description: PacIFiC MAC development files (default MPI)
  Headers and CMake package files for developing against PacIFiC MAC (default MPI build).
 
@@ -69,6 +69,7 @@ Depends:
  libpacific-fluid0-mpi (= ${binary:Version}),
  libpacific-mac-mpi-dev (= ${binary:Version}),
  libpacific-mac0-mpi (= ${binary:Version}),
+ mpi-default-dev,
  ${misc:Depends}
 Description: PacIFiC FLUID development files (default MPI)
  Headers and CMake package files for developing against PacIFiC FLUID (default MPI build).
@@ -77,7 +78,7 @@ Package: libpacific-grains-mpi-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libpacific-grains0-mpi (= ${binary:Version}), ${misc:Depends}
+Depends: libpacific-grains0-mpi (= ${binary:Version}), libxerces-c-dev, mpi-default-dev, ${misc:Depends}
 Description: PacIFiC Grains development files (default MPI)
  Headers and CMake package files for developing against PacIFiC Grains (default MPI build).
 
