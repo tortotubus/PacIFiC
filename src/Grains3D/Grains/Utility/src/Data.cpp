@@ -15,7 +15,7 @@ std::filesystem::path get_dtd_dir() {
   std::vector<std::filesystem::path> candidates = {
       libdir / "./Dtd",                  // in-tree build
       libdir / "../share/Grains/Dtd",    // install prefix
-      libdir / "../../share/Grains/Dtd", // mpi-install prefix
+      libdir / "../../../share/Grains/Dtd", // mpi-install prefix
   };
 
   for (auto &p : candidates) {
@@ -32,7 +32,7 @@ std::filesystem::path get_tools_dir() {
   std::vector<std::filesystem::path> candidates = {
       libdir / "./Tools",                  // in-tree build
       libdir / "../share/Grains/Tools",    // install prefix
-      libdir / "../../share/Grains/Tools", // mpi-install prefix
+      libdir / "../../../share/Grains/Tools", // mpi-install prefix (/usr/lib64/openmpi/lib/ + ../../../share/Grains/Tools)
   };
 
   for (auto &p : candidates) {
