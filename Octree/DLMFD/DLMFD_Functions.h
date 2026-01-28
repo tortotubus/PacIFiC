@@ -2163,12 +2163,15 @@ int total_dlmfd_multipliers( RigidBody const* allrbs, const size_t nrb )
 void save_t_dt_restart( char* dirname, double time, double deltat, double ppd )
 //----------------------------------------------------------------------------
 {
-  char dump_name[80] = "";
-  strcpy( dump_name, dirname );
-  strcat( dump_name, "/t_dt_restart.res" );
-  FILE* ft = fopen( dump_name, "w" );
-  fprintf ( ft, "%.10e %.10e %.10e", time, deltat, ppd );
-  fclose( ft );  
+  if ( pid() == 0 )
+  {
+    char dump_name[80] = "";
+    strcpy( dump_name, dirname );
+    strcat( dump_name, "/t_dt_restart.res" );
+    FILE* ft = fopen( dump_name, "w" );
+    fprintf ( ft, "%.10e %.10e %.10e", time, deltat, ppd );
+    fclose( ft );
+  }  
 }
 
 

@@ -406,11 +406,7 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
 
     // If cycle number is 0
     if ( cycle_number == 0 ) 
-    {
-      // Synchronize fields
-      synchronize( list );
-      for (vector v in vlist) synchronize((scalar*){v});
-      
+    {      
       // Write computational cubic domain file
       char filename_domain[80] = "";
       sprintf( filename_domain, "%s", RESULT_DIR );
@@ -419,7 +415,14 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
       sprintf( suffix, "_domain.vtu" );
       strcat( filename_domain, suffix );
       output_vtu_domain( filename_domain );   
-    }     
+    }
+
+    
+    // Synchronize fields 
+    // Rem: normally they are already synchronized but we do it again
+    // as a sanity check procedure
+    synchronize( list );
+    for (vector v in vlist) synchronize((scalar*){v});     
 
     // Write our .vtkhdf file
     vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, 
