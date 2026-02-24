@@ -10,7 +10,6 @@
 #include <list>
 #include <string>
 #include <map>
-#include <set>
 using namespace std;
 
 class BBox;
@@ -31,7 +30,7 @@ struct ContactInfos
 
     Physical component of a granular simulation (can be particle or obstacle).
 
-    @author Institut Francais du Petrole - 2000 - Creation
+    @author G.FERRER - Institut Francais du Petrole - 2000 - Creation
     @author A.WACHS - 2019 - Major cleaning & refactoring 
     @author D.HUET - 2022 - Contact force model with memory */
 // ============================================================================
@@ -170,12 +169,8 @@ class Component
     virtual bool isIn( Point3 const& pt ) const;
     
     /** @brief Returns whether to store the contact force for post-processing 
-    @param othercomp the other component involved in the contact */
+    @param othercomp the other component invovled in the contact */
     virtual bool storePPForce( Component const* othercomp ) const = 0;
-    
-    /** @brief Returns whether the bounding volumes of two components overlap
-    @param othercomp the other component involved in the overlap test */
-    virtual bool doBVolumeOverlap( Component const* othercomp ) const;    
     //@}
 
 
@@ -359,10 +354,9 @@ class Component
     @param _id id of the component to search for */
     Vector3 lookupCollision( int _id ) const;
 
-    /** @brief Adds a contacting component ID to the set of contacting 
-    component IDs
-    @param id contacting component ID */
-    virtual void addContactingComponentID( int const& id );
+    /** @brief Increments the coordination number by nc
+    @param nc increment of the coordination number */
+    virtual void addToCoordinationNumber( int const& nc );
 
     /** @brief Returns whether the component is a composite particle */
     virtual bool isCompositeParticle() const;
@@ -498,7 +492,7 @@ class Component
     /** @name Parameters */
     //@{
     int m_id; /**< ID number, particle ID numbers are always positive and
-    	obstacles ID numbers are always negative, reference particle ID number 
+    	obstacles ID numbes are always negative, reference particle ID number 
 	and composite obstacle ID number are always 0 */
     string m_materialName; /**< Material name */
     double m_mass; /**< Mass */

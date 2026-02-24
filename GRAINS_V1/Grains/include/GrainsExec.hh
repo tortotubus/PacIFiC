@@ -32,10 +32,7 @@ struct InsertionLattice
   size_t NY; /**< Number of positions in y */
   size_t NZ; /**< Number of positions in z */
   size_t NN; /**< Total number of positions */
-  Direction FillingDir; /**< cylinder disk filling direction */
-  double FillingRelStart; /**< filling start position relative to the diameter 
-  	of the cylinder */
-  string FillingFrom; /**< either "top" or "bottom" of the cylinder */	   
+  Direction FillingDir; /**< cylinder disk filling direction */  
 };
 
 
@@ -300,6 +297,8 @@ class GrainsExec
     //@{
     static bool m_MPI; /**< whether the computation is serial or MPI */
     static string m_TIScheme; /**< Time integration scheme type */
+    static bool m_SphereAsPolyParaview; /**< in Paraview, true if spheres are
+    	faceted as polyhedrons, false if post-processed as a vectorial field */
     static int m_MPI_verbose; /**< MPI verbosity level, 3 levels: 0=none,
     	1=particles, 2=particles and MPI Cartesian grid */
     static bool m_isReloaded; /**< whether the simulation starts from a reload 
@@ -367,12 +366,8 @@ class GrainsExec
     static size_t m_time_counter; /**< Discrete time counter */
     static bool m_partialPer_is_active; /**< true is partial periodicity is
     	active */ 
-    static unsigned long long int m_nb_GJK_narrow_collision_detections; /**<
-    	number of narrow collision detections involving GJK */ 
-    static unsigned long long int m_nb_GJK_calls; /**< number of calls to the
-    	GJK algorithm */
-    static bool m_InsertionWithBVonly; /**< if true insert particles with a
-    	bounding volume overlap check only (no call to GJK) */	      
+    static unsigned long long int m_nb_GJK_narrow_collision_detections;
+    static unsigned long long int m_nb_GJK_calls;       
     //@}
 
 

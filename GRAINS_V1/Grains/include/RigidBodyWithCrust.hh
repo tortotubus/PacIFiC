@@ -1,5 +1,5 @@
-#ifndef _RIGIDBODYWITHCRUST_HH_
-#define _RIGIDBODYWITHCRUST_HH_
+#ifndef _FORMEVDW_HH_
+#define _FORMEVDW_HH_
 
 #include "RigidBody.hh"
 #include "ReaderXML.hh"
@@ -13,8 +13,9 @@ class PointContact;
 
     A combination of a convex shape, a transformation and a surface crust.
 
-    @author Institut Francais du Petrole - 2002 - Creation
-    @author D.RAKOTONIRINA - IFP Energies Nouvelles - 2014 - Modification
+    @author G. FERRER - Institut Francais du Petrole - 2002 - Creation
+    @author D. RAKOTONIRINA - IFP Energies Nouvelles - Sept. 2014
+    - Modification
     @author A.WACHS - 2019 - Major cleaning & refactoring */
 // ============================================================================
 class RigidBodyWithCrust : public RigidBody
@@ -257,13 +258,10 @@ a rectangle
 @param rbB 2nd rigid body 
 @param checkoverlap check whether the overlap is lower than the maximum allowed
 overlap 
-@param checkProjInRec check whether the projection of the contact point or the
-center of mass belongs to the rectangle
 @param checkCGInRec check whether the projection of the center of mass of the
 non Rectangle rigid body belongs to the rectangle */
 PointContact ClosestPointRECTANGLE( RigidBodyWithCrust const& rbA ,
-  RigidBodyWithCrust const& rbB, bool checkoverlap,
-  bool checkProjInRec,
-  bool checkCGInRec );
+  RigidBodyWithCrust const& rbB, bool const& checkoverlap,
+  bool checkCGInRec = false );
 
 #endif

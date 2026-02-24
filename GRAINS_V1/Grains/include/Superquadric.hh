@@ -68,7 +68,7 @@ class Superquadric : public Convex
     /** @brief Returns the convex type */
     ConvexType getConvexType() const;
 
-    /** @brief Returns a vector of points describing the surface of 
+    /** @brief Returns a vector of points describing the envelope of 
     superquadric. Here returns the peak (sharp/corner?) points */
     vector<Point3> getEnvelope() const;
 
@@ -92,8 +92,8 @@ class Superquadric : public Convex
     @param fileIn input stream */
     void readShape( istream &fileIn );
 
-    /** @brief Superquadric support function, returns the support point P, i.e. 
-    the point on the surface of the sphere that satisfies max(P.v)
+    /** @brief Superquadric support function, returns the support point P, i.e. the
+    point on the surface of the sphere that satisfies max(P.v)
     @param v direction vector */
     Point3 support( Vector3 const& v ) const;
 
@@ -101,8 +101,8 @@ class Superquadric : public Convex
     Paraview format */
     int numberOfPoints_PARAVIEW() const;
 
-    /** @brief Returns the number of elementary polytopes to write the 
-    superquadric in a Paraview format */
+    /** @brief Returns the number of elementary polytopes to write the superquadric
+    in a Paraview format */
     int numberOfCells_PARAVIEW() const;
 
     /** @brief Writes a list of points describing the superquadric in a
@@ -137,13 +137,6 @@ class Superquadric : public Convex
     /** @brief Returns whether a point lies inside the superquadric
     @param pt point */
     bool isIn( Point3 const& pt ) const;
-
-    /** @brief Writes the superquadric in an OBJ format
-    @param f output stream
-    @param transform geometric transformation 
-    @param firstpoint_number number of the 1st point */
-    void write_convex_OBJ( ostream& f, Transform const& transform,
-    	size_t& firstpoint_number ) const;
 
     /** @brief Returns the bounding volume to superquadric */
     BVolume* computeBVolume( unsigned int type ) const;

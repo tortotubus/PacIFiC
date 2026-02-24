@@ -1034,6 +1034,7 @@ int Component::getTag() const
   return ( 0 );
 }
 
+<<<<<<< HEAD:src/Grains3D/Grains/Component/src/Component.cpp
 
 
 
@@ -1048,4 +1049,9 @@ bool Component::doBVolumeOverlap( Component const* othercomp ) const
     BVCheck = isContactBVolume( *m_geoRBWC, *othercomp->m_geoRBWC );
   
   return ( BVCheck );  
+=======
+void Component::printTorsor() const
+{
+  std::cout << m_torsor << std::endl;
+>>>>>>> b7c9fb3f (Add Superquadric contact detection):GRAINS_V1/Grains/Component/src/Component.cpp
 }
