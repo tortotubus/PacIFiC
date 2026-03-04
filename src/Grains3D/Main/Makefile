@@ -1,0 +1,49 @@
+CXX = $(PACIFIC_MPICXX)
+CC = $(PACIFIC_MPICC)
+CPPFLAGS += $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_HDF5_CFLAGS) $(PACIFIC_ZLIB_CFLAGS)
+LDLIBS   += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_HDF5_LFLAGS) $(PACIFIC_ZLIB_LFLAGS)
+
+LIBGRAINS_SO := $(LIBGRAINS_LIBDIR)/libGrains.so
+
+TARGET := $(MAIN_BINDIR)/grains
+SRC := src/main.cpp
+OBJ := $(MAIN_BINDIR)/main.o
+DEP := $(OBJ:.o=.d)
+
+INCDIRS := \
+  $(LIBGRAINS_SRCDIR)/Base/include \
+  $(LIBGRAINS_SRCDIR)/Component/include \
+  $(LIBGRAINS_SRCDIR)/Fluid/include \
+  $(LIBGRAINS_SRCDIR)/Geometry/include \
+  $(LIBGRAINS_SRCDIR)/PostProcessing/include \
+  $(LIBGRAINS_SRCDIR)/TimeIntegration/include \
+  $(LIBGRAINS_SRCDIR)/Utility/include \
+  $(LIBGRAINS_SRCDIR)/XML3/include \
+  $(LIBGRAINS_SRCDIR)/InterfaceCBasilisk/include
+
+CPPFLAGS += $(addprefix -I,$(INCDIRS))
+CPPFLAGS += $(PACIFIC_MPICXX_CFLAGS) $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_HDF5_CFLAGS) $(PACIFIC_ZLIB_CFLAGS)
+
+CXXFLAGS += -O2 -g -MMD -MP
+
+LDFLAGS += -L$(LIBGRAINS_LIBDIR) -Wl,-rpath,$(LIBGRAINS_LIBDIR)
+LDLIBS += -lGrains
+LDLIBS += $(PACIFIC_MPICXX_LFLAGS) $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_HDF5_LFLAGS) $(PACIFIC_ZLIB_LFLAGS)
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(MAIN_BINDIR):
+	@mkdir -p $@
+
+$(OBJ): $(SRC) | $(MAIN_BINDIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+$(TARGET): $(OBJ) $(LIBGRAINS_SO)
+	$(CXX) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
+
+clean:
+	rm -f $(OBJ) $(DEP) $(TARGET)
+
+-include $(DEP)

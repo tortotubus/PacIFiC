@@ -41,5 +41,5 @@ std::filesystem::path get_tools_dir() {
       return std::filesystem::canonical(p, ec);
   }
 
-  throw std::runtime_error("Cannot find DTD directory near " + libdir.string());
+  throw std::runtime_error("Cannot find Tools directory near " + libdir.string());
 }

@@ -3,7 +3,7 @@
 #include "Grains.hh"
 #include "GrainsBuilderFactory.hh"
 #include "ReaderXML.hh"
-#include "Version.hh"
+// #include "Version.hh"
 
 #include <filesystem>
 #include <iostream>
@@ -114,10 +114,10 @@ int main(int argc, char *argv[]) {
   CliOptions opt = *opt_maybe;
 
   if (opt.version) {
-    if (rank == 0) {
-      std::cout << "PacIFiC " << Version::semver << " (" << Version::full
-                << ")\n"
-                << "Type:   " << Version::build_type << "\n";
+    if (rank0) {
+      // std::cout << "PacIFiC " << Version::semver << " (" << Version::full
+      //           << ")\n"
+      //           << "Type:   " << Version::build_type << "\n";
     }
     return 0;
   }
