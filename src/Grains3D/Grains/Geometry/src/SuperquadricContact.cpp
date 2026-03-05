@@ -231,54 +231,190 @@ static double calc_F(
 }
 
 // ============================================================================
-// Gaussian elimination with partial pivoting for N x N linear system
-// Solves A * x = b. Returns false if singular.
+// Direct analytical solver for the 4x4 saddle-point Jacobian system
+// exploiting the zero (4,4) entry:
+//   [M   g] [dp  ]   [F[0:2]]
+//   [c^T 0] [dmu ] = [F[3]  ]
+// M is 3x3, g and c are 3-vectors.
+// Uses cofactor-based 3x3 inverse (Cramer's rule) + Schur complement.
+// This is the "direct method (computing determinant)" from the reference.
 // ============================================================================
-template<int N>
-static bool solveLinearSystem( const double* A_in, const double* b_in, double* x )
+static bool solveJacobian4x4( const double* J, const double* F, double* delta )
 {
-    double A[N * N], bv[N];
-    for ( int i = 0; i < N * N; i++ ) A[i] = A_in[i];
-    for ( int i = 0; i < N; i++ ) bv[i] = b_in[i];
+    // Extract blocks from J (row-major, stride 4)
+    const double m00 = J[0],  m01 = J[1],  m02 = J[2];
+    const double m10 = J[4],  m11 = J[5],  m12 = J[6];
+    const double m20 = J[8],  m21 = J[9],  m22 = J[10];
+    const double g0  = J[3],  g1  = J[7],  g2  = J[11];
+    const double c0  = J[12], c1  = J[13], c2  = J[14];
 
-    // Forward elimination with partial pivoting
-    for ( int col = 0; col < N; col++ )
+    // Cofactors of M (for adjugate/inverse computation)
+    const double C00 =  ( m11 * m22 - m12 * m21 );
+    const double C01 = -( m10 * m22 - m12 * m20 );
+    const double C02 =  ( m10 * m21 - m11 * m20 );
+    const double C10 = -( m01 * m22 - m02 * m21 );
+    const double C11 =  ( m00 * m22 - m02 * m20 );
+    const double C12 = -( m00 * m21 - m01 * m20 );
+    const double C20 =  ( m01 * m12 - m02 * m11 );
+    const double C21 = -( m00 * m12 - m02 * m10 );
+    const double C22 =  ( m00 * m11 - m01 * m10 );
+
+    const double detM = m00 * C00 + m01 * C01 + m02 * C02;
+
+    // --- Primary path: Schur complement with analytical 3x3 inverse ---
+    // Relative singularity check for det(M)
+    const double scaleM = std::max( { std::abs( m00 ), std::abs( m11 ),
+                                       std::abs( m22 ), std::abs( m01 ),
+                                       std::abs( m02 ), std::abs( m10 ),
+                                       std::abs( m12 ), std::abs( m20 ),
+                                       std::abs( m21 ) } );
+    // det(M) should be ~scaleM^3; threshold catches near-singular cases
+    const double threshM = 1e-14 * scaleM * scaleM * scaleM;
+
+    if ( std::abs( detM ) > std::max( threshM, 1e-100 ) )
     {
-        int maxRow = col;
-        double maxVal = std::abs( A[col * N + col] );
-        for ( int row = col + 1; row < N; row++ )
-        {
-            if ( std::abs( A[row * N + col] ) > maxVal )
-            {
-                maxVal = std::abs( A[row * N + col] );
-                maxRow = row;
-            }
-        }
-        if ( maxVal < SQ_EPS ) return false;
+        const double invDetM = 1.0 / detM;
 
-        if ( maxRow != col )
-        {
-            for ( int j = 0; j < N; j++ ) std::swap( A[col*N+j], A[maxRow*N+j] );
-            std::swap( bv[col], bv[maxRow] );
-        }
+        // v1 = M^{-1} * F[0:2]  using  M^{-1} = adj(M) / det(M)
+        const double v1x = ( C00 * F[0] + C10 * F[1] + C20 * F[2] ) * invDetM;
+        const double v1y = ( C01 * F[0] + C11 * F[1] + C21 * F[2] ) * invDetM;
+        const double v1z = ( C02 * F[0] + C12 * F[1] + C22 * F[2] ) * invDetM;
 
-        for ( int row = col + 1; row < N; row++ )
+        // v2 = M^{-1} * g
+        const double v2x = ( C00 * g0 + C10 * g1 + C20 * g2 ) * invDetM;
+        const double v2y = ( C01 * g0 + C11 * g1 + C21 * g2 ) * invDetM;
+        const double v2z = ( C02 * g0 + C12 * g1 + C22 * g2 ) * invDetM;
+
+        // Schur complement scalar: s = c^T * M^{-1} * g
+        const double cTv2 = c0 * v2x + c1 * v2y + c2 * v2z;
+
+        // Relative check: |s| vs |c|*|v2|
+        const double v2norm = std::sqrt( v2x * v2x + v2y * v2y + v2z * v2z );
+        const double cnorm  = std::sqrt( c0 * c0 + c1 * c1 + c2 * c2 );
+        const double threshS = 1e-13 * cnorm * v2norm;
+
+        if ( std::abs( cTv2 ) > std::max( threshS, 1e-100 ) )
         {
-            double factor = A[row * N + col] / A[col * N + col];
-            for ( int j = col; j < N; j++ )
-                A[row * N + j] -= factor * A[col * N + j];
-            bv[row] -= factor * bv[col];
+            // dmu = (c^T * M^{-1} * F[0:2] - F[3]) / (c^T * M^{-1} * g)
+            const double cTv1 = c0 * v1x + c1 * v1y + c2 * v1z;
+            delta[3] = ( cTv1 - F[3] ) / cTv2;
+
+            // dp = v1 - dmu * v2
+            delta[0] = v1x - delta[3] * v2x;
+            delta[1] = v1y - delta[3] * v2y;
+            delta[2] = v1z - delta[3] * v2z;
+            return true;
         }
     }
 
-    // Back substitution
-    for ( int row = N - 1; row >= 0; row-- )
+    // --- Fallback: full 4x4 Cramer's rule ---
+    // Expand det(J) along last row (J[15]=0, so only 3 cofactors)
+    // Minor(3,0): 3x3 from rows 0-2, cols 1-3
+    const double M30 = J[1]  * ( J[6] * J[11] - J[7]  * J[10] )
+                     - J[2]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                     + J[3]  * ( J[5] * J[10] - J[6]  * J[9]  );
+    // Minor(3,1): 3x3 from rows 0-2, cols 0,2,3
+    const double M31 = J[0]  * ( J[6] * J[11] - J[7]  * J[10] )
+                     - J[2]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                     + J[3]  * ( J[4] * J[10] - J[6]  * J[8]  );
+    // Minor(3,2): 3x3 from rows 0-2, cols 0,1,3
+    const double M32 = J[0]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                     - J[1]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                     + J[3]  * ( J[4] * J[9]  - J[5]  * J[8]  );
+
+    // det(J) = sum of (-1)^(3+j) * J[3,j] * Minor(3,j)
+    const double detJ = -c0 * M30 + c1 * M31 - c2 * M32;
+
+    const double scaleJ = std::max( { scaleM, std::abs( g0 ), std::abs( g1 ),
+                                       std::abs( g2 ), std::abs( c0 ),
+                                       std::abs( c1 ), std::abs( c2 ) } );
+    const double threshJ = 1e-14 * scaleJ * scaleJ * scaleJ * scaleJ;
+
+    if ( std::abs( detJ ) < std::max( threshJ, 1e-100 ) )
+        return false;
+
+    const double invDetJ = 1.0 / detJ;
+
+    // delta[k] = det(J with column k replaced by F) / det(J)
+    // For each, expand along last row
+    // Column 0 replaced by F:
     {
-        x[row] = bv[row];
-        for ( int j = row + 1; j < N; j++ )
-            x[row] -= A[row * N + j] * x[j];
-        x[row] /= A[row * N + row];
+        // Row 3 of modified matrix: [F[3], c1, c2, 0]
+        // Minor(3,0) with col 0 = F: 3x3 from rows 0-2, cols {F,1,2,3} keeping cols 1,2,3
+        // = same M30 since column 0 (replaced) is not in this minor
+        // Actually no — replacing column 0 changes the matrix.
+        // Let me compute these explicitly.
+        // Modified J with col 0 replaced by F:
+        // row 0: F[0] J[1] J[2]  J[3]
+        // row 1: F[1] J[5] J[6]  J[7]
+        // row 2: F[2] J[9] J[10] J[11]
+        // row 3: F[3] c1   c2    0
+        // Expand along last row:
+        double N30 = J[1]  * ( J[6] * J[11] - J[7]  * J[10] )
+                   - J[2]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                   + J[3]  * ( J[5] * J[10] - J[6]  * J[9]  );
+        double N31 = F[0]  * ( J[6] * J[11] - J[7]  * J[10] )
+                   - J[2]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   + J[3]  * ( F[1] * J[10] - J[6]  * F[2]  );
+        double N32 = F[0]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                   - J[1]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   + J[3]  * ( F[1] * J[9]  - J[5]  * F[2]  );
+        delta[0] = ( -F[3] * N30 + c1 * N31 - c2 * N32 ) * invDetJ;
     }
+    // Column 1 replaced by F:
+    {
+        // row 0: J[0] F[0] J[2]  J[3]
+        // row 1: J[4] F[1] J[6]  J[7]
+        // row 2: J[8] F[2] J[10] J[11]
+        // row 3: c0   F[3] c2    0
+        double N30 = F[0]  * ( J[6] * J[11] - J[7]  * J[10] )
+                   - J[2]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   + J[3]  * ( F[1] * J[10] - J[6]  * F[2]  );
+        double N31 = J[0]  * ( J[6] * J[11] - J[7]  * J[10] )
+                   - J[2]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                   + J[3]  * ( J[4] * J[10] - J[6]  * J[8]  );
+        double N32 = J[0]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   - F[0]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                   + J[3]  * ( J[4] * F[2]  - F[1]  * J[8]  );
+        delta[1] = ( -c0 * N30 + F[3] * N31 - c2 * N32 ) * invDetJ;
+    }
+    // Column 2 replaced by F:
+    {
+        // row 0: J[0] J[1] F[0]  J[3]
+        // row 1: J[4] J[5] F[1]  J[7]
+        // row 2: J[8] J[9] F[2]  J[11]
+        // row 3: c0   c1   F[3]  0
+        double N30 = J[1]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   - F[0]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                   + J[3]  * ( J[5] * F[2]  - F[1]  * J[9]  );
+        double N31 = J[0]  * ( F[1] * J[11] - J[7]  * F[2]  )
+                   - F[0]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                   + J[3]  * ( J[4] * F[2]  - F[1]  * J[8]  );
+        double N32 = J[0]  * ( J[5] * J[11] - J[7]  * J[9]  )
+                   - J[1]  * ( J[4] * J[11] - J[7]  * J[8]  )
+                   + J[3]  * ( J[4] * J[9]  - J[5]  * J[8]  );
+        delta[2] = ( -c0 * N30 + c1 * N31 - F[3] * N32 ) * invDetJ;
+    }
+    // Column 3 replaced by F:
+    {
+        // row 0: J[0] J[1] J[2]  F[0]
+        // row 1: J[4] J[5] J[6]  F[1]
+        // row 2: J[8] J[9] J[10] F[2]
+        // row 3: c0   c1   c2    F[3]
+        double N30 = J[1]  * ( J[6] * F[2]  - F[1]  * J[10] )
+                   - J[2]  * ( J[5] * F[2]  - F[1]  * J[9]  )
+                   + F[0]  * ( J[5] * J[10] - J[6]  * J[9]  );
+        double N31 = J[0]  * ( J[6] * F[2]  - F[1]  * J[10] )
+                   - J[2]  * ( J[4] * F[2]  - F[1]  * J[8]  )
+                   + F[0]  * ( J[4] * J[10] - J[6]  * J[8]  );
+        double N32 = J[0]  * ( J[5] * F[2]  - F[1]  * J[9]  )
+                   - J[1]  * ( J[4] * F[2]  - F[1]  * J[8]  )
+                   + F[0]  * ( J[4] * J[9]  - J[5]  * J[8]  );
+        delta[3] = ( -c0 * N30 + c1 * N31 - c2 * N32 + F[3] * detM ) * invDetJ;
+        // Note: the F[3] * detM term comes from the (3,3) cofactor = detM
+        // (since removing row 3 col 3 leaves the original M)
+    }
+
     return true;
 }
 
@@ -431,7 +567,7 @@ static double surfaceLineIntersection(
     double f0 = shapeValueLocal( sq, point );
 
     const int max_iters = 100;
-    const double eps = 1e-16;
+    const double eps = 1e-10;
 
     if ( std::abs( f0 ) < eps )
     {
@@ -533,7 +669,7 @@ static void calc_contact_point(
     bool* fail
 )
 {
-    const double tol1 = 1e-10;  // merit tolerance
+    const double tol1 = 1e-6;   // merit tolerance
     const double tol2 = 1e-12;  // step size tolerance
     *fail = false;
 
@@ -546,7 +682,8 @@ static void calc_contact_point(
     double merit0;
 
     // Compute initial mu from gradient magnitudes:
-    // At solution, gradA + mu^2*gradB = 0 => mu = |gradA| / |gradB|
+    // At solution, gradA + mu^2*gradB = 0 => |gradA| = mu^2*|gradB|
+    // => mu = sqrt( |gradA| / |gradB| ) = (|gradA|^2 / |gradB|^2)^{1/4}
     {
         double gA[3], gB[3];
         double fA_tmp, fB_tmp;
@@ -554,7 +691,7 @@ static void calc_contact_point(
         shapePropsGlobal( sqB, transformB, initial_point, &fB_tmp, gB, NULL );
         double gradANorm2 = gA[0]*gA[0] + gA[1]*gA[1] + gA[2]*gA[2];
         double gradBNorm2 = gB[0]*gB[0] + gB[1]*gB[1] + gB[2]*gB[2];
-        mu = std::sqrt( gradANorm2 / ( gradBNorm2 + SQ_EPS ) );
+        mu = std::pow( gradANorm2 / ( gradBNorm2 + SQ_EPS ), 0.25 );
     }
 
     // Evaluate at initial point
@@ -574,33 +711,36 @@ static void calc_contact_point(
 
     for ( int k = 0; k < 3; k++ ) point[k] = initial_point[k];
 
-    double merit1 = merit0;
-    double res1 = res0;
-
     double sizeA = std::min( { sqA->getA(), sqA->getB(), sqA->getC() } );
     double sizeB = std::min( { sqB->getA(), sqB->getB(), sqB->getC() } );
     double size  = std::min( sizeA, sizeB );
 
     double delta[4];
-    const int Niter = 50000;
+    const int Niter = 50;
 
     for ( int iter = 0; iter < Niter; iter++ )
     {
-        double merit2 = merit1;
-        double res2   = res1;
-
-        // Compute f, gradient, and Hessian at current point
+        // ----------------------------------------------------------------
+        // Evaluate residual, gradient, and Hessian at current point
+        // ----------------------------------------------------------------
         double hessA[9], hessB[9];
-        calc_F( sqA, transformA, sqB, transformB,
-                point, mu,
-                gradA, gradB, hessA, hessB,
-                &fA, &fB, F, &merit2 );
+        double merit2;
+        double res_cur = calc_F( sqA, transformA, sqB, transformB,
+                                 point, mu,
+                                 gradA, gradB, hessA, hessB,
+                                 &fA, &fB, F, &merit2 );
 
-        // Build 4x4 Jacobian (matching reference exactly)
+        // Convergence check
+        if ( merit2 < tol1 )
+            break;
+
+        // ----------------------------------------------------------------
+        // Build 4x4 Jacobian
         //   J[0:2, 0:2] = HA + mu^2 * HB
         //   J[0:2, 3]   = 2*mu * gradB
         //   J[3,   0:2] = gradA - gradB
         //   J[3,   3]   = 0
+        // ----------------------------------------------------------------
         double mu_sq = mu * mu;
         double J[16];
         for ( int i = 0; i < 3; i++ )
@@ -612,204 +752,173 @@ static void calc_contact_point(
         }
         J[15] = 0.0;
 
+        // ----------------------------------------------------------------
         // Solve J * delta = F
-        if ( !solveLinearSystem<4>( J, F, delta ) )
-        {
-            *fail = true;
-            break;
-        }
+        // If Jacobian is singular, use steepest descent direction instead
+        // ----------------------------------------------------------------
+        bool use_gradient = false;
+        if ( !solveJacobian4x4( J, F, delta ) )
+            use_gradient = true;
 
-        // Check for NaN
-        bool nan_found = false;
-        for ( int i = 0; i < 4; i++ )
+        // Check for NaN/Inf in delta
+        if ( !use_gradient )
         {
-            if ( std::isnan( delta[i] ) )
+            for ( int i = 0; i < 4; i++ )
             {
-                nan_found = true;
-                *fail = true;
-                break;
+                if ( std::isnan( delta[i] ) || std::isinf( delta[i] ) )
+                { use_gradient = true; break; }
             }
         }
 
-        bool converged = false;
+        // Fallback: steepest descent direction for ||F||^2
+        // grad(||F||^2) = 2 * J^T * F, search direction = J^T * F
+        if ( use_gradient )
+        {
+            for ( int i = 0; i < 4; i++ )
+            {
+                delta[i] = 0.0;
+                for ( int j = 0; j < 4; j++ )
+                    delta[i] += J[j * 4 + i] * F[j];
+            }
+            // Check if gradient is also degenerate
+            bool all_zero = true;
+            for ( int i = 0; i < 4; i++ )
+                if ( std::abs( delta[i] ) > SQ_EPS ) all_zero = false;
+            if ( all_zero )
+            { *fail = true; break; }
+        }
+
+        // ----------------------------------------------------------------
+        // Clip step to prevent wild jumps
+        // ----------------------------------------------------------------
         double deltax = std::max( { std::abs( delta[0] ),
                                     std::abs( delta[1] ),
                                     std::abs( delta[2] ) } );
 
-        if ( deltax == 0.0 )
+        if ( deltax < 1e-30 )
         {
-            for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
-            converged = true;
-        }
-        else
-        {
-            if ( nan_found )
-                break;
-
-            // Limit step size (spatial components only, not mu)
-            if ( deltax > 0.01 * size )
-            {
-                double scale = 0.01 * size / deltax;
-                for ( int i = 0; i < 4; i++ )
-                    delta[i] *= scale;
-            }
-
-            // Try Newton step: x_new = x - delta
-            double point_[3];
-            point_[0] = point[0] - delta[0];
-            point_[1] = point[1] - delta[1];
-            point_[2] = point[2] - delta[2];
-            double mu_ = mu - delta[3];
-
-            double fA_, fB_, merit2_;
-            double res2_ = calc_F( sqA, transformA, sqB, transformB,
-                                   point_, mu_,
-                                   gradA, gradB, NULL, NULL,
-                                   &fA_, &fB_, F, &merit2_ );
-
-            if ( res2_ < res1 || merit2_ < tol1 || deltax < tol2 * size )
-            {
-                // Accept Newton step
-                merit2 = merit2_;
-                res2   = res2_;
-                mu     = mu_;
-                fA     = fA_;
-                fB     = fB_;
-                for ( int k = 0; k < 3; k++ ) point[k] = point_[k];
-
-                if ( merit2 < tol1 || deltax < tol2 * size )
-                    converged = true;
-            }
-            else
-            {
-                // Golden section line search
-                double a_gs = 0.0, b_gs = 1.0;
-                double eps = std::abs( b_gs - a_gs );
-
-                double mu1, mu2;
-                double gradA1[3], gradB1[3], gradA2[3], gradB2[3];
-                double F1[4], F2[4];
-                double fA1, fB1, fA2, fB2;
-                double merit2a, merit2b;
-                double res2a, res2b;
-                double pointA1[3], pointA2[3];
-
-                while ( eps > 1e-8 )
-                {
-                    double alpha1 = b_gs - ( b_gs - a_gs ) * PHI_INV;
-                    double alpha2 = a_gs + ( b_gs - a_gs ) * PHI_INV;
-                    yabx3D( point, -alpha1, delta, pointA1 );
-                    mu1 = mu - alpha1 * delta[3];
-                    res2a = calc_F( sqA, transformA, sqB, transformB,
-                                    pointA1, mu1,
-                                    gradA1, gradB1, NULL, NULL,
-                                    &fA1, &fB1, F1, &merit2a );
-
-                    yabx3D( point, -alpha2, delta, pointA2 );
-                    mu2 = mu - alpha2 * delta[3];
-                    res2b = calc_F( sqA, transformA, sqB, transformB,
-                                    pointA2, mu2,
-                                    gradA2, gradB2, NULL, NULL,
-                                    &fA2, &fB2, F2, &merit2b );
-
-                    if ( std::min( res2a, res2b ) < res1 )
-                    {
-                        if ( res2a < res2b )
-                        {
-                            res2 = res2a;
-                            for ( int i = 0; i < 4; i++ ) F[i] = F1[i];
-                            mu = mu1;
-                            for ( int k = 0; k < 3; k++ )
-                            {
-                                gradA[k] = gradA1[k];
-                                gradB[k] = gradB1[k];
-                                point[k] = pointA1[k];
-                            }
-                            fA = fA1;
-                            fB = fB1;
-                            merit2 = merit2a;
-                        }
-                        else
-                        {
-                            res2 = res2b;
-                            for ( int i = 0; i < 4; i++ ) F[i] = F2[i];
-                            mu = mu2;
-                            for ( int k = 0; k < 3; k++ )
-                            {
-                                gradA[k] = gradA2[k];
-                                gradB[k] = gradB2[k];
-                                point[k] = pointA2[k];
-                            }
-                            fA = fA2;
-                            fB = fB2;
-                            merit2 = merit2b;
-                        }
-                        if ( merit2 < tol1 )
-                            converged = true;
-                        eps = 0.0;
-                    }
-                    else
-                    {
-                        if ( res2a > res2b )
-                            a_gs = alpha1;
-                        else
-                            b_gs = alpha2;
-                        eps = std::abs( b_gs - a_gs );
-                    }
-                }
-
-                // Fallback: line search exhausted without clear improvement
-                if ( eps != 0.0 )
-                {
-                    for ( int i = 0; i < 4; i++ ) F[i] = F2[i];
-                    mu = mu2;
-                    for ( int k = 0; k < 3; k++ )
-                    {
-                        gradA[k] = gradA2[k];
-                        gradB[k] = gradB2[k];
-                        point[k] = pointA2[k];
-                    }
-                    fA = fA2;
-                    fB = fB2;
-                    res2   = res2b;
-                    merit2 = merit2b;
-                    if ( merit2 < tol1 )
-                        converged = true;
-                }
-            }
-
-            // Check relative change (stagnation detection)
-            // Only declare convergence if merit is also reasonable
-            if ( std::abs( res1 - res2 ) / std::max( res1, res2 ) < 1e-3
-                 && merit2 < 0.1 )
-                converged = true;
-        }
-
-        merit1 = merit2;
-        res1   = res2;
-
-        if ( iter >= Niter - 1 )
+            if ( merit2 < 1e-4 ) break;  // close enough
             *fail = true;
-
-        if ( converged || *fail )
-        {
-            for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
-            for ( int k = 0; k < 3; k++ )
-            {
-                gradA_out[k] = gradA[k];
-                gradB_out[k] = gradB[k];
-            }
-            *fA_out = fA;
-            *fB_out = fB;
             break;
         }
+
+        if ( deltax > size )
+        {
+            double scale = size / deltax;
+            for ( int i = 0; i < 4; i++ )
+                delta[i] *= scale;
+            deltax = size;
+        }
+
+        // ----------------------------------------------------------------
+        // Armijo backtracking line search along Newton (or gradient) dir.
+        // Start with full step (alpha=1) and halve towards zero.
+        // Guaranteed to find improvement since -delta is a descent
+        // direction for ||F||^2.
+        // ----------------------------------------------------------------
+        double alpha = 1.0;
+        bool step_accepted = false;
+        double pt_[3], mu_, fA_, fB_, merit_, res_;
+        double gA_[3], gB_[3], F_[4];
+
+        for ( int k = 0; k < 50; k++ )
+        {
+            pt_[0] = point[0] - alpha * delta[0];
+            pt_[1] = point[1] - alpha * delta[1];
+            pt_[2] = point[2] - alpha * delta[2];
+            mu_ = std::max( mu - alpha * delta[3], 1e-10 );
+
+            res_ = calc_F( sqA, transformA, sqB, transformB,
+                           pt_, mu_,
+                           gA_, gB_, NULL, NULL,
+                           &fA_, &fB_, F_, &merit_ );
+
+            if ( res_ < res_cur || merit_ < tol1 )
+            {
+                step_accepted = true;
+                for ( int i = 0; i < 3; i++ )
+                { point[i] = pt_[i]; gradA[i] = gA_[i]; gradB[i] = gB_[i]; }
+                for ( int i = 0; i < 4; i++ ) F[i] = F_[i];
+                mu = mu_; fA = fA_; fB = fB_;
+                merit2 = merit_;
+                break;
+            }
+            alpha *= 0.5;
+        }
+
+        // ----------------------------------------------------------------
+        // Gradient descent fallback if Newton backtracking failed.
+        // This can happen when the Newton direction is an ascent direction
+        // (e.g., due to the mu clamp or Hessian singularity near axes).
+        // ----------------------------------------------------------------
+        if ( !step_accepted && !use_gradient )
+        {
+            // Search direction: J^T * F (steepest descent for ||F||^2)
+            double gdir[4];
+            for ( int i = 0; i < 4; i++ )
+            {
+                gdir[i] = 0.0;
+                for ( int j = 0; j < 4; j++ )
+                    gdir[i] += J[j * 4 + i] * F[j];
+            }
+            double gnorm = std::sqrt( gdir[0]*gdir[0] + gdir[1]*gdir[1]
+                                    + gdir[2]*gdir[2] + gdir[3]*gdir[3] );
+            if ( gnorm > SQ_EPS )
+            {
+                // Normalize and scale initial step to particle size
+                for ( int i = 0; i < 4; i++ ) gdir[i] /= gnorm;
+                alpha = size;
+                for ( int k = 0; k < 50; k++ )
+                {
+                    pt_[0] = point[0] - alpha * gdir[0];
+                    pt_[1] = point[1] - alpha * gdir[1];
+                    pt_[2] = point[2] - alpha * gdir[2];
+                    mu_ = std::max( mu - alpha * gdir[3], 1e-10 );
+
+                    res_ = calc_F( sqA, transformA, sqB, transformB,
+                                   pt_, mu_,
+                                   gA_, gB_, NULL, NULL,
+                                   &fA_, &fB_, F_, &merit_ );
+
+                    if ( res_ < res_cur )
+                    {
+                        step_accepted = true;
+                        for ( int i = 0; i < 3; i++ )
+                        { point[i] = pt_[i]; gradA[i] = gA_[i]; gradB[i] = gB_[i]; }
+                        for ( int i = 0; i < 4; i++ ) F[i] = F_[i];
+                        mu = mu_; fA = fA_; fB = fB_;
+                        merit2 = merit_;
+                        break;
+                    }
+                    alpha *= 0.5;
+                }
+            }
+        }
+
+        // If nothing worked, declare failure
+        if ( !step_accepted )
+        { *fail = true; break; }
+
+        // Step-size convergence check
+        if ( deltax < tol2 * size && merit2 < 1e-4 )
+            break;
+
+        // Detect if last iteration
+        if ( iter >= Niter - 1 )
+            *fail = true;
     }
+
+    for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
+    for ( int k = 0; k < 3; k++ )
+    { gradA_out[k] = gradA[k]; gradB_out[k] = gradB[k]; }
+    *fA_out = fA;
+    *fB_out = fB;
 }
 
 // ============================================================================
 // Main contact detection:
 //   1. Find single contact point via calc_contact_point (4D)
-//   2. Compute overlap via basic_overlap_algorithm (surface projections)
+//   2. Compute overlap
 // ============================================================================
 PointContact detectSuperquadricContact(
     const Superquadric* sqA,
@@ -855,16 +964,84 @@ PointContact detectSuperquadricContact(
 
     // ----------------------------------------------------------------
     // Step 1: Find single contact point via 4D Newton-Raphson
+    //         with homotopy continuation on blockiness exponents.
+    //
+    // The idea (Podlozhnyuk et al. 2017): start with n1=n2=2
+    // (ellipsoid, where Newton converges easily) and gradually
+    // increase to the target exponents. Each converged solution
+    // seeds the next step.
     // ----------------------------------------------------------------
     double contact_point[3];
     double gradA[3], gradB[3];
     double fA = 0.0, fB = 0.0;
     bool fail = false;
 
-    calc_contact_point( sqA, transformA, sqB, transformB,
-                        ratio, initial_point,
-                        contact_point, gradA, gradB,
-                        &fA, &fB, &fail );
+    // Target exponents
+    double n1A = sqA->getN1(), n2A = sqA->getN2();
+    double n1B = sqB->getN1(), n2B = sqB->getN2();
+
+    // Determine if homotopy is needed: only if any exponent differs
+    // significantly from 2 (the ellipsoidal case)
+    double maxDeviation = std::max( { std::abs( n1A - 2.0 ),
+                                      std::abs( n2A - 2.0 ),
+                                      std::abs( n1B - 2.0 ),
+                                      std::abs( n2B - 2.0 ) } );
+
+    if ( maxDeviation < 0.1 )
+    {
+        // Nearly ellipsoidal — no homotopy needed
+        calc_contact_point( sqA, transformA, sqB, transformB,
+                            ratio, initial_point,
+                            contact_point, gradA, gradB,
+                            &fA, &fB, &fail );
+    }
+    else
+    {
+        // Homotopy continuation: interpolate n from 2 to target
+        // Number of steps scales with deviation from sphere
+        int Nsteps = std::max( 3, (int)std::ceil( maxDeviation * 3.0 ) );
+
+        // Start from the initial guess
+        for ( int k = 0; k < 3; k++ ) contact_point[k] = initial_point[k];
+
+        for ( int step = 0; step <= Nsteps; step++ )
+        {
+            double t = (double)step / (double)Nsteps;  // 0 to 1
+
+            // Interpolated exponents: 2 -> target
+            double cn1A = 2.0 + t * ( n1A - 2.0 );
+            double cn2A = 2.0 + t * ( n2A - 2.0 );
+            double cn1B = 2.0 + t * ( n1B - 2.0 );
+            double cn2B = 2.0 + t * ( n2B - 2.0 );
+
+            // Use real particles for the final step to avoid any
+            // floating-point discrepancy
+            if ( step == Nsteps )
+            {
+                calc_contact_point( sqA, transformA, sqB, transformB,
+                                    ratio, contact_point,
+                                    contact_point, gradA, gradB,
+                                    &fA, &fB, &fail );
+            }
+            else
+            {
+                // Temporary superquadrics with interpolated exponents
+                Superquadric tmpA( sqA->getA(), sqA->getB(), sqA->getC(),
+                                   cn1A, cn2A );
+                Superquadric tmpB( sqB->getA(), sqB->getB(), sqB->getC(),
+                                   cn1B, cn2B );
+
+                bool step_fail = false;
+                calc_contact_point( &tmpA, transformA, &tmpB, transformB,
+                                    ratio, contact_point,
+                                    contact_point, gradA, gradB,
+                                    &fA, &fB, &step_fail );
+                // Intermediate failures are tolerable — the approximate
+                // solution still provides a better initial guess than the
+                // midpoint for the next step.
+            }
+        }
+    }
 
     // Update the previous contact point for warm-starting next timestep
     if ( prevContactPt != nullptr && !fail )
@@ -874,9 +1051,24 @@ PointContact detectSuperquadricContact(
         prevContactPt[2] = contact_point[2];
     }
 
-    // If the solver failed to converge, treat as no contact
+    // If the solver failed to converge, check if result is still usable.
+    // A "soft failure" (gradients roughly anti-parallel, fA ≈ fB) is better
+    // than missing the contact entirely, which causes deep penetration and
+    // eventual blow-up when contact is finally detected.
     if ( fail )
-        return PointNoContact;
+    {
+        double gAn2 = gradA[0]*gradA[0] + gradA[1]*gradA[1] + gradA[2]*gradA[2];
+        double gBn2 = gradB[0]*gradB[0] + gradB[1]*gradB[1] + gradB[2]*gradB[2];
+        double gdot = gradA[0]*gradB[0] + gradA[1]*gradB[1] + gradA[2]*gradB[2];
+        double cosAngle = gdot / ( std::sqrt( gAn2 * gBn2 ) + SQ_EPS );
+        // Accept if gradients are roughly anti-parallel (< ~25 deg error)
+        // and fA is reasonably close to fB
+        bool usable = ( cosAngle < -0.9 )
+                   && ( std::abs( fA - fB ) < 0.5 * std::max( std::abs(fA),
+                        std::abs(fB) ) + SQ_EPS );
+        if ( !usable )
+            return PointNoContact;
+    }
 
     // No overlap if the contact point is outside both surfaces (fA >= 0)
     // At convergence fA ~ fB, so checking one suffices
@@ -884,7 +1076,7 @@ PointContact detectSuperquadricContact(
         return PointNoContact;
 
     // ----------------------------------------------------------------
-    // Step 2: Compute overlap using extended_overlap_algorithm
+    // Step 2: Compute overlap
     //
     // Contact normal: en = normalize( gradB - gradA )
     // Then find ray-surface intersections along en to get surface points
@@ -938,9 +1130,15 @@ PointContact detectSuperquadricContact(
 
     Point3 ptA( surfA[0], surfA[1], surfA[2] );
     Point3 ptB( surfB[0], surfB[1], surfB[2] );
-    Point3 contactPt( contact_point[0], contact_point[1], contact_point[2] );
+    // Use midpoint of the two surface points as contact point for force
+    // application, consistent with GJK convention. This is more stable than
+    // the Newton solver's internal point (which is deep inside both particles)
+    // and gives correct torque arms.
+    Point3 contactPt( ( surfA[0] + surfB[0] ) * 0.5,
+                      ( surfA[1] + surfB[1] ) * 0.5,
+                      ( surfA[2] + surfB[2] ) * 0.5 );
     double overlapDistance = -deltan;
     Vector3 overlapVector( delta[0], delta[1], delta[2] );
 
-    return PointContact( ptA, ptB, contactPt, overlapVector, overlapDistance, 0 );
+    return PointContact( contactPt, ptA, ptB, overlapVector, overlapDistance, 0 );
 }

@@ -1253,7 +1253,14 @@ PointContact ClosestPointSUPERQUADRIC( RigidBodyWithCrust const& rbA,
       BVCheck = isContactBVolume( rbA, rbB );
 
     if ( !BVCheck )
+    {
+      // Reset warm-start point so stale data from a previous contact episode
+      // does not seed the Newton solver when particles next come together.
+      // Mirrors GJK's "initialDirection = Vector3Null" behaviour.
+      if ( initialPt != nullptr )
+        initialPt->setValue( 0., 0., 0. );
       return ( PointNoContact );
+    }
     
     // Cast convex to Superquadric
     Superquadric const* sqA = dynamic_cast<Superquadric const*>(rbA.getConvex());
@@ -1277,17 +1284,28 @@ PointContact ClosestPointSUPERQUADRIC( RigidBodyWithCrust const& rbA,
     if ( initialPt != nullptr )
       initialPt->setValue( prevPt[0], prevPt[1], prevPt[2] );
 
+    // The SQ method computes the actual geometric overlap between the real
+    // surfaces, which is the same quantity GJK returns after its crust
+    // adjustment (distance - crustSum). No further crust correction needed.
     double overlap = pc.getOverlapDistance();
-    double max_overlap = 10 * (rbA.getCrustThickness() + rbB.getCrustThickness());
-    if( overlap < 0.0 )
+    double max_overlap = 10 * ( rbA.getCrustThickness() 
+                              + rbB.getCrustThickness() );
+    if ( overlap < 0.0 )
     {
-      if( -overlap >= max_overlap )
+      if ( -overlap >= max_overlap )
       {
         cout << "ERR RigidBodyWithCrust::ClosestPointSUPERQUADRIC on Processor "
              << (GrainsExec::m_MPI ? GrainsExec::getComm()->get_rank() : 0 ) 
              << ": " << -overlap << " & " << max_overlap << endl;
-        pc.setOverlapVector( max_overlap * pc.getOverlapVector().normalized() );
-        pc.setOverlapDistance(-max_overlap);
+        // Clamp to max_overlap
+        Vector3 ov = pc.getOverlapVector();
+        double ovNorm = Norm( ov );
+        if ( ovNorm > EPSILON )
+        {
+          Vector3 ovDir = ov / ovNorm;
+          pc.setOverlapVector( max_overlap * ovDir );
+        }
+        pc.setOverlapDistance( -max_overlap );
       }
       return pc;
     }
