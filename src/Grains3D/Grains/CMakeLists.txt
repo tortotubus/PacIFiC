@@ -134,6 +134,7 @@ list(APPEND GRAINS_SOURCES
   Geometry/src/STLTriangle.cpp
   Geometry/src/STLVertex.cpp
   Geometry/src/Superquadric.cpp
+  Geometry/src/SuperquadricContact.cpp
   Geometry/src/Transform.cpp
   Geometry/src/TrapezoidalPrism.cpp
   Geometry/src/TruncatedCone.cpp
