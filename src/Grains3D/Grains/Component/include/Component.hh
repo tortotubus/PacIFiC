@@ -442,8 +442,6 @@ class Component
     /** @brief Reads the contact map to file in binary format
     @param fileSave input file stream */
     void readContactMap2014_binary( istream &fileSave );
-
-    void printTorsor() const;
     //@}
 
 
