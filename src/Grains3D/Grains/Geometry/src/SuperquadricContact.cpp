@@ -6,7 +6,7 @@
 #include <iostream>
 #include <algorithm>
 
-// Small epsilon for numerical stability (local to this translation unit)
+// Small epsilon for numerical stability
 static constexpr double SQ_EPS = 1e-16;
 
 // ============================================================================
@@ -45,7 +45,7 @@ static double sign( double x )
 
 // ============================================================================
 // Compute superquadric shape function value, gradient and Hessian in LOCAL
-// coordinates. Matches reference: shape_function_props_local
+// coordinates.
 // ============================================================================
 static void shapePropsLocal(
     const Superquadric* sq,
@@ -83,8 +83,8 @@ static void shapePropsLocal(
     {
         // Case n1 ~ n2: simplified (diagonal Hessian)
         *f = xan2 + ybn2 + zcn1 - 1.0;
-        grad[0] = a * n1 * sign( xa ) * xan21;
-        grad[1] = b * n1 * sign( yb ) * ybn21;
+        grad[0] = a * n2 * sign( xa ) * xan21;
+        grad[1] = b * n2 * sign( yb ) * ybn21;
         grad[2] = c * n1 * sign( zc ) * zcn11;
 
         if ( hess != NULL )
@@ -124,7 +124,7 @@ static void shapePropsLocal(
 
 // ============================================================================
 // Compute shape function value, gradient and optionally Hessian in GLOBAL
-// coordinates. Matches reference: shape_function_props_global
+// coordinates.
 // ============================================================================
 static void shapePropsGlobal(
     const Superquadric* sq,
@@ -182,7 +182,7 @@ static void shapePropsGlobal(
 // ============================================================================
 // Compute residual F for 4D contact-point system
 //
-// System (from reference calc_F):
+// System:
 //   F[0:2] = gradA(p) + mu^2 * gradB(p)  = 0   (anti-parallel gradients)
 //   F[3]   = fA(p) - fB(p)               = 0   (equal implicit values)
 //
@@ -231,13 +231,58 @@ static double calc_F(
 }
 
 // ============================================================================
+// calc_F overload that auto-computes mu from gradient dot products.
+// mu_sq = -dot(gradA,gradB)/dot(gradB,gradB)
+// ============================================================================
+static double calc_F_auto_mu(
+    const Superquadric* sqA, const Transform& transformA,
+    const Superquadric* sqB, const Transform& transformB,
+    const double* point,
+    double* gradA, double* gradB,
+    double* fA_out, double* fB_out,
+    double* mu_out,
+    double* F, double* merit
+)
+{
+    double fA, fB;
+    shapePropsGlobal( sqA, transformA, point, &fA, gradA, NULL );
+    shapePropsGlobal( sqB, transformB, point, &fB, gradB, NULL );
+
+    double gradBNorm2 = gradB[0]*gradB[0] + gradB[1]*gradB[1] + gradB[2]*gradB[2];
+    double gradAdotB  = gradA[0]*gradB[0] + gradA[1]*gradB[1] + gradA[2]*gradB[2];
+    double mu_sq_raw = -gradAdotB / ( gradBNorm2 + SQ_EPS );
+    // Use |mu_sq| so F is consistent with the Newton loop (which uses mu*mu >= 0)
+    double mu_sq = std::abs( mu_sq_raw );
+    *mu_out = std::sqrt( mu_sq );
+
+    F[0] = gradA[0] + mu_sq * gradB[0];
+    F[1] = gradA[1] + mu_sq * gradB[1];
+    F[2] = gradA[2] + mu_sq * gradB[2];
+    F[3] = fA - fB;
+
+    double cross[3];
+    cross[0] = gradA[1]*gradB[2] - gradA[2]*gradB[1];
+    cross[1] = gradA[2]*gradB[0] - gradA[0]*gradB[2];
+    cross[2] = gradA[0]*gradB[1] - gradA[1]*gradB[0];
+    double crossNorm2 = cross[0]*cross[0] + cross[1]*cross[1] + cross[2]*cross[2];
+    double gradANorm2 = gradA[0]*gradA[0] + gradA[1]*gradA[1] + gradA[2]*gradA[2];
+    double sine = std::abs( crossNorm2 / ( gradANorm2 * gradBNorm2 + SQ_EPS ) );
+    double aaa  = std::abs( fA - fB ) / ( std::max( std::abs(fA), std::abs(fB) ) + SQ_EPS );
+    *merit = std::max( sine, aaa * aaa );
+
+    if ( fA_out ) *fA_out = fA;
+    if ( fB_out ) *fB_out = fB;
+
+    return F[0]*F[0] + F[1]*F[1] + F[2]*F[2] + F[3]*F[3];
+}
+
+// ============================================================================
 // Direct analytical solver for the 4x4 saddle-point Jacobian system
 // exploiting the zero (4,4) entry:
 //   [M   g] [dp  ]   [F[0:2]]
 //   [c^T 0] [dmu ] = [F[3]  ]
 // M is 3x3, g and c are 3-vectors.
 // Uses cofactor-based 3x3 inverse (Cramer's rule) + Schur complement.
-// This is the "direct method (computing determinant)" from the reference.
 // ============================================================================
 static bool solveJacobian4x4( const double* J, const double* F, double* delta )
 {
@@ -640,6 +685,11 @@ static double surfaceLineIntersection(
         }
     }
 
+    // Guard against NaN alpha (can happen when direction is along
+    // a flat face and all Newton steps produce NaN derivatives)
+    if ( std::isnan( alpha ) || std::isinf( alpha ) )
+        alpha = 0.0;
+
     // Result in global coordinates
     result[0] = start_point[0] + alpha * direction[0];
     result[1] = start_point[1] + alpha * direction[1];
@@ -648,15 +698,12 @@ static double surfaceLineIntersection(
 }
 
 // ============================================================================
-// Find single contact point between two superquadrics using 4D
-// Newton-Raphson. Matches reference calc_contact_point.
-//
-// 4D system: F = [gradA + mu^2*gradB; fA - fB] = 0
-// 4x4 Jacobian:
-//   rows 0-2: [HA + mu^2*HB  | 2*mu*gradB ]
-//   row  3:   [gradA - gradB |     0       ]
-//
-// Returns gradients at the contact point for normal computation.
+// Find single contact point between two superquadrics using 4D Newton-Raphson.
+//   - Two initial guesses (caller + sphere midpoint), pick better
+//   - Auto-mu from gradient dot products for initial evaluation
+//   - Jacobian: direct 4x4 inverse (|det|>1) or analytical fallback
+//   - Golden-section line search when Newton step fails to reduce residual
+//   - Tolerances: tol1=1e-10, tol2=1e-12, Niter=100000
 // ============================================================================
 static void calc_contact_point(
     const Superquadric* sqA, const Transform& transformA,
@@ -669,79 +716,100 @@ static void calc_contact_point(
     bool* fail
 )
 {
-    const double tol1 = 1e-6;   // merit tolerance
-    const double tol2 = 1e-12;  // step size tolerance
+    static constexpr double PHI_INV = 0.61803398874989479;
+    const double tol1 = 1e-10;   // merit tolerance
+    const double tol2 = 1e-12;   // step-size tolerance
     *fail = false;
 
-    double mu;
-    double F[4];
+    double mu, mu_sq;
+    double F[4], F1[4], F2[4];
     double point[3];
 
+    double mu1, mu2;
     double gradA[3], gradB[3];
-    double fA, fB;
-    double merit0;
+    double gradA1[3], gradB1[3], gradA2[3], gradB2[3];
+    double fi, fj, fi1, fj1, fi2, fj2;
+    double merit01, merit02, merit0;
 
-    // Compute initial mu from gradient magnitudes:
-    // At solution, gradA + mu^2*gradB = 0 => |gradA| = mu^2*|gradB|
-    // => mu = sqrt( |gradA| / |gradB| ) = (|gradA|^2 / |gradB|^2)^{1/4}
-    {
-        double gA[3], gB[3];
-        double fA_tmp, fB_tmp;
-        shapePropsGlobal( sqA, transformA, initial_point, &fA_tmp, gA, NULL );
-        shapePropsGlobal( sqB, transformB, initial_point, &fB_tmp, gB, NULL );
-        double gradANorm2 = gA[0]*gA[0] + gA[1]*gA[1] + gA[2]*gA[2];
-        double gradBNorm2 = gB[0]*gB[0] + gB[1]*gB[1] + gB[2]*gB[2];
-        mu = std::pow( gradANorm2 / ( gradBNorm2 + SQ_EPS ), 0.25 );
-    }
-
-    // Evaluate at initial point
-    double res0 = calc_F( sqA, transformA, sqB, transformB,
-                          initial_point, mu,
-                          gradA, gradB, NULL, NULL,
-                          &fA, &fB, F, &merit0 );
-
-    if ( merit0 < tol1 )
+    // ---- Evaluate at caller-supplied initial_point with auto-mu ----
+    double res01 = calc_F_auto_mu( sqA, transformA, sqB, transformB,
+                                   initial_point, gradA1, gradB1,
+                                   &fi1, &fj1, &mu1, F1, &merit01 );
+    if ( merit01 < tol1 )
     {
         for ( int k = 0; k < 3; k++ ) result_point[k] = initial_point[k];
-        for ( int k = 0; k < 3; k++ ) { gradA_out[k] = gradA[k]; gradB_out[k] = gradB[k]; }
-        *fA_out = fA;
-        *fB_out = fB;
+        for ( int k = 0; k < 3; k++ ) { gradA_out[k] = gradA1[k]; gradB_out[k] = gradB1[k]; }
+        *fA_out = fi1; *fB_out = fj1;
         return;
     }
 
-    for ( int k = 0; k < 3; k++ ) point[k] = initial_point[k];
+    // ---- Evaluate at sphere-solution midpoint with auto-mu ----
+    Point3 const& cA = *( transformA.getOrigin() );
+    Point3 const& cB = *( transformB.getOrigin() );
+    double initial_point2[3];
+    for ( int k = 0; k < 3; k++ )
+        initial_point2[k] = ratio * cB[k] + ( 1.0 - ratio ) * cA[k];
+
+    double res02 = calc_F_auto_mu( sqA, transformA, sqB, transformB,
+                                   initial_point2, gradA2, gradB2,
+                                   &fi2, &fj2, &mu2, F2, &merit02 );
+
+    // ---- Pick the better initial guess ----
+    double res0;
+    if ( res01 < res02 )
+    {
+        res0 = res01;
+        for ( int k = 0; k < 3; k++ ) { gradA[k] = gradA1[k]; gradB[k] = gradB1[k]; }
+        for ( int k = 0; k < 3; k++ ) point[k] = initial_point[k];
+        for ( int k = 0; k < 4; k++ ) F[k] = F1[k];
+        fi = fi1; fj = fj1; mu = mu1;
+        merit0 = merit01;
+    }
+    else
+    {
+        res0 = res02;
+        for ( int k = 0; k < 3; k++ ) { gradA[k] = gradA2[k]; gradB[k] = gradB2[k]; }
+        for ( int k = 0; k < 3; k++ ) point[k] = initial_point2[k];
+        for ( int k = 0; k < 4; k++ ) F[k] = F2[k];
+        fi = fi2; fj = fj2; mu = mu2;
+        merit0 = merit02;
+    }
+
+    if ( merit0 < tol1 )
+    {
+        for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
+        for ( int k = 0; k < 3; k++ ) { gradA_out[k] = gradA[k]; gradB_out[k] = gradB[k]; }
+        *fA_out = fi; *fB_out = fj;
+        return;
+    }
+
+    double merit1 = merit0, merit2 = merit0;
+    double res1 = res0, res2 = res1;
 
     double sizeA = std::min( { sqA->getA(), sqA->getB(), sqA->getC() } );
     double sizeB = std::min( { sqB->getA(), sqB->getB(), sqB->getC() } );
     double size  = std::min( sizeA, sizeB );
 
-    double delta[4];
-    const int Niter = 50;
+    double delta[4]  = { 0, 0, 0, 0 };
+    double delta_0[4] = { 0, 0, 0, 0 };
+    const int Niter = 100000;
+    double pointa[3], pointb[3];
 
     for ( int iter = 0; iter < Niter; iter++ )
     {
-        // ----------------------------------------------------------------
-        // Evaluate residual, gradient, and Hessian at current point
-        // ----------------------------------------------------------------
+        merit2 = merit1;
+        res2   = res1;
+
+        // Compute hessians at current point
         double hessA[9], hessB[9];
-        double merit2;
-        double res_cur = calc_F( sqA, transformA, sqB, transformB,
-                                 point, mu,
-                                 gradA, gradB, hessA, hessB,
-                                 &fA, &fB, F, &merit2 );
+        {
+            double f_tmp;
+            shapePropsGlobal( sqA, transformA, point, &f_tmp, gradA, hessA );
+            shapePropsGlobal( sqB, transformB, point, &f_tmp, gradB, hessB );
+        }
 
-        // Convergence check
-        if ( merit2 < tol1 )
-            break;
-
-        // ----------------------------------------------------------------
         // Build 4x4 Jacobian
-        //   J[0:2, 0:2] = HA + mu^2 * HB
-        //   J[0:2, 3]   = 2*mu * gradB
-        //   J[3,   0:2] = gradA - gradB
-        //   J[3,   3]   = 0
-        // ----------------------------------------------------------------
-        double mu_sq = mu * mu;
+        mu_sq = mu * mu;
         double J[16];
         for ( int i = 0; i < 3; i++ )
         {
@@ -752,173 +820,193 @@ static void calc_contact_point(
         }
         J[15] = 0.0;
 
-        // ----------------------------------------------------------------
-        // Solve J * delta = F
-        // If Jacobian is singular, use steepest descent direction instead
-        // ----------------------------------------------------------------
-        bool use_gradient = false;
+        // Solve J * delta = F  (analytical 4x4 solver)
         if ( !solveJacobian4x4( J, F, delta ) )
-            use_gradient = true;
-
-        // Check for NaN/Inf in delta
-        if ( !use_gradient )
         {
-            for ( int i = 0; i < 4; i++ )
+            // Jacobian is singular; zero out delta (steepest-descent
+            // would need extra machinery, so just skip this iteration)
+            for ( int k = 0; k < 4; k++ ) delta[k] = 0;
+        }
+
+        // NaN in delta: treat identically to a singular Jacobian —
+        // zero the step so the deltax==0 path exits cleanly with the
+        // current (best) point.  Avoids leaving result_point uninit.
+        for ( int i = 0; i < 4; i++ )
+        {
+            if ( std::isnan( delta[i] ) )
             {
-                if ( std::isnan( delta[i] ) || std::isinf( delta[i] ) )
-                { use_gradient = true; break; }
+                for ( int k = 0; k < 4; k++ ) delta[k] = 0.0;
+                break;
             }
         }
 
-        // Fallback: steepest descent direction for ||F||^2
-        // grad(||F||^2) = 2 * J^T * F, search direction = J^T * F
-        if ( use_gradient )
-        {
-            for ( int i = 0; i < 4; i++ )
-            {
-                delta[i] = 0.0;
-                for ( int j = 0; j < 4; j++ )
-                    delta[i] += J[j * 4 + i] * F[j];
-            }
-            // Check if gradient is also degenerate
-            bool all_zero = true;
-            for ( int i = 0; i < 4; i++ )
-                if ( std::abs( delta[i] ) > SQ_EPS ) all_zero = false;
-            if ( all_zero )
-            { *fail = true; break; }
-        }
-
-        // ----------------------------------------------------------------
-        // Clip step to prevent wild jumps
-        // ----------------------------------------------------------------
+        bool converged = false;
         double deltax = std::max( { std::abs( delta[0] ),
                                     std::abs( delta[1] ),
                                     std::abs( delta[2] ) } );
 
-        if ( deltax < 1e-30 )
+        if ( deltax == 0.0 )
         {
-            if ( merit2 < 1e-4 ) break;  // close enough
-            *fail = true;
-            break;
+            for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
+            converged = true;
         }
-
-        if ( deltax > size )
+        else
         {
-            double scale = size / deltax;
-            for ( int i = 0; i < 4; i++ )
-                delta[i] *= scale;
-            deltax = size;
-        }
 
-        // ----------------------------------------------------------------
-        // Armijo backtracking line search along Newton (or gradient) dir.
-        // Start with full step (alpha=1) and halve towards zero.
-        // Guaranteed to find improvement since -delta is a descent
-        // direction for ||F||^2.
-        // ----------------------------------------------------------------
-        double alpha = 1.0;
-        bool step_accepted = false;
-        double pt_[3], mu_, fA_, fB_, merit_, res_;
-        double gA_[3], gB_[3], F_[4];
-
-        for ( int k = 0; k < 50; k++ )
-        {
-            pt_[0] = point[0] - alpha * delta[0];
-            pt_[1] = point[1] - alpha * delta[1];
-            pt_[2] = point[2] - alpha * delta[2];
-            mu_ = std::max( mu - alpha * delta[3], 1e-10 );
-
-            res_ = calc_F( sqA, transformA, sqB, transformB,
-                           pt_, mu_,
-                           gA_, gB_, NULL, NULL,
-                           &fA_, &fB_, F_, &merit_ );
-
-            if ( res_ < res_cur || merit_ < tol1 )
+            // ---- Clamp Newton step to prevent wild overshoots ----
+            // For high-blockiness shapes the Hessian is nearly singular
+            // on flat faces, producing huge delta.  Limit step to the
+            // characteristic particle size.
             {
-                step_accepted = true;
-                for ( int i = 0; i < 3; i++ )
-                { point[i] = pt_[i]; gradA[i] = gA_[i]; gradB[i] = gB_[i]; }
-                for ( int i = 0; i < 4; i++ ) F[i] = F_[i];
-                mu = mu_; fA = fA_; fB = fB_;
-                merit2 = merit_;
-                break;
-            }
-            alpha *= 0.5;
-        }
-
-        // ----------------------------------------------------------------
-        // Gradient descent fallback if Newton backtracking failed.
-        // This can happen when the Newton direction is an ascent direction
-        // (e.g., due to the mu clamp or Hessian singularity near axes).
-        // ----------------------------------------------------------------
-        if ( !step_accepted && !use_gradient )
-        {
-            // Search direction: J^T * F (steepest descent for ||F||^2)
-            double gdir[4];
-            for ( int i = 0; i < 4; i++ )
-            {
-                gdir[i] = 0.0;
-                for ( int j = 0; j < 4; j++ )
-                    gdir[i] += J[j * 4 + i] * F[j];
-            }
-            double gnorm = std::sqrt( gdir[0]*gdir[0] + gdir[1]*gdir[1]
-                                    + gdir[2]*gdir[2] + gdir[3]*gdir[3] );
-            if ( gnorm > SQ_EPS )
-            {
-                // Normalize and scale initial step to particle size
-                for ( int i = 0; i < 4; i++ ) gdir[i] /= gnorm;
-                alpha = size;
-                for ( int k = 0; k < 50; k++ )
+                double step_norm = std::sqrt( delta[0]*delta[0]
+                                            + delta[1]*delta[1]
+                                            + delta[2]*delta[2] );
+                double max_step = 2.0 * size;
+                if ( step_norm > max_step && step_norm > SQ_EPS )
                 {
-                    pt_[0] = point[0] - alpha * gdir[0];
-                    pt_[1] = point[1] - alpha * gdir[1];
-                    pt_[2] = point[2] - alpha * gdir[2];
-                    mu_ = std::max( mu - alpha * gdir[3], 1e-10 );
+                    double scale = max_step / step_norm;
+                    delta[0] *= scale;
+                    delta[1] *= scale;
+                    delta[2] *= scale;
+                    delta[3] *= scale;
+                }
+            }
 
-                    res_ = calc_F( sqA, transformA, sqB, transformB,
-                                   pt_, mu_,
-                                   gA_, gB_, NULL, NULL,
-                                   &fA_, &fB_, F_, &merit_ );
+            // ---- Try full Newton step ----
+            double point_[3], mu_;
+            point_[0] = point[0] - delta[0];
+            point_[1] = point[1] - delta[1];
+            point_[2] = point[2] - delta[2];
+            mu_ = mu - delta[3];
 
-                    if ( res_ < res_cur )
+            double fi_, fj_, merit2_;
+            double res2_ = calc_F( sqA, transformA, sqB, transformB,
+                                   point_, mu_,
+                                   gradA, gradB, NULL, NULL,
+                                   &fi_, &fj_, F, &merit2_ );
+
+            if ( res2_ < res1 || merit2_ < tol1 || deltax < tol2 * size )
+            {
+                // Accept Newton step
+                merit2 = merit2_;
+                res2 = res2_;
+                mu = mu_;
+                fi = fi_;
+                fj = fj_;
+                for ( int k = 0; k < 3; k++ ) point[k] = point_[k];
+                if ( merit2 < tol1 || deltax < tol2 * size )
+                    converged = true;
+            }
+            else
+            {
+                // ---- Golden-section line search fallback ----
+                double a = 0.0, b = 1.0;
+                double eps = std::abs( b - a );
+                double res2a, res2b, merit2a, merit2b;
+
+                while ( eps > 1e-8 )
+                {
+                    double alpha1 = b - ( b - a ) * PHI_INV;
+                    double alpha2 = a + ( b - a ) * PHI_INV;
+
+                    yabx3D( point, -alpha1, delta, pointa );
+                    mu1 = mu - alpha1 * delta[3];
+                    res2a = calc_F( sqA, transformA, sqB, transformB,
+                                    pointa, mu1,
+                                    gradA1, gradB1, NULL, NULL,
+                                    &fi1, &fj1, F1, &merit2a );
+
+                    yabx3D( point, -alpha2, delta, pointb );
+                    mu2 = mu - alpha2 * delta[3];
+                    res2b = calc_F( sqA, transformA, sqB, transformB,
+                                    pointb, mu2,
+                                    gradA2, gradB2, NULL, NULL,
+                                    &fi2, &fj2, F2, &merit2b );
+
+                    if ( std::min( res2a, res2b ) < res1 )
                     {
-                        step_accepted = true;
-                        for ( int i = 0; i < 3; i++ )
-                        { point[i] = pt_[i]; gradA[i] = gA_[i]; gradB[i] = gB_[i]; }
-                        for ( int i = 0; i < 4; i++ ) F[i] = F_[i];
-                        mu = mu_; fA = fA_; fB = fB_;
-                        merit2 = merit_;
-                        break;
+                        if ( res2a < res2b )
+                        {
+                            res2 = res2a;
+                            for ( int k = 0; k < 4; k++ ) F[k] = F1[k];
+                            mu = mu1;
+                            for ( int k = 0; k < 3; k++ ) { gradA[k] = gradA1[k]; gradB[k] = gradB1[k]; }
+                            for ( int k = 0; k < 3; k++ ) point[k] = pointa[k];
+                            fi = fi1; fj = fj1;
+                            merit2 = merit2a;
+                        }
+                        else
+                        {
+                            res2 = res2b;
+                            for ( int k = 0; k < 4; k++ ) F[k] = F2[k];
+                            mu = mu2;
+                            for ( int k = 0; k < 3; k++ ) { gradA[k] = gradA2[k]; gradB[k] = gradB2[k]; }
+                            for ( int k = 0; k < 3; k++ ) point[k] = pointb[k];
+                            fi = fi2; fj = fj2;
+                            merit2 = merit2b;
+                        }
+                        if ( merit2 < tol1 )
+                            converged = true;
+                        eps = 0.0;
                     }
-                    alpha *= 0.5;
+                    else
+                    {
+                        if ( res2a > res2b )
+                            a = alpha1;
+                        else
+                            b = alpha2;
+                        eps = std::abs( b - a );
+                    }
+                }
+
+                if ( eps != 0.0 )
+                {
+                    // Golden section did not improve — do NOT accept a
+                    // worse point.  Keep current point/mu/F unchanged so
+                    // the solver can try a different direction next iter.
+                    res2 = res1;
+                    merit2 = merit1;
                 }
             }
         }
 
-        // If nothing worked, declare failure
-        if ( !step_accepted )
-        { *fail = true; break; }
+        // Declare stagnation-convergence when the residual has
+        // effectively stopped changing.  Use a relaxed merit gate
+        // (1e-2) so the solver can still exit on flat-face contacts
+        // where very tight merit is unreachable.
+        if ( std::abs( res1 - res2 ) / ( std::max( res1, res2 ) + SQ_EPS ) < 1e-3
+             && merit2 < 1e-2 )
+            converged = true;
 
-        // Step-size convergence check
-        if ( deltax < tol2 * size && merit2 < 1e-4 )
-            break;
+        merit1 = merit2;
+        res1 = res2;
 
-        // Detect if last iteration
         if ( iter >= Niter - 1 )
-            *fail = true;
+        {
+            // Iteration budget exhausted — use the best point we have.
+            // Do NOT set *fail: the result is approximate but usable.
+            for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
+            break;
+        }
+
+        if ( converged )
+        {
+            for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
+            break;
+        }
     }
 
-    for ( int k = 0; k < 3; k++ ) result_point[k] = point[k];
-    for ( int k = 0; k < 3; k++ )
-    { gradA_out[k] = gradA[k]; gradB_out[k] = gradB[k]; }
-    *fA_out = fA;
-    *fB_out = fB;
+    for ( int k = 0; k < 3; k++ ) { gradA_out[k] = gradA[k]; gradB_out[k] = gradB[k]; }
+    *fA_out = fi; *fB_out = fj;
 }
 
 // ============================================================================
-// Main contact detection:
-//   1. Find single contact point via calc_contact_point (4D)
-//   2. Compute overlap
+// Main contact detection
+//   1. Find single contact point via calc_contact_point (4D Newton)
+//      - If previous contact available: call directly (no homotopy)
+//      - Otherwise: homotopy on shape AND blockiness (sphere -> target)
+//   2. Compute overlap via extended_overlap_algorithm
+//      (ray-surface intersection along en = normalize(gradB-gradA))
 // ============================================================================
 PointContact detectSuperquadricContact(
     const Superquadric* sqA,
@@ -933,157 +1021,169 @@ PointContact detectSuperquadricContact(
     Point3 const& centerA = *( transformA.getOrigin() );
     Point3 const& centerB = *( transformB.getOrigin() );
 
-    // Compute effective radii for initial guess
-    double ri = std::cbrt( sqA->getA() * sqA->getB() * sqA->getC() );
-    double rj = std::cbrt( sqB->getA() * sqB->getB() * sqB->getC() );
+    // Effective radii for ratio computation
+    double ai = sqA->getA(), bi = sqA->getB(), ci = sqA->getC();
+    double aj = sqB->getA(), bj = sqB->getB(), cj = sqB->getC();
+    double ri = std::cbrt( ai * bi * ci );
+    double rj = std::cbrt( aj * bj * cj );
     double ratio = ri / ( ri + rj );
 
-    // Default initial guess: weighted midpoint (exact solution for equal spheres)
-    double initial_point[3];
-    for ( int k = 0; k < 3; k++ )
-        initial_point[k] = ratio * centerB[k] + ( 1.0 - ratio ) * centerA[k];
-
-    // Use previous contact point as warm-start if it is valid, i.e.,
-    // reasonably close to both particle centers. If initialDirection was
-    // reset to (0,0,0) or is stale from a distant configuration, fall back
-    // to the default midpoint.
-    if ( prevContactPt != nullptr )
-    {
-        double dx[3] = { prevContactPt[0] - initial_point[0],
-                         prevContactPt[1] - initial_point[1],
-                         prevContactPt[2] - initial_point[2] };
-        double dist2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
-        double maxR  = std::max( ri, rj );
-        if ( dist2 < maxR * maxR )
-        {
-            initial_point[0] = prevContactPt[0];
-            initial_point[1] = prevContactPt[1];
-            initial_point[2] = prevContactPt[2];
-        }
-    }
-
-    // ----------------------------------------------------------------
-    // Step 1: Find single contact point via 4D Newton-Raphson
-    //         with homotopy continuation on blockiness exponents.
-    //
-    // The idea (Podlozhnyuk et al. 2017): start with n1=n2=2
-    // (ellipsoid, where Newton converges easily) and gradually
-    // increase to the target exponents. Each converged solution
-    // seeds the next step.
-    // ----------------------------------------------------------------
     double contact_point[3];
     double gradA[3], gradB[3];
     double fA = 0.0, fB = 0.0;
     bool fail = false;
 
-    // Target exponents
+    // Target blockiness
     double n1A = sqA->getN1(), n2A = sqA->getN2();
     double n1B = sqB->getN1(), n2B = sqB->getN2();
 
-    // Determine if homotopy is needed: only if any exponent differs
-    // significantly from 2 (the ellipsoidal case)
-    double maxDeviation = std::max( { std::abs( n1A - 2.0 ),
-                                      std::abs( n2A - 2.0 ),
-                                      std::abs( n1B - 2.0 ),
-                                      std::abs( n2B - 2.0 ) } );
-
-    if ( maxDeviation < 0.1 )
+    // ------------------------------------------------------------------
+    // Determine whether we have a usable previous contact point
+    // ------------------------------------------------------------------
+    bool have_prev = false;
+    if ( prevContactPt != nullptr )
     {
-        // Nearly ellipsoidal — no homotopy needed
+        // Geometric check: previous point should be close to the midpoint
+        double mid[3];
+        for ( int k = 0; k < 3; k++ )
+            mid[k] = ratio * centerB[k] + ( 1.0 - ratio ) * centerA[k];
+        double dx[3] = { prevContactPt[0] - mid[0],
+                         prevContactPt[1] - mid[1],
+                         prevContactPt[2] - mid[2] };
+        double dist2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
+        double maxR  = std::max( ri, rj );
+        if ( dist2 < maxR * maxR )
+        {
+            // Physical check: the previous point must lie inside (or on)
+            // both particles.  If either surface value is positive it
+            // means the particles have moved/rotated so that the stored
+            // point is on the wrong face — discard it and use homotopy.
+            double fA_prev, fB_prev;
+            double grad_dummy[3];
+            shapePropsGlobal( sqA, transformA, prevContactPt,
+                              &fA_prev, grad_dummy, NULL );
+            shapePropsGlobal( sqB, transformB, prevContactPt,
+                              &fB_prev, grad_dummy, NULL );
+            if ( fA_prev <= 0.1 && fB_prev <= 0.1 )
+                have_prev = true;
+        }
+    }
+
+    if ( have_prev )
+    {
+        // Previous contact available: call calc_contact_point 
+        // directly, No homotopy
         calc_contact_point( sqA, transformA, sqB, transformB,
-                            ratio, initial_point,
+                            ratio, prevContactPt,
                             contact_point, gradA, gradB,
                             &fA, &fB, &fail );
     }
     else
     {
-        // Homotopy continuation: interpolate n from 2 to target
-        // Number of steps scales with deviation from sphere
-        int Nsteps = std::max( 3, (int)std::ceil( maxDeviation * 3.0 ) );
+        // No previous contact: homotopy on shape AND blockiness
+        double nmax = std::max( { std::abs( n1A - 2.0 ),
+                                  std::abs( n2A - 2.0 ),
+                                  std::abs( n1B - 2.0 ),
+                                  std::abs( n2B - 2.0 ) } );
+        // Scale number of homotopy steps with blockiness deviation.
+        // For n=8 (nmax=6) this gives ~30 steps instead of 10,
+        // keeping per-step blockiness change <= 0.2.
+        double step = 0.2;
+        int N1 = static_cast<int>( nmax / step ) + 1;
+        int N  = std::max( N1, 10 );
+        double N_inv = 1.0 / static_cast<double>( N );
 
-        // Start from the initial guess
-        for ( int k = 0; k < 3; k++ ) contact_point[k] = initial_point[k];
+        // Sphere-solution midpoint as initial guess for step 0
+        for ( int k = 0; k < 3; k++ )
+            contact_point[k] = ratio * centerB[k]
+                             + ( 1.0 - ratio ) * centerA[k];
 
-        for ( int step = 0; step <= Nsteps; step++ )
+        for ( int i = 0; i <= N; i++ )
         {
-            double t = (double)step / (double)Nsteps;  // 0 to 1
+            double t = static_cast<double>( i ) * N_inv;
 
-            // Interpolated exponents: 2 -> target
-            double cn1A = 2.0 + t * ( n1A - 2.0 );
-            double cn2A = 2.0 + t * ( n2A - 2.0 );
-            double cn1B = 2.0 + t * ( n1B - 2.0 );
-            double cn2B = 2.0 + t * ( n2B - 2.0 );
+            // Interpolated shape: sphere(ri/rj) -> actual(ai,bi,ci / aj,bj,cj)
+            double sA[3] = { ri + ( ai - ri ) * t,
+                             ri + ( bi - ri ) * t,
+                             ri + ( ci - ri ) * t };
+            double sB[3] = { rj + ( aj - rj ) * t,
+                             rj + ( bj - rj ) * t,
+                             rj + ( cj - rj ) * t };
 
-            // Use real particles for the final step to avoid any
-            // floating-point discrepancy
-            if ( step == Nsteps )
+            // Interpolated blockiness: 2 -> target
+            double cn1A = 2.0 + ( n1A - 2.0 ) * t;
+            double cn2A = 2.0 + ( n2A - 2.0 ) * t;
+            double cn1B = 2.0 + ( n1B - 2.0 ) * t;
+            double cn2B = 2.0 + ( n2B - 2.0 ) * t;
+
+            // Build temporary superquadrics with interpolated params
+            Superquadric tmpA( sA[0], sA[1], sA[2], cn1A, cn2A );
+            Superquadric tmpB( sB[0], sB[1], sB[2], cn1B, cn2B );
+
+            bool step_fail = false;
+            double pre_estimation[3];
+            for ( int k = 0; k < 3; k++ )
+                pre_estimation[k] = contact_point[k];
+
+            if ( i == 0 )
             {
-                calc_contact_point( sqA, transformA, sqB, transformB,
-                                    ratio, contact_point,
-                                    contact_point, gradA, gradB,
-                                    &fA, &fB, &fail );
+                // First step: midpoint is already set above
             }
-            else
-            {
-                // Temporary superquadrics with interpolated exponents
-                Superquadric tmpA( sqA->getA(), sqA->getB(), sqA->getC(),
-                                   cn1A, cn2A );
-                Superquadric tmpB( sqB->getA(), sqB->getB(), sqB->getC(),
-                                   cn1B, cn2B );
 
-                bool step_fail = false;
-                calc_contact_point( &tmpA, transformA, &tmpB, transformB,
-                                    ratio, contact_point,
-                                    contact_point, gradA, gradB,
-                                    &fA, &fB, &step_fail );
-                // Intermediate failures are tolerable — the approximate
-                // solution still provides a better initial guess than the
-                // midpoint for the next step.
-            }
+            calc_contact_point( &tmpA, transformA, &tmpB, transformB,
+                                ratio, pre_estimation,
+                                contact_point, gradA, gradB,
+                                &fA, &fB, &step_fail );
+            // Intermediate failures are tolerable; the approximate
+            // solution still seeds the next step.
+        }
+
+        // Final evaluation with actual particles (exact shape/blockiness)
+        {
+            double pre[3];
+            for ( int k = 0; k < 3; k++ ) pre[k] = contact_point[k];
+            calc_contact_point( sqA, transformA, sqB, transformB,
+                                ratio, pre,
+                                contact_point, gradA, gradB,
+                                &fA, &fB, &fail );
         }
     }
 
-    // Update the previous contact point for warm-starting next timestep
-    if ( prevContactPt != nullptr && !fail )
+    // Store converged contact point for next timestep warm-start.
+    // Only store when contact is real (both fA,fB < 0) so that a
+    // no-contact result does not corrupt the warm-start.
+    // Contact point from Newton solver satisfies fA≈fB≈0 (on the shared
+    // surface), so use a generous threshold rather than strict < 0.
+    if ( prevContactPt != nullptr && !fail
+         && fA <= 0.1 && fB <= 0.1
+         && !std::isnan( contact_point[0] )
+         && !std::isnan( contact_point[1] )
+         && !std::isnan( contact_point[2] ) )
     {
         prevContactPt[0] = contact_point[0];
         prevContactPt[1] = contact_point[1];
         prevContactPt[2] = contact_point[2];
     }
 
-    // If the solver failed to converge, check if result is still usable.
-    // A "soft failure" (gradients roughly anti-parallel, fA ≈ fB) is better
-    // than missing the contact entirely, which causes deep penetration and
-    // eventual blow-up when contact is finally detected.
-    if ( fail )
-    {
-        double gAn2 = gradA[0]*gradA[0] + gradA[1]*gradA[1] + gradA[2]*gradA[2];
-        double gBn2 = gradB[0]*gradB[0] + gradB[1]*gradB[1] + gradB[2]*gradB[2];
-        double gdot = gradA[0]*gradB[0] + gradA[1]*gradB[1] + gradA[2]*gradB[2];
-        double cosAngle = gdot / ( std::sqrt( gAn2 * gBn2 ) + SQ_EPS );
-        // Accept if gradients are roughly anti-parallel (< ~25 deg error)
-        // and fA is reasonably close to fB
-        bool usable = ( cosAngle < -0.9 )
-                   && ( std::abs( fA - fB ) < 0.5 * std::max( std::abs(fA),
-                        std::abs(fB) ) + SQ_EPS );
-        if ( !usable )
-            return PointNoContact;
-    }
-
-    // No overlap if the contact point is outside both surfaces (fA >= 0)
-    // At convergence fA ~ fB, so checking one suffices
-    if ( fA >= 0.0 )
+    // Bail out only on NaN results — prevents crashes from
+    // propagating garbage into the force computation.
+    // Do NOT bail on the generic 'fail' flag: an approximate contact
+    // point is far better than missing the contact entirely.
+    if ( std::isnan( fA ) || std::isnan( fB )
+         || std::isnan( contact_point[0] )
+         || std::isnan( contact_point[1] )
+         || std::isnan( contact_point[2] ) )
         return PointNoContact;
 
-    // ----------------------------------------------------------------
-    // Step 2: Compute overlap
-    //
-    // Contact normal: en = normalize( gradB - gradA )
-    // Then find ray-surface intersections along en to get surface points
-    // and overlap distance.
-    // ----------------------------------------------------------------
+    // No overlap if the contact point is outside both surfaces
+    if ( std::max( fA, fB ) >= 0.0 )
+        return PointNoContact;
 
-    // Compute contact normal: en = normalize( gradB - gradA )
+    // ------------------------------------------------------------------
+    // Compute overlap
+    // Contact normal: en = normalize( gradB - gradA )
+    // Shoot rays from contact_point along ±en to find surface points
+    // ------------------------------------------------------------------
     double en_raw[3] = { gradB[0] - gradA[0],
                          gradB[1] - gradA[1],
                          gradB[2] - gradA[2] };
@@ -1109,36 +1209,47 @@ PointContact detectSuperquadricContact(
         { en[0] = 1.0; en[1] = 0.0; en[2] = 0.0; }
     }
 
-    // Shoot ray from contact_point in direction -en to find surface of A
+    // Ray from contact_point in direction -en -> surface of A
     double neg_en[3] = { -en[0], -en[1], -en[2] };
     double surfA[3];
     double alphaA = surfaceLineIntersection( sqA, transformA,
                                              contact_point, neg_en,
                                              0.0, surfA );
 
-    // Shoot ray from contact_point in direction +en to find surface of B
+    // Ray from contact_point in direction +en -> surface of B
     double surfB[3];
     double alphaB = surfaceLineIntersection( sqB, transformB,
                                              contact_point, en,
                                              0.0, surfB );
 
-    // Overlap distance and vector
+    // Guard against diverged ray intersections (NaN or unphysically
+    // large alpha values that occur when the ray is tangent to a flat
+    // face).  Physical maximum overlap cannot exceed ri + rj.
+    if ( std::isnan( alphaA ) || std::isnan( alphaB )
+         || std::isinf( alphaA ) || std::isinf( alphaB ) )
+        return PointNoContact;
+
     double deltan = std::abs( alphaA ) + std::abs( alphaB );
-    double delta[3] = { surfB[0] - surfA[0],
-                        surfB[1] - surfA[1],
-                        surfB[2] - surfA[2] };
+    // Cap at 4*(ri+rj): the volumetric radii underestimate extent for
+    // non-spherical shapes, so use a generous factor while still
+    // catching clearly diverged ray intersections.
+    if ( deltan > 4.0 * ( ri + rj ) )
+        return PointNoContact;
+
+    double delta_vec[3] = { surfB[0] - surfA[0],
+                            surfB[1] - surfA[1],
+                            surfB[2] - surfA[2] };
 
     Point3 ptA( surfA[0], surfA[1], surfA[2] );
     Point3 ptB( surfB[0], surfB[1], surfB[2] );
-    // Use midpoint of the two surface points as contact point for force
-    // application, consistent with GJK convention. This is more stable than
-    // the Newton solver's internal point (which is deep inside both particles)
-    // and gives correct torque arms.
-    Point3 contactPt( ( surfA[0] + surfB[0] ) * 0.5,
-                      ( surfA[1] + surfB[1] ) * 0.5,
-                      ( surfA[2] + surfB[2] ) * 0.5 );
+
+    // Contact point for force application: use the Newton solver's
+    // contact point
+    Point3 contactPt( contact_point[0], contact_point[1], contact_point[2] );
+
+    // overlapDistance is negative (penetration convention)
     double overlapDistance = -deltan;
-    Vector3 overlapVector( delta[0], delta[1], delta[2] );
+    Vector3 overlapVector( delta_vec[0], delta_vec[1], delta_vec[2] );
 
     return PointContact( contactPt, ptA, ptB, overlapVector, overlapDistance, 0 );
 }
