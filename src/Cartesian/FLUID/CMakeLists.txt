@@ -134,47 +134,47 @@ target_link_libraries(fluid
 # ================================================================================
 
 include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
+# include(CMakePackageConfigHelpers)
 
 # ---- 1. Install the shared library ------------------------------------------------
 install(TARGETS fluid
-  EXPORT FLUIDTargets
+  # EXPORT FLUIDTargets
   RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}
   COMPONENT FLUID_Runtime
 )
 
 # ---- 4. Generate CMake package configuration --------------------------------------
-set(FLUID_INSTALL_CMAKEDIR ${PACIFIC_MPI_INSTALL_LIBDIR}/cmake/FLUID)
+# set(FLUID_INSTALL_CMAKEDIR ${PACIFIC_MPI_INSTALL_LIBDIR}/cmake/FLUID)
 
-configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FLUIDConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfig.cmake
-  INSTALL_DESTINATION ${FLUID_INSTALL_CMAKEDIR}
-)
+# configure_package_config_file(
+#   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FLUIDConfig.cmake.in
+#   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfig.cmake
+#   INSTALL_DESTINATION ${FLUID_INSTALL_CMAKEDIR}
+# )
 
-write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfigVersion.cmake
-  VERSION ${PROJECT_VERSION}
-  COMPATIBILITY SameMajorVersion
-)
+# write_basic_package_version_file(
+#   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfigVersion.cmake
+#   VERSION ${PROJECT_VERSION}
+#   COMPATIBILITY SameMajorVersion
+# )
 
 # ---- 5. Install the package + targets ---------------------------------------------
-install(EXPORT FLUIDTargets
-  FILE FLUIDTargets.cmake
-  NAMESPACE PacIFiC::
-  DESTINATION ${FLUID_INSTALL_CMAKEDIR}
-  COMPONENT FLUID_Devel
-)
+# install(EXPORT FLUIDTargets
+#   FILE FLUIDTargets.cmake
+#   NAMESPACE PacIFiC::
+#   DESTINATION ${FLUID_INSTALL_CMAKEDIR}
+#   COMPONENT FLUID_Devel
+# )
 
-install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfig.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfigVersion.cmake
-  DESTINATION ${FLUID_INSTALL_CMAKEDIR}
-  COMPONENT FLUID_Devel
-)
+# install(FILES
+#   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfig.cmake
+#   ${CMAKE_CURRENT_BINARY_DIR}/FLUIDConfigVersion.cmake
+#   DESTINATION ${FLUID_INSTALL_CMAKEDIR}
+#   COMPONENT FLUID_Devel
+# )
 
 # ---- 6. Export from the build tree for development -------------------------------
-export(EXPORT FLUIDTargets
-  FILE ${CMAKE_CURRENT_BINARY_DIR}/FLUIDTargets.cmake
-  NAMESPACE PacIFiC::
-)
+# export(EXPORT FLUIDTargets
+#   FILE ${CMAKE_CURRENT_BINARY_DIR}/FLUIDTargets.cmake
+#   NAMESPACE PacIFiC::
+# )
