@@ -42,6 +42,10 @@ ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_ZLIB_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-zlib
 endif
 
+ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_PETSC_USE_THIRDPARTY)),)
+SRC_THIRDPARTY_DEPS += third_party-petsc
+endif
+
 .PHONY: all docs docs-develop
 
 all: src
