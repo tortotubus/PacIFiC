@@ -13,10 +13,10 @@
 #include <sstream>
 #include <iostream>
 
-#if( ! ( PETSC_VERSION_MAJOR    == 3 && \
-         PETSC_VERSION_MINOR    == 24 ))
- "Bad version of PETSC ( Version 3.24.* should be used )" ;
-#endif
+// #if( ! ( PETSC_VERSION_MAJOR    == 3 && \
+//          PETSC_VERSION_MINOR    == 24 ))
+//  "Bad version of PETSC ( Version 3.24.* should be used )" ;
+// #endif
 
 EXT_PETScAPI* EXT_PETScAPI:: SINGLETON = new EXT_PETScAPI() ;
 MAC_Timer* EXT_PETScAPI:: timer = 0 ;

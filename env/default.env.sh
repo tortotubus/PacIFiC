@@ -18,6 +18,8 @@ fi
 
 export PACIFIC_MPI_DISTRIB="OpenMPI"
 
+export PACIFIC_MPI_EXEC=$(which mpiexec)
+
 export PACIFIC_MPICC=$(which mpicc)
 export PACIFIC_MPICC_CFLAGS=$(pkg-config --cflags ompi-c)
 export PACIFIC_MPICC_LFLAGS=$(pkg-config --libs ompi-c)
@@ -27,6 +29,7 @@ export PACIFIC_MPICXX=$(which mpicxx)
 export PACIFIC_MPICXX_CFLAGS=$(pkg-config --cflags ompi-cxx)
 export PACIFIC_MPICXX_LFLAGS=$(pkg-config --libs ompi-cxx)
 export PACIFIC_MPICXX_VER=$(pkg-config --modversion ompi-cxx)
+
 
 #
 # Pacific Directories
@@ -49,6 +52,12 @@ export PACIFIC_THIRDPARTY_INSTALLDIR_ABS="${PACIFIC_INSTALLDIR_ABS}"
 
 # Export Grains binary path
 export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains/bin"
+
+#
+# MAC
+#
+
+export MAC_LEVEL=0
 
 #
 # XERCESC
@@ -125,9 +134,9 @@ fi
 # PETSc
 #
 
-export PACIFIC_PETSC_USE_THIRDPARTY=0
+export PACIFIC_PETSC_USE_THIRDPARTY=1
 
-if [ $PACIFIC_BASILISK_USE_THIRDPARTY = 0 ]
+if [ $PACIFIC_PETSC_USE_THIRDPARTY = 0 ]
 then
 export PACIFIC_PETSC_CFLAGS=$(pkg-config --cflags petsc)
 export PACIFIC_PETSC_LFLAGS=$(pkg-config --libs petsc)
@@ -135,7 +144,7 @@ export PACIFIC_PETSC_PREFIX=$(pkg-config --variable=prefix petsc)
 export PACIFIC_PETSC_VER=$(pkg-config --modversion petsc)
 else
 export PACIFIC_PETSC_CFLAGS="-I${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}/include"
-export PACIFIC_PETSC_LFLAGS="-L${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}/lib64 -lz-ng"
+export PACIFIC_PETSC_LFLAGS="-L${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}/lib -lpetsc"
 export PACIFIC_PETSC_PREFIX="${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}"
 export PACIFIC_PETSC_VER="3.24.3"
 fi
@@ -203,6 +212,10 @@ echo -e ""
 echo -e "${C_CYAN}${C_BOLD}CXX${C_RESET}"
 echo -e "${C_CYAN}PACIFIC_CXX    ${C_RESET} = ${PACIFIC_CXX}"
 echo -e "${C_CYAN}PACIFIC_CXX_VER${C_RESET} = ${PACIFIC_CXX_VER}"
+echo -e ""
+echo -e "${C_CYAN}${C_BOLD}MPI${C_RESET}"
+echo -e "${C_CYAN}PACIFIC_MPI_DISTRIB${C_RESET} = ${PACIFIC_MPI_DISTRIB}"
+echo -e "${C_CYAN}PACIFIC_MPI_EXEC${C_RESET}    = ${PACIFIC_MPI_EXEC}"
 echo -e ""
 echo -e "${C_CYAN}${C_BOLD}MPICC${C_RESET}"
 echo -e "${C_CYAN}PACIFIC_MPICC       ${C_RESET} = ${PACIFIC_MPICC}"
