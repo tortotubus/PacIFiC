@@ -122,7 +122,6 @@ DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component Octree_Deve
 
 %files openmpi-devel
 %{_includedir}/openmpi-x86_64/Grains
-%{_includedir}/openmpi-x86_64/FLUID
 %{_includedir}/openmpi-x86_64/MAC
 
 %changelog
