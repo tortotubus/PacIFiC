@@ -6,13 +6,13 @@ MKDIR := mkdir
 CMAKE := cmake 
 CP := cp
 LN := ln
-CC := gcc
- 
+CC := gcc 
+
 PACIFIC_THIRDPARTY_MAKE = $(MAKE) -C third_party \
   PACIFIC_ROOT_ABS="$(PACIFIC_ROOT_ABS)" \
   PACIFIC_THIRDPARTY_BUILDDIR_ABS=${PACIFIC_THIRDPARTY_BUILDDIR_ABS} \
   PACIFIC_THIRDPARTY_INSTALLDIR_ABS=${PACIFIC_THIRDPARTY_INSTALLDIR_ABS} \
-  MKDIR="$(MKDIR)" CP="$(CP)" LN="$(LN)" GIT="$(GIT)" CMAKE="$(CMAKE)"
+  MKDIR="$(MKDIR)" CP="$(CP)" LN="$(LN)" GIT="$(GIT)" CMAKE="$(CMAKE)"  
 
 PACIFIC_SRC_MAKE = $(MAKE) -C $(PACIFIC_SRCDIR_ABS) \
   PACIFIC_ROOT_ABS="$(PACIFIC_ROOT_ABS)" \
@@ -111,6 +111,9 @@ third_party-zlib: builddir submodules
 
 third_party-xercesc: builddir submodules
 	$(PACIFIC_THIRDPARTY_MAKE) third_party-xercesc
+
+third_party-petsc: builddir submodules
+	$(PACIFIC_THIRDPARTY_MAKE) third_party-petsc
 
 clean:
 	$(PACIFIC_SRC_MAKE) clean

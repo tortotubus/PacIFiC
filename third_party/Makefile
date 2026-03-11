@@ -109,3 +109,34 @@ third_party-xercesc-build: third_party-xercesc-configure
 
 third_party-xercesc-install: third_party-xercesc-build third_party-installdir
 	@$(CMAKE) --install "$(PACIFIC_SUBMODULE_XERCESC_BINDIR)"
+
+# =============================================================================
+# PETSc
+# =============================================================================
+
+PACIFIC_SUBMODULE_PETSC := $(PACIFIC_THIRDPARTY_DIR)/petsc/petsc_submodule
+PACIFIC_SUBMODULE_PETSC_BINDIR := $(PACIFIC_THIRDPARTY_BUILDDIR_ABS)/petsc
+PACIFIC_SUBMODULE_PETSC_INSTALLDIR := $(PACIFIC_THIRDPARTY_INSTALLDIR_ABS)
+
+PACIFIC_SUBMODULE_PETSC_ARCH := linux-gnu-opt
+PACIFIC_SUBMODULE_PETSC_DIR := $(PACIFIC_SUBMODULE_PETSC)
+PACIFIC_SUBMODULE_PETSC_CONFIGURE_ARGS := \
+	--prefix=$(PACIFIC_SUBMODULE_PETSC_INSTALLDIR) \
+	--with-cc=$(PACIFIC_MPICC) \
+	--with-cxx=$(PACIFIC_MPICXX) \
+	--with-fc=0
+
+third_party-petsc: third_party-petsc-install
+
+third_party-petsc-configure: third_party-builddir third_party-installdir
+	@cd "$(PACIFIC_SUBMODULE_PETSC_DIR)" && \
+	PETSC_DIR="$(PACIFIC_SUBMODULE_PETSC_DIR)" \
+	./configure $(PACIFIC_SUBMODULE_PETSC_CONFIGURE_ARGS)
+
+third_party-petsc-build: third_party-petsc-configure
+	@$(MAKE) -C "$(PACIFIC_SUBMODULE_PETSC_DIR)" \
+		PETSC_DIR="$(PACIFIC_SUBMODULE_PETSC_DIR)" all
+
+third_party-petsc-install: third_party-petsc-build
+	@$(MAKE) -C "$(PACIFIC_SUBMODULE_PETSC_DIR)" \
+		PETSC_DIR="$(PACIFIC_SUBMODULE_PETSC_DIR)" install
