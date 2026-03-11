@@ -16,6 +16,7 @@ BuildRequires:  cmake-rpm-macros
 
 BuildRequires:  openmpi-devel
 BuildRequires:  hdf5-openmpi-devel
+BuildRequires:  petsc-openmpi-devel
 
 BuildRequires:  cmake >= 3.20
 BuildRequires:  gcc-c++
@@ -46,6 +47,7 @@ Requires:       openmpi
 Requires:       hdf5-openmpi
 Requires:       xerces-c
 Requires:       zlib
+Requires:       petsc-openmpi
 Requires:       pacific-basilisk
 
 %description openmpi
@@ -59,6 +61,7 @@ Requires:       openmpi-devel
 Requires:       hdf5-openmpi-devel
 Requires:       xerces-c-devel
 Requires:       zlib-devel
+Requires:       petsc-openmpi-devel
 
 %description openmpi-devel
 Headers and CMake package files for developing against PacIFiC built with OpenMPI.
@@ -114,8 +117,7 @@ DESTDIR=%{buildroot} cmake --install %{__cmake_builddir} --component Octree_Deve
 %files openmpi
 %{_libdir}/openmpi/bin/*
 %{_libdir}/openmpi/lib/*.so*
-%{_libdir}/openmpi/lib/cmake/Grains
-%{_libdir}/openmpi/lib/cmake/FLUID
+%{_libdir}/openmpi/lib/cmake/Grains 
 %{_libdir}/openmpi/lib/cmake/MAC
 
 %files openmpi-devel
