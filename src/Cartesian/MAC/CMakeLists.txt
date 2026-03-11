@@ -218,17 +218,29 @@ list(APPEND MAC_SOURCES
   LinearAlgebra/src/LA_Vector.cc
 )
  
-# list(APPEND MAC_SOURCES
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScAPI.cc
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScImplementation.cc
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScMatrix.cc
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScScatter.cc
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScSolver.cc
-#   ExternalAPI/PETSc_3.23.4/src/EXT_PETScVector.cc
-# )
+list(APPEND MAC_SOURCES
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScAPI.cc
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScImplementation.cc
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScMatrix.cc
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScScatter.cc
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScSolver.cc
+  ExternalAPI/PETSc_3.24.3/src/EXT_PETScVector.cc
+)
 
 add_library(MAC SHARED ${MAC_SOURCES})
 add_library(PacIFiC::MAC ALIAS MAC)
+
+if(BUILD_THIRD_PARTY_PETSC)
+else()
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(PETSC REQUIRED PETSc)
+
+  target_include_directories(MAC PRIVATE ${PETSC_INCLUDE_DIRS})
+  target_link_directories(MAC PRIVATE ${PETSC_LIBRARY_DIRS})
+  target_link_libraries(MAC PRIVATE ${PETSC_LIBRARIES})
+  target_compile_options(MAC PRIVATE ${PETSC_CFLAGS_OTHER})
+endif()
+
 
 set_target_properties(MAC
   PROPERTIES
@@ -236,6 +248,19 @@ set_target_properties(MAC
   SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
+set(MAC_LEVEL 0 CACHE STRING "Compile definition value for LEVEL in MAC")
+set_property(CACHE MAC_LEVEL PROPERTY STRINGS "0" "1" "2")
+
+target_compile_definitions(MAC
+  PRIVATE
+    LEVEL=${MAC_LEVEL}
+)
+
+
+target_compile_definitions(MAC
+  PRIVATE
+    LEVEL=${MAC_LEVEL}
+)
 
 target_link_libraries(MAC 
   PUBLIC
@@ -252,6 +277,7 @@ target_include_directories(MAC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Base/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/FiniteVolume/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/LinearAlgebra/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ExternalAPI/PETSc_3.24.3/include>
 
     # Install tree include dir (must NOT be in the source tree)
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/MAC>
