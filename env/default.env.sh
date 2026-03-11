@@ -18,7 +18,7 @@ fi
 
 export PACIFIC_MPI_DISTRIB="OpenMPI"
 
-export PACIFIC_MPI_EXEC=$(which mpiexec)
+export PACIFIC_MPIEXEC=$(which mpiexec)
 
 export PACIFIC_MPICC=$(which mpicc)
 export PACIFIC_MPICC_CFLAGS=$(pkg-config --cflags ompi-c)
@@ -52,6 +52,7 @@ export PACIFIC_THIRDPARTY_INSTALLDIR_ABS="${PACIFIC_INSTALLDIR_ABS}"
 
 # Export Grains binary path
 export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains/bin"
+export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/FLUID/bin"
 
 #
 # MAC
@@ -134,7 +135,7 @@ fi
 # PETSc
 #
 
-export PACIFIC_PETSC_USE_THIRDPARTY=1
+export PACIFIC_PETSC_USE_THIRDPARTY=0
 
 if [ $PACIFIC_PETSC_USE_THIRDPARTY = 0 ]
 then
@@ -215,7 +216,7 @@ echo -e "${C_CYAN}PACIFIC_CXX_VER${C_RESET} = ${PACIFIC_CXX_VER}"
 echo -e ""
 echo -e "${C_CYAN}${C_BOLD}MPI${C_RESET}"
 echo -e "${C_CYAN}PACIFIC_MPI_DISTRIB${C_RESET} = ${PACIFIC_MPI_DISTRIB}"
-echo -e "${C_CYAN}PACIFIC_MPI_EXEC${C_RESET}    = ${PACIFIC_MPI_EXEC}"
+echo -e "${C_CYAN}PACIFIC_MPIEXEC${C_RESET}    = ${PACIFIC_MPIEXEC}"
 echo -e ""
 echo -e "${C_CYAN}${C_BOLD}MPICC${C_RESET}"
 echo -e "${C_CYAN}PACIFIC_MPICC       ${C_RESET} = ${PACIFIC_MPICC}"

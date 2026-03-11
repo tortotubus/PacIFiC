@@ -17,31 +17,37 @@ SRCDIRARRV := ArrayVector/src
 INCDIRARRV := ArrayVector/include
 INCDIRS += $(INCDIRARRV)
 ALLINC += $(wildcard $(INCDIRARRV)/*.hh)
+ALLINC += $(wildcard $(INCDIRARRV)/*.icc)
 
 SRCDIRBASE := Base/src
 INCDIRBASE := Base/include
 INCDIRS += $(INCDIRBASE)
 ALLINC += $(wildcard $(INCDIRBASE)/*.hh)
+ALLINC += $(wildcard $(INCDIRBASE)/*.icc)
 
 SRCDIRMPI := ExternalAPI/MPI/src
 INCDIRMPI := ExternalAPI/MPI/include
 INCDIRS += $(INCDIRMPI)
 ALLINC += $(wildcard $(INCDIRMPI)/*.hh)
+ALLINC += $(wildcard $(INCDIRMPI)/*.icc)
 
 SRCDIRPETSC := ExternalAPI/PETSc_3.24.3/src
 INCDIRPETSC := ExternalAPI/PETSc_3.24.3/include
 INCDIRS += $(INCDIRPETSC)
 ALLINC += $(wildcard $(INCDIRPETSC)/*.hh)
+ALLINC += $(wildcard $(INCDIRPETSC)/*.icc)
 
 SRCDIRFV := FiniteVolume/src
 INCDIRFV := FiniteVolume/include
 INCDIRS += $(INCDIRFV)
 ALLINC += $(wildcard $(INCDIRFV)/*.hh)
+ALLINC += $(wildcard $(INCDIRFV)/*.icc)
 
 SRCDIRLA := LinearAlgebra/src
 INCDIRLA := LinearAlgebra/include
 INCDIRS += $(INCDIRLA)
 ALLINC += $(wildcard $(INCDIRLA)/*.hh)
+ALLINC += $(wildcard $(INCDIRLA)/*.icc)
 
 # Source files per package
 # _WP_ means "with path"
@@ -148,5 +154,6 @@ CPINC  : $(INCDIR)
 clean:
 	rm -rf $(OBJDIR)/*.o \
 	rm -f $(LIBSO_WP) \
-	rm -rf $(INCDIR)/*.hh	
+	rm -rf $(INCDIR)/*.hh \
+	rm -rf $(INCDIR)/*.icc
  
