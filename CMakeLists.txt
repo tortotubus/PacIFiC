@@ -181,4 +181,26 @@ add_subdirectory(src)
 #
 # ================================================================================
 
-add_subdirectory(docs)
+option(PACIFIC_DOCS "Enable docs" OFF)
+
+if(PACIFIC_DOCS)
+  add_subdirectory(docs)
+endif()
+
+# ================================================================================
+#
+# Environment File
+#
+# ================================================================================
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(PacificEnv)
+
+pacific_generate_dev_env_script(
+  OUTPUT  "${CMAKE_BINARY_DIR}/pacific-env.sh"
+  TARGETS Grains_main fluid qcc
+  # EXTRA_LIB_DIRS "${CMAKE_BINARY_DIR}/src/Grains3D/Grains"
+)
+
+message(STATUS "Environment Script: ${CMAKE_BINARY_DIR}/pacific-env.sh")
+ 

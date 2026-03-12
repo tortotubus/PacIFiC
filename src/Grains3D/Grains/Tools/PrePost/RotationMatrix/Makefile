@@ -1,23 +1,16 @@
 # Compilation & linking flags
-CXX = $(PACIFIC_MPICXX)
+CXX = $(PACIFIC_CXX)
 CC = $(PACIFIC_MPICC)
 
-CPPFLAGS += -I$(LIBGRAINS_INCDIR)
-CPPFLAGS += $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_ZLIB_CFLAGS)
-
 CXXFLAGS += -O3 -g -MMD -MP
+CPPFLAGS = -I$(LIBGRAINS_INCDIR)
 
 LDFLAGS += -L$(LIBGRAINS_LIBDIR) -Wl,-rpath,$(LIBGRAINS_LIBDIR)
 LDLIBS += -lGrains
-LDLIBS += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_ZLIB_LFLAGS)
 
-
-# Target directories
-LIBGRAINS_SO := $(LIBGRAINS_LIBDIR)/libGrains.so
-
-TARGET := $(MAIN_BINDIR)/grains
-SRC := src/main.cpp
-OBJ := $(LIBGRAINS_OBJDIR)/main.o
+TARGET := $(MAIN_BINDIR)/rotationmatrix
+SRC := src/PP_rotationmatrix.cpp
+OBJ := $(LIBGRAINS_OBJDIR)/PP_rotationmatrix.o
 DEP := $(OBJ:.o=.d)
 
 
@@ -33,11 +26,9 @@ $(MAIN_BINDIR):
 $(OBJ): $(SRC) | $(MAIN_BINDIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJ) $(LIBGRAINS_SO)
+$(TARGET): $(OBJ)
 	$(CXX) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
-	@echo -e '-----------------------\n''Software grains built !\n''-----------------------'
 
 clean:
 	rm -f $(OBJ) $(DEP) $(TARGET)
 
--include $(DEP)
