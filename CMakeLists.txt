@@ -110,11 +110,27 @@ set(CMAKE_CXX_FLAGS_RELWITHWARNINGS "${CMAKE_CXX_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_RELWITHWARNINGS  "${CMAKE_C_FLAGS_RELEASE}")
 
 set(_WARN_FLAGS
-  "-Werror=return-type -Werror=format-security -Werror=format=2 \
-   -Werror=nonnull -Werror=array-bounds -Werror=stringop-overflow \
+  "-Werror=return-type \
+   -Werror=format-security \
+   -Werror=format=2 \
+   -Werror=nonnull \
+   -Werror=array-bounds \
+   -Werror=stringop-overflow \
    -Werror=stringop-truncation \
    -Werror=alloc-size-larger-than=9223372036854775807 \
-   -Werror=address -Werror=maybe-uninitialized"
+   -Werror=address \
+   -Werror=maybe-uninitialized \
+   -Werror=mismatched-new-delete \
+   -Werror=overloaded-virtual \
+   -Wunused-but-set-variable \
+   -Wunused-variable \
+   -Wparentheses \
+   -Wcomment \
+   -Wsign-compare \
+   -Wunused-function \
+   -Wdangling-else \
+   -Wmisleading-indentation \
+   -Wreorder"
 )
 
 set(_SANITIZER_FLAGS "-fsanitize=address,undefined -fno-omit-frame-pointer")
