@@ -85,13 +85,13 @@ install(DIRECTORY
 )
 
 # ---- 3. Install data/config files --------------------------------
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains3D/Dtd/
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Dtd/
   DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains3D/Dtd
   COMPONENT Grains_Data
   FILES_MATCHING PATTERN "*.dtd"
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains3D/Tools/
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Grains/Tools/
   DESTINATION ${CMAKE_INSTALL_DATADIR}/Grains3D/Tools
   COMPONENT Grains_Data
   FILES_MATCHING PATTERN "*.exec"
