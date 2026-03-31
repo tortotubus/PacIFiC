@@ -1,5 +1,5 @@
 // #include <mpi.h>
-#include "MPI.h"
+#include "MPI.hh"
 
 #include <computingtime.hh>
 
