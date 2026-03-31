@@ -1,7 +1,9 @@
 #ifndef _MPINEIGHBORS_HH_
 #define _MPINEIGHBORS_HH_
 
-#include <mpi.h>
+// #include <mpi.h>
+#include "MPI.h"
+
 #include <Cell.hh>
 #include <vector>
 #include <iostream>
