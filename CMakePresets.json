@@ -26,16 +26,13 @@
       "description": "Release buuild for Fir with specific compiler and flags.",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/fir_release",
-      "environment": {
-      	"CC": "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcc12/openmpi/4.1.5/bin/mpicc",
-        "CXX": "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcc12/openmpi/4.1.5/bin/mpic++"
-      },
       "cacheVariables": {
       	"CMAKE_INSTALL_PREFIX": "${sourceDir}/install/fir_release",
-        "BUILD_THIRD_PARTY_HDF5": "OFF",
-        "BUILD_THIRD_PARTY_XERCESC": "ON",
+        "USE_SUBMODULES": "OFF",
+	"BUILD_THIRD_PARTY_HDF5": "OFF",
+        "BUILD_THIRD_PARTY_XERCESC": "OFF",
         "BUILD_THIRD_PARTY_ZLIB": "OFF",
-        "OCTREE_BASILISK_PROVIDER": "SYSTEM"
+        "OCTREE_BASILISK_PROVIDER": "GIT"
       }
     },
     {
