@@ -2,7 +2,7 @@
 #define _GRAINS_HH_
  
 // #include <mpi.h>
-#include "MPI.h"
+#include "MPI.hh"
 
 #include "GrainsMPIWrapper.hh"
 #include "GrainsExec.hh"
