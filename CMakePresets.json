@@ -28,9 +28,10 @@
       "binaryDir": "${sourceDir}/build/fir_release",
       "cacheVariables": {
       	"CMAKE_INSTALL_PREFIX": "${sourceDir}/install/fir_release",
+        "CMAKE_INSTALL_RPATH": "${sourceDir}/install/fir_release/lib64",
         "USE_SUBMODULES": "ON",
         "OCTREE_BASILISK_PROVIDER": "VENDORED",
-	      "BUILD_THIRD_PARTY_HDF5": "OFF",
+        "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "OFF",
         "BUILD_THIRD_PARTY_ZLIB": "OFF"
       }
@@ -65,7 +66,7 @@
       "binaryDir": "${sourceDir}/build/sockeye_release",
       "environment": {
       	"CC":"/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/x86_64-pc-linux-gnu/gcc-bin/12/gcc",
-	      "CXX":"/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/x86_64-pc-linux-gnu/gcc-bin/12/g++"
+        "CXX":"/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/x86_64-pc-linux-gnu/gcc-bin/12/g++"
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -73,7 +74,7 @@
         "CMAKE_BUILD_RPATH": "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib64:/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/gcc/x86_64-pc-linux-gnu/12/",
         "CMAKE_INSTALL_RPATH": "/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib64:/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/lib/gcc/x86_64-pc-linux-gnu/12/",
         "CMAKE_SKIP_INSTALL_RPATH": "FALSE",
-	      "USE_SUBMODULES": "ON",
+        "USE_SUBMODULES": "ON",
         "OCTREE_BASILISK_PROVIDER": "VENDORED",
         "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "OFF",
