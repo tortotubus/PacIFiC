@@ -1,5 +1,4 @@
-// #include <mpi.h>
-#include <PAC_MPI.hh>
+#include <mpi.h>
 #include <PAC_computingtime.hh>
 
 
