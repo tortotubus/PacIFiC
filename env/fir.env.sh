@@ -274,11 +274,3 @@ echo -e "${C_GREEN}PACIFIC_BASILISK_USE_THIRDPARTY${C_RESET} = ${PACIFIC_BASILIS
 echo -e "${C_GREEN}PACIFIC_BASILISK_QCC${C_RESET} = ${PACIFIC_BASILISK_QCC}"
 echo -e ""
 
-
-# For Anna
-#export PACIFIC_HOME=/home/amucalic/pacific/src
-#export OCTREE_HOME="${PACIFIC_SRCDIR_ABS}/Octree"
-#export OCTREE_HOME="~/pacific-caps/Octree"
-#export BASILISK="${PACIFIC_BUILDDIR_ABS}/third_party/include/basilisk"
-# Basilisk
-                                                              
