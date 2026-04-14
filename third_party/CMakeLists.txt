@@ -18,6 +18,13 @@ if (BUILD_THIRD_PARTY_XERCESC)
     add_subdirectory(xercesc)
 endif()
 
+
+option(BUILD_THIRD_PARTY_GTEST "Build Google Test" OFF)
+if (BUILD_THIRD_PARTY_GTEST)
+    set(GTEST_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "Install prefix for GTest")
+    add_subdirectory(gtest)
+endif()
+
 option(BUILD_THIRD_PARTY_PETSC "Build PETSc" OFF)
 if(BUILD_THIRD_PARTY_PETSC)
 endif()

@@ -117,8 +117,8 @@ help:
 
 # submodules:
 
-submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc 
-submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean
+submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc submodule-gtest
+submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean submodule-gtest-clean
 
 submodule-basilisk: 
 	@$(GIT) submodule update --init --checkout third_party/basilisk/basilisk_submodule
@@ -145,6 +145,11 @@ submodule-petsc:
 submodule-petsc-clean:
 	@$(GIT) submodule deinit -f -- third_party/petsc/petsc_submodule 
 
+submodule-gtest: 
+	@$(GIT) submodule update --init third_party/gtest/gtest_submodule
+submodule-gtest-clean:
+	@$(GIT) submodule deinit -f -- third_party/gtest/gtest_submodule 
+
 
 # thirdparty
 
@@ -168,6 +173,9 @@ third_party-xercesc: builddir submodule-xercesc
 
 third_party-petsc: builddir submodule-petsc
 	$(PACIFIC_THIRDPARTY_MAKE) third_party-petsc
+
+third_party-gtest: builddir submodule-gtest
+	$(PACIFIC_THIRDPARTY_MAKE) third_party-gtest
 
 clean: submodule-clean
 	$(PACIFIC_SRC_MAKE) clean
