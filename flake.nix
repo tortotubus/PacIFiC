@@ -35,22 +35,34 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [ self.overlays.default ];
+            config.allowUnfree = true;
           };
+          cudaToolkit =
+            if pkgs.stdenv.isLinux
+            && pkgs ? cudaPackages
+            && pkgs.cudaPackages ? cudatoolkit
+            then pkgs.cudaPackages.cudatoolkit
+            else null;
         in
         {
           default = pkgs.mkShell {
             inputsFrom = [ pkgs.pacific ];
-            packages = with pkgs; [
-              petsc
-              hypre
-              gdb
-              doxygen
-              python313Packages.mkdocs
-              apptainer
-            ];
+            packages =
+              (with pkgs; [
+                petsc
+                hypre
+                gdb
+                doxygen
+                python313Packages.mkdocs
+                apptainer
+              ])
+              ++ pkgs.lib.optionals (cudaToolkit != null) [ cudaToolkit ];
             shellHook = ''
               export PETSC_DIR="${pkgs.petsc}"
               export HYPRE_DIR="${pkgs.hypre}"
+            '' + pkgs.lib.optionalString (cudaToolkit != null) ''
+              export CUDA_PATH="${cudaToolkit}"
+              export CUDA_HOME="${cudaToolkit}"
             '';
           };
         });
