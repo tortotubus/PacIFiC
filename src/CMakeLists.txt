@@ -7,10 +7,10 @@ add_subdirectory(Grains3D)
 
 
 #
-# Add Grains3D_GPU
+# Add Grains3DGPU
 #
 
-add_subdirectory(Grains3D_GPU)
+add_subdirectory(Grains3DGPU)
 
 #
 # Add Cartesian 

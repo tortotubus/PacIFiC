@@ -30,6 +30,16 @@ export PACIFIC_MPICXX_CFLAGS=$(pkg-config --cflags ompi-cxx)
 export PACIFIC_MPICXX_LFLAGS=$(pkg-config --libs ompi-cxx)
 export PACIFIC_MPICXX_VER=$(pkg-config --modversion ompi-cxx)
 
+#
+# NVCC/NVCXX
+#
+
+export PACIFIC_CUDA_DISTRIB="NVIDIA"
+
+export PACIFIC_NVCC=$(which nvcc)
+export PACIFIC_NVCC_CFLAGS=""
+export PACIFIC_NVCC_LFLAGS=""
+export PACIFIC_NVCC_ARCH=""
 
 #
 # Pacific Directories

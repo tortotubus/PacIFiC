@@ -30,6 +30,7 @@ PACIFIC_SRC_MAKE = @$(MAKE) -C $(PACIFIC_SRCDIR_ABS) \
 
 SRC_THIRDPARTY_DEPS := 
 GRAINS_THIRDPARTY_DEPS :=
+GRAINS_GPU_THIRDPARTY_DEPS :=
 MAC_THIRDPARTY_DEPS :=
 FLUID_THIRDPARTY_DEPS :=
 OCTREE_THIRDPARTY_DEPS :=
@@ -47,12 +48,14 @@ endif
 ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_XERCESC_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-xercesc
 GRAINS_THIRDPARTY_DEPS += third_party-xercesc
+GRAINS_GPU_THIRDPARTY_DEPS += third_party-xercesc
 FLUID_THIRDPARTY_DEPS += third_party-xercesc
 endif
 
 ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_ZLIB_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-zlib
 GRAINS_THIRDPARTY_DEPS += third_party-zlib
+GRAINS_GPU_THIRDPARTY_DEPS += third_party-zlib
 MAC_THIRDPARTY_DEPS += third_party-zlib
 FLUID_THIRDPARTY_DEPS += third_party-zlib
 endif
@@ -61,10 +64,6 @@ ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_PETSC_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-petsc
 MAC_THIRDPARTY_DEPS += third_party-petsc
 FLUID_THIRDPARTY_DEPS += third_party-petsc
-endif
-
-ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_PETSC_USE_THIRDPARTY)),)
-SRC_THIRDPARTY_DEPS += third_party-petsc
 endif
 
 .PHONY: all docs docs-develop
@@ -76,6 +75,9 @@ all: grains mac fluid octree
 
 grains: builddir $(GRAINS_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grains
+
+grainsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
+	$(PACIFIC_SRC_MAKE) grainsgpu
 
 mac: builddir $(MAC_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) mac
@@ -103,6 +105,7 @@ help:
 	@printf "\t$(GREEN)make all   $(RESET)\n"
 	@printf "\t$(GREEN)make clean $(RESET)\n"
 	@printf "\t$(GREEN)make grains$(RESET)\n"
+	@printf "\t$(GREEN)make grainsgpu$(RESET)\n"
 	@printf "\t$(GREEN)make mac   $(RESET)\n"
 	@printf "\t$(GREEN)make fluid $(RESET)\n"
 	@printf "\t$(CYAN)make docs        $(RESET)\n"
@@ -112,6 +115,7 @@ help:
 	@printf "\t$(RED)make third_party-hdf5    $(RESET)\n"
 	@printf "\t$(RED)make third_party-zlib    $(RESET)\n"
 	@printf "\t$(RED)make third_party-xercesc $(RESET)\n"
+	@printf "\t$(RED)make third_party-gtest   $(RESET)\n"
 	@printf "\t$(YELLOW)make submodule$(RESET)\n"
 	@printf "\t$(YELLOW)make submodule-clean$(RESET)\n"
 
