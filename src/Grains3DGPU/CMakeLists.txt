@@ -9,39 +9,6 @@ project(Grains3DGPU
   LANGUAGES CUDA CXX 
 )
 
-# ================================================================================
-#
-# CUDA SETTINGS
-#
-# ================================================================================
-
-# set(GRAINS3D_GPU_CUDA_STANDARD "17" CACHE STRING
-#   "Grains3DGPU CUDA C++ language standard")
-# set_property(CACHE GRAINS3D_GPU_CUDA_STANDARD PROPERTY STRINGS 14 17 20 23)
-
-# option(GRAINS3D_GPU_CUDA_STANDARD_REQUIRED
-#   "Grains3DGPU CUDA language standard required" ON)
-
-# option(GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION
-#   "Enable CUDA separable compilation" ON)
-
-# set(GRAINS3D_GPU_CUDA_ARCHITECTURES "75" CACHE STRING
-#   "CUDA architectures (semicolon-separated, e.g. 75;86)")
-
-# option(GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS
-#   "Enable CUDA device symbol resolution" ON)
-
-# set(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST 
-#   "--extended-lambda;--expt-relaxed-constexpr" 
-#   CACHE STRING
-#   "CUDA compilation flags (semicolon-separated preferred; space-separated also accepted)"
-# )
-
-# if (GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST MATCHES " ")
-#   separate_arguments(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST UNIX_COMMAND
-#     "${GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST}"
-#   )
-# endif()
 
 # ================================================================================
 #
@@ -84,6 +51,7 @@ endif()
 
 add_subdirectory(Grains)
 add_subdirectory(Main) 
+add_subdirectory(Validations) 
 
 
 if(PACIFIC_BUILD_TESTS)

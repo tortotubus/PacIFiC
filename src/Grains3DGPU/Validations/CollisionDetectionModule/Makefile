@@ -1,70 +1,90 @@
+#
+# Environment (typically provided by parent Makefiles)
+#
 
-# Directories
-BUILD_DIR = build
-DATA_DIR = data
+VALIDATIONS_GPU_BUILDDIR ?= $(PACIFIC_BUILDDIR_ABS)/Grains3DGPU/Validations
+LIBGRAINS_GPU_BUILDDIR ?= $(PACIFIC_BUILDDIR_ABS)/Grains3DGPU
+LIBGRAINS_GPU_SRCDIR ?= $(PACIFIC_SRCDIR_ABS)/Grains3DGPU/Grains
 
-# Paths
-INCLUDE_DIRS = $(GRAINS_INCDIR) $(GRAINS_XERCES_INCDIR)
-INCFLAGS  := $(INCLUDE_DIRS:%=-I%)
-GRAINS_OBJECTS = $(wildcard $(GRAINS_OBJDIR)/*.o)
-LIB_DIRS = -L$(GRAINS_XERCES_LIBDIR)
-LIBFLAGS = -lxerces-c -lcudart -lcurand
-COMPFLAGS := $(GRAINS_GPU_COMPILER_FLAGS) $(INCFLAGS)
-LINKFLAGS := $(GRAINS_GPU_LINKER_FLAGS) $(GRAINS_XERCES_FLAGS)
+#
+# Derived environment
+#
 
-# Source files
-SOURCES = main.cpp
-OBJECTS = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
-TARGET = $(BUILD_DIR)/CDModuleBenchmark
+VALIDATIONS_GPU_BINDIR := $(VALIDATIONS_GPU_BUILDDIR)/bin
 
-# Default target
-all: $(TARGET)
+LIBGRAINS_GPU_OBJDIR := $(LIBGRAINS_GPU_BUILDDIR)/obj
+LIBGRAINS_GPU_INCDIR := $(LIBGRAINS_GPU_BUILDDIR)/include
+LIBGRAINS_GPU_LIBDIR := $(LIBGRAINS_GPU_BUILDDIR)/lib
+OBJLIB_MANIFEST := $(LIBGRAINS_GPU_LIBDIR)/libGrains3DGPU_objects.mk
 
-# Create directories
-$(BUILD_DIR):
-	@mkdir -p $(BUILD_DIR)
+CDMODULE_BINDIR := $(VALIDATIONS_GPU_BINDIR)
+CDMODULE_OBJDIR := $(VALIDATIONS_GPU_BUILDDIR)/CollisionDetectionModule/obj
+CDMODULE_DATADIR := $(VALIDATIONS_GPU_BUILDDIR)/CollisionDetectionModule/data
 
-$(DATA_DIR):
-	@mkdir -p $(DATA_DIR)
+#
+# Build flags
+#
 
-# Build target
-$(TARGET): $(BUILD_DIR) $(DATA_DIR) $(OBJECTS)
-	@if [ ! -d "$(GRAINS_OBJDIR)" ]; then \
-		echo "Error: Grains object files not found at $(GRAINS_OBJDIR)"; \
+NVCC = $(PACIFIC_NVCC)
+include ../../mk/nvcc_link_flags.mk
+
+NVCC_ARCHFLAGS += -arch=sm_${PACIFIC_NVCC_ARCH}
+NVCCFLAGS += -O3 -g -Xcompiler -fPIC -x cu -rdc=true --extended-lambda --expt-relaxed-constexpr
+
+CPPFLAGS += -I$(LIBGRAINS_GPU_INCDIR)
+CPPFLAGS += $(PACIFIC_MPI_SKIP_CPPFLAGS) $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_ZLIB_CFLAGS) $(PACIFIC_CURAND_CFLAGS)
+CPPFLAGS += -D_XML
+
+LDLIBS += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_ZLIB_LFLAGS) $(PACIFIC_CUDART_LFLAGS) $(PACIFIC_CURAND_LFLAGS)
+NVCC_LDLIBS := $(call to_nvcc_ldflags,$(LDLIBS))
+
+SRC := main.cpp
+OBJ := $(CDMODULE_OBJDIR)/main.o
+DEP := $(OBJ:.o=.d)
+TARGET := $(CDMODULE_BINDIR)/CDModuleBenchmark
+
+#
+# Production rules
+#
+
+.PHONY: all test clean clean-data clean-all objlib-manifest
+
+all: objlib-manifest $(TARGET)
+
+objlib-manifest:
+	@$(MAKE) -C $(LIBGRAINS_GPU_SRCDIR) objlib \
+		LIBGRAINS_GPU_BUILDDIR=$(LIBGRAINS_GPU_BUILDDIR)
+
+$(CDMODULE_BINDIR):
+	@mkdir -p $@
+
+$(CDMODULE_OBJDIR):
+	@mkdir -p $@
+
+$(CDMODULE_DATADIR):
+	@mkdir -p $@
+
+$(OBJ): $(SRC) | $(CDMODULE_OBJDIR)
+	$(NVCC) $(NVCC_ARCHFLAGS) $(CPPFLAGS) $(NVCCFLAGS) -MMD -MP -MF $(DEP) -MT $@ -c $< -o $@
+
+$(TARGET): $(OBJ) objlib-manifest | $(CDMODULE_BINDIR) $(CDMODULE_DATADIR)
+	@objs="$$(sed -n 's/^LIBGRAINS_GPU_OBJECTS :=//p' $(OBJLIB_MANIFEST))"; \
+	if [ -z "$$objs" ]; then \
+		echo "Error: could not load object list from $(OBJLIB_MANIFEST)"; \
 		exit 1; \
-	fi
-	@if [ ! -d "$(GRAINS_XERCES_LIBDIR)" ]; then \
-		echo "Error: Xerces library not found at $(GRAINS_XERCES_LIBDIR)"; \
-		exit 1; \
-	fi
-	@echo "Linking against Grains object files..."
-	@$(GRAINS_GPU_COMPILER) $(LINKFLAGS) $(OBJECTS) $(GRAINS_OBJECTS) $(LIB_DIRS) $(LIBFLAGS) -o $@
-	@echo "$(TARGET) build successful!"
+	fi; \
+	$(NVCC) $(NVCC_ARCHFLAGS) -o $@ $(OBJ) $$objs $(NVCC_LDLIBS)
+	@echo -e '--------------------------------\n''Validation CDModuleBenchmark built !\n''--------------------------------'
 
-# Compile source files
-$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
-	@echo "Compiling $<..."
-	@$(GRAINS_GPU_COMPILER) $(COMPFLAGS) -MMD -MP -D_XML -c $< -o $@
-
-# Run tests
 test: $(TARGET)
-	@if [ -f "./$(TARGET)" ]; then \
-		./$(TARGET); \
-	else \
-		echo "Error: $(TARGET) not found. Please build first using 'make all'"; \
-		exit 1; \
-	fi
+	$(TARGET) $(TEST_ARGS)
 
-# Clean
 clean:
-	@rm -rf $(BUILD_DIR)
-	@echo "Build directory cleaned!"
+	rm -rf $(CDMODULE_OBJDIR) $(TARGET)
 
 clean-data:
-	@rm -rf $(DATA_DIR)
-	@echo "Data directory cleaned!"
+	rm -rf $(CDMODULE_DATADIR)
 
 clean-all: clean clean-data
-	@echo "All directories cleaned!"
 
-.PHONY: all test clean clean-data clean-all
+-include $(DEP)

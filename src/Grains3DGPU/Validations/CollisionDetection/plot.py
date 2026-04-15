@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Plot collision detection benchmark results from comprehensive CSV data."""
 
 import pandas as pd

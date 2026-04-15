@@ -2,6 +2,7 @@
 CXX = $(PACIFIC_MPICXX)
 CC = $(PACIFIC_MPICC)
 NVCC = $(PACIFIC_NVCC)
+
 include ../mk/nvcc_link_flags.mk
 
 NVCC_ARCHFLAGS += -arch=sm_${PACIFIC_NVCC_ARCH}
@@ -10,13 +11,14 @@ LDLIBS   += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_ZLIB_LFLAGS) $(PACIFIC_CURAND_LF
 NVCC_LDLIBS := $(call to_nvcc_ldflags,$(LDLIBS))
 
 # Target directories
-OBJDIR := $(LIBGRAINS_GPU_OBJDIR)
-LIBDIR := $(LIBGRAINS_GPU_LIBDIR)
-SHAREDIR := $(LIBGRAINS_GPU_SHAREDIR)
-INCDIR := $(LIBGRAINS_GPU_INCDIR)
+OBJDIR := $(LIBGRAINS_GPU_BUILDDIR)/obj
+LIBDIR := $(LIBGRAINS_GPU_BUILDDIR)/lib
+SHAREDIR := $(LIBGRAINS_GPU_BUILDDIR)/share/Grains3DGPU
+INCDIR := $(LIBGRAINS_GPU_BUILDDIR)/include
 
 LIBSO := libGrains3DGPU.so
 LIBSO_WP := $(LIBDIR)/$(LIBSO)
+OBJLIB_MANIFEST := $(LIBDIR)/libGrains3DGPU_objects.mk
 RPATH_FLAGS := -Xlinker -rpath -Xlinker $(LIBDIR)
 
 ifeq ($(strip $(SHAREDIR)),)
@@ -130,15 +132,22 @@ NVCCFLAGS += -O3 -g -Xcompiler -fPIC -x cu -rdc=true --extended-lambda --expt-re
 # Production rules
 .SILENT:
 
-all    : MESS $(LIBSO_WP) dtd tools CPINC
+all    : MESS objlib $(LIBSO_WP) dtd tools CPINC
+
+objlib : $(OBJS) $(OBJLIB_MANIFEST)
+
+$(OBJLIB_MANIFEST): $(OBJS) | $(LIBDIR)
+	printf 'LIBGRAINS_GPU_OBJECTS :=' > $@
+	printf ' %s' $(OBJS) >> $@
+	printf '\n' >> $@
 
 OBJ    : GEOM MGEOM XML MXML COLLISION MCOLLISION COMPO MCOMPO CONTACT MCONTACT BASE MBASE TIME MTIME PP MPP UTIL MUTIL
 	@echo -e 'Compilation is complete\n'
 
-LINK    : $(LIBSO_WP)
+LINK    : objlib $(LIBSO_WP)
 
-$(LIBSO_WP) : $(OBJS) | $(LIBDIR)
-	$(NVCC) $(NVCC_ARCHFLAGS) -shared -Xlinker -soname -Xlinker $(LIBSO) $(RPATH_FLAGS) -o $(LIBSO_WP) $(OBJS) $(NVCC_LDLIBS)
+$(LIBSO_WP) : objlib | $(LIBDIR)
+	$(NVCC) $(NVCC_ARCHFLAGS) -shared -Xlinker -soname -Xlinker $(LIBSO) $(RPATH_FLAGS) -o $(LIBSO_WP) $(LIBGRAINS_GPU_OBJECTS) $(NVCC_LDLIBS)
 	@echo -e '--------------------------------\n''Library libGrainsGPU.so generated !\n''--------------------------------'	
 
 BASE   : $(OBJS_BASE)
@@ -208,6 +217,7 @@ CPINC  : | $(INCDIR)
 clean:
 	rm -rf $(OBJDIR)/* \
 	rm -f $(LIBSO_WP) \
+	rm -f $(OBJLIB_MANIFEST) \
 	rm -rf $(SHAREDIR)/* \
 	rm -rf $(INCDIR)/*	
 
@@ -227,3 +237,5 @@ tools:
 	@cp -rf \
 	  Tools/ExecScripts/*.exec \
 		$(SHAREDIR)/Tools/ExecScripts/
+
+-include $(OBJLIB_MANIFEST)

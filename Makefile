@@ -66,17 +66,18 @@ MAC_THIRDPARTY_DEPS += third_party-petsc
 FLUID_THIRDPARTY_DEPS += third_party-petsc
 endif
 
+#
+# Main targets
+#
+
 .PHONY: all docs docs-develop
 
 all: grains mac fluid octree
 
-# src: builddir $(SRC_THIRDPARTY_DEPS)
-# 	$(PACIFIC_SRC_MAKE) all
-
 grains: builddir $(GRAINS_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grains
 
-grainsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
+grainsgpu: builddir venv $(GRAINS_GPU_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grainsgpu
 
 testsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
@@ -96,34 +97,10 @@ docs:
 docs-develop:
 	@$(MAKE) -C "$(PACIFIC_ROOT_ABS)/docs" develop
 
-RESET  := \033[0m
-BOLD   := \033[1m
-BLUE   := \033[34m
-GREEN  := \033[32m
-CYAN   := \033[36m
-YELLOW := \033[33m
+#
+# Git Submodules
+#
 
-help:
-	@printf "Targets:\n"
-	@printf "\t$(GREEN)make all   $(RESET)\n"
-	@printf "\t$(GREEN)make clean $(RESET)\n"
-	@printf "\t$(GREEN)make grains$(RESET)\n"
-	@printf "\t$(GREEN)make grainsgpu$(RESET)\n"
-	@printf "\t$(GREEN)make testsgpu$(RESET)\n"
-	@printf "\t$(GREEN)make mac   $(RESET)\n"
-	@printf "\t$(GREEN)make fluid $(RESET)\n"
-	@printf "\t$(CYAN)make docs        $(RESET)\n"
-	@printf "\t$(CYAN)make docs-develop$(RESET)\n"
-	@printf "\t$(RED)make third_party         $(RESET)\n"
-	@printf "\t$(RED)make third_party-basilisk$(RESET)\n"
-	@printf "\t$(RED)make third_party-hdf5    $(RESET)\n"
-	@printf "\t$(RED)make third_party-zlib    $(RESET)\n"
-	@printf "\t$(RED)make third_party-xercesc $(RESET)\n"
-	@printf "\t$(RED)make third_party-gtest   $(RESET)\n"
-	@printf "\t$(YELLOW)make submodule$(RESET)\n"
-	@printf "\t$(YELLOW)make submodule-clean$(RESET)\n"
-
-# submodules:
 
 submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc submodule-gtest
 submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean submodule-gtest-clean
@@ -158,8 +135,9 @@ submodule-gtest:
 submodule-gtest-clean:
 	@$(GIT) submodule deinit -f -- third_party/gtest/gtest_submodule 
 
-
+#
 # thirdparty
+#
 
 builddir:
 	$(MKDIR) -p $(PACIFIC_BUILDDIR_ABS)
@@ -188,3 +166,46 @@ third_party-gtest: builddir submodule-gtest
 clean: submodule-clean
 	$(PACIFIC_SRC_MAKE) clean
 	$(PACIFIC_THIRDPARTY_MAKE) clean
+
+#
+# Python
+#
+
+PACIFIC_VENV_ABS ?= $(PACIFIC_BUILDDIR_ABS)/.venv
+PACIFIC_VENV_PIP ?= $(PACIFIC_VENV_ABS)/bin/pip
+
+venv: builddir
+	python3 -m venv ${PACIFIC_VENV_ABS}
+	$(PACIFIC_VENV_PIP) install --upgrade pip
+	$(PACIFIC_VENV_PIP) install -r ${PACIFIC_ROOT_ABS}/requirements.txt
+
+#
+# Help
+#
+
+RESET  := \033[0m
+BOLD   := \033[1m
+BLUE   := \033[34m
+GREEN  := \033[32m
+CYAN   := \033[36m
+YELLOW := \033[33m
+
+help:
+	@printf "Targets:\n"
+	@printf "\t$(GREEN)make all   $(RESET)\n"
+	@printf "\t$(GREEN)make clean $(RESET)\n"
+	@printf "\t$(GREEN)make grains$(RESET)\n"
+	@printf "\t$(GREEN)make grainsgpu$(RESET)\n"
+	@printf "\t$(GREEN)make testsgpu$(RESET)\n"
+	@printf "\t$(GREEN)make mac   $(RESET)\n"
+	@printf "\t$(GREEN)make fluid $(RESET)\n"
+	@printf "\t$(CYAN)make docs        $(RESET)\n"
+	@printf "\t$(CYAN)make docs-develop$(RESET)\n"
+	@printf "\t$(RED)make third_party         $(RESET)\n"
+	@printf "\t$(RED)make third_party-basilisk$(RESET)\n"
+	@printf "\t$(RED)make third_party-hdf5    $(RESET)\n"
+	@printf "\t$(RED)make third_party-zlib    $(RESET)\n"
+	@printf "\t$(RED)make third_party-xercesc $(RESET)\n"
+	@printf "\t$(RED)make third_party-gtest   $(RESET)\n"
+	@printf "\t$(YELLOW)make submodule$(RESET)\n"
+	@printf "\t$(YELLOW)make submodule-clean$(RESET)\n"

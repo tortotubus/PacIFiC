@@ -73,6 +73,12 @@ export PACIFIC_INSTALLDIR_ABS="${PACIFIC_ROOT_ABS}/${PACIFIC_INSTALLDIR}"
 export PACIFIC_THIRDPARTY_BUILDDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party/build"
 export PACIFIC_THIRDPARTY_INSTALLDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party"
 
+#
+# Python Virtual Environment
+#
+
+export PACIFIC_VENV_ABS="${PACIFIC_BUILDDIR_ABS}/.venv"
+export PACIFIC_VENV_PY_ABS="${PACIFIC_BUILDDIR_ABS}/.venv/bin/python"
 
 #
 # Grains3D
@@ -83,6 +89,8 @@ export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3D/bin"
 # Grains3DGPU
 #
 export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3DGPU/bin"
+export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3DGPU/Tests/bin"
+export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3DGPU/Validations/bin"
 
 #
 # FLUID

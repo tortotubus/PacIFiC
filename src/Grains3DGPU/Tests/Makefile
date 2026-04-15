@@ -1,4 +1,16 @@
 # Compilation & linking flags
+
+THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+LIBGRAINS_GPU_SRCDIR ?= $(abspath $(THIS_DIR)/../Grains)
+
+LIBGRAINS_GPU_INCDIR = $(LIBGRAINS_GPU_BUILDDIR)/include
+LIBGRAINS_GPU_LIBDIR = $(LIBGRAINS_GPU_BUILDDIR)/lib
+LIBGRAINS_GPU_OBJDIR = $(LIBGRAINS_GPU_BUILDDIR)/obj
+OBJLIB_MANIFEST = $(LIBGRAINS_GPU_LIBDIR)/libGrains3DGPU_objects.mk
+
+TEST_GPU_OBJDIR = $(TESTS_GPU_BUILDDIR)/obj
+TEST_GPU_BINDIR = $(TESTS_GPU_BUILDDIR)/bin
+
 NVCC = $(PACIFIC_NVCC)
 include ../mk/nvcc_link_flags.mk
 
@@ -6,15 +18,6 @@ NVCC_ARCHFLAGS += -arch=sm_${PACIFIC_NVCC_ARCH}
 NVCCFLAGS += -O3 -g -Xcompiler -fPIC -x cu -rdc=true --extended-lambda --expt-relaxed-constexpr
 
 CPPFLAGS += -I$(LIBGRAINS_GPU_INCDIR)
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/Base/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/CollisionDetection/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/Component/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/ContactForce/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/Geometry/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/PostProcessing/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/TimeIntegration/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/Utility/include
-CPPFLAGS += -I$(LIBGRAINS_GPU_SRCDIR)/XML3/include
 CPPFLAGS += $(PACIFIC_MPI_SKIP_CPPFLAGS) $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_ZLIB_CFLAGS) $(PACIFIC_CURAND_CFLAGS)
 CPPFLAGS += $(PACIFIC_GTEST_CFLAGS) $(PACIFIC_GTEST_MAIN_CFLAGS)
 CPPFLAGS += -DTEST_BUILD=1
@@ -48,14 +51,15 @@ TEST_SRCS := $(foreach f,$(TEST_SRCS),$(if $(wildcard $(f)),$(f),))
 TEST_OBJS := $(patsubst %.cpp,$(TEST_GPU_OBJDIR)/%.o,$(TEST_SRCS))
 TEST_DEPS := $(TEST_OBJS:.o=.d)
 
-# Link directly with Grains object files to avoid CUDA TU/nvlink shared-boundary issues.
-GRAINS_OBJS = $(filter-out $(LIBGRAINS_GPU_OBJDIR)/main.o,$(wildcard $(LIBGRAINS_GPU_OBJDIR)/*.o))
-
 # -----------------------------------------------------------------------------
 # Production rules
-.PHONY: all run clean
+.PHONY: all run clean objlib-manifest
 
 all: $(TARGET)
+
+objlib-manifest:
+	@$(MAKE) -C $(LIBGRAINS_GPU_SRCDIR) objlib \
+		LIBGRAINS_GPU_BUILDDIR=$(LIBGRAINS_GPU_BUILDDIR)
 
 $(TEST_GPU_BINDIR):
 	@mkdir -p $@
@@ -67,8 +71,13 @@ $(TEST_GPU_OBJDIR)/%.o: %.cpp | $(TEST_GPU_OBJDIR)
 	@mkdir -p $(dir $@)
 	$(NVCC) $(NVCC_ARCHFLAGS) $(CPPFLAGS) $(NVCCFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $< -o $@
 
-$(TARGET): $(TEST_OBJS) | $(TEST_GPU_BINDIR)
-	$(NVCC) $(NVCC_ARCHFLAGS) -o $@ $(TEST_OBJS) $(GRAINS_OBJS) -L$(LIBGRAINS_GPU_LIBDIR) $(NVCC_LDLIBS)
+$(TARGET): $(TEST_OBJS) objlib-manifest | $(TEST_GPU_BINDIR)
+	@objs="$$(sed -n 's/^LIBGRAINS_GPU_OBJECTS :=//p' $(OBJLIB_MANIFEST))"; \
+	if [ -z "$$objs" ]; then \
+		echo "Error: could not load object list from $(OBJLIB_MANIFEST)"; \
+		exit 1; \
+	fi; \
+	$(NVCC) $(NVCC_ARCHFLAGS) -o $@ $(TEST_OBJS) $$objs -L$(LIBGRAINS_GPU_LIBDIR) $(NVCC_LDLIBS)
 	@echo -e '-----------------------\n''Tests grains3dgpu_tests built !\n''-----------------------'
 
 run: $(TARGET)

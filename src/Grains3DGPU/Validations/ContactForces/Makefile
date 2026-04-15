@@ -1,62 +1,90 @@
+#
+# Environment (typically provided by parent Makefiles)
+#
 
-# Reuse CollisionDetection Makefile conventions for building benchmarks
+VALIDATIONS_GPU_BUILDDIR ?= $(PACIFIC_BUILDDIR_ABS)/Grains3DGPU/Validations
+LIBGRAINS_GPU_BUILDDIR ?= $(PACIFIC_BUILDDIR_ABS)/Grains3DGPU
+LIBGRAINS_GPU_SRCDIR ?= $(PACIFIC_SRCDIR_ABS)/Grains3DGPU/Grains
 
-BUILD_DIR = build
-DATA_DIR = data
+#
+# Derived environment
+#
 
-INCLUDE_DIRS = $(GRAINS_INCDIR) $(GRAINS_XERCES_INCDIR)
-INCFLAGS := $(INCLUDE_DIRS:%=-I%)
-GRAINS_OBJECTS = $(wildcard $(GRAINS_OBJDIR)/*.o)
-LIB_DIRS = -L$(GRAINS_XERCES_LIBDIR)
-LIBFLAGS = -lxerces-c -lcudart
-COMPFLAGS := $(GRAINS_GPU_COMPILER_FLAGS) $(INCFLAGS)
-LINKFLAGS := $(GRAINS_GPU_LINKER_FLAGS) $(GRAINS_XERCES_FLAGS)
+VALIDATIONS_GPU_BINDIR := $(VALIDATIONS_GPU_BUILDDIR)/bin
 
+LIBGRAINS_GPU_OBJDIR := $(LIBGRAINS_GPU_BUILDDIR)/obj
+LIBGRAINS_GPU_INCDIR := $(LIBGRAINS_GPU_BUILDDIR)/include
+LIBGRAINS_GPU_LIBDIR := $(LIBGRAINS_GPU_BUILDDIR)/lib
+OBJLIB_MANIFEST := $(LIBGRAINS_GPU_LIBDIR)/libGrains3DGPU_objects.mk
 
-SOURCES = main.cpp
-OBJECTS = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
-TARGET = $(BUILD_DIR)/ContactTablePerformance
+CDMODULE_BINDIR := $(VALIDATIONS_GPU_BINDIR)
+CDMODULE_OBJDIR := $(VALIDATIONS_GPU_BUILDDIR)/ContactForces/obj
+CDMODULE_DATADIR := $(VALIDATIONS_GPU_BUILDDIR)/ContactForces/data
 
-all: $(TARGET)
+#
+# Build flags
+#
 
-$(BUILD_DIR):
-	@mkdir -p $(BUILD_DIR)
+NVCC = $(PACIFIC_NVCC)
+include ../../mk/nvcc_link_flags.mk
 
-$(DATA_DIR):
-	@mkdir -p $(DATA_DIR)
+NVCC_ARCHFLAGS += -arch=sm_${PACIFIC_NVCC_ARCH}
+NVCCFLAGS += -O3 -g -Xcompiler -fPIC -x cu -rdc=true --extended-lambda --expt-relaxed-constexpr
 
+CPPFLAGS += -I$(LIBGRAINS_GPU_INCDIR)
+CPPFLAGS += $(PACIFIC_MPI_SKIP_CPPFLAGS) $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_ZLIB_CFLAGS) $(PACIFIC_CURAND_CFLAGS)
+CPPFLAGS += -D_XML
 
-$(TARGET): $(BUILD_DIR) $(DATA_DIR) $(OBJECTS)
-	@if [ ! -d "$(GRAINS_OBJDIR)" ]; then \
-		echo "Error: Grains object files not found at $(GRAINS_OBJDIR)"; \
+LDLIBS += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_ZLIB_LFLAGS) $(PACIFIC_CUDART_LFLAGS) $(PACIFIC_CURAND_LFLAGS)
+NVCC_LDLIBS := $(call to_nvcc_ldflags,$(LDLIBS))
+
+SRC := main.cpp
+OBJ := $(CDMODULE_OBJDIR)/main.o
+DEP := $(OBJ:.o=.d)
+TARGET := $(CDMODULE_BINDIR)/ContactForces
+
+#
+# Production rules
+#
+
+.PHONY: all test clean clean-data clean-all objlib-manifest
+
+all: objlib-manifest $(TARGET)
+
+objlib-manifest:
+	@$(MAKE) -C $(LIBGRAINS_GPU_SRCDIR) objlib \
+		LIBGRAINS_GPU_BUILDDIR=$(LIBGRAINS_GPU_BUILDDIR)
+
+$(CDMODULE_BINDIR):
+	@mkdir -p $@
+
+$(CDMODULE_OBJDIR):
+	@mkdir -p $@
+
+$(CDMODULE_DATADIR):
+	@mkdir -p $@
+
+$(OBJ): $(SRC) | $(CDMODULE_OBJDIR)
+	$(NVCC) $(NVCC_ARCHFLAGS) $(CPPFLAGS) $(NVCCFLAGS) -MMD -MP -MF $(DEP) -MT $@ -c $< -o $@
+
+$(TARGET): $(OBJ) objlib-manifest | $(CDMODULE_BINDIR) $(CDMODULE_DATADIR)
+	@objs="$$(sed -n 's/^LIBGRAINS_GPU_OBJECTS :=//p' $(OBJLIB_MANIFEST))"; \
+	if [ -z "$$objs" ]; then \
+		echo "Error: could not load object list from $(OBJLIB_MANIFEST)"; \
 		exit 1; \
-	fi
-	@echo "Linking ContactTablePerformance against Grains object files..."
-	@$(GRAINS_GPU_COMPILER) $(LINKFLAGS) $(OBJECTS) $(GRAINS_OBJECTS) $(LIB_DIRS) $(LIBFLAGS) -o $@
-	@echo "$(TARGET) build successful!"
-
-
-$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
-	@echo "Compiling $<..."
-	@$(GRAINS_GPU_COMPILER) $(COMPFLAGS) -MMD -MP -c $< -o $@
+	fi; \
+	$(NVCC) $(NVCC_ARCHFLAGS) -o $@ $(OBJ) $$objs $(NVCC_LDLIBS)
+	@echo -e '--------------------------------\n''Validation ContactForces built !\n''--------------------------------'
 
 test: $(TARGET)
-	@if [ -f "./$(TARGET)" ]; then \
-		./$(TARGET); \
-	else \
-		echo "Error: $(TARGET) not found. Please build first using 'make all'"; \
-		exit 1; \
-	fi
+	$(TARGET) $(TEST_ARGS)
 
 clean:
-	@rm -rf $(BUILD_DIR)
-	@echo "Build directory cleaned!"
+	rm -rf $(CDMODULE_OBJDIR) $(TARGET)
 
 clean-data:
-	@rm -rf $(DATA_DIR)
-	@echo "Data directory cleaned!"
+	rm -rf $(CDMODULE_DATADIR)
 
 clean-all: clean clean-data
-	@echo "All directories cleaned!"
 
-.PHONY: all test clean clean-data clean-all
+-include $(DEP)
