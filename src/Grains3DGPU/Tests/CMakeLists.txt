@@ -55,8 +55,12 @@ else()
 endif()
 
 target_link_libraries(Grains3DGPU_tests PRIVATE
-  Grains3DGPU
+  Grains3DGPU_obj
   ${_GTEST_LIBS}
 )
 
-add_test(NAME Grains3DGPU.unit_tests COMMAND Grains3DGPU_tests)
+include(GoogleTest)
+gtest_discover_tests(Grains3DGPU_tests
+  TEST_PREFIX "Grains3DGPU."
+  DISCOVERY_TIMEOUT 60
+)

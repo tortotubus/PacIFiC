@@ -79,6 +79,9 @@ grains: builddir $(GRAINS_THIRDPARTY_DEPS)
 grainsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grainsgpu
 
+testsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
+	$(PACIFIC_SRC_MAKE) testsgpu
+
 mac: builddir $(MAC_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) mac
 
@@ -106,6 +109,7 @@ help:
 	@printf "\t$(GREEN)make clean $(RESET)\n"
 	@printf "\t$(GREEN)make grains$(RESET)\n"
 	@printf "\t$(GREEN)make grainsgpu$(RESET)\n"
+	@printf "\t$(GREEN)make testsgpu$(RESET)\n"
 	@printf "\t$(GREEN)make mac   $(RESET)\n"
 	@printf "\t$(GREEN)make fluid $(RESET)\n"
 	@printf "\t$(CYAN)make docs        $(RESET)\n"

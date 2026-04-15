@@ -8,7 +8,7 @@ option(PACIFIC_BUILD_DOCS "Build documentation" OFF)
 option(PACIFIC_BUILD_TESTS "Build unit & integration tests" ON)
 
 option(PACIFIC_USE_MPI "Enable MPI-dependent targets" ON)
-option(PACIFIC_USE_CUDA "Enable CUDA-dependent targets" ON)
+option(PACIFIC_USE_CUDA "Enable CUDA-dependent targets" OFF)
 option(PACIFIC_USE_OPENMP "Enable OpenMP-dependent targets" ON)
 option(PACIFIC_USE_GTEST "Enable GTest-depdendent targets" ON)
 

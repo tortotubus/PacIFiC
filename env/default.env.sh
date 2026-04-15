@@ -34,12 +34,24 @@ export PACIFIC_MPICXX_VER=$(pkg-config --modversion ompi-cxx)
 # NVCC/NVCXX
 #
 
-export PACIFIC_CUDA_DISTRIB="NVIDIA"
-
+export PACIFIC_NVCC_DISTRIB="NVIDIA"
 export PACIFIC_NVCC=$(which nvcc)
-export PACIFIC_NVCC_CFLAGS=""
-export PACIFIC_NVCC_LFLAGS=""
-export PACIFIC_NVCC_ARCH=""
+export PACIFIC_NVCC_ARCH="75"
+
+#
+# CUDA Runtime API
+#
+
+export PACIFIC_CUDART_CFLAGS=$(pkg-config --cflags cudart)
+export PACIFIC_CUDART_LFLAGS=$(pkg-config --libs cudart)
+
+#
+# cuRAND: https://developer.nvidia.com/curand
+#
+
+export PACIFIC_CURAND_CFLAGS=$(pkg-config --cflags curand)
+export PACIFIC_CURAND_LFLAGS=$(pkg-config --libs curand)
+
 
 #
 # Pacific Directories
@@ -61,14 +73,25 @@ export PACIFIC_INSTALLDIR_ABS="${PACIFIC_ROOT_ABS}/${PACIFIC_INSTALLDIR}"
 export PACIFIC_THIRDPARTY_BUILDDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party/build"
 export PACIFIC_THIRDPARTY_INSTALLDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party"
 
-# Export Grains binary path
+
+#
+# Grains3D
+#
 export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3D/bin"
+
+#
+# Grains3DGPU
+#
+export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/Grains3DGPU/bin"
+
+#
+# FLUID
+#
 export PATH="$PATH:$PACIFIC_BUILDDIR_ABS/FLUID/bin"
 
 #
 # MAC
 #
-
 export MAC_LEVEL=0
 
 #
@@ -146,7 +169,7 @@ fi
 # PETSc
 #
 
-export PACIFIC_PETSC_USE_THIRDPARTY=1
+export PACIFIC_PETSC_USE_THIRDPARTY=0
 
 if [ $PACIFIC_PETSC_USE_THIRDPARTY = 0 ]
 then
@@ -165,7 +188,7 @@ fi
 # GTEST
 #
 
-export PACIFIC_GTEST_USE_THIRDPARTY=1
+export PACIFIC_GTEST_USE_THIRDPARTY=0
 if [ $PACIFIC_GTEST_USE_THIRDPARTY = 0 ]
 then
 export PACIFIC_GTEST_CFLAGS=$(pkg-config --cflags gtest)
@@ -268,6 +291,10 @@ echo -e "${C_CYAN}PACIFIC_MPICXX       ${C_RESET} = ${PACIFIC_MPICXX}"
 echo -e "${C_CYAN}PACIFIC_MPICXX_CFLAGS${C_RESET} = ${PACIFIC_MPICXX_CFLAGS}"
 echo -e "${C_CYAN}PACIFIC_MPICXX_LFLAGS${C_RESET} = ${PACIFIC_MPICXX_LFLAGS}"
 echo -e "${C_CYAN}PACIFIC_MPICXX_VER   ${C_RESET} = ${PACIFIC_MPICXX_VER}"
+echo -e ""
+echo -e "${C_CYAN}${C_BOLD}NVCC${C_RESET}"
+echo -e "${C_CYAN}PACIFIC_NVCC       ${C_RESET} = ${PACIFIC_NVCC}"
+echo -e "${C_CYAN}PACIFIC_NVCC_ARCH  ${C_RESET} = ${PACIFIC_NVCC_ARCH}"
 echo -e ""
 echo -e "${C_GREEN}${C_BOLD}Xerces${C_RESET}"
 echo -e "${C_GREEN}PACIFIC_XERCESC_USE_THIRDPARTY${C_RESET} = ${PACIFIC_XERCESC_USE_THIRDPARTY}"

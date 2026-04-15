@@ -22,6 +22,17 @@
       }
     },
     {
+      "name": "GPU",
+      "displayName": "GPU",
+      "description": "Default GPU Configuration",
+      "inherits": "Default",
+      "binaryDir": "${sourceDir}/build/release_gpu",
+      "cacheVariables": {
+        "PACIFIC_USE_CUDA": "ON",
+        "GRAINS3D_GPU_CUDA_ARCHITECTURES": "75"
+      }
+    },
+    {
       "name": "Fir",
       "displayName": "HPC Release for Fir",
       "description": "Release buuild for Fir with specific compiler and flags.",
@@ -88,6 +99,12 @@
       "name": "Default",
       "configurePreset": "Default",
       "description": "Build the release configuration",
+      "jobs": 16
+    },
+    {
+      "name": "GPU",
+      "configurePreset": "GPU",
+      "description": "Build the GPU configuration",
       "jobs": 16
     },
     {

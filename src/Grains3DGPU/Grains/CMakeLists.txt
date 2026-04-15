@@ -3,7 +3,7 @@
 #
 
 add_subdirectory(Dtd)
-# add_subdirectory(Tools)
+add_subdirectory(Tools)
 
 #
 #
@@ -128,17 +128,70 @@ list(APPEND GRAINS3D_GPU_SOURCES
 
 
 #
-# Build Grains3D shared object
+# Build Grains3DGPU libraries
 #
-
-# message(STATUS ">>> GRAINS3D_GPU_SOURCES = ${GRAINS3D_GPU_SOURCES}")
 
 set(CMAKE_CXX_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN  OFF)
 
 set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
 
+#
+# Object Library (for direct reuse in CUDA consumers like tests)
+#
+
+add_library(Grains3DGPU_obj OBJECT ${GRAINS3D_GPU_SOURCES})
+add_library(PacIFiC::Grains3DGPU_obj ALIAS Grains3DGPU_obj)
+
+set_target_properties(Grains3DGPU_obj PROPERTIES
+  CUDA_STANDARD ${GRAINS3D_GPU_CUDA_STANDARD}
+  CUDA_STANDARD_REQUIRED ${GRAINS3D_GPU_CUDA_STANDARD_REQUIRED}
+  CUDA_ARCHITECTURES ${GRAINS3D_GPU_CUDA_ARCHITECTURES}
+  CUDA_SEPARABLE_COMPILATION ${GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION}
+  CUDA_RESOLVE_DEVICE_SYMBOLS ${GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS}
+  POSITION_INDEPENDENT_CODE ON
+  CXX_VISIBILITY_PRESET default
+)
+
+foreach(cuda_opt IN LISTS GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST)
+  target_compile_options(Grains3DGPU_obj PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:${cuda_opt}>
+  )
+endforeach()
+
+target_include_directories(Grains3DGPU_obj
+  PUBLIC
+    ${GRAINS3D_GPU_INCLUDE_DIRS}
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+if (PACIFIC_USE_MPI)
+  target_link_libraries(Grains3DGPU_obj
+    PUBLIC
+      MPI::MPI_C
+      ZLIB::ZLIB
+      XercesC::XercesC
+      OpenMP::OpenMP_CUDA
+      CUDA::cudart
+      CUDA::curand
+  )
+else()
+  target_link_libraries(Grains3DGPU_obj
+    PUBLIC
+      ZLIB::ZLIB
+      XercesC::XercesC
+      OpenMP::OpenMP_CUDA
+      CUDA::cudart
+      CUDA::curand
+  )
+endif()
+
+#
+# Shared Library
+#
+
 add_library(Grains3DGPU SHARED ${GRAINS3D_GPU_SOURCES})
+
 add_library(PacIFiC::Grains3DGPU ALIAS Grains3DGPU) 
 
 set_target_properties(Grains3DGPU PROPERTIES
@@ -174,7 +227,7 @@ target_include_directories(Grains3DGPU
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-if (PACIFIC_ENABLE_MPI)
+if (PACIFIC_USE_MPI)
   target_link_libraries(Grains3DGPU 
     PUBLIC
       MPI::MPI_C

@@ -1,48 +1,75 @@
-# Source and include directories
-INCDIR =
-INCDIROUT := include
+# Compilation & linking flags
+CXX = $(PACIFIC_MPICXX)
+CC = $(PACIFIC_MPICC)
+NVCC = $(PACIFIC_NVCC)
+include ../mk/nvcc_link_flags.mk
+
+NVCC_ARCHFLAGS += -arch=sm_${PACIFIC_NVCC_ARCH}
+CPPFLAGS += $(PACIFIC_MPI_SKIP_CPPFLAGS) $(PACIFIC_XERCESC_CFLAGS) $(PACIFIC_ZLIB_CFLAGS) $(PACIFIC_CURAND_CFLAGS)
+LDLIBS   += $(PACIFIC_XERCESC_LFLAGS) $(PACIFIC_ZLIB_LFLAGS) $(PACIFIC_CURAND_LFLAGS) $(PACIFIC_CUDART_LFLAGS)
+NVCC_LDLIBS := $(call to_nvcc_ldflags,$(LDLIBS))
+
+# Target directories
+OBJDIR := $(LIBGRAINS_GPU_OBJDIR)
+LIBDIR := $(LIBGRAINS_GPU_LIBDIR)
+SHAREDIR := $(LIBGRAINS_GPU_SHAREDIR)
+INCDIR := $(LIBGRAINS_GPU_INCDIR)
+
+LIBSO := libGrains3DGPU.so
+LIBSO_WP := $(LIBDIR)/$(LIBSO)
+RPATH_FLAGS := -Xlinker -rpath -Xlinker $(LIBDIR)
+
+ifeq ($(strip $(SHAREDIR)),)
+SHAREDIR := $(LIBDIR)/../share
+endif
+
 ALLINC = 
 
+# Source and include directories
 SRCDIRBASE := Base/src
 INCDIRBASE := Base/include
-INCDIR += $(INCDIRBASE)
+INCDIRS += $(INCDIRBASE)
 ALLINC += $(wildcard $(INCDIRBASE)/*.hh)
 
-SRCDIRCOLL := CollisionDetection/src
-INCDIRCOLL := CollisionDetection/include
-INCDIR += $(INCDIRCOLL)
-ALLINC += $(wildcard $(INCDIRCOLL)/*.hh)
+SRCDIRCOLLISION := CollisionDetection/src
+INCDIRCOLLISION := CollisionDetection/include
+INCDIRS += $(INCDIRCOLLISION)
+ALLINC += $(wildcard $(INCDIRCOLLISION)/*.hh)
 
-SRCDIRCOMP := Component/src
-INCDIRCOMP := Component/include
-INCDIR += $(INCDIRCOMP)
-ALLINC += $(wildcard $(INCDIRCOMP)/*.hh)
+SRCDIRCOMPO := Component/src
+INCDIRCOMPO := Component/include
+INCDIRS += $(INCDIRCOMPO)
+ALLINC += $(wildcard $(INCDIRCOMPO)/*.hh)
 
-SRCDIRCONT := ContactForce/src
-INCDIRCONT := ContactForce/include
-INCDIR += $(INCDIRCONT)
-ALLINC += $(wildcard $(INCDIRCONT)/*.hh)
+SRCDIRCONTACT := ContactForce/src
+INCDIRCONTACT := ContactForce/include
+INCDIRS += $(INCDIRCONTACT)
+ALLINC += $(wildcard $(INCDIRCONTACT)/*.hh)
 
 SRCDIRGEOM := Geometry/src
 INCDIRGEOM := Geometry/include
-INCDIR += $(INCDIRGEOM)
+INCDIRS += $(INCDIRGEOM)
 ALLINC += $(wildcard $(INCDIRGEOM)/*.hh)
 
 SRCDIRPP := PostProcessing/src
 INCDIRPP := PostProcessing/include
-INCDIR += $(INCDIRPP)
+INCDIRS += $(INCDIRPP)
 ALLINC += $(wildcard $(INCDIRPP)/*.hh)
 
 SRCDIRTIME := TimeIntegration/src
 INCDIRTIME := TimeIntegration/include
-INCDIR += $(INCDIRTIME)
+INCDIRS += $(INCDIRTIME)
 ALLINC += $(wildcard $(INCDIRTIME)/*.hh)
 
-SRCDIRXML := XML/src
-INCDIRXML := XML/include
-INCDIR += $(INCDIRXML)
-ALLINC += $(wildcard $(INCDIRXML)/*.hh)
+SRCDIRUTIL := Utility/src
+INCDIRUTIL := Utility/include
+INCDIRS += $(INCDIRUTIL)
+ALLINC += $(wildcard $(INCDIRUTIL)/*.hh)
 
+SRCDIRXML := XML3/src
+INCDIRXML := XML3/include
+INCDIRS += $(INCDIRXML)
+ALLINC += $(wildcard $(INCDIRXML)/*.hh)
 
 
 # Source files per package
@@ -50,14 +77,14 @@ ALLINC += $(wildcard $(INCDIRXML)/*.hh)
 SRCFILES_WP_BASE := $(wildcard $(SRCDIRBASE)/*.cpp)
 SRCFILESBASE := $(subst $(SRCDIRBASE)/,,$(SRCFILES_WP_BASE))
 
-SRCFILES_WP_COLL := $(wildcard $(SRCDIRCOLL)/*.cpp)
-SRCFILESCOLL := $(subst $(SRCDIRCOLL)/,,$(SRCFILES_WP_COLL))
+SRCFILES_WP_COLLISION := $(wildcard $(SRCDIRCOLLISION)/*.cpp)
+SRCFILESCOLLISION := $(subst $(SRCDIRCOLLISION)/,,$(SRCFILES_WP_COLLISION))
 
-SRCFILES_WP_COMP := $(wildcard $(SRCDIRCOMP)/*.cpp)
-SRCFILESCOMP := $(subst $(SRCDIRCOMP)/,,$(SRCFILES_WP_COMP))
+SRCFILES_WP_COMPO := $(wildcard $(SRCDIRCOMPO)/*.cpp)
+SRCFILESCOMPO := $(subst $(SRCDIRCOMPO)/,,$(SRCFILES_WP_COMPO))
 
-SRCFILES_WP_CONT := $(wildcard $(SRCDIRCONT)/*.cpp)
-SRCFILESCONT := $(subst $(SRCDIRCONT)/,,$(SRCFILES_WP_CONT))
+SRCFILES_WP_CONTACT := $(wildcard $(SRCDIRCONTACT)/*.cpp)
+SRCFILESCONTACT := $(subst $(SRCDIRCONTACT)/,,$(SRCFILES_WP_CONTACT))
 
 SRCFILES_WP_GEOM := $(wildcard $(SRCDIRGEOM)/*.cpp)
 SRCFILESGEOM := $(subst $(SRCDIRGEOM)/,,$(SRCFILES_WP_GEOM))
@@ -68,119 +95,135 @@ SRCFILESPP := $(subst $(SRCDIRPP)/,,$(SRCFILES_WP_PP))
 SRCFILES_WP_TIME := $(wildcard $(SRCDIRTIME)/*.cpp)
 SRCFILESTIME := $(subst $(SRCDIRTIME)/,,$(SRCFILES_WP_TIME))
 
+SRCFILES_WP_UTIL := $(wildcard $(SRCDIRUTIL)/*.cpp)
+SRCFILESUTIL := $(subst $(SRCDIRUTIL)/,,$(SRCFILES_WP_UTIL))
+
 SRCFILES_WP_XML := $(wildcard $(SRCDIRXML)/*.cpp)
 SRCFILESXML := $(subst $(SRCDIRXML)/,,$(SRCFILES_WP_XML))
-
-
-# Target directories
-OBJDIR := obj$(GRAINS_FULL_EXT)
-LIBDIR := lib$(GRAINS_FULL_EXT)
 
 
 # Substitutions for objects
 # Here we use the base file names combined to VPATH
 OBJS_BASE := $(SRCFILESBASE:%.cpp=$(OBJDIR)/%.o)
-OBJS_COLL := $(SRCFILESCOLL:%.cpp=$(OBJDIR)/%.o)
-OBJS_COMP := $(SRCFILESCOMP:%.cpp=$(OBJDIR)/%.o)
-OBJS_CONT := $(SRCFILESCONT:%.cpp=$(OBJDIR)/%.o)
+OBJS_COLLISION := $(SRCFILESCOLLISION:%.cpp=$(OBJDIR)/%.o)
+OBJS_COMPO := $(SRCFILESCOMPO:%.cpp=$(OBJDIR)/%.o)
+OBJS_CONTACT := $(SRCFILESCONTACT:%.cpp=$(OBJDIR)/%.o)
 OBJS_GEOM := $(SRCFILESGEOM:%.cpp=$(OBJDIR)/%.o)
-OBJS_PP   := $(SRCFILESPP:%.cpp=$(OBJDIR)/%.o)
+OBJS_PP := $(SRCFILESPP:%.cpp=$(OBJDIR)/%.o)
 OBJS_TIME := $(SRCFILESTIME:%.cpp=$(OBJDIR)/%.o)
-OBJS_XML  := $(SRCFILESXML:%.cpp=$(OBJDIR)/%.o)
-
-
-# Object files with dependencies
-# The dependencies are generated by the compiler and stored in .d files
-# The .d files are used to track dependencies and recompile only the necessary
-# files when a header file changes.
-DEPS := $(OBJS_BASE:.o=.d) $(OBJS_COLL:.o=.d) $(OBJS_COMP:.o=.d) \
-		$(OBJS_CONT:.o=.d) $(OBJS_GEOM:.o=.d) $(OBJS_PP:.o=.d)   \
-		$(OBJS_TIME:.o=.d) $(OBJS_XML:.o=.d)
--include $(DEPS)
+OBJS_XML := $(SRCFILESXML:%.cpp=$(OBJDIR)/%.o)
+OBJS_UTIL := $(SRCFILESUTIL:%.cpp=$(OBJDIR)/%.o)
+OBJS := $(OBJS_BASE) $(OBJS_COLLISION) $(OBJS_COMPO) $(OBJS_CONTACT) $(OBJS_GEOM) $(OBJS_PP) $(OBJS_TIME) $(OBJS_XML) $(OBJS_UTIL) 
+DEPS := $(OBJS:.o=.d)
 
 
 # Defining VPATH for automatic search of source files in the 
 # different source directories 
 # This enables to have a single rule/target for all source files in 
 # various directories and all objects in a single directory
-VPATH := $(SRCDIRBASE):$(SRCDIRCOLL):$(SRCDIRCOMP):$(SRCDIRCONT):$(SRCDIRGEOM):$(SRCDIRPP):$(SRCDIRTIME):$(SRCDIRXML)
+VPATH := $(SRCDIRBASE):$(SRCDIRCOLLISION):$(SRCDIRCOMPO):$(SRCDIRCONTACT):$(SRCDIRGEOM):$(SRCDIRPP):$(SRCDIRTIME):$(SRCDIRXML):$(SRCDIRUTIL)
+CPPFLAGS += $(addprefix -I,$(INCDIRS))
+NVCCFLAGS += -O3 -g -Xcompiler -fPIC -x cu -rdc=true --extended-lambda --expt-relaxed-constexpr
 
-
-# Compiler
-INCFLAGS  := $(INCDIR:%=-I%) $(GRAINS_XERCES_INCDIR:%=-I%)
-COMPFLAGS := $(GRAINS_GPU_COMPILER_FLAGS) $(INCFLAGS)
-LINKFLAGS := $(GRAINS_GPU_LINKER_FLAGS) $(GRAINS_Z_FLAGS) $(GRAINS_XERCES_FLAGS)
-
-# Enable parallel compilation by default (using 2 fewer cores)
-MAKEFLAGS += -j$(shell nproc)
 
 #------------------------------------------------------------------------------
 # Production rules
 .SILENT:
 
-all : grains
+all    : MESS $(LIBSO_WP) dtd tools CPINC
 
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
+OBJ    : GEOM MGEOM XML MXML COLLISION MCOLLISION COMPO MCOMPO CONTACT MCONTACT BASE MBASE TIME MTIME PP MPP UTIL MUTIL
+	@echo -e 'Compilation is complete\n'
+
+LINK    : $(LIBSO_WP)
+
+$(LIBSO_WP) : $(OBJS) | $(LIBDIR)
+	$(NVCC) $(NVCC_ARCHFLAGS) -shared -Xlinker -soname -Xlinker $(LIBSO) $(RPATH_FLAGS) -o $(LIBSO_WP) $(OBJS) $(NVCC_LDLIBS)
+	@echo -e '--------------------------------\n''Library libGrainsGPU.so generated !\n''--------------------------------'	
+
+BASE   : $(OBJS_BASE)
+
+COLLISION  : $(OBJS_COLLISION)
+
+COMPO  : $(OBJS_COMPO)
+
+CONTACT  : $(OBJS_CONTACT)
+
+GEOM   : $(OBJS_GEOM)
+
+PP     : $(OBJS_PP)
+
+TIME   : $(OBJS_TIME)
+	
+XML    : $(OBJS_XML)
+
+UTIL   : $(OBJS_UTIL)
+
+MBASE   : 
+	@echo -e '*** Package Base compiled\n'
+
+MCOLLISION  : 
+	@echo -e '*** Package CollisionDetection compiled\n'
+
+MCOMPO  : 
+	@echo -e '*** Package Component compiled\n'
+
+MCONTACT  : 
+	@echo -e '*** Package ContactForce compiled\n'
+
+MGEOM   :
+	@echo -e '*** Package Geometry compiled\n'
+
+MPP     : 
+	@echo -e '*** Package PostProcessing compiled\n'
+
+MTIME   : 
+	@echo -e '*** Package TimeIntegration compiled\n'
+	
+MXML    : 
+	@echo -e '*** Package XML compiled\n'
+	
+MUTIL   : 
+	@echo -e '*** Package Util compiled\n'
+	
+MESS   :
+	@echo -e '************************************************************\n''Grains3DGPU compiled with' $(NVCC) $(CPPFLAGS) $(NVCCFLAGS)'\n************************************************************'
+
+$(OBJDIR)/%.o : %.cpp
+	@mkdir -p $(dir $@)
+	@echo 'Compiling '$<
+	$(NVCC) $(NVCC_ARCHFLAGS) $(CPPFLAGS) $(NVCCFLAGS) -MMD -MP -MF $(@:.o=.d) -MT $@ -c $< -o $@
 
 $(LIBDIR):
-	mkdir -p $(LIBDIR)
+	@mkdir -p $@
+	
+$(INCDIR):
+	@mkdir -p $@
+	
+CPINC  : | $(INCDIR)
+	cp $(ALLINC) $(INCDIR)/	
 
-grains : MESS CPINC PACKAGES | $(LIBDIR)
-		$(GRAINS_GPU_COMPILER) -shared -Xcompiler \"-Wl,-soname,libgrains.so\" \
-		$(LINKFLAGS) \
-		-o $(LIBDIR)/libgrains.so \
-		$(OBJS_BASE) $(OBJS_COLL) $(OBJS_COMP) $(OBJS_CONT) $(OBJS_GEOM) \
-		$(OBJS_PP) $(OBJS_TIME) $(OBJS_XML) 
-	@echo 'Compilation completed!'
-	@echo
+-include $(DEPS)
 
-MESS   :
-	@echo '***********************************************************'
-	@echo 'GRAINS compiling with' \
-	$(GRAINS_CPP_COMPILER_DIST)-$(GRAINS_CPP_COMPILER_VERSION)\
-	', and' \
-	$(GRAINS_GPU_COMPILER_DIST)-$(GRAINS_GPU_COMPILER_VERSION)
-	@echo '***********************************************************'
+clean:
+	rm -rf $(OBJDIR)/* \
+	rm -f $(LIBSO_WP) \
+	rm -rf $(SHAREDIR)/* \
+	rm -rf $(INCDIR)/*	
 
-CPINC  :
-	mkdir -p $(INCDIROUT)
-	@echo 'Copying include files to' $(INCDIROUT) '...'
-	rm -f $(INCDIROUT)/*
-	cp $(ALLINC) $(INCDIROUT)/
-	@echo 'Include files copied to' $(INCDIROUT)'!'
-	sleep 3
+dtd:
+	@mkdir -p $(SHAREDIR)/Dtd
+	@cp -f \
+		Dtd/Contact.dtd \
+		Dtd/Convex.dtd \
+		Dtd/Grains2D_InFluid.dtd \
+		Dtd/Grains2D.dtd \
+		Dtd/Grains3D_InFluid.dtd \
+		Dtd/Grains3D.dtd \
+		$(SHAREDIR)/Dtd/
 
-# This target depends on CPINC and runs all compilation targets in parallel
-PACKAGES : BASE COLL COMP CONT GEOM PP TIME XML
-
-# Make all compilation targets depend on CPINC
-BASE  : $(OBJS_BASE) | CPINC
-    
-COLL  : $(OBJS_COLL) | CPINC
-    
-COMP  : $(OBJS_COMP) | CPINC
-    
-CONT  : $(OBJS_CONT) | CPINC
-    
-GEOM  : $(OBJS_GEOM) | CPINC
-
-PP    : $(OBJS_PP) | CPINC
-    
-TIME  : $(OBJS_TIME) | CPINC
-    
-XML   : $(OBJS_XML) | CPINC
-
-$(OBJDIR)/%.o : %.cpp | $(OBJDIR)
-	@echo 'Compiling '$<
-	$(GRAINS_GPU_COMPILER) $(COMPFLAGS) -MMD -MP -D_XML -c $< -o $@
-
-# CLEAN
-clean : 
-	@echo 'Grains: Deleting object and library files ...'
-	rm -f $(INCDIROUT)/*
-	rm -f $(OBJDIR)/*.o
-	rm -f $(OBJDIR)/*.d
-	rm -f $(LIBDIR)/*
-	@echo 'Grains: Deleted!'
-	@echo
+tools:
+	@mkdir -p $(SHAREDIR)/Tools/ExecScripts
+	@cp -rf \
+	  Tools/ExecScripts/*.exec \
+		$(SHAREDIR)/Tools/ExecScripts/

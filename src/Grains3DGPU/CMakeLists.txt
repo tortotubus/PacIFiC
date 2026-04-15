@@ -15,33 +15,33 @@ project(Grains3DGPU
 #
 # ================================================================================
 
-set(GRAINS3D_GPU_CUDA_STANDARD "17" CACHE STRING
-  "Grains3DGPU CUDA C++ language standard")
-set_property(CACHE GRAINS3D_GPU_CUDA_STANDARD PROPERTY STRINGS 14 17 20 23)
+# set(GRAINS3D_GPU_CUDA_STANDARD "17" CACHE STRING
+#   "Grains3DGPU CUDA C++ language standard")
+# set_property(CACHE GRAINS3D_GPU_CUDA_STANDARD PROPERTY STRINGS 14 17 20 23)
 
-option(GRAINS3D_GPU_CUDA_STANDARD_REQUIRED
-  "Grains3DGPU CUDA language standard required" ON)
+# option(GRAINS3D_GPU_CUDA_STANDARD_REQUIRED
+#   "Grains3DGPU CUDA language standard required" ON)
 
-option(GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION
-  "Enable CUDA separable compilation" ON)
+# option(GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION
+#   "Enable CUDA separable compilation" ON)
 
-set(GRAINS3D_GPU_CUDA_ARCHITECTURES "75" CACHE STRING
-  "CUDA architectures (semicolon-separated, e.g. 75;86)")
+# set(GRAINS3D_GPU_CUDA_ARCHITECTURES "75" CACHE STRING
+#   "CUDA architectures (semicolon-separated, e.g. 75;86)")
 
-option(GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS
-  "Enable CUDA device symbol resolution" ON)
+# option(GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS
+#   "Enable CUDA device symbol resolution" ON)
 
-set(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST 
-  "--extended-lambda;--expt-relaxed-constexpr" 
-  CACHE STRING
-  "CUDA compilation flags (semicolon-separated preferred; space-separated also accepted)"
-)
+# set(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST 
+#   "--extended-lambda;--expt-relaxed-constexpr" 
+#   CACHE STRING
+#   "CUDA compilation flags (semicolon-separated preferred; space-separated also accepted)"
+# )
 
-if (GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST MATCHES " ")
-  separate_arguments(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST UNIX_COMMAND
-    "${GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST}"
-  )
-endif()
+# if (GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST MATCHES " ")
+#   separate_arguments(GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST UNIX_COMMAND
+#     "${GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST}"
+#   )
+# endif()
 
 # ================================================================================
 #
@@ -49,20 +49,16 @@ endif()
 #
 # ================================================================================
 
-option(PACIFIC_USE_CUDA "" ON)
-option(PACIFIC_USE_OPENMP "" ON)
-option(PACIFIC_USE_GTEST "" ON)
-
-if (PACIFIC_ENABLE_MPI)
+if (PACIFIC_USE_MPI)
   find_package(MPI REQUIRED COMPONENTS C)
 endif()
 
-if (BUILD_THIRD_PARTY_ZLIB)
+if (PACIFIC_BUILD_THIRD_PARTY_ZLIB)
 else()
   find_package(ZLIB REQUIRED)
 endif()
 
-if (BUILD_THIRD_PARTY_XERCESC)
+if (PACIFIC_BUILD_THIRD_PARTY_XERCESC)
 else()
   find_package(XercesC REQUIRED)
 endif()
@@ -90,7 +86,7 @@ add_subdirectory(Grains)
 add_subdirectory(Main) 
 
 
-if(PACIFIC_USE_GTEST)
+if(PACIFIC_BUILD_TESTS)
   set(GRAINS3D_GPU_SOURCE_ROOT_DIR "${PROJECT_SOURCE_DIR}")
   set(GRAINS3D_GPU_BINARY_ROOT_DIR "${PROJECT_BINARY_DIR}")
   enable_testing()
@@ -112,9 +108,9 @@ install(TARGETS
   Grains3DGPU 
   Grains3DGPU_main
   EXPORT Grains3DGPUTargets
-  LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}      # libGrains3D.so
+  LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}      # libGrains3DGPU.so
   COMPONENT Grains3DGPU_Runtime
-  RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}      # grains3d.so
+  RUNTIME DESTINATION ${PACIFIC_MPI_INSTALL_BINDIR}      # grains3dgpu
   COMPONENT Grains3DGPU_Runtime
   INCLUDES DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR} # for consumers
 )
@@ -122,12 +118,13 @@ install(TARGETS
 # ---- 2. Install all public headers -------------------------------------------------
 install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Base/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/CollisionDetection/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Component/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/ContactForce/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Geometry/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Fluid/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/PostProcessing/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/TimeIntegration/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/XML/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/XML3/include/
   DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}/Grains3DGPU
   COMPONENT Grains3DGPU_Devel
   FILES_MATCHING PATTERN "*.h*" # match .h, .hh, .hpp
@@ -178,7 +175,7 @@ install(FILES
 )
 
 # ---- 6. Export from the build tree for development -------------------------------
-export(EXPORT Grains3DTargets
+export(EXPORT Grains3DGPUTargets
   FILE ${CMAKE_CURRENT_BINARY_DIR}/Grains3DGPUTargets.cmake
   NAMESPACE PacIFiC::
 )
