@@ -1,0 +1,21 @@
+#!/bin/bash
+
+source ../../Env/grainsGPU.env.sh
+
+# Input file
+if [ $1 ]
+  then
+    ROOT_FILE=$1
+  else
+    ROOT_FILE=Grains/Init/insert
+fi
+INPUT_FILE=$ROOT_FILE.xml
+
+#Execute Grains
+if [ -f $INPUT_FILE ]
+  then
+    # cuda-gdb --args ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/grains $INPUT_FILE
+    time ${GRAINS_HOME}/Main/bin${GRAINS_FULL_EXT}/grains $INPUT_FILE
+  else
+    echo 'Input file' $INPUT_FILE 'does not exist'
+fi

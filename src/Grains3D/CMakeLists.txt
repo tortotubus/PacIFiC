@@ -31,7 +31,6 @@ else()
   find_package(XercesC REQUIRED)
 endif()
 
-
 # ================================================================================
 #
 # Source tree targets/projects
