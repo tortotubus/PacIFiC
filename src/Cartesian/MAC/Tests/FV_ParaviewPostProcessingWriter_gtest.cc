@@ -27,7 +27,7 @@
 
 namespace {
 
-class FVParaviewPostProcessingWriterVTKHDFSmokeTest : public ::testing::Test {
+class FVParaviewPostProcessingWriterSmokeTest : public ::testing::Test {
 protected:
   void SetUp() override {
     // Ensure the built-in communicator is available.
@@ -36,7 +36,7 @@ protected:
 
     // Create a dedicated output directory for this test run.
     out_dir_ =
-        (std::filesystem::current_path() / "mac_paraview_writer_vtkhdf_smoke")
+        (std::filesystem::current_path() / "mac_paraview_writer_smoke")
             .string();
     if (com_->rank() == 0) {
       std::error_code ec;
@@ -71,7 +71,7 @@ protected:
       time_mod_->destroy();
     if (mesh_mod_ != nullptr)
       mesh_mod_->destroy();
-
+    
     // std::filesystem::remove_all(out_dir_);
   }
 
@@ -154,8 +154,8 @@ protected:
     writer_mod_ = MAC_Module::create(MAC_Root::object(), "FV_ResultSaver");
     writer_mod_->add_entry("results_directory",
                            MAC_String::create(writer_mod_, out_dir_));
-    writer_mod_->add_entry(
-        "files_rootname", MAC_String::create(writer_mod_, "paraview_vtkhdf_smoke"));
+    writer_mod_->add_entry("files_rootname",
+                           MAC_String::create(writer_mod_, "paraview_smoke"));
     writer_exp_ = MAC_ModuleExplorer::create(MAC_Root::object(), writer_mod_);
   }
 
@@ -185,7 +185,7 @@ protected:
   std::vector<FV_DiscreteField *> fields_owned_;
 };
 
-TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest, WritesOneCycleToVtrAndPvd) {
+TEST_F(FVParaviewPostProcessingWriterSmokeTest, WritesOneCycleToVtrAndPvd) {
   build_minimal_mesh();
   build_fields();
   build_writer_config();
@@ -195,18 +195,20 @@ TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest, WritesOneCycleToVtrAndPvd)
   for (FV_DiscreteField *f : fields_owned_) {
     fields.push_back(f);
   }
-  writer_ = FV_PostProcessingWriter::make(MAC_Root::object(), "paraview_vtkhdf",
+  writer_ = FV_PostProcessingWriter::make(MAC_Root::object(), "paraview",
                                           writer_exp_, com_, fields, mesh_,
                                           /*a_binary=*/false);
   ASSERT_NE(writer_, nullptr);
 
   writer_->write_cycle(time_it_, /*cycle_number=*/0);
 
-//   const std::filesystem::path pvd = std::filesystem::path(out_dir_) / "paraview_vtkhdf_smoke.pvd";
-//   const std::filesystem::path vtr = std::filesystem::path(out_dir_) / "paraview_vtkhdf_smokeT0.vtr";
+  // const std::filesystem::path pvd =
+  //     std::filesystem::path(out_dir_) / "paraview_smoke.pvd";
+  // const std::filesystem::path vtr =
+  //     std::filesystem::path(out_dir_) / "paraview_smokeT0.vtr";
 
-//   EXPECT_TRUE(std::filesystem::exists(pvd)) << pvd.string();
-//   EXPECT_TRUE(std::filesystem::exists(vtr)) << vtr.string();
+  // EXPECT_TRUE(std::filesystem::exists(pvd)) << pvd.string();
+  // EXPECT_TRUE(std::filesystem::exists(vtr)) << vtr.string();
 }
 
 } // namespace

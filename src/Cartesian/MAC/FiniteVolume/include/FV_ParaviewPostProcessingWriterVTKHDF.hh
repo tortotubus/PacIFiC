@@ -5,6 +5,7 @@
 
 #include <list>
 #include <string>
+#include <vector>
 using std::list;
 using std::string;
 
@@ -52,6 +53,11 @@ private:   //----------------------------------------------------------
 
   FV_ParaviewPostProcessingWriterVTKHDF(MAC_Object *a_owner);
 
+  void write_imagedata_vtkhdf(std::string file, int compression_level, bool overwrite);
+  void write_vtkhdf_series();
+  void write_vtkhdf_series_idx();
+  void read_vtkhdf_series_idx();
+
   //-- Plug in
 
   FV_ParaviewPostProcessingWriterVTKHDF(std::string const &a_name);
@@ -75,7 +81,19 @@ private:   //----------------------------------------------------------
 
   std::string RES_DIRECTORY;
   std::string BASE_FILENAME;
-  std::string VTKHDF_FILENAME;
+  std::string VTKHDF_SERIES_FILENAME;
+  std::string VTKHDF_SERIES_IDX_FILENAME;
+
+  struct TimeSeriesRecord {
+    double time;
+    size_t cycle;
+    std::string file;
+  };
+  std::vector<TimeSeriesRecord> TIME_SERIES_RECORDS;
+
+  bool TIME_SERIES_LOADED;
+  bool TIME_SERIES_RESTART_MODE;
+  size_t TIME_SERIES_PREVIOUS_CYCLE;
 
   size_t CYCLE_NUMBER;
   bool BINARY;
