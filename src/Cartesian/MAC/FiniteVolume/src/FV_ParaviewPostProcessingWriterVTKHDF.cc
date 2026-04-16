@@ -1,3 +1,6 @@
+#include <H5Ipublic.h>
+#include <H5Tpublic.h>
+#include <H5public.h>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -160,7 +163,8 @@ void vtk_HDF_modify_scalar_attribute(
   int ndims = H5Sget_simple_extent_ndims(vtk_hdf->attr_space_id);
   vtk_HDF_check_result(vtk_hdf, ndims);
   if (ndims != 0) {
-   //  ELFF_ABORT("vtk_HDF_modify_scalar_attribute: attribute is not scalar.\n");
+    //  ELFF_ABORT("vtk_HDF_modify_scalar_attribute: attribute is not
+    //  scalar.\n");
   }
 
   // 3. (Optional) get file datatype if you want to sanity-check or inspect it
@@ -265,7 +269,7 @@ void vtk_HDF_read_dataset(const char *dataset_name, void **data,
   int file_rank = H5Sget_simple_extent_ndims(vtk_hdf->dset_space_id);
 
   if (file_rank != rank) {
-   //  ELFF_ABORT("Rank mismatch.\n");
+    //  ELFF_ABORT("Rank mismatch.\n");
   }
 
   // Dims / max_dims
@@ -284,7 +288,7 @@ void vtk_HDF_read_dataset(const char *dataset_name, void **data,
   *data = malloc(n_elems * type_size);
 
   if (!*data) {
-   //  ELFF_ABORT("malloc failed\n");
+    //  ELFF_ABORT("malloc failed\n");
   }
 
   result =
@@ -398,7 +402,7 @@ void vtk_HDF_append_chunked_dataset(
 
   // Check that the rank should match
   if (file_rank != rank) {
-   //  ELFF_ABORT("Rank mismatch when appending chunked dataset.\n");
+    //  ELFF_ABORT("Rank mismatch when appending chunked dataset.\n");
   }
 
   // We assume we append along dimension 0, and that all other dimensions stay
@@ -732,11 +736,16 @@ void vtk_HDF_collective_write_compressed_dataset(
   H5Sclose(vtk_hdf->dset_space_id);
   H5Dclose(vtk_hdf->dset_id);
 }
+
 }; // namespace
 
 #include <FV_ParaviewPostProcessingWriterVTKHDF.hh>
 
 #include <FV.hh>
+#include <FV_DomainAndFields.hh>
+#include <FV_Mesh.hh>
+#include <FV_TimeIterator.hh>
+
 #include <MAC_Communicator.hh>
 #include <MAC_ModuleExplorer.hh>
 #include <MAC_assertions.hh>
@@ -805,6 +814,237 @@ FV_ParaviewPostProcessingWriterVTKHDF::~FV_ParaviewPostProcessingWriterVTKHDF(
 
   if (is_a_prototype())
     PROTOTYPE = 0;
+}
+
+void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
+    int compression_level, bool overwrite) {
+  vtkHDF vtk_hdf = vtk_hdf_init(VTKHDF_FILENAME, overwrite);
+
+  // hid_t grp_fielddata_id = H5I_INVALID_HID;
+  // hid_t grp_pointdata_id = H5I_INVALID_HID;
+  // hid_t grp_celldata_id = H5I_INVALID_HID;
+
+  /*
+   * PRIMARY_GRID information
+   */
+  size_t dim = PRIMARY_GRID->nb_space_dimensions();
+
+  size_t_vector const *gmin = PRIMARY_GRID->get_global_min_index_in_domain();
+  size_t_vector const *gmax = PRIMARY_GRID->get_global_max_index_in_domain();
+
+  size_t_vector const *lmin = PRIMARY_GRID->get_local_min_index_in_global_on_current_proc();
+  size_t_vector const *lmax = PRIMARY_GRID->get_local_max_index_in_global_on_current_proc();
+
+  auto const *gc = PRIMARY_GRID->get_global_main_coordinates();
+
+  hsize_t local_size[]   = new hsize_t[dim];
+  hsize_t local_offset[] = new hsize_t[dim];
+  hsize_t global_dims[]  = new hsize_t[dim];
+  hsize_t chunk_dims[] = new hsize_t[dim];
+  hsize_t max_dims[] = new hsize_t[dim];
+
+  hsize_t local_size_v[]   = new hsize_t[dim+1];
+  hsize_t local_offset_v[] = new hsize_t[dim+1];
+  hsize_t global_dims_v[]  = new hsize_t[dim+1];
+  hsize_t chunk_dims_v[] = new hsize_t[dim+1];
+  hsize_t max_dims_v[] = new hsize_t[dim+1];
+
+
+  for (d = 0; d < dim; d++) {
+    local_size[d] = (hsize_t)((*lmax)(d) - (*lmin)(d));
+    local_offset[d] = (hsize_t)((*lmin)(d));
+    global_dims[d] = (hsize_t)((*gmax)(d) - (*gmin)(d));
+    chunk_dims[d] = local_size[d];
+    max_dims[d] = global_dims[d];
+
+    local_size_v[d] = local_size[d];
+    local_offset_v[d] = local_offset[d];
+    global_dims_v[d] = global_dims_v[d];
+    chunk_dims_v[d] = chunk_dims[d];
+    max_dims_v[d] = max_dims[d];
+  }
+
+  local_size_v[dim] = dim;
+  local_offset_v[dim] = 0;
+  global_dims_v[dim] = dim;
+  chunk_dims_v[dim] = dim;
+  max_dims_v[d] = dim;
+
+  const double origin[] = {
+    (*gc)[0](0),
+    (*gc)[1](0), 
+    dim == 3 ? (*gc)[2](0) : 0.0
+  };
+
+  const double spacing_value[] = {
+    (*gc)[0](1) - (*gc)[0](0),
+    (*gc)[1](1) - (*gc)[1](0),
+    dim == 3 ? (*gc)[2](1) - (*gc)[2](0) : 0
+  };
+
+  const int64_t whole_extent_val[] = {
+    (int64_t)(*gmin)(0), 
+    (int64_t)(*gmax)(0),
+    (int64_t)(*gmin)(1), 
+    (int64_t)(*gmax)(1),
+    dim == 3 ? (int64_t)(*gmin)(2) : 0,
+    dim == 3 ? (int64_t)(*gmax)(2) : 0
+  };
+
+  /*
+   * Attribute: /VTKHDF/Type
+   * Datatype: H5T_C_S1 / char
+   * Dimension: {1}
+   */
+  {
+    vtk_HDF_write_type_attribute("ImageData", vtk_hdf.grp_vtkhdf_id, &vtk_hdf);
+  }
+
+  /*
+   * Attribute: /VTKHDF/Direction
+   * Datatype: H5T_IEEE_F64LE / double
+   * Dimension: {9}
+   */
+  {
+    // Value for the Direction attribute
+    const double dir_value[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+    // Dimensions for the attribute
+    const hsize_t dims_attr[1] = {9};
+
+    vtk_HDF_write_attribute("Direction",           /* attribute_name */
+                            &dir_value,            /* data */
+                            H5T_IEEE_F64LE,        /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf /* vtkHDFHyperTreeGrid object/struct */
+    );
+  }
+
+  /*
+   * Attribute: /VTKHDF/Origin
+   * Datatype: H5T_IEEE_F64LE / double
+   * Dimension: {3}
+   */
+  {
+    const hsize_t dims_attr[1] = {3};
+
+    vtk_HDF_write_attribute("Origin",              /* attribute_name */
+                            &origin,               /* data */
+                            H5T_IEEE_F64LE,        /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf /* vtkHDFHyperTreeGrid object/struct */
+    );
+  }
+
+  /*
+   * Attribute: /VTKHDF/Spacing
+   * Datatype: H5T_IEEE_F64LE / double
+   * Dimension: {3}
+   */
+  { 
+
+    const hsize_t dims_attr[1] = {3};
+
+    vtk_HDF_write_attribute("Spacing",             /* attribute_name */
+                            &spacing_value,        /* data */
+                            H5T_IEEE_F64LE,        /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf /* vtkHDFHyperTreeGrid object/struct */
+    );
+  }
+
+  /*
+   * Attribute: /VTKHDF/Version
+   * Datatype: H5T_NATIVE_INT64 / int64_t
+   * Dimension: {2}
+   */
+  {
+    // Value of the VTKHDF version attribute
+    const int64_t vers_value[2] = {2, 4};
+
+    // Dimensions of the attribute
+    const hsize_t dims_attr[1] = {2};
+
+    vtk_HDF_write_attribute("Version",             /* attribute_name */
+                            vers_value,            /* data */
+                            H5T_NATIVE_INT64,      /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf               /* vtkHDF object/struct */
+    );
+  }
+
+  /*
+   * Attribute: /VTKHDF/WholeExtent
+   * Datatype: H5T_NATIVE_INT64 / int64_t
+   * Dimension: {6}
+   */
+  {
+    // Dimensions of the attribute
+    const hsize_t dims_attr[1] = {6};
+
+    vtk_HDF_write_attribute("WholeExtent",         /* attribute_name */
+                            whole_extent_val,      /* data */
+                            H5T_NATIVE_INT64,      /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf               /* vtkHDF object/struct */
+    );
+  }
+
+  /*
+   * Group: /VTKHDF/CellData
+   */
+  {
+    // Create the new CellData group inside group VTKHDF
+    hid_t grp_celldata_id = H5I_INVALID_HID;
+    grp_celldata_id = H5Gcreate2(vtk_hdf.grp_vtkhdf_id, "CellData", H5P_DEFAULT,
+                                 H5P_DEFAULT, H5P_DEFAULT);
+    vtk_HDF_check_object(&vtk_hdf, grp_celldata_id);
+
+
+
+    // Write fields
+    for (it = FVFIELDS.begin(); it != FVFIELDS.end(); ++it) {
+      FV_DiscreteField const *f = *it;
+
+      std::string const &fname = f->name();          // field name
+      size_t ncomp = f->nb_components();             // scalar = 1, vector/tensor > 1
+      std::string location = f->paraview_location(); // "at_vertices" / "at_cell_centers"
+      size_t depth = f->storage_depth();             // time levels stored
+
+      if (location != "at_cell_centers")
+        continue;
+
+      const int rank = ncomp == 1 ? dim : dim + 1;
+
+      float *data = nullptr;
+      if (dim == 2)
+        data = new float[local_size[0] * local_size[1] * ncomp];
+      else 
+        data = new float[local_size[0] * local_size[1] * local_size[2] * ncomp];
+
+      vtk_HDF_collective_write_compressed_dataset(
+          fname,             // dataset_name
+          data,              // data
+          H5T_IEEE_F32LE,    // dtype_id
+          grp_celldata_id,   // group_id
+          rank,              // rank
+          global_dims,       // dims
+          max_dims,          // max_dims
+          chunk_dims,        // chunk_dims
+          local_size,        // local_size
+          local_offset,      // local_offset
+          COMPRESSION_LEVEL, // compression_level
+          &vtk_hdf           // vtk_hdf
+      );
+    }
+  }
+
+  vtk_hdf_close(&vtkhdf);
 }
 
 //----------------------------------------------------------------------
