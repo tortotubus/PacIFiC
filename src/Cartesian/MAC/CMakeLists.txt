@@ -17,7 +17,7 @@ project(MAC
 
 find_package(MPI REQUIRED COMPONENTS C)
 
-if (BUILD_THIRD_PARTY_ZLIB)
+if (PACIFIC_BUILD_THIRD_PARTY_ZLIB)
   # find_package(ZLIB REQUIRED)
 else()
   find_package(ZLIB REQUIRED)
@@ -96,7 +96,7 @@ list(APPEND MAC_SOURCES
 add_library(MAC SHARED ${MAC_SOURCES})
 add_library(PacIFiC::MAC ALIAS MAC)
 
-if(BUILD_THIRD_PARTY_PETSC)
+if(PACIFIC_BUILD_THIRD_PARTY_PETSC)
 else()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(PETSC REQUIRED PETSc)
