@@ -207,3 +207,13 @@ export(EXPORT MACTargets
   FILE ${CMAKE_CURRENT_BINARY_DIR}/MACTargets.cmake
   NAMESPACE PacIFiC::
 )
+
+# ================================================================================
+#
+# Tests
+#
+# ================================================================================
+
+if(PACIFIC_BUILD_TESTS AND PACIFIC_USE_GTEST)
+  add_subdirectory(Tests)
+endif()
