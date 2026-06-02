@@ -18,7 +18,7 @@ double edge_length(lagMesh* mesh, int i) {
   v1 = mesh->edges[i].node_ids[0];
   v2 = mesh->edges[i].node_ids[1];
   foreach_dimension() {
-    length += sq(GENERAL_1DIST(mesh->nodes[v1].pos.x, mesh->nodes[v2].pos.x));
+    length += sq(GENERAL_1DIST(mesh->nodes[v1].pos.x, mesh->nodes[v2].pos.x, L0*L0_ratio.x));
   }
   return sqrt(length);
 }
@@ -54,9 +54,9 @@ void comp_edge_normal(lagMesh* mesh, int i) {
   int node_id[2];
   for(int j=0; j<2; j++) node_id[j] = mesh->edges[i].node_ids[j];
   mesh->edges[i].normal.y = GENERAL_1DIST(mesh->nodes[node_id[0]].pos.x,
-    mesh->nodes[node_id[1]].pos.x);
+    mesh->nodes[node_id[1]].pos.x, L0*L0_ratio.x );
   mesh->edges[i].normal.x = GENERAL_1DIST(mesh->nodes[node_id[1]].pos.y,
-    mesh->nodes[node_id[0]].pos.y);
+    mesh->nodes[node_id[0]].pos.y, L0*L0_ratio.y );
   double normn = sqrt(sq(mesh->edges[i].normal.x)
     + sq(mesh->edges[i].normal.y));
   foreach_dimension() mesh->edges[i].normal.x /= normn;
@@ -86,7 +86,7 @@ void comp_initial_area_normals(lagMesh* mesh) {
     for(int j=0; j<2; j++)
       foreach_dimension()
         e[j].x = GENERAL_1DIST(mesh->nodes[nid[0]].pos.x,
-          mesh->nodes[nid[j+1]].pos.x);
+          mesh->nodes[nid[j+1]].pos.x, L0*L0_ratio.x);
     foreach_dimension() normal.x = e[0].y*e[1].z - e[0].z*e[1].y;
     double norm = sqrt(sq(normal.x) + sq(normal.y) + sq(normal.z));
     double dp = 0.; // dp for "dot product"
@@ -127,26 +127,27 @@ void comp_triangle_area_normal(lagMesh* mesh, int i) {
 ///////ggd 
   for(int j=0; j<3; j++) {
     foreach_dimension() {
-      mesh->triangles[i].centroid.x += mesh->centroid.x + GENERAL_1DIST(mesh->nodes[nid[j]].pos.x, mesh->centroid.x);
+      mesh->triangles[i].centroid.x += mesh->centroid.x + GENERAL_1DIST(mesh->nodes[nid[j]].pos.x, mesh->centroid.x, L0*L0_ratio.x);
     }
   }
 foreach_dimension() mesh->triangles[i].centroid.x /=3.;
 ////ggd 
 
 
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+  coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2}; //FIXM
+
   foreach_dimension() {
-    if (fabs(mesh->triangles[i].centroid.x - origin.x) > L0/2.) {
+    if (fabs(mesh->triangles[i].centroid.x - origin.x) > L0*L0_ratio.x/2.) {
       if (mesh->triangles[i].centroid.x - origin.x > 0)
-        mesh->triangles[i].centroid.x -= L0;
-      else mesh->triangles[i].centroid.x += L0;
+        mesh->triangles[i].centroid.x -= L0*L0_ratio.x;
+      else mesh->triangles[i].centroid.x += L0*L0_ratio.x;
     }
   }
   coord normal, e[2];
   for(int j=0; j<2; j++)
     foreach_dimension()
       e[j].x = GENERAL_1DIST(mesh->nodes[nid[0]].pos.x,
-        mesh->nodes[nid[j+1]].pos.x);
+        mesh->nodes[nid[j+1]].pos.x, L0*L0_ratio.x);
   foreach_dimension() normal.x = e[0].y*e[1].z - e[0].z*e[1].y;
   double norm = sqrt(sq(normal.x) + sq(normal.y) + sq(normal.z));
   foreach_dimension() mesh->triangles[i].normal.x = normal.x/norm;
@@ -169,16 +170,17 @@ bool on_face(double p, int n, double l0) {
   else return false;
 }
 
-void correct_node_pos(coord* node) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+void correct_node_pos(coord* node) {  
+  coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2};
+  
   foreach_dimension() {
-    if (on_face(node->x, N, L0))
+    if (on_face(node->x, N, L0*L0_ratio.x))
       node->x += 1.e-10;
     //FIXME: the nodes should not be sent to the other side of the domain if the boundary is not periodic...
-    if (node->x > origin.x + L0/2)
-      node->x -= L0;
-    else if (node->x < origin.x - L0/2)
-      node->x += L0;
+    if (node->x > origin.x + L0*L0_ratio.x/2)
+      node->x -= L0*L0_ratio.x;
+    else if (node->x < origin.x - L0*L0_ratio.x/2)
+      node->x += L0*L0_ratio.x;
   }
 }
 
@@ -197,14 +199,14 @@ coordinates of all its nodes. The centroid is stored as an attribute of the
 caps structure.
 */
 void comp_centroid(lagMesh* mesh) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+  coord origin = {X0 + L0/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2};
   foreach_dimension() mesh->centroid.x = 0.;
   for(int i=0; i<mesh->nln; i++)
     foreach_dimension() {
       double tentative_pos = mesh->nodes[i].pos.x - mesh->nodes[0].pos.x;
-      mesh->centroid.x += (tentative_pos < origin.x - L0/2) ?
-        tentative_pos + L0 :
-          ((tentative_pos > origin.x + L0/2) ? tentative_pos - L0 :
+      mesh->centroid.x += (tentative_pos < origin.x - L0*L0_ratio.x/2) ?
+        tentative_pos + L0*L0_ratio.x :
+          ((tentative_pos > origin.x + L0*L0_ratio.x/2) ? tentative_pos - L0*L0_ratio.x :
           tentative_pos);
     }
   foreach_dimension()
@@ -214,7 +216,7 @@ void comp_centroid(lagMesh* mesh) {
 
 trace
 void comp_volume(lagMesh* mesh) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+  coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2}; //FIXME
   comp_centroid(mesh);
   double volume = 0;
   for(int i=0; i<mesh->nlt; i++) {
@@ -223,9 +225,9 @@ void comp_volume(lagMesh* mesh) {
       foreach_dimension() {
         double tentative_pos = mesh->nodes[mesh->triangles[i].node_ids[j]].pos.x
           - mesh->centroid.x;
-        nodes[j].x = (tentative_pos < origin.x - L0/2) ?
-          tentative_pos + L0 :
-          ((tentative_pos > origin.x + L0/2) ? tentative_pos - L0 :
+        nodes[j].x = (tentative_pos < origin.x - L0*L0_ratio.x/2) ?
+          tentative_pos + L0*L0_ratio.x :
+          ((tentative_pos > origin.x + L0*L0_ratio.x/2) ? tentative_pos - L0*L0_ratio.x :
           tentative_pos);
       }
     for(int j=0; j<3; j++) {
@@ -248,12 +250,12 @@ coord* rs, double* TDmaxmin, double* TDang)
   for(int i = 0; i < mesh->nlt; i++) 
   {
     double rn = 0.;
-    double rSquared = sq(GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x)) 
-    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.y, mesh->centroid.y))
-    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.z, mesh->centroid.z)) ;     
+    double rSquared = sq(GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x, L0*L0_ratio.x)) 
+    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.y, mesh->centroid.y, L0*L0_ratio.y))
+    + sq(GENERAL_1DIST(mesh->triangles[i].centroid.z, mesh->centroid.z, L0*L0_ratio.z)) ;     
     coord tri_vec = {0};
 
-    foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x);
+    foreach_dimension() tri_vec.x = GENERAL_1DIST(mesh->triangles[i].centroid.x, mesh->centroid.x, L0*L0_ratio.x);
     foreach_dimension() rn += tri_vec.x * mesh->triangles[i].normal.x;
     // rn = fabs(rn); // In case of centroid ouside of capsule, we change the sign of rn
     
@@ -337,9 +339,9 @@ coord* rs, double* TDmaxmin, double* TDang)
     {
     /** The post-processing is only carried out if we are in the shear plane */
         double projx, projy, projz;
-        projx = GENERAL_1DIST(mesh->nodes[i].pos.x, mesh->centroid.x);
-        projy = GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y);
-        projz = GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z);
+        projx = GENERAL_1DIST(mesh->nodes[i].pos.x, mesh->centroid.x, L0*L0_ratio.x);
+        projy = GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y, L0*L0_ratio.y);
+        projz = GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z, L0*L0_ratio.z);
         double rad  = sqrt(sq(projx) + sq(projy) + sq(projz));
         if (rad > rmax) 
         {
@@ -388,8 +390,8 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
     min_radius = (tentative_radius < min_radius)? tentative_radius: min_radius; 
 
     foreach_dimension()
-      angvel.x += (GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y)*(mesh->nodes[i].lagVel.z - center_vel.z) -
-        GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z)*(mesh->nodes[i].lagVel.y - center_vel.y)) /tentative_radius /tentative_radius;
+      angvel.x += (GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y, L0*L0_ratio.y)*(mesh->nodes[i].lagVel.z - center_vel.z) -
+        GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z, L0*L0_ratio.z)*(mesh->nodes[i].lagVel.y - center_vel.y)) /tentative_radius /tentative_radius;
  
   }
 
@@ -585,9 +587,9 @@ boundary. */
 bool is_edge_across_periodic(lagMesh* mesh, int i) {
   int n[2];
   for(int k=0; k<2; k++) n[k] = mesh->edges[i].node_ids[k];
-  if (ACROSS_PERIODIC(mesh->nodes[n[0]].pos.x, mesh->nodes[n[1]].pos.x)
-    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.y, mesh->nodes[n[1]].pos.y)
-    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.z, mesh->nodes[n[1]].pos.z))
+  if (ACROSS_PERIODIC(mesh->nodes[n[0]].pos.x, mesh->nodes[n[1]].pos.x, L0*L0_ratio.x)
+    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.y, mesh->nodes[n[1]].pos.y, L0*L0_ratio.y)
+    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.z, mesh->nodes[n[1]].pos.z, L0*L0_ratio.z))
       return true;
   return false;
 }
@@ -924,8 +926,8 @@ by the nodes [*n1, *n2] and [*n1, *n3].
 double comp_angle(lagNode* n1, lagNode* n2, lagNode* n3) {
   double theta = 0.;
   foreach_dimension() {
-    theta += GENERAL_1DIST(n2->pos.x, n1->pos.x)*
-             GENERAL_1DIST(n3->pos.x, n1->pos.x);
+    theta += GENERAL_1DIST(n2->pos.x, n1->pos.x, L0*L0_ratio.x)*
+             GENERAL_1DIST(n3->pos.x, n1->pos.x, L0*L0_ratio.x);
   }
   double norm1 = GENERAL_SQNORM(n1->pos, n2->pos);
   double norm2 = GENERAL_SQNORM(n1->pos, n3->pos);
@@ -1053,8 +1055,8 @@ coordinate.
 coord correct_periodic_node_pos(coord a, coord ref) {
     coord result;
     foreach_dimension() {
-        result.x = (fabs(a.x - ref.x) < L0/2) ? a.x :
-            (a.x > ref.x) ? a.x - L0 : a.x + L0;
+        result.x = (fabs(a.x - ref.x) < L0*L0_ratio.x/2) ? a.x :
+            (a.x > ref.x) ? a.x - L0*L0_ratio.x : a.x + L0*L0_ratio.x;
     }
     return result;
 }
@@ -1067,10 +1069,10 @@ length 2.
 */
 void correct_periodic_nodes_pos(coord* result, coord a, coord b, coord ref) {
   foreach_dimension() {
-    result[0].x = (fabs(a.x - ref.x) < L0/2) ? a.x :
-      (a.x > ref.x) ? a.x - L0 : a.x + L0;
-    result[1].x = (fabs(b.x - ref.x) < L0/2) ? b.x :
-      (b.x > ref.x) ? b.x - L0 : b.x + L0;
+    result[0].x = (fabs(a.x - ref.x) < L0*L0_ratio.x/2) ? a.x :
+      (a.x > ref.x) ? a.x - L0*L0_ratio.x : a.x + L0*L0_ratio.x;
+    result[1].x = (fabs(b.x - ref.x) < L0*L0_ratio.x/2) ? b.x :
+      (b.x > ref.x) ? b.x - L0*L0_ratio.x : b.x + L0*L0_ratio.x;
   }
 }
 
@@ -1151,7 +1153,7 @@ double compute_node_area(lagMesh* mesh, int i) {
           double edge_length = 0.;
           foreach_dimension()
             edge_length += sq(GENERAL_1DIST(mesh->nodes[i].pos.x,
-              mesh->nodes[nid].pos.x));
+              mesh->nodes[nid].pos.x, L0*L0_ratio.x));
           voronoi_area += (cot(theta[0]) + cot(theta[1]))*edge_length;
         }
       }

@@ -32,6 +32,18 @@ meant to track the position and compute the stresses of an elasitc membrane.
 scalar Index_lagnode[];
 vector Index_lag_id[];
 
+/*Create the dimension ratios for non-cubic domain*/
+#ifndef L0_X
+  #define L0_X L0
+#endif
+#ifndef L0_Y
+  #define L0_Y L0
+#endif
+#ifndef L0_Z
+  #define L0_Z L0
+#endif
+
+coord L0_ratio = {L0_X/L0, L0_Y/L0, L0_Z/L0};
 
 /**
 ## Structure of the mesh
@@ -288,13 +300,13 @@ void initialize_active_capsule(lagMesh* mesh, int cap_id, int cap_type) {
 across periodic boundaries. We assume for this purpose that the length of
 the edges are less that half the domain size, which in practice should always
 be the case. */
-#define ACROSS_PERIODIC(a,b) (fabs(a - b) > L0/2.)
-#define PERIODIC_1DIST(a,b) (fabs(a - L0 - b) > L0/2. ? a + L0 - b : a - L0 - b)
-#define GENERAL_1DIST(a,b) (ACROSS_PERIODIC(a,b) ? PERIODIC_1DIST(a,b) : a - b)
-#define PERIODIC_1DAVG(a,b) (fabs(a - L0 - b) > L0/2. ? a + L0 + b : a - L0 + b)
-#define GENERAL_1DAVG(a,b) (ACROSS_PERIODIC(a,b) ? PERIODIC_1DAVG(a,b) : a + b)
-#define GENERAL_SQNORM(a,b) (sq(GENERAL_1DIST(a.x, b.x)) + \
-  sq(GENERAL_1DIST(a.y, b.y)) + sq(GENERAL_1DIST(a.z, b.z)))
+#define ACROSS_PERIODIC(a,b,L) (fabs(a - b) > L/2.)
+#define PERIODIC_1DIST(a,b,L) (fabs(a - L - b) > L/2. ? a + L - b : a - L - b)
+#define GENERAL_1DIST(a,b,L) (ACROSS_PERIODIC(a,b,L) ? PERIODIC_1DIST(a,b,L) : a - b)
+#define PERIODIC_1DAVG(a,b,L) (fabs(a - L - b) > L/2. ? a + L + b : a - L + b)
+#define GENERAL_1DAVG(a,b,L) (ACROSS_PERIODIC(a,b,L) ? PERIODIC_1DAVG(a,b,L) : a + b)
+#define GENERAL_SQNORM(a,b) (sq(GENERAL_1DIST(a.x, b.x, L0)) + \
+  sq(GENERAL_1DIST(a.y, b.y, L0*Dimensions.y/Dimensions.x)) + sq(GENERAL_1DIST(a.z, b.z, L0*Dimensions.z/Dimensions.x)))
 
 #if dimension < 3
   #define cnorm(a) (sqrt(sq(a.x) + sq(a.y)))
@@ -488,8 +500,10 @@ void repulsive_vel()
                     checkpt.z = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.z;
 
                     coord lub_dir = {0};
+                    
                     double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
-                    foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
+            
+                    foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x, L0*L0_ratio.x)/lub_norm;
                     if(lub_norm < 2.*delta)
                     {
                       foreach_dimension() lub_vel.x += lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
@@ -511,7 +525,7 @@ void repulsive_vel()
 
               coord lub_dir = {0};
               double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
-              foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
+              foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x, L0*L0_ratio.x)/lub_norm;
               if(lub_norm < 2.*delta)
               {                 
                 CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
@@ -595,6 +609,7 @@ void lubrication_force()
   /*Compute the cell size in the grid*/
   #if MULT_GRID == 1   
     double delta = (L0/(1 << grid->maxdepth)/Dimensions.x);
+    
   #else
     double delta = (L0/(1 << grid->maxdepth));
   #endif
@@ -638,8 +653,9 @@ void lubrication_force()
                     checkpt.z = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.z;
 
                     coord lub_dir = {0};
+                    
                     double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
-                    foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x)/lub_norm;
+                    foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x, L0*L0_ratio.x)/lub_norm;
                     if(lub_norm < 2*delta)
                     {
                       foreach_dimension() lub_force.x += lub_dir.x * K_lub * (sq(2*delta/lub_norm) - 1.);

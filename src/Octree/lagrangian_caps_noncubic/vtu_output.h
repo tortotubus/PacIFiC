@@ -172,6 +172,7 @@ is not supported by paraview. Hence a fix was needed. Oystein Lande 2017
 void output_vtu_ascii_foreach( scalar* list, vector* vlist, 
 	FILE* fp, bool linear )
 {
+
 # if defined(_OPENMP)
     int num_omp = omp_get_max_threads();
     omp_set_num_threads( 1 );
@@ -193,16 +194,16 @@ void output_vtu_ascii_foreach( scalar* list, vector* vlist,
     foreach(serial, noauto)
     {
       if ( Period.x )
-        if ( x + Delta > X0 + L0 || x - Delta < X0 )
+        if ( x + Delta > X0 + L0*L0_ratio.x || x - Delta < X0 )
           per_mask[] = 0.;
 #     if dimension > 1
         if ( Period.y )
-          if ( y + Delta > Y0 + L0 ||  y - Delta < Y0 )
+          if ( y + Delta > Y0 + L0*L0_ratio.y ||  y - Delta < Y0 )
             per_mask[] = 0.;
 #     endif
 #     if dimension > 2
         if ( Period.z )
-          if ( z + Delta > Z0 + L0 || z - Delta < Z0 )
+          if ( z + Delta > Z0 + L0*L0_ratio.z || z - Delta < Z0 )
             per_mask[] = 0.;
 #     endif
     }
@@ -429,6 +430,7 @@ Oystein Lande 2017
 void output_vtu_bin_foreach( scalar* list, vector* vlist, FILE* fp, 
 	bool linear )
 {
+
 # if defined(_OPENMP)
     int num_omp = omp_get_max_threads();
     omp_set_num_threads( 1 );
@@ -450,16 +452,16 @@ void output_vtu_bin_foreach( scalar* list, vector* vlist, FILE* fp,
     foreach(serial, noauto)
     {
       if ( Period.x )
-        if ( x + Delta > X0 + L0 || x - Delta < X0 )
+        if ( x + Delta > X0 + L0*L0_ratio.x || x - Delta < X0 )
           per_mask[] = 0.;
 #     if dimension > 1
         if ( Period.y )
-          if ( y + Delta > Y0 + L0 ||  y - Delta < Y0 )
+          if ( y + Delta > Y0 + L0*L0_ratio.y ||  y - Delta < Y0 )
             per_mask[] = 0.;
 #     endif
 #     if dimension > 2
         if ( Period.z )
-          if ( z + Delta > Z0 + L0 || z - Delta < Z0 )
+          if ( z + Delta > Z0 + L0*L0_ratio.z || z - Delta < Z0 )
             per_mask[] = 0.;
 #     endif
     }

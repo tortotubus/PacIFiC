@@ -20,16 +20,16 @@ not with Cartesian nor multigrids}.
   {
     // We assume all stencils are at the maximal level 
     int l = grid->maxdepth;
-    
+
       Point point = {0};
       point.level = l;
       int n = 1 << point.level;
-      point.i = (xp - X0)/L0*n + GHOSTS;
+      point.i = (xp - X0)/L0*L0_ratio.x*n + GHOSTS;
   #if dimension >= 2
-      point.j = (yp - Y0)/L0*n + GHOSTS;
+      point.j = (yp - Y0)/L0*L0_ratio.y*n + GHOSTS;
   #endif
   #if dimension >= 3
-      point.k = (zp - Z0)/L0*n + GHOSTS;
+      point.k = (zp - Z0)/L0*L0_ratio.z*n + GHOSTS;
   #endif
       if (point.i >= 0 && point.i < n + 2*GHOSTS
   #if dimension >= 2
@@ -74,11 +74,12 @@ void generate_lag_stencils_one_caps(lagMesh* mesh, bool no_warning)
     node are all at the maximum level.
     */
 
-    /*The definition of maxdepth is one level higher in multigrid*/
+    /*The definition of maxdepth is one level higher in multigrid. Dimensions denote the dimensions of the proc arrangement in each direction, 
+    note that L0 is always defined along x-axis,  */
     #if MULT_GRID == 1   
     #define locate_stencil(X, Y, Z) locate(X, Y, Z)
       double delta = (L0/(1 << grid->maxdepth)/Dimensions.x);
-    #else
+  #else
       double delta = (L0/(1 << grid->maxdepth));
     #endif
 
@@ -274,10 +275,10 @@ void lag2eul(vector forcing, lagMesh* mesh) {
           if (cs[] > 1.e-10) {
         #endif
         coord dist;
-        dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
-        dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
+        dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x, L0*L0_ratio.x);
+        dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y, L0*L0_ratio.y);
         #if dimension > 2
-        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
+        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z, L0*L0_ratio.z);
         #endif
         #if dimension < 3
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
@@ -314,10 +315,10 @@ void eul2lag(lagMesh* mesh) {
     foreach_cache(mesh->nodes[ii].stencil) {
       if (point.level >= 0) {
         coord dist;
-        dist.x = GENERAL_1DIST(x, mesh->nodes[ii].pos.x);
-        dist.y = GENERAL_1DIST(y, mesh->nodes[ii].pos.y);
+        dist.x = GENERAL_1DIST(x, mesh->nodes[ii].pos.x, L0*L0_ratio.x);
+        dist.y = GENERAL_1DIST(y, mesh->nodes[ii].pos.y, L0*L0_ratio.y);
         #if dimension > 2
-        dist.z = GENERAL_1DIST(z, mesh->nodes[ii].pos.z);
+        dist.z = GENERAL_1DIST(z, mesh->nodes[ii].pos.z, L0*L0_ratio.z);
         #endif
         #if dimension < 3
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {
@@ -350,10 +351,10 @@ void tag_ibm_stencils_one_caps(lagMesh* mesh) {
     foreach_cache(mesh->nodes[i].stencil) {
       if (point.level >= 0) {
         coord dist;
-        dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x);
-        dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y);
+        dist.x = GENERAL_1DIST(x, mesh->nodes[i].pos.x, L0*L0_ratio.x);
+        dist.y = GENERAL_1DIST(y, mesh->nodes[i].pos.y, L0*L0_ratio.y);
         #if dimension > 2
-        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z);
+        dist.z = GENERAL_1DIST(z, mesh->nodes[i].pos.z, L0*L0_ratio.z);
         #endif
         #if dimension < 3
         if (fabs(dist.x) <= 2*Delta && fabs(dist.y) <= 2*Delta) {

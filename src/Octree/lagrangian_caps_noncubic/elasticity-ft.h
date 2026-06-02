@@ -36,6 +36,8 @@ void rotate_to_reference_plane(lagMesh* mesh, int tid, coord rn[2],
   int nodes[3];
   for(int i=0; i<3; i++) nodes[i] = mesh->triangles[tid].node_ids[i];
 
+  //coord L0_ratio = {1., Dimensions.y/Dimensions.x, Dimensions.z/Dimensions.x};
+
   /** Step 1. compute the rotation matrix $\bm{M}$ from the current plane to the reference plane
 
   We also compute its inverse $\bm{IM}$ */
@@ -50,7 +52,7 @@ void rotate_to_reference_plane(lagMesh* mesh, int tid, coord rn[2],
   $ec[1] = ec[2] \times ec[0]$*/
   foreach_dimension() {
     ec[0].x = GENERAL_1DIST(mesh->nodes[nodes[2]].pos.x,
-      mesh->nodes[nodes[0]].pos.x);
+      mesh->nodes[nodes[0]].pos.x, L0*L0_ratio.x);
     ec[2].x = -mesh->triangles[tid].normal.x;
   }
   double enorm = cnorm(ec[0]);
@@ -71,11 +73,11 @@ void rotate_to_reference_plane(lagMesh* mesh, int tid, coord rn[2],
   for(int k=0; k<2; k++) {
     double cv[3]; // cv for "current vector"
     cv[0] = GENERAL_1DIST(mesh->nodes[nodes[k+1]].pos.x,
-      mesh->nodes[nodes[0]].pos.x);
+      mesh->nodes[nodes[0]].pos.x, L0*L0_ratio.x);
     cv[1] = GENERAL_1DIST(mesh->nodes[nodes[k+1]].pos.y,
-      mesh->nodes[nodes[0]].pos.y);
+      mesh->nodes[nodes[0]].pos.y, L0*L0_ratio.y);
     cv[2] = GENERAL_1DIST(mesh->nodes[nodes[k+1]].pos.z,
-      mesh->nodes[nodes[0]].pos.z);
+      mesh->nodes[nodes[0]].pos.z, L0*L0_ratio.z);
     for(int i=0; i<3; i++) {
       refNode[i] = 0.;
       for(int j=0; j<3; j++)
@@ -144,13 +146,14 @@ void comp_elastic_stress(lagMesh* mesh) {
       edge_node2 = mesh->edges[edge_id].node_ids[1];
       coord e;
       double ne = 0.;
+      //coord L0_ratio = {1., Dimensions.y/Dimensions.x, Dimensions.z/Dimensions.x};
       foreach_dimension() {
         double x1 = mesh->nodes[edge_node1].pos.x;
         double x2 = mesh->nodes[edge_node2].pos.x;
         /** Warning: the line below was not tested when the origin is not
         (0,0,0): it might be wrong in that case.*/
-        e.x = (fabs(x1 - x2) < L0/2.) ? x1 - x2 : ((fabs(x1 - L0 - x2) > L0/2.)
-          ? x1 + L0 - x2 : x1 - L0 - x2) ;
+        e.x = (fabs(x1 - x2) < L0*L0_ratio.x/2.) ? x1 - x2 : ((fabs(x1 - L0*L0_ratio.x - x2) > L0*L0_ratio.x/2.)
+          ? x1 + L0*L0_ratio.x - x2 : x1 - L0*L0_ratio.x - x2) ;
         ne += sq(e.x);
       }
       ne = sqrt(ne);

@@ -267,7 +267,7 @@ void output_caps_node_tri()
 
 void output_physics(int cap_number, int iter) {
 
-double top_visc_stress = 0;
+  double top_visc_stress = 0;
   int top_nb_cells = 0;
   foreach_boundary(top, reduction(+:top_visc_stress) reduction(+:top_nb_cells)) {
     top_nb_cells++;
@@ -314,9 +314,9 @@ double top_visc_stress = 0;
 	for(int i=0; i<CAPS(k).nln; i++) 
 	{
 	double rx, ry, rz;
-        rx = CAPS(k).centroid.x + GENERAL_1DIST(CAPS(k).nodes[i].pos.x, CAPS(k).centroid.x);
-        ry = CAPS(k).centroid.y + GENERAL_1DIST(CAPS(k).nodes[i].pos.y, CAPS(k).centroid.y);
-        rz = CAPS(k).centroid.z + GENERAL_1DIST(CAPS(k).nodes[i].pos.z, CAPS(k).centroid.z);
+        rx = CAPS(k).centroid.x + GENERAL_1DIST(CAPS(k).nodes[i].pos.x, CAPS(k).centroid.x, L0*L0_ratio.x);
+        ry = CAPS(k).centroid.y + GENERAL_1DIST(CAPS(k).nodes[i].pos.y, CAPS(k).centroid.y, L0*L0_ratio.y);
+        rz = CAPS(k).centroid.z + GENERAL_1DIST(CAPS(k).nodes[i].pos.z, CAPS(k).centroid.z, L0*L0_ratio.z);
 
 	#ifndef CAPS_VISCOSITY
 	sigmaxx += - CAPS(k).nodes[i].lagForce.x * rx;
@@ -477,9 +477,9 @@ void output_bidispse_physics(int N_pops, int iter) {
 	/** The post-processing is only carried out if we are in the shear plane */ 
 	double rx, ry, rz;
 
-        rx = CAPS(k).centroid.x + GENERAL_1DIST(CAPS(k).nodes[i].pos.x, CAPS(k).centroid.x);
-        ry = CAPS(k).centroid.y + GENERAL_1DIST(CAPS(k).nodes[i].pos.y, CAPS(k).centroid.y);
-        rz = CAPS(k).centroid.z + GENERAL_1DIST(CAPS(k).nodes[i].pos.z, CAPS(k).centroid.z);
+        rx = CAPS(k).centroid.x + GENERAL_1DIST(CAPS(k).nodes[i].pos.x, CAPS(k).centroid.x, L0*L0_ratio.x);
+        ry = CAPS(k).centroid.y + GENERAL_1DIST(CAPS(k).nodes[i].pos.y, CAPS(k).centroid.y, L0*L0_ratio.y);
+        rz = CAPS(k).centroid.z + GENERAL_1DIST(CAPS(k).nodes[i].pos.z, CAPS(k).centroid.z, L0*L0_ratio.z);
 
 	#ifndef CAPS_VISCOSITY
 	sigmaxx += - CAPS(k).nodes[i].lagForce.x * rx;

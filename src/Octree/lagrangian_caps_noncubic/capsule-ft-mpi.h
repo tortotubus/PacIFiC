@@ -12,30 +12,30 @@ bool on_face2(double p, int n, double l0) {
   else return false;
 }
 
-double correct_point_pos(double ptx, double a) {
-   double origin = a + L0/2;
-    if (on_face2(ptx, N, L0))
+double correct_point_pos(double ptx, double a, double L) {
+   double origin = a + L/2; // L is the length of the domain in the current dimension
+    if (on_face2(ptx, N, L))
       ptx += 1.e-10;
     //FIXME: the nodes should not be sent to the other side of the domain if the boundary is not periodic...
-    if (ptx > origin + L0/2)
-      ptx -= L0;
-    else if (ptx < origin - L0/2)
-      ptx += L0;
+    if (ptx > origin + L/2)
+      ptx -= L;
+    else if (ptx < origin - L/2)
+      ptx += L;
   return ptx;
 }
 
 /*Two-sides periodicity*/
-#define POS_PBC_X(X) ((u.x.boundary[left] != periodic_bc) ? (X) : correct_point_pos(X, X0))
-#define POS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : correct_point_pos(Y, Y0))
-#define POS_PBC_Z(Z) ((u.x.boundary[front] != periodic_bc) ? (Z) : correct_point_pos(Z, Z0))
+#define POS_PBC_X(X) ((u.x.boundary[left] != periodic_bc) ? (X) : correct_point_pos(X, X0, L0))
+#define POS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : correct_point_pos(Y, Y0, L0*Dimensions.y/Dimensions.x))
+#define POS_PBC_Z(Z) ((u.x.boundary[front] != periodic_bc) ? (Z) : correct_point_pos(Z, Z0, L0*Dimensions.z/Dimensions.x))
 
 /*Onside periodicity, might be useful for visualization*/
 #define vPOS_PBC_X(X) ((u.x.boundary[left] != periodic_bc) ? (X) : (((X - (X0 +\
   L0/2)) > L0/2.) ? (X) - L0 : (X)))
 #define vPOS_PBC_Y(Y) ((u.x.boundary[top] != periodic_bc) ? (Y) : (((Y - (Y0 +\
-  L0/2)) > L0/2.) ? (Y) - L0 : (Y)))
+  L0*Dimensions.y/Dimensions.x/2)) > L0*Dimensions.y/Dimensions.x/2.) ? (Y) - L0*Dimensions.y/Dimensions.x : (Y)))
 #define vPOS_PBC_Z(Z) ((u.x.boundary[front] != periodic_bc) ? (Z) : (((Z - (Z0 +\
-  L0/2)) > L0/2.) ? (Z) - L0 : (Z)))
+  L0*Dimensions.z/Dimensions.x/2)) > L0*Dimensions.z/Dimensions.x/2.) ? (Z) - L0*Dimensions.z/Dimensions.x : (Z)))
 
 
 void reduce_lagVel(lagMesh* mesh) {
@@ -189,8 +189,8 @@ bool is_capsule_in_boundingbox(coord proc_max, coord proc_min, lagMesh* mesh)
   /*In case of periodicity, check only if the point is in the AABB (Axed-Aligned-Bounding-Box)*/
   foreach_dimension()
   {
-      if(POS_PBC_X(cap_max.x) != cap_max.x) cap_min.x -= L0;
-      if(POS_PBC_X(cap_min.x) != cap_min.x) cap_max.x += L0;
+      if(POS_PBC_X(cap_max.x) != cap_max.x) cap_min.x -= L0*L0_ratio.x;
+      if(POS_PBC_X(cap_min.x) != cap_min.x) cap_max.x += L0*L0_ratio.x;
   }
 
   /*Check if the copy capsule box overlating with the current proc*/
