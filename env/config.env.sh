@@ -1,1 +1,1 @@
-default.env.sh
+rhel10.env.sh
