@@ -1,4 +1,4 @@
-#pragma once
+
 
 /*!
  * @file ParticleDump.h

@@ -10,18 +10,9 @@ vector capsule_viscosity_grid_gradient[];
 scalar capsule_viscosity_divergence[];
 
 // ============================================================================
-// Macros
-// ============================================================================
-
-#ifndef CAPSULE_VISCOSITY_STENCIL
-#define CAPSULE_VISCOSITY_STENCIL 14
-#endif
-
-// ============================================================================
 // Function Declarations
 // ============================================================================
 
-static double capsule_viscosity_weight_stencil(double dist);
 static void capsule_viscosity_spread_node_area_normal(IBNode *node);
 static void capsule_viscosity_set_wall_boundary_conditions(scalar indicator);
 static void capsule_viscosity_add_ibmesh_grid_gradient(IBMesh *ibmesh);
@@ -39,57 +30,12 @@ static void capsule_viscosity_set_from_indicator(face vector viscosity,
 /*!
  * @brief
  */
-static double capsule_viscosity_weight_stencil(double dist) {
-  double adist = fabs(dist);
-
-  if (CAPSULE_VISCOSITY_STENCIL == 11) {
-    if (adist <= 0.5)
-      return 3. / 4. - sq(dist);
-    if (adist <= 1.5)
-      return 9. / 8. - 3. * adist / 2. + sq(dist) / 2.;
-    return 0.;
-  }
-
-  if (adist <= 0.5)
-    return 3. / 8. + pi / 32. - sq(dist) / 4.;
-  if (adist <= 1.5)
-    return 1. / 4. +
-           (1. - adist) * sqrt(-2. + 8. * adist - 4. * sq(dist)) / 8. -
-           asin(sqrt(2.) * (adist - 1.)) / 8.;
-  if (adist <= 2.5)
-    return 17. / 16. - pi / 64. - 3. * adist / 4. + sq(dist) / 8. +
-           (adist - 2.) * sqrt(-14. + 16. * adist - 4. * sq(dist)) / 16. +
-           asin(sqrt(2.) * (adist - 2.)) / 16.;
-  return 0.;
-}
-
-/*!
- * @brief
- */
 static void capsule_viscosity_spread_node_area_normal(IBNode *node) {
-  IBNODE_VARIABLES();
-#if TREE
-  foreach_neighbor_coord_level(3, node->depth, pos) {
-    if (!is_local(cell))
-      continue;
-#else
-  foreach_neighbor_coord_nonlocal(3, pos) {
-#endif
-    coord dist = {0};
-    double weight = 1.;
-    foreach_dimension() {
-      dist.x = GENERAL_1DIST(x, pos.x);
-      weight *= sq(dist.x) <= sq(2. * Delta)
-                    ? capsule_viscosity_weight_stencil(dist.x / Delta)
-                    : 0.;
-    }
-#if dimension == 2
-    double kernel_volume = sq(Delta);
-#else
-    double kernel_volume = cube(Delta);
-#endif
+  peskin_cosine_kernel_spread_dimensionless(node) {
+    // area_normal has units L^2 in 3D; weight/dv() gives the grid gradient
+    // units 1/L.
     foreach_dimension() capsule_viscosity_grid_gradient.x[] -=
-        weight * ibval(capsule_viscosity_area_normal.x) / kernel_volume;
+        weight * ibval(capsule_viscosity_area_normal.x) / dv();
   }
 }
 

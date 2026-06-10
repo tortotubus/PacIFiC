@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "common/DomainLocate.h"
 #include "particle/ParticleConfig.h"
@@ -38,7 +38,7 @@ static inline bool particle_is_local(Particle *particle);
 macro PARTICLE_VARIABLES(Particle *particle = particle) {
   coord pos = {0};
   NOT_UNUSED(pos);
-  foreach_dimension() { pos.x = pval(npos.x); }
+  foreach_dimension() { pos.x = pval(ppos.x); }
   domain_wrap_coord(pos);
   double px = pos.x, py = pos.y, pz = pos.z;
 }
@@ -60,9 +60,9 @@ int particle_init(Particle *particle) {
     return -1;
 
   foreach_dimension() {
-    pval(npos.x) = 0.;
-    pval(nvel.x) = 0.;
-    pval(nforce.x) = 0.;
+    pval(ppos.x) = 0.;
+    pval(pvel.x) = 0.;
+    pval(pforce.x) = 0.;
   }
 
 #if _MPI

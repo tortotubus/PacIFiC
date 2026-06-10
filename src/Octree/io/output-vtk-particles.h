@@ -35,16 +35,16 @@ trace void output_hdf_particles_series(Pscalar *scalar_list = NULL,
                                 bool overwrite) {
 
   char pname[128];
-  sprintf(pname, "%s/vtkhdf-pd-series", basename);
+  sprintf(pname, "%s/vtkhdf-particle-series", basename);
 
   char fname[128];
-  sprintf(fname, "%s/vtkhdf-pd-series/polydata_%d.vtkhdf", basename, iter);
+  sprintf(fname, "%s/vtkhdf-particle-series/particles_%d.vtkhdf", basename, iter);
 
   char series_entry[128];
-  sprintf(series_entry, "vtkhdf-pd-series/polydata_%d.vtkhdf", iter);
+  sprintf(series_entry, "vtkhdf-particle-series/particles_%d.vtkhdf", iter);
 
   char series_filename[128];
-  sprintf(series_filename, "%s/pd.vtkhdf.series", basename);
+  sprintf(series_filename, "%s/particles.vtkhdf.series", basename);
 
   if (pid() == 0) {
     assert(!create_path(basename));
@@ -67,7 +67,7 @@ trace void output_hdf_particles_series(Pscalar *scalar_list = NULL,
     }
   }
 
-  // Init polydata
+  // Init particles
 
   size_t n_points_local = 0;
   foreach_particle() {
@@ -93,7 +93,7 @@ trace void output_hdf_particles_series(Pscalar *scalar_list = NULL,
   vtkPolyData vtk_particles = vtk_polydata_init(n_points, n_vertices, n_lines,
                                          n_strips, n_polygons, n_pointdata);
 
-  // Populate polydata
+  // Populate particles
   foreach_particle() {
     if (particle->pid == pid()) {
       vtk_polydata_add_point(&vtk_particles, pos.x, pos.y, pos.z);
@@ -169,7 +169,7 @@ trace void output_hdf_particles_series(Pscalar *scalar_list = NULL,
     }
   }
 
-  // Write vtkhdf polydata
+  // Write vtkhdf particles
   vtkHDFPolyData vtk_hdf_particles =
       vtk_HDF_polydata_init_static(fname, true, &vtk_particles);
   vtk_HDF_polydata_close(&vtk_hdf_particles);

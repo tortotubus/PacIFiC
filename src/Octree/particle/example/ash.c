@@ -1,6 +1,6 @@
 #include "grid/octree.h"
 
-#include "io/output-vtk-pd.h"
+#include "io/output-vtk-particles.h"
 #include "io/output-vtk.h"
 #include "particle/ParticleRandom.h"
 #include "particle/navier-stokes/stokes.h"
@@ -31,9 +31,9 @@ static void ash_add_particle_at(coord pos, uint64_t particle_index) {
       1. - 2. * particle_random_uniform01((uint64_t)ASH_RANDOM_SEED,
                                           PARTICLE_RANDOM_STREAM_INIT,
                                           particle_index);
-  pval(nrho) = 2000.;
-  pval(nradius) = 0.05e-3 + 0.01e-3 * radius_noise;
-  foreach_dimension() pval(nvel.x) = 0.;
+  pval(prho) = 2000.;
+  pval(pradius) = 0.05e-3 + 0.01e-3 * radius_noise;
+  foreach_dimension() pval(pvel.x) = 0.;
 }
 
 static void ash_place_particles(void) {
@@ -80,16 +80,16 @@ event init(i = 0) {
 
 event ash_particle_bottom_wall(i++) {
   foreach_particle() {
-    if (pval(npos.y) < Y0) {
-      pval(npos.y) = Y0 + (Y0 - pval(npos.y));
+    if (pval(ppos.y) < Y0) {
+      pval(ppos.y) = Y0 + (Y0 - pval(ppos.y));
 
-      foreach_dimension() pval(nvel.x) /= damp;
+      foreach_dimension() pval(pvel.x) /= damp;
 
-      pval(nvel.y) *= -1.;
+      pval(pvel.y) *= -1.;
     }
   }
 
-  // Both functions need to be called any time position (npos) is modified
+  // Both functions need to be called any time position (ppos) is modified
   particle_grid_update_cells();
 #if _MPI
   particle_grid_update_pid();
@@ -111,8 +111,8 @@ event adapt(i++) {
 
 event movie(t += 0.02) {
   output_hdf_htg((scalar[]){p, {-1}}, (vector[]){u, {{-1}}}, base_path);
-  output_hdf_pd((Pscalar[]){nradius, nrho, {-1}},
-                (Pvector[]){npos, nvel, {{-1}}}, base_path);
+  output_hdf_particles((Pscalar[]){pradius, prho, {-1}},
+                (Pvector[]){ppos, pvel, {{-1}}}, base_path);
 }
 
 event log(i++) { if (pid() == 0) fprintf(stderr, "%d %f\n", i, t); }

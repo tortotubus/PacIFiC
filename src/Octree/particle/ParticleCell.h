@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "particle/Particle.h"
 #include "particle/ParticleList.h"

@@ -1,4 +1,3 @@
-#include "navier-stokes/centered.h"
 #include "particle/ParticleGrid.h"
 #include "particle/ParticleRandom.h"
 #if _MPI
@@ -63,21 +62,21 @@
 // extern vector u;
 
 // Particle quantities
-Pscalar nrho;      // particle density
-Pscalar nradius;   // particle radius
-Pscalar ntau;      // particle relaxation time
-Pvector ngravity;  // buoyancy-corrected gravity acceleration
-Pvector nforce;    // particle drag force on fluid
+Pscalar prho;      // particle density
+Pscalar pradius;   // particle radius
+Pscalar ptau;      // particle relaxation time
+Pvector pgravity;  // buoyancy-corrected gravity acceleration
+Pvector pforce;    // particle drag force on fluid
 
 // Interpolated Eulerian quantities at particle positions
-Pscalar neulrho;   // fluid density at particle
-Pscalar neulmu;    // fluid viscosity at particle
-Pvector neulvel;   // fluid velocity at particle
+Pscalar peulrho;   // fluid density at particle
+Pscalar peulmu;    // fluid viscosity at particle
+Pvector peulvel;   // fluid velocity at particle
 
 #if NANOPARTICLE_CAPSULE_INDICATOR
-Pscalar nprevI;     // previous capsule indicator at particle
-Pscalar nseenI;     // whether previous indicator has been initialized
-Pscalar nenteredI;  // whether this particle has ever entered
+Pscalar pprevI;     // previous capsule indicator at particle
+Pscalar pseenI;     // whether previous indicator has been initialized
+Pscalar penteredI;  // whether this particle has ever entered
 long ncap_entries = 0;
 long ncap_unique_entries = 0;
 long ncap_exits = 0;
@@ -101,15 +100,15 @@ static inline void stokes_reflect_y_walls (Particle* particle)
   const double ymin = Y0;
   const double ymax = Y0 + L0;
 
-  while (*_pval (npos.y, particle) < ymin ||
-         *_pval (npos.y, particle) > ymax) {
-    if (*_pval (npos.y, particle) < ymin) {
-      *_pval (npos.y, particle) = 2.*ymin - *_pval (npos.y, particle);
-      *_pval (nvel.y, particle) *= -1.;
+  while (*_pval (ppos.y, particle) < ymin ||
+         *_pval (ppos.y, particle) > ymax) {
+    if (*_pval (ppos.y, particle) < ymin) {
+      *_pval (ppos.y, particle) = 2.*ymin - *_pval (ppos.y, particle);
+      *_pval (pvel.y, particle) *= -1.;
     }
-    if (*_pval (npos.y, particle) > ymax) {
-      *_pval (npos.y, particle) = 2.*ymax - *_pval (npos.y, particle);
-      *_pval (nvel.y, particle) *= -1.;
+    if (*_pval (ppos.y, particle) > ymax) {
+      *_pval (ppos.y, particle) = 2.*ymax - *_pval (ppos.y, particle);
+      *_pval (pvel.y, particle) *= -1.;
     }
   }
 }
@@ -126,21 +125,21 @@ void nanoparticle_capsule_indicator_update (void)
   foreach_particle () {
     coord pos = {0., 0., 0.};
     foreach_dimension()
-      pos.x = pval (npos.x);
+      pos.x = pval (ppos.x);
 
     const double Ip = nanoparticle_capsule_indicator_value (pos);
-    const int was_initialized = pval (nseenI) > 0.5;
+    const int was_initialized = pval (pseenI) > 0.5;
     const int was_inside =
       was_initialized &&
-      pval (nprevI) >= NANOPARTICLE_CAPSULE_INDICATOR_THRESHOLD;
+      pval (pprevI) >= NANOPARTICLE_CAPSULE_INDICATOR_THRESHOLD;
     const int is_inside = Ip >= NANOPARTICLE_CAPSULE_INDICATOR_THRESHOLD;
 
     if (was_initialized) {
       if (!was_inside && is_inside) {
         entries++;
-        if (pval (nenteredI) < 0.5) {
+        if (pval (penteredI) < 0.5) {
           unique_entries++;
-          pval (nenteredI) = 1.;
+          pval (penteredI) = 1.;
         }
       }
       else if (was_inside && !is_inside)
@@ -150,8 +149,8 @@ void nanoparticle_capsule_indicator_update (void)
     if (is_inside)
       inside++;
 
-    pval (nprevI) = Ip;
-    pval (nseenI) = 1.;
+    pval (pprevI) = Ip;
+    pval (pseenI) = 1.;
   }
 
 #if _MPI
@@ -171,7 +170,7 @@ void nanoparticle_capsule_indicator_update (void)
 #if BROWNIAN
 coord stokes_brownian_velocity_kick (Particle* particle, double dtau, int iter)
 {
-  const double rp = *_pval (nradius, particle);
+  const double rp = *_pval (pradius, particle);
   coord duB = {0., 0., 0.};
 
   if (dtau <= 0. || rp <= 0. || BROWNIAN_PE <= 0.)
@@ -203,12 +202,12 @@ void stokes_lj_apply_pair_velocity_kick (Particle* particle,
                                          Particle* particle_other,
                                          double dtau)
 {
-  const double rp = *_pval (nradius, particle);
-  const double rhop = *_pval (nrho, particle);
+  const double rp = *_pval (pradius, particle);
+  const double rhop = *_pval (prho, particle);
   const double mp = rhop*(4./3.)*pi*cube (rp);
 
-  const double rp_other = *_pval (nradius, particle_other);
-  const double rhop_other = *_pval (nrho, particle_other);
+  const double rp_other = *_pval (pradius, particle_other);
+  const double rhop_other = *_pval (prho, particle_other);
   const double mp_other = rhop_other*(4./3.)*pi*cube (rp_other);
 
   if (dtau <= 0. || mp <= 0. || mp_other <= 0.)
@@ -219,8 +218,8 @@ void stokes_lj_apply_pair_velocity_kick (Particle* particle,
   coord pos = {0., 0., 0.};
   coord pos_other = {0., 0., 0.};
   foreach_dimension() {
-    pos.x = *_pval (npos.x, particle);
-    pos_other.x = *_pval (npos.x, particle_other);
+    pos.x = *_pval (ppos.x, particle);
+    pos_other.x = *_pval (ppos.x, particle_other);
   }
   domain_displacement (dr, pos, pos_other);
   foreach_dimension()
@@ -242,8 +241,8 @@ void stokes_lj_apply_pair_velocity_kick (Particle* particle,
 
   foreach_dimension() {
     const double force = f_scalar*dr.x;
-    *_pval (nvel.x, particle) += force*dtau/mp;
-    *_pval (nvel.x, particle_other) -= force*dtau/mp_other;
+    *_pval (pvel.x, particle) += force*dtau/mp;
+    *_pval (pvel.x, particle_other) -= force*dtau/mp_other;
   }
 }
 #endif
@@ -252,22 +251,22 @@ event defaults (i = 0)
 {
   init_psolver ();
 
-  new_pscalar (nrho);
-  new_pscalar (nradius);
-  new_pscalar (ntau);
-  new_pvector (ngravity);
+  new_pscalar (prho);
+  new_pscalar (pradius);
+  new_pscalar (ptau);
+  new_pvector (pgravity);
 #if TWO_WAY
-  new_pvector (nforce);
+  new_pvector (pforce);
 #endif
 
-  new_pscalar (neulrho);
-  new_pscalar (neulmu);
-  new_pvector (neulvel);
+  new_pscalar (peulrho);
+  new_pscalar (peulmu);
+  new_pvector (peulvel);
 
 #if NANOPARTICLE_CAPSULE_INDICATOR
-  new_pscalar (nprevI);
-  new_pscalar (nseenI);
-  new_pscalar (nenteredI);
+  new_pscalar (pprevI);
+  new_pscalar (pseenI);
+  new_pscalar (penteredI);
 #endif
 
   particle_grid_init (PARTICLE_GRID_LEVEL);
@@ -297,22 +296,22 @@ event stokes_particles_1 (i += 2, last)
     double rhof = 0.;
 #if dimension == 1
     foreach_dimension()
-      pval (neulvel.x) = domain_interpolate_local (u.x, px);
+      pval (peulvel.x) = domain_interpolate_local (u.x, px);
     rhof = is_constant (rho) ? constant (rho) : domain_interpolate_local (rho, px);
     muc  = is_constant (mu.x) ? constant (mu.x) : domain_interpolate_local (mu.x, px);
 #elif dimension == 2
     foreach_dimension()
-      pval (neulvel.x) = domain_interpolate_local (u.x, px, py);
+      pval (peulvel.x) = domain_interpolate_local (u.x, px, py);
     rhof = is_constant (rho) ? constant (rho) : domain_interpolate_local (rho, px, py);
     muc  = is_constant (mu.x) ? constant (mu.x) : domain_interpolate_local (mu.x, px, py);
 #else
     foreach_dimension()
-      pval (neulvel.x) = domain_interpolate_local (u.x, px, py, pz);
+      pval (peulvel.x) = domain_interpolate_local (u.x, px, py, pz);
     rhof = is_constant (rho) ? constant (rho) : domain_interpolate_local (rho, px, py, pz);
     muc  = is_constant (mu.x) ? constant (mu.x) : domain_interpolate_local (mu.x, px, py, pz);
 #endif
-    pval (neulrho) = rhof;
-    pval (neulmu)  = muc;
+    pval (peulrho) = rhof;
+    pval (peulmu)  = muc;
   }
 
   // Match the inertial-particles/Stokes pattern:
@@ -326,26 +325,26 @@ event stokes_particles_1 (i += 2, last)
     if (!particle_is_local (particle))
       continue;
 
-    const double rp = pval (nradius);
-    const double rhop = pval (nrho);
-    const double muc = pval (neulmu);
+    const double rp = pval (pradius);
+    const double rhop = pval (prho);
+    const double muc = pval (peulmu);
 
     // Stokes relaxation time
     if (rp > 0. && muc > 0.)
-      pval (ntau) = rhop*sq(2.*rp)/(18.*muc);
+      pval (ptau) = rhop*sq(2.*rp)/(18.*muc);
     else
-      pval (ntau) = HUGE; // effectively uncoupled if invalid
+      pval (ptau) = HUGE; // effectively uncoupled if invalid
 
     foreach_dimension() {
-      pval (ngravity.x) =
+      pval (pgravity.x) =
         (rhop > 0.)
-        ? nG.x*(rhop - pval(neulrho))/rhop
+        ? nG.x*(rhop - pval(peulrho))/rhop
         : 0.;
 
 #if TWO_WAY
       // equal-and-opposite drag force on fluid
-      pval (nforce.x) =
-        6.*pi*muc*rp*(pval(nvel.x) - pval(neulvel.x));
+      pval (pforce.x) =
+        6.*pi*muc*rp*(pval(pvel.x) - pval(peulvel.x));
 #endif
     }
   }
@@ -356,11 +355,11 @@ event stokes_particles_1 (i += 2, last)
       continue;
 
     const double it  = ndt > 0. ? 1./ndt : HUGE;
-    const double ita = (pval(ntau) < HUGE) ? 1./pval(ntau) : 0.;
+    const double ita = (pval(ptau) < HUGE) ? 1./pval(ptau) : 0.;
 
     foreach_dimension() {
-      pval (nvel.x) =
-        (it*pval(nvel.x) + ita*pval(neulvel.x) + pval(ngravity.x))/
+      pval (pvel.x) =
+        (it*pval(pvel.x) + ita*pval(peulvel.x) + pval(pgravity.x))/
         (it + ita);
     }
   }
@@ -379,7 +378,7 @@ event stokes_particles_1 (i += 2, last)
 
     coord duB = stokes_brownian_velocity_kick (particle, ndt, i);
     foreach_dimension()
-      pval (nvel.x) += duB.x;
+      pval (pvel.x) += duB.x;
   }
 #endif
 }
@@ -396,14 +395,14 @@ event stokes_particles_2 (i = 1; i += 2)
       continue;
 
     foreach_dimension()
-      pval (npos.x) += pval (nvel.x)*dt_move;
+      pval (ppos.x) += pval (pvel.x)*dt_move;
 
     coord pos = {0., 0., 0.};
     foreach_dimension()
-      pos.x = pval (npos.x);
+      pos.x = pval (ppos.x);
     domain_wrap_coord (pos);
     foreach_dimension()
-      pval (npos.x) = pos.x;
+      pval (ppos.x) = pos.x;
 #if STOKES_REFLECT_Y_WALLS && dimension >= 2
     stokes_reflect_y_walls (particle);
 #endif
@@ -434,7 +433,7 @@ event acceleration (i++)
 
     if (point.level >= 0) {
       foreach_dimension()
-        fp.x[] += pval(nforce.x);
+        fp.x[] += pval(pforce.x);
     }
   }
 

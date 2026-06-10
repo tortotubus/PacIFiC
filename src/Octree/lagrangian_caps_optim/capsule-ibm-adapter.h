@@ -153,9 +153,9 @@ static void capsule_ibm_copy_lag_to_node(CapsuleMesh* lag, IBMesh* ibmesh,
   foreach_dimension() {
     ibval(npos.x) = lag->nodes[node_id].pos.x;
     ibval(nvel.x) = lag->nodes[node_id].lagVel.x;
-    ibval(nforce.x) = lag->nodes[node_id].lagForce.x/node_area;
+    ibval(nforce.x) = -lag->nodes[node_id].lagForce.x;
   }
-  ibval(nweight) = node_area;
+  ibval(nweight) = 1;
   node->depth = capsule_ibm_requested_node_depth(ibmesh);
 }
 
@@ -210,9 +210,9 @@ static void capsule_ibm_copy_lag_to_node_keyed(CapsuleIBMProxy* proxy,
     if (proxy->midpoint_output)
       ibval(npos.x) += 0.5*proxy->midpoint_dt*lag->nodes[node_id].lagVel.x;
     ibval(nvel.x) = lag->nodes[node_id].lagVel.x;
-    ibval(nforce.x) = lag->nodes[node_id].lagForce.x/node_area;
+    ibval(nforce.x) = -lag->nodes[node_id].lagForce.x;
   }
-  ibval(nweight) = node_area;
+  ibval(nweight) = 1;
 
   coord visc_area_normal =
     capsule_ibm_node_viscosity_area_normal(lag, node_id);
@@ -378,7 +378,8 @@ static int capsule_ibm_model_sync(void* ctx, void* ibmesh_ptr) {
   proxy->midpoint_output = false;
   proxy->midpoint_dt = 0.;
 
-  if (!proxy->lag) {
+  if (!proxy->lag || !capsule_mesh_is_local_owner(proxy->lag) ||
+      !proxy->lag->nodes) {
     for (size_t i = 0; i < ibmesh->nodes.size; i++)
       ibmesh->nodes.ptrs[i]->depth = capsule_ibm_requested_node_depth(ibmesh);
     proxy->node_count = (int) ibmesh->nodes.size;
@@ -446,6 +447,7 @@ static int capsule_ibm_model_midpoint(void* ctx, void* ibmesh_ptr, double local_
 
   proxy->midpoint_output = true;
   proxy->midpoint_dt = local_dt;
+
   capsule_ibm_assemble_lag_forces(proxy->lag);
 
   for (size_t i = 0; i < ibmesh->nodes.size; i++) {

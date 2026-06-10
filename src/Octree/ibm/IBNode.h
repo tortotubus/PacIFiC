@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "ibm/IBConfig.h"
 #include "ibm/IBMacros.h"

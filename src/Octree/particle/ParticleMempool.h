@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "grid/mempool.h"
 #include "particle/ParticleFields.h"
@@ -37,13 +37,11 @@ static inline size_t particle_mempool_stride (const ParticleMempool* pmp);
 // Macros
 // ============================================================================
 
-#define alignof(T)                                                                       \
-  offsetof (                                                                             \
-    struct {                                                                             \
-      char c;                                                                            \
-      T x;                                                                               \
-    },                                                                                   \
-    x)
+// clang-format off
+#ifndef alignof
+#define alignof(T) offsetof(struct { char c; T x; }, x)
+#endif
+// clang-format on
 
 // ============================================================================
 // Function definitions

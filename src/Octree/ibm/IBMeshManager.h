@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "ibm/IBNode.h"
 #include "ibm/IBMempool.h"

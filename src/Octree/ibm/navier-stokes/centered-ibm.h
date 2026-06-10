@@ -216,6 +216,17 @@ event viscous_term (i++, last) {
     mgu = viscosity (u, mu, rho, dt, mgu.nrelax);
     correction (-dt);
   }
+
+  /**
+  Match the centered solver ordering: reset the acceleration field before
+  force events add their contributions. The projection step must still see the
+  acceleration that was used to build uf. */
+
+  if (!is_constant (a.x)) {
+    face vector af = a;
+    trash ({af});
+    foreach_face () af.x[] = 0.;
+  }
 }
 
 #include "ibm/IBKernels.h"
@@ -256,7 +267,7 @@ event interface_force_velocity_coupled (i++, last) {
   }
 #endif
 
-  ibmeshmanager_evaluate_velocity_coupled_midpoints (0.);
+  ibmeshmanager_evaluate_velocity_coupled_midpoints (dt);
 
   foreach_ibnode_per_ibmesh () {
     if (mesh->model.type != IB_MODEL_VELOCITY_COUPLED)
@@ -282,15 +293,6 @@ event acceleration (i++, last) {
 
   trash ({uf});
   foreach_face () uf.x[] = fm.x[] * (face_value (u.x, 0) + dt * a.x[]);
-
-  /**
-  We reset the acceleration field (if it is not a constant). */
-
-  if (!is_constant (a.x)) {
-    face vector af = a;
-    trash ({af});
-    foreach_face () af.x[] = 0.;
-  }
 }
 
 void centered_gradient (scalar p, vector g) {

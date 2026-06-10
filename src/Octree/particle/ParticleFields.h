@@ -1,4 +1,4 @@
-#pragma once
+
 
 // ============================================================================
 // Type Definitions
@@ -46,9 +46,9 @@ Pscalar *pall = NULL;
 size_t _pattribute_len = 0;
 size_t npvar = 0;
 
-Pvector npos;
-Pvector nvel;
-Pvector nforce;
+Pvector ppos;
+Pvector pvel;
+Pvector pforce;
 
 // ============================================================================
 // Function Declarations
@@ -165,9 +165,9 @@ macro foreach_pvector(Pvector *list) {
  * @brief
  */
 void init_psolver() {
-  new_pvector(nvel);
-  new_pvector(nforce);
-  new_pvector(npos);
+  new_pvector(pvel);
+  new_pvector(pforce);
+  new_pvector(ppos);
 
   particle_fields_update_all();
 }

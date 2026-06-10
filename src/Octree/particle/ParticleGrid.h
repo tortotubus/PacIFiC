@@ -1,4 +1,4 @@
-#pragma once
+
 
 #include "particle/ParticleCell.h"
 #include "particle/ParticleExchangeList.h"
@@ -566,7 +566,7 @@ Particle *particle_grid_add_particle(coord pos) {
   assert(particle);
   particle_init(particle);
   particle->pid = owner;
-  foreach_dimension() { pval(npos.x) = wpos.x; }
+  foreach_dimension() { pval(ppos.x) = wpos.x; }
   particle_set_gid(particle);
 
 #if dimension == 1
@@ -607,7 +607,7 @@ void particle_grid_update_cells() {
   for (size_t idx = 0; idx < pg.pool.active.size; idx++) {
     Particle *particle = pg.pool.active.ptrs[idx];
     coord pos = {0};
-    foreach_dimension() { pos.x = pval(npos.x); }
+    foreach_dimension() { pos.x = pval(ppos.x); }
     domain_wrap_coord(pos);
 
     ParticleCellPoint pcp = particle_cell_locate(pos, pg.level);

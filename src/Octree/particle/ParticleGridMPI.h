@@ -1,4 +1,4 @@
-#pragma once
+
 
 #if _MPI
 #include <mpi.h>
