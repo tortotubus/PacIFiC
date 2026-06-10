@@ -187,6 +187,13 @@ static void one_cap_initialize_particles(void) {
   particle_grid_update_cells();
 }
 
+static void one_cap_update_particle_grid_ownership(void) {
+  particle_grid_update_cells();
+#if _MPI
+  particle_grid_update_pid();
+#endif
+}
+
 static void one_cap_apply_fresh_initial_conditions(void) {
   foreach () {
     u.x[] = SHEAR_RATE * y;
@@ -201,6 +208,7 @@ static void one_cap_apply_fresh_initial_conditions(void) {
 
 #if TREE
   adapt_wavelet_ibm(NULL, NULL, 0, 1, all, true);
+  one_cap_update_particle_grid_ownership();
 #endif
 }
 
@@ -367,6 +375,7 @@ event adapt(i++) {
       {u},
       (double[]){velocity_tolerance, velocity_tolerance, velocity_tolerance},
       minlevel = min_level, maxlevel = max_level);
+  one_cap_update_particle_grid_ownership();
 }
 #endif
 
