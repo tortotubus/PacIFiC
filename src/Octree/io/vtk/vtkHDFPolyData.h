@@ -1,7 +1,7 @@
 #pragma once
 
-#include "vtkHDF.h"
-#include "vtkPolyData.h"
+#include "io/vtk/vtkHDF.h"
+#include "io/vtk/vtkPolyData.h"
 
 // ============================================================================
 // Type Definitions
@@ -912,6 +912,76 @@ vtkHDFPolyData vtk_HDF_polydata_init_static(const char *fname, bool overwrite,
                             &vtk_hdf_pd.vtk_hdf);
 #endif
     }
+  }
+
+  {
+    /*
+     * Dataset: /VTKHDF/CellData
+     */
+#if _MPI
+    for (int64_t i = 0; i < vtk_pd->n_celldata; i++) {
+      double *dataset_data = vtk_polydata_get_celldata_data(vtk_pd, i);
+      int dataset_rank = (vtk_pd->celldata_ncomp[i] == 1) ? 1 : 2;
+      hsize_t *dataset_local_dims =
+          (hsize_t *)malloc(dataset_rank * sizeof(hsize_t));
+      hsize_t *dataset_global_dims =
+          (hsize_t *)calloc(dataset_rank, sizeof(hsize_t));
+
+      if (dataset_rank == 1) {
+        dataset_local_dims[0] = vtk_polydata_number_of_cells(vtk_pd);
+      } else {
+        dataset_local_dims[0] = vtk_polydata_number_of_cells(vtk_pd);
+        dataset_local_dims[1] = vtk_pd->celldata_ncomp[i];
+        dataset_global_dims[1] = vtk_pd->celldata_ncomp[i];
+      }
+
+      MPI_Allreduce(dataset_local_dims, dataset_global_dims, 1,
+                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+
+      hsize_t *dataset_offset =
+          (hsize_t *)calloc(dataset_rank, sizeof(hsize_t));
+      MPI_Exscan(&dataset_local_dims[0], &dataset_offset[0], 1,
+                 MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+      if (pid() == 0)
+        dataset_offset[0] = 0;
+
+      char *dataset_name = vtk_pd->celldata_names[i];
+      hid_t dataset_datatype = H5T_IEEE_F64LE;
+      hid_t dataset_group = vtk_hdf_pd.grp_celldata_id;
+
+      vtk_HDF_collective_write_dataset(
+          dataset_name, dataset_data, dataset_datatype, dataset_group,
+          dataset_rank, dataset_global_dims, dataset_local_dims, dataset_offset,
+          &vtk_hdf_pd.vtk_hdf);
+
+      free(dataset_local_dims);
+      free(dataset_global_dims);
+      free(dataset_offset);
+    }
+#else
+    for (int64_t i = 0; i < vtk_pd->n_celldata; i++) {
+      double *dataset_data = vtk_polydata_get_celldata_data(vtk_pd, i);
+      int dataset_rank = (vtk_pd->celldata_ncomp[i] == 1) ? 1 : 2;
+      hsize_t *dataset_dims = (hsize_t *)malloc(dataset_rank * sizeof(hsize_t));
+
+      if (dataset_rank == 1) {
+        dataset_dims[0] = vtk_polydata_number_of_cells(vtk_pd);
+      } else {
+        dataset_dims[0] = vtk_polydata_number_of_cells(vtk_pd);
+        dataset_dims[1] = vtk_pd->celldata_ncomp[i];
+      }
+
+      char *dataset_name = vtk_pd->celldata_names[i];
+      hid_t dataset_datatype = H5T_IEEE_F64LE;
+      hid_t dataset_group = vtk_hdf_pd.grp_celldata_id;
+
+      vtk_HDF_write_dataset(dataset_name, dataset_data, dataset_datatype,
+                            dataset_group, dataset_rank, dataset_dims,
+                            &vtk_hdf_pd.vtk_hdf);
+
+      free(dataset_dims);
+    }
+#endif
   }
 
   {

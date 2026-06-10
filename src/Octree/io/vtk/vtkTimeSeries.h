@@ -4,10 +4,11 @@
 // Function Declarations
 // ============================================================================
 
-vtk_series_index_filename(char *dst, size_t n, const char *series_filename);
+static inline void vtk_series_index_filename(char *dst, size_t n,
+                                             const char *series_filename);
 
-trace void output_vtk_series(const char *entry, const char *series_filename,
-                             int iter = i, double time = t);
+void output_vtk_series(const char *entry, const char *series_filename, int iter,
+                       double time);
 
 // ============================================================================
 // Function Definitions

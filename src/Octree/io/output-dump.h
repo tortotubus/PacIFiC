@@ -11,7 +11,7 @@
  * @c checkpointer_register to have it managed for you.
  */
 
-#include "output-common.h"
+#include "io/output-common.h"
 #include "output.h"
 
 // ============================================================================
@@ -71,6 +71,10 @@ static CheckpointConfiguraiton checkpoint_configuration = {
   .checkpoint_on_sim_time = false,
   .checkpoint_on_sim_iter = false};
 
+static double checkpoint_wall_time_last = -1.;
+static double checkpoint_sim_time_last = 0.;
+static int checkpoint_sim_iter_last = 0;
+
 // ============================================================================
 // Function declarations
 // ============================================================================
@@ -127,37 +131,34 @@ int checkpoint_handler (double sim_time_current = t,
 
   assert (!create_path (pname));
 
-  static double wall_time_last = -1.;
-  static double sim_time_last = 0.;
-  static int sim_iter_last = 0;
   bool should_dump = false;
   int shutdown_sig = 0;
 
 #if _MPI
   double wall_time_current = MPI_Wtime ();
-  if (wall_time_last < 0.)
-    wall_time_last = wall_time_current;
+  if (checkpoint_wall_time_last < 0.)
+    checkpoint_wall_time_last = wall_time_current;
 
   shutdown_sig =
     checkpoint_configuration.checkpoint_on_signal ? shutdown_signal () : 0;
   int local_should_dump = shutdown_sig != 0;
 
   if (!local_should_dump && checkpoint_configuration.checkpoint_on_wall_time &&
-      wall_time_current - wall_time_last >
+      wall_time_current - checkpoint_wall_time_last >
         checkpoint_configuration.checkpoint_on_wall_time_seconds) {
-    wall_time_last = wall_time_current;
+    checkpoint_wall_time_last = wall_time_current;
     local_should_dump = true;
   } else if (!local_should_dump &&
              checkpoint_configuration.checkpoint_on_sim_time &&
-             (double) (sim_time_current - sim_time_last) >
+             (double) (sim_time_current - checkpoint_sim_time_last) >
                checkpoint_configuration.checkpoint_on_sim_time_seconds) {
-    sim_time_last = sim_time_current;
+    checkpoint_sim_time_last = sim_time_current;
     local_should_dump = true;
   } else if (!local_should_dump &&
              checkpoint_configuration.checkpoint_on_sim_iter &&
-             (double) (sim_iter_current - sim_iter_last) >
+             (double) (sim_iter_current - checkpoint_sim_iter_last) >
                checkpoint_configuration.checkpoint_on_sim_iter_iterations) {
-    sim_iter_last = sim_iter_current;
+    checkpoint_sim_iter_last = sim_iter_current;
     local_should_dump = true;
   }
 
@@ -169,8 +170,8 @@ int checkpoint_handler (double sim_time_current = t,
   MPI_Allreduce (&shutdown_sig, &shutdown_sig, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 #else
   double wall_time_current = (double) time (NULL);
-  if (wall_time_last < 0.)
-    wall_time_last = wall_time_current;
+  if (checkpoint_wall_time_last < 0.)
+    checkpoint_wall_time_last = wall_time_current;
 
   // ======================
   // Checkpoint on signal
@@ -185,9 +186,9 @@ int checkpoint_handler (double sim_time_current = t,
   // Checkpoint on walltime
   // ======================
   else if (checkpoint_configuration.checkpoint_on_wall_time &&
-           (long) (wall_time_current - wall_time_last) >
+           (long) (wall_time_current - checkpoint_wall_time_last) >
              checkpoint_configuration.checkpoint_on_wall_time_seconds) {
-    wall_time_last = wall_time_current;
+    checkpoint_wall_time_last = wall_time_current;
     should_dump = true;
   }
 
@@ -195,9 +196,9 @@ int checkpoint_handler (double sim_time_current = t,
   // Checkpoint on simulation time
   // =============================
   else if (checkpoint_configuration.checkpoint_on_sim_time &&
-           (double) (sim_time_current - sim_time_last) >
+           (double) (sim_time_current - checkpoint_sim_time_last) >
              checkpoint_configuration.checkpoint_on_sim_time_seconds) {
-    sim_time_last = sim_time_current;
+    checkpoint_sim_time_last = sim_time_current;
     should_dump = true;
   }
 
@@ -205,9 +206,9 @@ int checkpoint_handler (double sim_time_current = t,
   // Checkpoint on simulation iterations
   // ===================================
   else if (checkpoint_configuration.checkpoint_on_sim_iter &&
-           (double) (sim_iter_current - sim_iter_last) >
+           (double) (sim_iter_current - checkpoint_sim_iter_last) >
              checkpoint_configuration.checkpoint_on_sim_iter_iterations) {
-    sim_iter_last = sim_iter_current;
+    checkpoint_sim_iter_last = sim_iter_current;
     should_dump = true;
   }
 #endif
@@ -254,6 +255,9 @@ int checkpoint_handler (double sim_time_current = t,
         exit (1);
       }
     }
+
+    checkpoint_sim_time_last = sim_time_current;
+    checkpoint_sim_iter_last = sim_iter_current;
   }
 
   if (shutdown_sig) {
@@ -332,6 +336,13 @@ int restore_handler (const char* basepath = NULL, scalar* slist = all) {
         exit (1);
       }
     }
+    checkpoint_sim_time_last = t;
+    checkpoint_sim_iter_last = iter;
+#if _MPI
+    checkpoint_wall_time_last = MPI_Wtime ();
+#else
+    checkpoint_wall_time_last = (double) time (NULL);
+#endif
     return 1;
   } else {
     return 0;

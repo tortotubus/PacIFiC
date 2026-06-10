@@ -4,7 +4,7 @@
  */
 
 #include "common/foreach_cell_bfs.h"
-#include "vtkType.h"
+#include "io/vtk/vtkType.h"
 
 // ============================================================================
 // Type Definitions

@@ -1,4 +1,4 @@
-#include "vtkHDF.h"
+#include "io/vtk/vtkHDF.h"
 
 #ifndef COMPRESSION
 #define COMPRESSION 1

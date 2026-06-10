@@ -10,8 +10,8 @@
 #define UNCOMPRESSED_CHUNK_SIZE 10000
 #endif 
 
-#include "vtkHDF.h"
-#include "vtkHDFHyperTreeGridData.h"
+#include "io/vtk/vtkHDF.h"
+#include "io/vtk/vtkHDFHyperTreeGridData.h"
 
 // ============================================================================
 // Type Definitions

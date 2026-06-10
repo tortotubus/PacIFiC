@@ -1,3 +1,4 @@
+#include "grid/octree.h"
 
 #include "io/output-vtk-pd.h"
 #include "io/output-vtk.h"
@@ -12,6 +13,12 @@ u.z[bottom] = dirichlet(0.);
 #ifndef ASH_RANDOM_SEED
 #define ASH_RANDOM_SEED PARTICLE_RANDOM_DEFAULT_SEED
 #endif
+
+#ifndef ASH_DEFAULT_BASENAME
+#define ASH_DEFAULT_BASENAME "ash_output"
+#endif 
+
+char * base_path = ASH_DEFAULT_BASENAME;
 
 double damp = 2.0;
 
@@ -52,6 +59,7 @@ int main() {
   const face vector muc[] = {MUZ, MUZ, MUZ};
 
   periodic(left);
+  periodic(front);
   mu = muc;
 
   nG.y = -9.81;
@@ -88,22 +96,25 @@ event ash_particle_bottom_wall(i++) {
 #endif
 }
 
+#if TREE
 event adapt(i++) {
   adapt_wavelet((scalar *){u}, (double[]){0.001, 0.001, 0.001}, 7, 4);
 
 // Since adapt_wavelet chagnes the ownership of fluid cells, the ownership of
 // particles must also be updated, even though their position hasn't changed
-#if ASH_ENABLE_PARTICLES && _MPI
+  particle_grid_update_cells();
+#if _MPI
   particle_grid_update_pid();
 #endif
 }
+#endif 
 
 event movie(t += 0.02) {
-  output_hdf_htg((scalar[]){p, {-1}}, (vector[]){u, {{-1}}}, "ash");
+  output_hdf_htg((scalar[]){p, {-1}}, (vector[]){u, {{-1}}}, base_path);
   output_hdf_pd((Pscalar[]){nradius, nrho, {-1}},
-                (Pvector[]){npos, nvel, {{-1}}}, "ash");
+                (Pvector[]){npos, nvel, {{-1}}}, base_path);
 }
 
-event log(i++) { printf("%d %f\n", i, t); }
+event log(i++) { if (pid() == 0) fprintf(stderr, "%d %f\n", i, t); }
 
 event end(t = 2);

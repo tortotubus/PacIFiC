@@ -74,6 +74,9 @@ typedef struct {
 vtkPolyData vtk_polydata_init(size_t n_points, size_t n_vertices,
                               size_t n_lines, size_t n_strips,
                               size_t n_polygons, size_t n_pointdata);
+vtkPolyData vtk_polydata_init_with_celldata(
+    size_t n_points, size_t n_vertices, size_t n_lines, size_t n_strips,
+    size_t n_polygons, size_t n_pointdata, size_t n_celldata);
 
 void vtk_polydata_free(vtkPolyData *pd);
 
@@ -111,20 +114,42 @@ void vtk_polydata_free_strips(vtkPolyData *pd);
 void vtk_polydata_malloc_strips(vtkPolyData *pd, size_t n);
 
 // int64_t vtk_polydata_add_polygon (vtkPolyData* pd);
+int64_t vtk_polydata_add_polygon(vtkPolyData *pd,
+                                 const int64_t *polygon_points,
+                                 size_t n_polygon_points);
+int64_t vtk_polydata_add_triangle(vtkPolyData *pd, int64_t point_1,
+                                  int64_t point_2, int64_t point_3);
 size_t vtk_polydata_number_of_polygons(vtkPolyData *pd);
+size_t vtk_polydata_number_of_cells(vtkPolyData *pd);
 void vtk_polydata_free_polygons(vtkPolyData *pd);
 void vtk_polydata_malloc_polygons(vtkPolyData *pd, size_t n);
+void vtk_polydata_malloc_polygon_connectivity(vtkPolyData *pd,
+                                              size_t n_polygons,
+                                              size_t n_connectivity);
 
 int64_t vtk_polydata_add_pointdata_scalar(vtkPolyData *pd, const char *name);
 int64_t vtk_polydata_add_pointdata_vector(vtkPolyData *pd, const char *name,
                                           size_t ncomp);
 double *vtk_polydata_get_pointdata(vtkPolyData *pd, int64_t field);
+double *vtk_polydata_get_pointdata_data(vtkPolyData *pd, int64_t field);
 
 int64_t vtk_polydata_malloc_pointdata_scalar(vtkPolyData *pd);
 int64_t vtk_polydata_malloc_pointdata_vector(vtkPolyData *pd, size_t ncomp);
 void vtk_polydata_free_pointdata_field(vtkPolyData *pd, int64_t field);
 void vtk_polydata_malloc_pointdata(vtkPolyData *pd, size_t n);
 void vtk_polydata_free_pointdata(vtkPolyData *pd);
+
+int64_t vtk_polydata_add_celldata_scalar(vtkPolyData *pd, const char *name);
+int64_t vtk_polydata_add_celldata_vector(vtkPolyData *pd, const char *name,
+                                         size_t ncomp);
+double *vtk_polydata_get_celldata(vtkPolyData *pd, int64_t field);
+double *vtk_polydata_get_celldata_data(vtkPolyData *pd, int64_t field);
+
+int64_t vtk_polydata_malloc_celldata_scalar(vtkPolyData *pd);
+int64_t vtk_polydata_malloc_celldata_vector(vtkPolyData *pd, size_t ncomp);
+void vtk_polydata_free_celldata_field(vtkPolyData *pd, int64_t field);
+void vtk_polydata_malloc_celldata(vtkPolyData *pd, size_t n);
+void vtk_polydata_free_celldata(vtkPolyData *pd);
 
 // ============================================================================
 // Function Definitions
@@ -136,6 +161,16 @@ void vtk_polydata_free_pointdata(vtkPolyData *pd);
 vtkPolyData vtk_polydata_init(size_t n_points, size_t n_vertices,
                               size_t n_lines, size_t n_strips,
                               size_t n_polygons, size_t n_pointdata) {
+  return vtk_polydata_init_with_celldata(n_points, n_vertices, n_lines,
+                                         n_strips, n_polygons, n_pointdata, 0);
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+vtkPolyData vtk_polydata_init_with_celldata(
+    size_t n_points, size_t n_vertices, size_t n_lines, size_t n_strips,
+    size_t n_polygons, size_t n_pointdata, size_t n_celldata) {
   // vtkPolyData pd = {.points_state = BUILDING,
   //                   .points = NULL,
   //                   .n_points = 0,
@@ -181,6 +216,7 @@ vtkPolyData vtk_polydata_init(size_t n_points, size_t n_vertices,
   vtk_polydata_malloc_strips(&pd, n_strips);
   vtk_polydata_malloc_polygons(&pd, n_polygons);
   vtk_polydata_malloc_pointdata(&pd, n_pointdata);
+  vtk_polydata_malloc_celldata(&pd, n_celldata);
 
   return pd;
 }
@@ -195,6 +231,7 @@ void vtk_polydata_free(vtkPolyData *pd) {
   vtk_polydata_free_strips(pd);
   vtk_polydata_free_polygons(pd);
   vtk_polydata_free_pointdata(pd);
+  vtk_polydata_free_celldata(pd);
 }
 
 /*!
@@ -289,6 +326,16 @@ size_t vtk_polydata_number_of_strips(vtkPolyData *pd) {
  */
 size_t vtk_polydata_number_of_polygons(vtkPolyData *pd) {
   return pd->n_polygons_offsets - 1;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+size_t vtk_polydata_number_of_cells(vtkPolyData *pd) {
+  return vtk_polydata_number_of_vertices(pd) +
+         vtk_polydata_number_of_lines(pd) +
+         vtk_polydata_number_of_strips(pd) +
+         vtk_polydata_number_of_polygons(pd);
 }
 
 /*!
@@ -421,31 +468,38 @@ void vtk_polydata_malloc_strips(vtkPolyData *pd, size_t n) {
  * @memberof vtkPolyData
  */
 void vtk_polydata_free_polygons(vtkPolyData *pd) {
-  if (pd->polygons_connectivity != NULL) {
-    free(pd->polygons_connectivity);
-    pd->polygons_connectivity = NULL;
-    pd->m_polygons_connectivity = 0;
-    pd->n_polygons_connectivity = 0;
+  free(pd->polygons_connectivity);
+  pd->polygons_connectivity = NULL;
+  pd->m_polygons_connectivity = 0;
+  pd->n_polygons_connectivity = 0;
 
-    free(pd->polygons_offsets);
-    pd->polygons_offsets = NULL;
-    pd->m_polygons_offsets = 0;
-    pd->n_polygons_offsets = 0;
-  }
+  free(pd->polygons_offsets);
+  pd->polygons_offsets = NULL;
+  pd->m_polygons_offsets = 0;
+  pd->n_polygons_offsets = 0;
 }
 
 /*!
  * @memberof vtkPolyData
  */
 void vtk_polydata_malloc_polygons(vtkPolyData *pd, size_t n) {
+  vtk_polydata_malloc_polygon_connectivity(pd, n, 3 * n);
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+void vtk_polydata_malloc_polygon_connectivity(vtkPolyData *pd,
+                                              size_t n_polygons,
+                                              size_t n_connectivity) {
   vtk_polydata_free_polygons(pd);
 
-  pd->m_polygons_connectivity = n;
+  pd->m_polygons_connectivity = n_connectivity;
   pd->n_polygons_connectivity = 0;
   pd->polygons_connectivity =
       (int64_t *)malloc(sizeof(int64_t) * pd->m_polygons_connectivity);
 
-  pd->m_polygons_offsets = n + 1;
+  pd->m_polygons_offsets = n_polygons + 1;
   pd->n_polygons_offsets = 1;
   pd->polygons_offsets =
       (int64_t *)malloc(sizeof(int64_t) * pd->m_polygons_offsets);
@@ -513,6 +567,42 @@ int64_t vtk_polydata_add_line(vtkPolyData *pd, int64_t line_point_1,
   return vtk_polydata_number_of_lines(pd) - 1;
 }
 
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_add_polygon(vtkPolyData *pd,
+                                 const int64_t *polygon_points,
+                                 size_t n_polygon_points) {
+  vtk_polydata_on_add_connectivity(pd);
+
+  assert(n_polygon_points >= 3);
+  assert(pd->n_polygons_connectivity + n_polygon_points <=
+         pd->m_polygons_connectivity);
+  assert(pd->n_polygons_offsets < pd->m_polygons_offsets);
+
+  for (size_t i = 0; i < n_polygon_points; i++) {
+    if (!vtk_polydata_point_exists(pd, polygon_points[i]))
+      abort();
+    pd->polygons_connectivity[pd->n_polygons_connectivity++] =
+        polygon_points[i];
+  }
+
+  pd->polygons_offsets[pd->n_polygons_offsets] =
+      pd->n_polygons_connectivity;
+  pd->n_polygons_offsets++;
+
+  return vtk_polydata_number_of_polygons(pd) - 1;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_add_triangle(vtkPolyData *pd, int64_t point_1,
+                                  int64_t point_2, int64_t point_3) {
+  int64_t points[3] = {point_1, point_2, point_3};
+  return vtk_polydata_add_polygon(pd, points, 3);
+}
+
 // int64_t vtk_polydata_add_pointdata (vtkPolyData *pd,
 //   const char * pontdata_name,
 //   size_t pointdata_ncomp
@@ -547,9 +637,16 @@ double *vtk_polydata_get_pointdata_data(vtkPolyData *pd, int64_t field) {
   size_t id = (size_t)field;
 
   assert(id < pd->n_pointdata);
-  assert(pd->pointdata_data[id]);
+  assert(pd->pointdata_data[id] || pd->n_points == 0);
 
   return pd->pointdata_data[id];
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+double *vtk_polydata_get_pointdata(vtkPolyData *pd, int64_t field) {
+  return vtk_polydata_get_pointdata_data(pd, field);
 }
 
 /*!
@@ -658,6 +755,145 @@ void vtk_polydata_free_pointdata_field(vtkPolyData *pd, int64_t field) {
 
   free(pd->pointdata_data[id]);
   pd->pointdata_data[id] = NULL;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_add_celldata_scalar(vtkPolyData *pd, const char *name) {
+  vtk_polydata_on_add_data(pd);
+
+  int64_t id = vtk_polydata_malloc_celldata_scalar(pd);
+
+  vtk_polydata_validate_name(pd, name);
+
+  pd->celldata_names[id] = (char *)malloc(sizeof(char) * strlen(name) + 1);
+  strcpy(pd->celldata_names[id], name);
+
+  return id;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_add_celldata_vector(vtkPolyData *pd, const char *name,
+                                         size_t ncomp) {
+  vtk_polydata_on_add_data(pd);
+
+  int64_t id = vtk_polydata_malloc_celldata_vector(pd, ncomp);
+
+  vtk_polydata_validate_name(pd, name);
+
+  pd->celldata_names[id] = (char *)malloc(sizeof(char) * strlen(name) + 1);
+  strcpy(pd->celldata_names[id], name);
+
+  return id;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+double *vtk_polydata_get_celldata_data(vtkPolyData *pd, int64_t field) {
+  size_t id = (size_t)field;
+
+  assert(id < pd->n_celldata);
+  assert(pd->celldata_data[id] || vtk_polydata_number_of_cells(pd) == 0);
+
+  return pd->celldata_data[id];
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+double *vtk_polydata_get_celldata(vtkPolyData *pd, int64_t field) {
+  return vtk_polydata_get_celldata_data(pd, field);
+}
+
+/*!
+ * @brief
+ *
+ * @memberof vtkPolyData
+ */
+void vtk_polydata_malloc_celldata(vtkPolyData *pd, size_t n) {
+  vtk_polydata_free_celldata(pd);
+
+  pd->m_celldata = n;
+  pd->n_celldata = 0;
+
+  pd->celldata_data = (double **)calloc(pd->m_celldata, sizeof(double *));
+  pd->celldata_names = (char **)calloc(pd->m_celldata, sizeof(char *));
+  pd->celldata_ncomp = (size_t *)calloc(pd->m_celldata, sizeof(size_t));
+}
+
+/*!
+ * @brief
+ *
+ * @memberof vtkPolyData
+ */
+void vtk_polydata_free_celldata(vtkPolyData *pd) {
+  for (size_t i = 0; i < pd->n_celldata; i++)
+    vtk_polydata_free_celldata_field(pd, i);
+
+  free(pd->celldata_data);
+  pd->celldata_data = NULL;
+  free(pd->celldata_names);
+  pd->celldata_names = NULL;
+  free(pd->celldata_ncomp);
+  pd->celldata_ncomp = NULL;
+
+  pd->m_celldata = 0;
+  pd->n_celldata = 0;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_malloc_celldata_scalar(vtkPolyData *pd) {
+  assert(pd->n_celldata < pd->m_celldata);
+
+  size_t id = pd->n_celldata;
+  pd->n_celldata++;
+
+  pd->celldata_ncomp[id] = 1;
+  pd->celldata_data[id] =
+      (double *)calloc(vtk_polydata_number_of_cells(pd), sizeof(double));
+
+  return id;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+int64_t vtk_polydata_malloc_celldata_vector(vtkPolyData *pd, size_t ncomp) {
+  assert(pd->n_celldata < pd->m_celldata);
+  assert(ncomp > 0);
+
+  size_t id = pd->n_celldata;
+  pd->n_celldata++;
+
+  pd->celldata_ncomp[id] = ncomp;
+  pd->celldata_data[id] =
+      (double *)calloc(vtk_polydata_number_of_cells(pd) *
+                           pd->celldata_ncomp[id],
+                       sizeof(double));
+
+  return id;
+}
+
+/*!
+ * @memberof vtkPolyData
+ */
+void vtk_polydata_free_celldata_field(vtkPolyData *pd, int64_t field) {
+  size_t id = (size_t)field;
+  assert(id < pd->n_celldata);
+
+  pd->celldata_ncomp[id] = 0;
+
+  free(pd->celldata_names[id]);
+  pd->celldata_names[id] = NULL;
+
+  free(pd->celldata_data[id]);
+  pd->celldata_data[id] = NULL;
 }
 
 /*!
