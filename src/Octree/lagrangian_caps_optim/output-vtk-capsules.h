@@ -1,5 +1,3 @@
-#pragma once
-
 #include "io/output-common.h"
 
 #include <math.h>
@@ -12,14 +10,25 @@
 
 #include "lagrangian_caps_optim/capsule-manager-ft.h"
 
+// ============================================================================
+// Function Declarations
+// ============================================================================
+
 static inline bool capsule_vtk_should_write_mesh(CapsuleMesh *mesh);
 static inline double capsule_vtk_clean_double(double value);
 static inline void capsule_vtk_store_coord(double *data, size_t i, coord value);
+void output_hdf_capsules_series(const char *basename, int iter, double time,
+                                bool overwrite);
+void output_hdf_capsules(const char *basename = NULL, int iter = i,
+                         double time = t, bool overwrite = true);
 
 // ============================================================================
 // Function Definitions
 // ============================================================================
 
+/*! 
+ * @brief 
+ */
 static inline bool capsule_vtk_should_write_mesh(CapsuleMesh *mesh) {
   if (!mesh || !mesh->isactive)
     return false;
@@ -30,16 +39,26 @@ static inline bool capsule_vtk_should_write_mesh(CapsuleMesh *mesh) {
 #endif
 }
 
+/*! 
+ * @brief 
+ */
 static inline double capsule_vtk_clean_double(double value) {
   return isfinite(value) ? value : 0.;
 }
 
-static inline void capsule_vtk_store_coord(double *data, size_t i, coord value) {
+/*! 
+ * @brief 
+ */
+static inline void capsule_vtk_store_coord(double *data, size_t i,
+                                           coord value) {
   data[3 * i + 0] = capsule_vtk_clean_double(value.x);
   data[3 * i + 1] = capsule_vtk_clean_double(value.y);
   data[3 * i + 2] = capsule_vtk_clean_double(value.z);
 }
 
+/*! 
+ * @brief 
+ */
 trace void output_hdf_capsules_series(const char *basename, int iter,
                                       double time, bool overwrite) {
   char pname[1024];
@@ -54,8 +73,8 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
            "vtkhdf-capsules-series/capsules_%d.vtkhdf", iter);
 
   char series_filename[1024];
-  snprintf(series_filename, sizeof(series_filename), "%s/capsules.vtkhdf.series",
-           basename);
+  snprintf(series_filename, sizeof(series_filename),
+           "%s/capsules.vtkhdf.series", basename);
 
   if (pid() == 0) {
     assert(!create_path(basename));
@@ -78,9 +97,8 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
 
   const size_t n_pointdata = 10;
   const size_t n_celldata = 13;
-  vtkPolyData vtk_capsules =
-      vtk_polydata_init_with_celldata(n_points, 0, 0, 0, n_polygons,
-                                      n_pointdata, n_celldata);
+  vtkPolyData vtk_capsules = vtk_polydata_init_with_celldata(
+      n_points, 0, 0, 0, n_polygons, n_pointdata, n_celldata);
 
   for (int c = 0; c < CAPS_COUNT(); c++) {
     CapsuleMesh *mesh = &CAPS(c);
@@ -113,7 +131,8 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
     point_offset += (size_t)mesh->nln;
   }
 
-  int64_t pd_cap_id = vtk_polydata_add_pointdata_scalar(&vtk_capsules, "cap_id");
+  int64_t pd_cap_id =
+      vtk_polydata_add_pointdata_scalar(&vtk_capsules, "cap_id");
   int64_t pd_cap_type =
       vtk_polydata_add_pointdata_scalar(&vtk_capsules, "cap_type");
   int64_t pd_owner_pid =
@@ -143,7 +162,8 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
       vtk_polydata_get_pointdata_data(&vtk_capsules, pd_lagforce);
   double *pd_normal_data =
       vtk_polydata_get_pointdata_data(&vtk_capsules, pd_normal);
-  double *pd_curv_data = vtk_polydata_get_pointdata_data(&vtk_capsules, pd_curv);
+  double *pd_curv_data =
+      vtk_polydata_get_pointdata_data(&vtk_capsules, pd_curv);
   double *pd_gcurv_data =
       vtk_polydata_get_pointdata_data(&vtk_capsules, pd_gcurv);
   double *pd_ref_curv_data =
@@ -167,8 +187,7 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
       capsule_vtk_store_coord(pd_normal_data, point_index, node->normal);
       pd_curv_data[point_index] = capsule_vtk_clean_double(node->curv);
       pd_gcurv_data[point_index] = capsule_vtk_clean_double(node->gcurv);
-      pd_ref_curv_data[point_index] =
-          capsule_vtk_clean_double(node->ref_curv);
+      pd_ref_curv_data[point_index] = capsule_vtk_clean_double(node->ref_curv);
       pd_fit_iters_data[point_index] = node->nb_fit_iterations;
     }
   }
@@ -232,10 +251,8 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
       cd_t2_data[cell_index] = t2;
       cd_tmax_data[cell_index] = t1 > t2 ? t1 : t2;
       cd_tavg_data[cell_index] = 0.5 * (t1 + t2);
-      cd_lambda1_data[cell_index] =
-          capsule_vtk_clean_double(state->stretch[0]);
-      cd_lambda2_data[cell_index] =
-          capsule_vtk_clean_double(state->stretch[1]);
+      cd_lambda1_data[cell_index] = capsule_vtk_clean_double(state->stretch[0]);
+      cd_lambda2_data[cell_index] = capsule_vtk_clean_double(state->stretch[1]);
       cd_radius_data[cell_index] = capsule_vtk_clean_double(mesh->cap_radius);
       cd_area_data[cell_index] = capsule_vtk_clean_double(state->area);
       capsule_vtk_store_coord(cd_normal_data, cell_index, state->normal);
@@ -250,6 +267,9 @@ trace void output_hdf_capsules_series(const char *basename, int iter,
   vtk_polydata_free(&vtk_capsules);
 }
 
+/*! 
+ * @brief 
+ */
 trace void output_hdf_capsules(const char *basename = NULL, int iter = i,
                                double time = t, bool overwrite = true) {
   char basename_buff[1024];

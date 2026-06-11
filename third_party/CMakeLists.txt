@@ -1,5 +1,3 @@
-
-
 option(BUILD_THIRD_PARTY_HDF5 "Build HDF5" OFF)
 if (BUILD_THIRD_PARTY_HDF5)
     set(HDF5_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "HDF5 install prefix")
@@ -20,4 +18,10 @@ endif()
 
 option(BUILD_THIRD_PARTY_PETSC "Build PETSc" OFF)
 if(BUILD_THIRD_PARTY_PETSC)
+endif()
+
+option(BUILD_THIRD_PARTY_EIGEN "Build Eigen3" OFF)
+if (BUILD_THIRD_PARTY_EIGEN)
+    set(EIGEN_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "Eigen install prefix")
+    add_subdirectory(hdf5)
 endif()

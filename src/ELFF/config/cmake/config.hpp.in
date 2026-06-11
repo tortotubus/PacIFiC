@@ -1,0 +1,62 @@
+#pragma once
+
+// BEAM version: integer of the form: (major*100 + minor)*100 + patch.
+// #cmakedefine ELFF_VERSION @ELFF_VERSION@
+
+// BEAM version string of the form "3.3" or "3.3.1".
+// #cmakedefine ELFF_VERSION_STRING "@ELFF_VERSION_STRING@"
+
+// BEAM version type, see the ELFF_VERSION_TYPE_* constants below.
+// #define ELFF_VERSION_TYPE ((ELFF_VERSION)%2)
+
+// BEAM version type constants.
+#define ELFF_VERSION_TYPE_RELEASE 0
+#define ELFF_VERSION_TYPE_DEVELOPMENT 1
+
+// Separate BEAM version numbers for major, minor, and patch.
+#define ELFF_VERSION_MAJOR ((ELFF_VERSION)/10000)
+#define ELFF_VERSION_MINOR (((ELFF_VERSION)/100)%100)
+#define ELFF_VERSION_PATCH ((ELFF_VERSION)%100)
+
+// BEAM source directory.
+#define ELFF_SOURCE_DIR "@ELFF_SOURCE_DIR@"
+
+// BEAM install directory.
+#define ELFF_INSTALL_DIR "@ELFF_INSTALL_DIR@"
+
+// Description of the git commit used to build BEAM.
+// #cmakedefine ELFF_GIT_STRING "@ELFF_GIT_STRING@"
+
+// Enable shared library build of BEAM.
+// #cmakedefine ELFF_SHARED_BUILD
+
+// Build the parallel BEAM library.
+#cmakedefine ELFF_USE_MPI
+
+// Build the parallel BEAM library.
+#cmakedefine ELFF_USE_OPENMP
+
+// Enable functionality based on the HDF5 library (reading VTKHDF files).
+#cmakedefine ELFF_USE_HDF5
+
+// Enable functionality based on the HDF5 library (reading VTKHDF files).
+#cmakedefine ELFF_USE_EIGEN3
+
+// Use double-precision floating point type
+#cmakedefine ELFF_USE_DOUBLE
+
+// Use single-precision floating point type
+#cmakedefine ELFF_USE_SINGLE
+
+// Enable debug checks in BEAM.
+#cmakedefine ELFF_DEBUG
+
+// Throw an exception on errors.
+#cmakedefine ELFF_USE_EXCEPTIONS
+
+
+// Enable functionality based on the Google Benchmark library.
+// #cmakedefine ELFF_USE_BENCHMARK
+
+// Enable Enzyme for AD
+// #cmakedefine ELFF_USE_ENZYME

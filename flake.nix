@@ -41,6 +41,7 @@
           default = pkgs.mkShell {
             inputsFrom = [ pkgs.pacific ];
             packages = with pkgs; [
+              eigen
               petsc
               hypre
               gdb

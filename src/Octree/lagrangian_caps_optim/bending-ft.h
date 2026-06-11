@@ -61,17 +61,3 @@ static void comp_bending_force(CapsuleMesh* mesh) {
   }
 }
 
-#if CAPSULE_LEGACY_EVENTS
-event acceleration(i++) {
-  /*Compute borders of the current proc*/
-  compute_proc_borders(&proc_max, &proc_min);
-
-  for (int i = 0; i < allCaps.nbcaps; i++) {
-    if (CAPS(i).isactive) {
-      if (is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) {
-        comp_bending_force(&CAPS(i));
-      }
-    }
-  }
-}
-#endif

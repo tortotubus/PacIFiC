@@ -11,6 +11,7 @@
   zlib,
   petsc,
   hypre,
+  eigen,
   xercesc,
   makeWrapper,
 }:
@@ -38,6 +39,7 @@ stdenv.mkDerivation {
 
   buildInputs = [
     xercesc
+    eigen
     zlib
     (hdf5-mpi.override { mpi = openmpi; })
     openmpi

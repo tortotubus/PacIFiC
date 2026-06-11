@@ -1,10 +1,3 @@
-/**
-# Single optimized capsule with Langevin particles in shear flow
-
-This example keeps the old particle/example/one_cap_old.c nanoparticle setup
-but uses the optimized capsule/IBM implementation.
-*/
-
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -14,7 +7,7 @@ but uses the optimized capsule/IBM implementation.
 
 #define REF_CURV 1
 #define GLOBAL_REF_CURV 1
-#define ADVECT_LAG_RK2 0 
+#define ADVECT_LAG_RK2 0
 
 #define TWO_WAY 0
 #define LJ_FORCE 0
@@ -73,21 +66,21 @@ char *base_path = DEFAULT_BASE_PATH;
 
 #include "grid/octree.h"
 
-#include "ibm/navier-stokes/centered-ibm.h"
 #include "ibm/IBOutput.h"
+#include "ibm/navier-stokes/centered-ibm.h"
 #include "particle/navier-stokes/langevin.h"
 
+#include "lagrangian_caps_optim/bending-ft.h"
 #include "lagrangian_caps_optim/capsule-ft.h"
 #include "lagrangian_caps_optim/capsule-ibm-adapter.h"
-#include "lagrangian_caps_optim/bending-ft.h"
-#include "lagrangian_caps_optim/skalak-ft.h"
-#include "lagrangian_caps_optim/common-shapes-ft.h"
 #include "lagrangian_caps_optim/capsule-viscosity-ratio.h"
+#include "lagrangian_caps_optim/common-shapes-ft.h"
+#include "lagrangian_caps_optim/skalak-ft.h"
 
 #include "io/output-vtk-particles.h"
 #include "io/output-vtk.h"
-#include "lagrangian_caps_optim/output-vtk-capsules.h"
 #include "io/params/params-cli.h"
+#include "lagrangian_caps_optim/output-vtk-capsules.h"
 
 scalar myrho[];
 scalar capsule_indicator[];
@@ -109,38 +102,12 @@ static int overlaps_existing_particle(coord candidate, coord *placed,
   return 0;
 }
 
-static void one_cap_capsule_forces(CapsuleMesh *mesh) {
+static void capsule_forces(CapsuleMesh *mesh) {
   comp_elastic_stress(mesh);
   comp_bending_force(mesh);
 }
 
-static void one_cap_activate_capsule(void) {
-  CapsuleMeshPrototype *capsule_prototype =
-      build_biconcave_capsule_prototype((_initialize_circular_capsule){
-          .cap_es = E_S, .cap_radius = RADIUS, .level = lag_level});
-
-  activate_biconcave_capsule(
-      (_initialize_circular_capsule){.mesh = &CAPS(0),
-                                     .prototype = capsule_prototype,
-                                     .cap_es = E_S,
-                                     .cap_radius = RADIUS,
-                                     .level = lag_level,
-                                     .cap_id = 0,
-                                     .pid = 0});
-
-  capsule_mesh_prototype_release(capsule_prototype);
-
-  if (capsule_mesh_is_local_owner(&CAPS(0)))
-    place_capsule_mesh_z_rotation(&CAPS(0), (coord){0., 0., 0.}, 0.5 * pi);
-}
-
-static void one_cap_prepare_ibm_models(void) {
-  capsule_ibm_register_active_capsules();
-  foreach_ibmesh() mesh->depth = max_level;
-  foreach_ibnode_per_ibmesh() node->depth = max_level;
-}
-
-static void one_cap_initialize_particles(void) {
+static void initialize_particles(void) {
   particle_grid_delete_all_particles();
 
   const int np = particle_count;
@@ -187,31 +154,6 @@ static void one_cap_initialize_particles(void) {
   particle_grid_update_cells();
 }
 
-static void one_cap_update_particle_grid_ownership(void) {
-  particle_grid_update_cells();
-#if _MPI
-  particle_grid_update_pid();
-#endif
-}
-
-static void one_cap_apply_fresh_initial_conditions(void) {
-  foreach () {
-    u.x[] = SHEAR_RATE * y;
-    u.y[] = 0.;
-    u.z[] = 0.;
-    Index_lagnode[] = -1;
-    foreach_dimension() Index_lag_id.x[] = -1;
-  }
-
-  ibmeshmanager_sync_velocity_coupled_model_outputs();
-  one_cap_initialize_particles();
-
-#if TREE
-  adapt_wavelet_ibm(NULL, NULL, 0, 1, all, true);
-  one_cap_update_particle_grid_ownership();
-#endif
-}
-
 int main(int argc, char *argv[]) {
   input_file_register_option_named("fluid", "length", domain_length,
                                    PARAM_VALUE_DOUBLE);
@@ -244,8 +186,8 @@ int main(int argc, char *argv[]) {
 
   input_file_register_option_named("particles", "count", particle_count,
                                    PARAM_VALUE_INT);
-  input_file_register_option_named("particles", "grid_level", particle_grid_level,
-                                   PARAM_VALUE_INT);
+  input_file_register_option_named("particles", "grid_level",
+                                   particle_grid_level, PARAM_VALUE_INT);
   input_file_register_option_named("particles", "random_seed",
                                    particle_random_seed, PARAM_VALUE_INT);
   input_file_register_option_named("particles", "density", particle_density,
@@ -298,7 +240,7 @@ int main(int argc, char *argv[]) {
   nG.y = 0.;
 
   capsule_manager_set_count(&allCaps, 1);
-  capsule_ibm_set_force_assembler(one_cap_capsule_forces);
+  capsule_ibm_set_force_assembler(capsule_forces);
   capsule_viscosity_set_wall_boundary_conditions(capsule_indicator);
 
   checkpoint_configuration.checkpoint_on_sim_iter_iterations = checkpoint_freq;
@@ -325,18 +267,53 @@ event init(i = 0) {
     particle_log_file = fopen(fname, "a");
   }
 
-  one_cap_activate_capsule();
-  one_cap_prepare_ibm_models();
+  CapsuleMeshPrototype *capsule_prototype =
+      build_biconcave_capsule_prototype((_initialize_circular_capsule){
+          .cap_es = E_S, .cap_radius = RADIUS, .level = lag_level});
+
+  activate_biconcave_capsule(
+      (_initialize_circular_capsule){.mesh = &CAPS(0),
+                                     .prototype = capsule_prototype,
+                                     .cap_es = E_S,
+                                     .cap_radius = RADIUS,
+                                     .level = lag_level,
+                                     .cap_id = 0,
+                                     .pid = 0});
+
+  capsule_mesh_prototype_release(capsule_prototype);
+
+  if (capsule_mesh_is_local_owner(&CAPS(0)))
+    place_capsule_mesh_z_rotation(&CAPS(0), (coord){0., 0., 0.}, 0.5 * pi);
+
+  capsule_ibm_register_active_capsules();
+  foreach_ibmesh() mesh->depth = max_level;
+  foreach_ibnode_per_ibmesh() node->depth = max_level;
 
   if (!restore_handler(base_path))
-    one_cap_apply_fresh_initial_conditions();
+    foreach () {
+      u.x[] = SHEAR_RATE * y;
+      u.y[] = 0.;
+      u.z[] = 0.;
+      Index_lagnode[] = -1;
+      foreach_dimension() Index_lag_id.x[] = -1;
+    }
+
+  ibmeshmanager_sync_velocity_coupled_model_outputs();
+  initialize_particles();
+#if TREE
+  adapt_wavelet_ibm(NULL, NULL, 0, 1, all, true);
+  particle_grid_update_cells();
+#if _MPI
+  particle_grid_update_pid();
+#endif
+#endif
   else {
     foreach () {
       p[] = 0.;
       pf[] = 0.;
     }
     boundary({p, pf});
-    one_cap_initialize_particles();
+    initialize_particles();
   }
 }
 
@@ -375,7 +352,10 @@ event adapt(i++) {
       {u},
       (double[]){velocity_tolerance, velocity_tolerance, velocity_tolerance},
       minlevel = min_level, maxlevel = max_level);
-  one_cap_update_particle_grid_ownership();
+  particle_grid_update_cells();
+#if _MPI
+  particle_grid_update_pid();
+#endif
 }
 #endif
 

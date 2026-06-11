@@ -153,6 +153,27 @@ fi
 
 
 #
+# Eigen
+#
+
+export PACIFIC_EIGEN_USE_THIRDPARTY=0
+
+if [ $PACIFIC_EIGEN_USE_THIRDPARTY = 0 ]
+then
+export PACIFIC_EIGEN_CFLAGS=$(pkg-config --cflags eigen3)
+export PACIFIC_EIGEN_LFLAGS=$(pkg-config --libs eigen3)
+export PACIFIC_EIGEN_PREFIX=$(pkg-config --variable=prefix eigen3)
+export PACIFIC_EIGEN_VER=$(pkg-config --modversion eigen3)
+else
+export PACIFIC_EIGEN_CFLAGS="-I${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}/include"
+export PACIFIC_EIGEN_LFLAGS=""
+export PACIFIC_EIGEN_PREFIX="${PACIFIC_THIRDPARTY_INSTALLDIR_ABS}"
+export PACIFIC_EIGEN_VER="3.24.3"
+fi
+
+
+
+#
 # Summary
 #
 

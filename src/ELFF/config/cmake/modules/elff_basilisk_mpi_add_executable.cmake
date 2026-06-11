@@ -1,0 +1,65 @@
+function(elff_basilisk_mpi_add_executable SOURCE_FILE)
+  get_filename_component(source_name ${SOURCE_FILE} NAME_WE)
+  set(output_c "${CMAKE_CURRENT_BINARY_DIR}/_${source_name}.c")
+  
+  file(GLOB_RECURSE basilisk_headers
+    CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/basilisk/*.h"
+    "${CMAKE_SOURCE_DIR}/basilisk/templates/*.c"
+  )
+
+  add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_${source_name}.c"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${SOURCE_FILE}" "${CMAKE_CURRENT_BINARY_DIR}/${source_name}.c"
+    COMMAND $<TARGET_FILE:basilisk::qcc>
+      -D_MPI=1
+      -DTRACE=3
+      "${source_name}.c"
+      -I"${CMAKE_BINARY_DIR}/include"
+      -I"${CMAKE_SOURCE_DIR}/basilisk" 
+      -source
+    DEPENDS ${SOURCE_FILE} ${basilisk_headers}
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/_${source_name}.c"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" 
+  )
+  
+  add_executable(${source_name} "_${source_name}.c")
+
+  # find_package(HDF5 REQUIRED)
+  # target_compile_definitions(${source_name} PRIVATE _TRACE=1)
+
+  if(ELFF_USE_MPI)
+    target_link_libraries(${source_name}
+      PUBLIC
+        MPI::MPI_C
+    )    
+
+    # target_compile_definitions(${source_name} PRIVATE _MPI=1)
+  endif()
+
+  if(ELFF_USE_HDF5) 
+    target_link_libraries(${source_name}
+      PUBLIC
+        hdf5::hdf5
+        hdf5::hdf5_hl  
+    )    
+  endif()
+
+  target_link_libraries(${source_name}
+    PUBLIC
+      ELFF
+      m
+  )
+
+  set_target_properties(${source_name} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+    BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR}"
+  )
+
+  install(TARGETS ${source_name}
+    RUNTIME DESTINATION ${ELFF_INSTALL_BINDIR}
+    COMPONENT ElFF_Runtime
+  )
+endfunction()

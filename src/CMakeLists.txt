@@ -12,6 +12,13 @@ add_subdirectory(Grains3D)
 add_subdirectory(Cartesian)
 
 #
+# Add Cartesian 
+#
+
+add_subdirectory(ELFF)
+
+
+#
 # Add Octree
 #
 

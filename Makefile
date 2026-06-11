@@ -22,6 +22,11 @@ PACIFIC_SRC_MAKE = @$(MAKE) -C $(PACIFIC_SRCDIR_ABS) \
   PACIFIC_SRCDIR_ABS="$(PACIFIC_SRCDIR_ABS)" \
   PACIFIC_BUILDDIR_ABS="$(PACIFIC_BUILDDIR_ABS)" \
   PACIFIC_MPI_SKIP_CPPFLAGS="$(PACIFIC_MPI_SKIP_CPPFLAGS)" \
+  PACIFIC_MPICXX="$(PACIFIC_MPICXX)" \
+  PACIFIC_MPICC="$(PACIFIC_MPICC)" \
+  PACIFIC_HDF5_CFLAGS="$(PACIFIC_HDF5_CFLAGS)" \
+  PACIFIC_HDF5_LFLAGS="$(PACIFIC_HDF5_LFLAGS)" \
+  PACIFIC_EIGEN_CFLAGS="$(PACIFIC_EIGEN_CFLAGS)" \
   MKDIR="$(MKDIR)" CP="$(CP)" LN="$(LN)" GIT="$(GIT)" CMAKE="$(CMAKE)"
 
 #
@@ -30,6 +35,7 @@ PACIFIC_SRC_MAKE = @$(MAKE) -C $(PACIFIC_SRCDIR_ABS) \
 
 SRC_THIRDPARTY_DEPS := 
 GRAINS_THIRDPARTY_DEPS :=
+ELFF_THIRDPARTY_DEPS :=
 MAC_THIRDPARTY_DEPS :=
 FLUID_THIRDPARTY_DEPS :=
 OCTREE_THIRDPARTY_DEPS :=
@@ -41,6 +47,7 @@ endif
 
 ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_HDF5_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-hdf5
+ELFF_THIRDPARTY_DEPS += third_party-hdf5
 OCTREE_THIRDPARTY_DEPS += third_party-hdf5
 endif
 
@@ -67,15 +74,23 @@ ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_PETSC_USE_THIRDPARTY)),)
 SRC_THIRDPARTY_DEPS += third_party-petsc
 endif
 
-.PHONY: all docs docs-develop
+ifneq ($(filter 1 true TRUE yes YES on ON,$(PACIFIC_EIGEN_USE_THIRDPARTY)),)
+SRC_THIRDPARTY_DEPS += third_party-eigen
+ELFF_THIRDPARTY_DEPS += third_party-eigen
+endif
 
-all: grains mac fluid octree
+.PHONY: all grains elff mac fluid octree docs docs-develop clean
+
+all: grains elff mac fluid octree
 
 # src: builddir $(SRC_THIRDPARTY_DEPS)
 # 	$(PACIFIC_SRC_MAKE) all
 
 grains: builddir $(GRAINS_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grains
+
+elff: builddir $(ELFF_THIRDPARTY_DEPS)
+	$(PACIFIC_SRC_MAKE) elff
 
 mac: builddir $(MAC_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) mac
@@ -103,12 +118,14 @@ help:
 	@printf "\t$(GREEN)make all   $(RESET)\n"
 	@printf "\t$(GREEN)make clean $(RESET)\n"
 	@printf "\t$(GREEN)make grains$(RESET)\n"
+	@printf "\t$(GREEN)make elff  $(RESET)\n"
 	@printf "\t$(GREEN)make mac   $(RESET)\n"
 	@printf "\t$(GREEN)make fluid $(RESET)\n"
 	@printf "\t$(CYAN)make docs        $(RESET)\n"
 	@printf "\t$(CYAN)make docs-develop$(RESET)\n"
 	@printf "\t$(RED)make third_party         $(RESET)\n"
 	@printf "\t$(RED)make third_party-basilisk$(RESET)\n"
+	@printf "\t$(RED)make third_party-eigen $(RESET)\n"
 	@printf "\t$(RED)make third_party-hdf5    $(RESET)\n"
 	@printf "\t$(RED)make third_party-zlib    $(RESET)\n"
 	@printf "\t$(RED)make third_party-xercesc $(RESET)\n"
@@ -117,8 +134,8 @@ help:
 
 # submodules:
 
-submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc 
-submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean
+submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc submodule-eigen
+submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean submodule-eigen-clean
 
 submodule-basilisk: 
 	@$(GIT) submodule update --init --checkout third_party/basilisk/basilisk_submodule
@@ -145,6 +162,10 @@ submodule-petsc:
 submodule-petsc-clean:
 	@$(GIT) submodule deinit -f -- third_party/petsc/petsc_submodule 
 
+submodule-eigen: 
+	@$(GIT) submodule update --init third_party/eigen/eigen_submodule
+submodule-eigen-clean:
+	@$(GIT) submodule deinit -f -- third_party/eigen/eigen_submodule 
 
 # thirdparty
 
@@ -168,6 +189,9 @@ third_party-xercesc: builddir submodule-xercesc
 
 third_party-petsc: builddir submodule-petsc
 	$(PACIFIC_THIRDPARTY_MAKE) third_party-petsc
+
+third_party-eigen: builddir submodule-eigen
+	$(PACIFIC_THIRDPARTY_MAKE) third_party-eigen
 
 clean: submodule-clean
 	$(PACIFIC_SRC_MAKE) clean
