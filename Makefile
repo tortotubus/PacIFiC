@@ -81,12 +81,12 @@ endif
 
 .PHONY: all grains elff mac fluid octree docs docs-develop clean
 
-all: grains elff mac fluid octree
+all: grains3d elff mac fluid octree
 
 # src: builddir $(SRC_THIRDPARTY_DEPS)
 # 	$(PACIFIC_SRC_MAKE) all
 
-grains: builddir $(GRAINS_THIRDPARTY_DEPS)
+grains3d: builddir $(GRAINS_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grains
 
 elff: builddir $(ELFF_THIRDPARTY_DEPS)
@@ -117,8 +117,8 @@ help:
 	@printf "Targets:\n"
 	@printf "\t$(GREEN)make all   $(RESET)\n"
 	@printf "\t$(GREEN)make clean $(RESET)\n"
-	@printf "\t$(GREEN)make grains$(RESET)\n"
 	@printf "\t$(GREEN)make elff  $(RESET)\n"
+	@printf "\t$(GREEN)make grains3d$(RESET)\n"
 	@printf "\t$(GREEN)make mac   $(RESET)\n"
 	@printf "\t$(GREEN)make fluid $(RESET)\n"
 	@printf "\t$(CYAN)make docs        $(RESET)\n"

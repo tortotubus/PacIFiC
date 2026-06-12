@@ -2,7 +2,7 @@
 # Set of functions for a sphere
 */
 
-# include "foreach_region_plusplus.h"
+# include "DLMFD_foreach_region_plusplus.h"
 
 
 /** Tests whether a point lies inside the sphere */
@@ -35,6 +35,57 @@ bool is_in_Sphere( const double x, const double y, const double z,
       	gcp->radius );
 
   return ( status );
+}
+
+
+
+
+/** Flag boundary layer around the sphere */
+//----------------------------------------------------------------------------
+void flag_boundarylayer_Sphere( scalar flag_maxlevel, double const dcoef, 
+	RigidBody const* p, AABB const* ld )
+//----------------------------------------------------------------------------
+{
+  GeomParameter const* gcp = &(p->g); 
+  AABB ExpBBox;
+  double delta = L0 / (double)(1 << MAXLEVEL) ;
+  double ext_radius = gcp->radius + dcoef * delta; 
+  
+  foreach_dimension()
+  {
+    ExpBBox.min.x = gcp->BBox.min.x - dcoef * delta;
+    ExpBBox.max.x = gcp->BBox.max.x + dcoef * delta;
+  } 
+      
+  // Loops over cells in the bounding box of the expanded sphere
+  if ( intersect( ld, &ExpBBox ) )
+    foreach_region_plus_plus( ExpBBox.min, ExpBBox.max ) 
+      if ( is_leaf(cell) )
+        if ( flag_maxlevel[] == 0. )
+        {    
+          if ( sqrt( sq( x - gcp->center.x ) + sq( y - gcp->center.y )
+    		+ sq( z - gcp->center.z ) ) < ext_radius )
+	    flag_maxlevel[] = 1.;
+        }
+	
+  // Loops over cells in the bounding box of its clones
+  AABB cloneBBox;
+  coord shift;
+  for (size_t i = 0; i < gcp->nperclones; i++)
+  {
+    foreach_dimension() shift.x = gcp->perclonecenters[i].x - gcp->center.x; 
+    assign_shifted_BBox( &cloneBBox, &ExpBBox, shift );
+    if ( intersect( ld, &cloneBBox ) )
+      foreach_region_plus_plus(cloneBBox.min, cloneBBox.max) 
+        if ( is_leaf(cell) )     
+          if ( flag_maxlevel[] == 0. )
+          {    
+            if ( sqrt( sq( x - gcp->perclonecenters[i].x ) 
+	    	+ sq( y - gcp->perclonecenters[i].y )
+    		+ sq( z - gcp->perclonecenters[i].z ) ) < ext_radius )
+	      flag_maxlevel[] = 1.;
+          }
+  }	
 }
 
 
@@ -124,7 +175,7 @@ void create_referenceRB_boundary_geomfeatures_Sphere(
     { 
       dlm_bd->bp[k].x = pos.x;
       // We arbitrary set the norm of the normal vector to 0.25 * radius
-      dlm_bd->normal[k].x = ( pos.x - gcp->center.x ) / 4.;
+      dlm_bd->outwardnormalvector[k].x = ( pos.x - gcp->center.x ) / 4.;
     }
   }
 }

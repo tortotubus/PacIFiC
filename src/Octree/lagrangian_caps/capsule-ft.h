@@ -67,6 +67,7 @@ typedef struct lagNode {
   coord lagForce;
   Cache stencil;
   Cache eulcell;
+  Cache eulcell;
   #if _MPI
     int pid;
   #endif
@@ -84,7 +85,19 @@ typedef struct lagNode {
 } lagNode;
 
 /** We specify the size of the 3x3(x3) or 5x5(x5) stencil in 2D(3D). */
+/** We specify the size of the 3x3(x3) or 5x5(x5) stencil in 2D(3D). */
 #if dimension < 3
+  #if STENCIL_TYPE == 3
+    #define STENCIL_SIZE 9
+  #else 
+    #define STENCIL_SIZE 25
+  #endif
+#else
+  #if STENCIL_TYPE == 3
+    #define STENCIL_SIZE 27
+  #else 
+    #define STENCIL_SIZE 125
+  #endif
   #if STENCIL_TYPE == 3
     #define STENCIL_SIZE 9
   #else 
@@ -163,6 +176,10 @@ typedef struct lagMesh {
   int cap_type;
   double cap_es;
   double cap_radius;
+  int cap_id;
+  int cap_type;
+  double cap_es;
+  double cap_radius;
   int nln;
   lagNode* nodes;
   int nle;
@@ -173,8 +190,11 @@ typedef struct lagMesh {
   #endif
   coord centroid;
   coord ang_vel;
+  coord ang_vel;
   double initial_volume;
   double volume;
+  double circum_radius;
+  double taylor_deform;
   double circum_radius;
   double taylor_deform;
   bool updated_stretches;
@@ -212,6 +232,10 @@ void initialize_empty_capsule(lagMesh* mesh) {
   mesh->cap_radius = 1.;
   mesh->cap_id = -1;
   mesh->cap_type = -1;
+  mesh->cap_es = 1.;
+  mesh->cap_radius = 1.;
+  mesh->cap_id = -1;
+  mesh->cap_type = -1;
   mesh->nln = 0;
   mesh->nle = 0;
   mesh->nodes = NULL;
@@ -228,6 +252,7 @@ void initialize_empty_capsule(lagMesh* mesh) {
 
 void free_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].stencil.p);
+  for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].eulcell.p);
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].eulcell.p);
   free(mesh->nodes);
   free(mesh->edges);
@@ -266,7 +291,11 @@ void initialize_capsule_stencils(lagMesh* mesh) {
     mesh->nodes[j].eulcell.n = 1;
     mesh->nodes[j].eulcell.nm = 1;
     mesh->nodes[j].eulcell.p = (Index*) malloc(sizeof(Index));
+    mesh->nodes[j].eulcell.n = 1;
+    mesh->nodes[j].eulcell.nm = 1;
+    mesh->nodes[j].eulcell.p = (Index*) malloc(sizeof(Index));
   }
+  
   
 }
 
@@ -277,7 +306,10 @@ void initialize_all_capsules_stencils() {
 }
 
 void initialize_active_capsule(lagMesh* mesh, int cap_id, int cap_type) {
+void initialize_active_capsule(lagMesh* mesh, int cap_id, int cap_type) {
   initialize_empty_capsule(mesh);
+  mesh->cap_type = cap_type;
+  mesh->cap_id = cap_id;
   mesh->cap_type = cap_type;
   mesh->cap_id = cap_id;
   mesh->isactive = true;
@@ -288,13 +320,13 @@ void initialize_active_capsule(lagMesh* mesh, int cap_id, int cap_type) {
 across periodic boundaries. We assume for this purpose that the length of
 the edges are less that half the domain size, which in practice should always
 be the case. */
-#define ACROSS_PERIODIC(a,b) (fabs(a - b) > L0/2.)
-#define PERIODIC_1DIST(a,b) (fabs(a - L0 - b) > L0/2. ? a + L0 - b : a - L0 - b)
-#define GENERAL_1DIST(a,b) (ACROSS_PERIODIC(a,b) ? PERIODIC_1DIST(a,b) : a - b)
-#define PERIODIC_1DAVG(a,b) (fabs(a - L0 - b) > L0/2. ? a + L0 + b : a - L0 + b)
-#define GENERAL_1DAVG(a,b) (ACROSS_PERIODIC(a,b) ? PERIODIC_1DAVG(a,b) : a + b)
-#define GENERAL_SQNORM(a,b) (sq(GENERAL_1DIST(a.x, b.x)) + \
-  sq(GENERAL_1DIST(a.y, b.y)) + sq(GENERAL_1DIST(a.z, b.z)))
+#define ACROSS_PERIODIC(a,b,L) (fabs(a - b) > L/2.)
+#define PERIODIC_1DIST(a,b,L) (fabs(a - L - b) > L/2. ? a + L - b : a - L - b)
+#define GENERAL_1DIST(a,b,L) (ACROSS_PERIODIC(a,b,L) ? PERIODIC_1DIST(a,b,L) : a - b)
+#define PERIODIC_1DAVG(a,b,L) (fabs(a - L - b) > L/2. ? a + L + b : a - L + b)
+#define GENERAL_1DAVG(a,b,L) (ACROSS_PERIODIC(a,b,L) ? PERIODIC_1DAVG(a,b,L) : a + b)
+#define GENERAL_SQNORM(a,b) (sq(GENERAL_1DIST(a.x, b.x, L0)) + \
+  sq(GENERAL_1DIST(a.y, b.y, L0*Dimensions.y/Dimensions.x)) + sq(GENERAL_1DIST(a.z, b.z, L0*Dimensions.z/Dimensions.x)))
 
 #if dimension < 3
   #define cnorm(a) (sqrt(sq(a.x) + sq(a.y)))
@@ -353,6 +385,21 @@ trace void synchronize (scalar * list)
 }
 
 
+/* Utilities for different numerical simulations */
+#include "plugins-ft.h"
+
+
+
+//----------------------------------------------------------------------------
+trace void synchronize (scalar * list)
+//----------------------------------------------------------------------------
+{
+  for (scalar s in list)
+    s.dirty = true;
+  boundary(list);
+}
+
+
 /**
 The function below advects each Lagrangian node by
 interpolating the velocities around the node of interest. By default, a
@@ -361,6 +408,7 @@ second-order Runge Kutta scheme is used. By setting the macro
 */
 trace
 void advect_lagMesh(lagMesh* mesh) {
+
 
   #if !(ADVECT_LAG_RK2)
     for(int i=0; i < mesh->nln; i++) {
@@ -387,7 +435,12 @@ void advect_lagMesh(lagMesh* mesh) {
       buffer_mesh.nodes[j].eulcell.n = 1;
       buffer_mesh.nodes[j].eulcell.nm = 1;
       buffer_mesh.nodes[j].eulcell.p = malloc(sizeof(Index));
+      buffer_mesh.nodes[j].eulcell.n = 1;
+      buffer_mesh.nodes[j].eulcell.nm = 1;
+      buffer_mesh.nodes[j].eulcell.p = malloc(sizeof(Index));
     }
+    
+    generate_lag_stencils_one_caps(&buffer_mesh, true);
     
     generate_lag_stencils_one_caps(&buffer_mesh, true);
     eul2lag(&buffer_mesh);
@@ -398,8 +451,10 @@ void advect_lagMesh(lagMesh* mesh) {
     }
     for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].stencil.p);
     for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].eulcell.p);
+    for(int i=0; i<buffer_mesh.nln; i++) free(buffer_mesh.nodes[i].eulcell.p);
     free(buffer_mesh.nodes);
   #endif
+
 
   correct_lag_pos(mesh);
   #if CONSERVE_VOLUME
@@ -408,7 +463,11 @@ void advect_lagMesh(lagMesh* mesh) {
   comp_centroid(mesh);
   comp_volume(mesh);
   comp_capsule_geodynamics(mesh);
+  comp_capsule_geodynamics(mesh);
 }
+
+
+
 
 
 
@@ -559,6 +618,34 @@ event tracer_advection(i++) {
 
 
   /* Advection of the lagNode */
+
+coord proc_max = {-HUGE, -HUGE, -HUGE};
+coord proc_min = {HUGE, HUGE, HUGE};
+
+event tracer_advection(i++) {  
+
+  /* Distribute velocity to the lagNodes */
+  for(int i=0; i<NCAPS; i++) 
+  {
+      if (CAPS(i).isactive) 
+        eul2lag(&CAPS(i));
+  }   
+
+ 
+  /*We synchronize the eul field and make sure that it is updated before applying repulsive velocity */
+  
+#if (LUBR_VEL==1)
+  synchronize({Index_lagnode, Index_lag_id}); 
+  repulsive_vel();
+#endif 
+  /**
+  In case of parallel simulations, we communicate the Lagrangian velocity
+  so that all processes have the same Lagrangian velocities.
+  */
+  reduce_alllagVel();
+
+
+  /* Advection of the lagNode */
   for(int i=0; i<NCAPS; i++) {
     if (CAPS(i).isactive) {
       advect_lagMesh(&CAPS(i));
@@ -671,6 +758,15 @@ event acceleration (i++) {
   // lubrication_force(); 
   # endif
 
+
+  /*We synchronize the eul field and make sure that it is updated before applying repulsive force */
+  synchronize({Index_lagnode, Index_lag_id});
+
+  /*We add the repulsive lubrication force for a better numerical stability*/
+  # if LUBR_FORCE == 1  
+  // lubrication_force(); 
+  # endif
+
   face vector ae = a;
   foreach()
     if (cm[] > 1.e-20) foreach_dimension() forcing.x[] = 0.;
@@ -687,6 +783,7 @@ event cleanup (t = end) {
 }
 
 
+
 /**
 ## Additional functionalities
 */
@@ -694,6 +791,7 @@ event cleanup (t = end) {
   #include "dump-ft.h"
   #include "post-processing-ft.h"
 #endif
+
 
 
 /**
@@ -706,4 +804,5 @@ convergence of the advection scheme.
 the curvature at the Lagrangian nodes. Since the curvature depends on the
 normals, this case also validates the computation of the normal vectors.
 */
+
 

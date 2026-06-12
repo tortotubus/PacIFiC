@@ -19,6 +19,23 @@
 #   define figs_dir "Figs"
 # endif
 
+/** File names definition and global variables */
+# ifndef fluid_dump_filename
+#   define fluid_dump_filename "Savings/dump"
+# endif
+# ifndef dump_dir
+#   define dump_dir "Savings"
+# endif
+# ifndef result_dir
+#   define result_dir "Res"
+# endif
+# ifndef result_fluid_rootfilename
+#   define result_fluid_rootfilename "fluid_basilisk"
+# endif
+# ifndef figs_dir
+#   define figs_dir "Figs"
+# endif
+
 /** ## Output membrane position in plain text for external post-processing */
 void dump_plain_nodes_pos(lagMesh* mesh, char* filename) {
   if (pid() == 0) {
@@ -58,8 +75,17 @@ struct _pv_output_ascii {
 // int pv_timestep = 0;
 // void pv_output_ascii(struct _pv_output_ascii p) {
 void pv_output_ascii(int pv_timestep) {
+// int pv_timestep = 0;
+// void pv_output_ascii(struct _pv_output_ascii p) {
+void pv_output_ascii(int pv_timestep) {
   if (pid() == 0) {
     char name[128];
+    char default_name[15];
+    sprintf(default_name, "%s", result_dir );
+    strcat(default_name, "/" );
+    strcat(default_name, "caps\0" );
+    // char* prefix = p.name ? p.name : default_name;
+    char* prefix = default_name;
     char default_name[15];
     sprintf(default_name, "%s", result_dir );
     strcat(default_name, "/" );
@@ -69,6 +95,8 @@ void pv_output_ascii(int pv_timestep) {
     char suffix[64];
     sprintf(suffix, "_T%d.vtk", pv_timestep);
     sprintf(name, "%s%s", prefix, suffix);
+    // FILE* file = p.fp ? p.fp : fopen(name, "w");
+    FILE* file = fopen(name, "w");
     // FILE* file = p.fp ? p.fp : fopen(name, "w");
     FILE* file = fopen(name, "w");
     assert(file);
@@ -157,6 +185,13 @@ void pv_output_ascii(int pv_timestep) {
     for(int j=0; j<NCAPS; j++) {
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[1]);
+    }
+    fprintf(file, "\n");
+    fprintf(file, "SCALARS Radius double 1 \n");
+    fprintf(file, "LOOKUP_TABLE default\n");
+    for(int j=0; j<NCAPS; j++) {
+      for(int k=0; k<CAPS(j).nlt; k++)
+        fprintf(file, "%g ", CAPS(j).cap_radius);
     }
     fprintf(file, "\n");
     fprintf(file, "SCALARS Radius double 1 \n");

@@ -2,212 +2,6 @@
 # General functions for the DLMFD implementation.
 */
 
-/** Define NSDF, the number of significant digits after the decimal point
-to output data in files in text mode. NSDF cannot be lower than 3, larger 
-than 15 and 9 (for formatting reasons). */
-# ifndef NSDF
-#   define NSDF 7
-# else 
-#   if ( NSDF == 9 )
-#     undef NSDF
-#     define NSDF 8
-#   else
-#     if ( NSDF < 3 )
-#       undef NSDF
-#       define NSDF 3
-#     else
-#       if ( NSDF > 15 )
-#         undef NSDF
-#         define NSDF 15
-#       endif
-#     endif
-#   endif
-# endif
-
-
-
-
-/** Define the factor alpha (generally between 1 and 2) that is involved 
-in the inter-boundary point distance on the rigid body surface. */
-# ifndef INTERBPCOEF
-#   define INTERBPCOEF 2.
-# endif 
-
-
-
-
-/** Different rigid body shapes supported */      
-enum RigidBodyShape {
-  SPHERE,
-  CIRCULARCYLINDER2D,
-  CUBE,
-  TETRAHEDRON,
-  OCTAHEDRON,
-  DODECAHEDRON,
-  ICOSAHEDRON,
-  BOX,
-  CIRCULARCYLINDER3D,
-  CONE,
-  TRUNCATEDCONE,
-  ELLIPSOID
-};
-
-
-
-
-/** Different rigid body shapes supported */      
-enum RigidBodyType {
-  PARTICLE,
-  PERIODICPARTICLE,
-  OBSTACLE, 
-  REFERENCERIGIDBODY
-};
-
-
-
-
-/** Structure for an axis-aligned bounding box */
-typedef struct {
-  coord min;
-  coord max;
-} AABB;
-
-
- 
-
-/** Structure for the rigid body boundary points */
-typedef struct {
-  coord* bp;
-  coord* normal;
-  bool* deactivated;
-  int m;
-} RigidBodyBoundary;
-
-
-
-
-/** Additional geometric parameters for polygons/polyhedrons */
-typedef struct {
-  int allPoints, allFaces;
-  double** cornersCoord;
-  long int** cornersIndex;
-  long int* numPointsOnFaces;
-} PolyGeomParameter;
-
-
-
-
-/** Additional geometric parameters for 3D cylinders */
-typedef struct {
-  coord BottomCenter;
-  coord TopCenter;
-  coord BottomToTopVec;
-  coord RadialRefVec;
-  double radius;
-  double height;
-} CylGeomParameter;
-
-
-
-
-/** Additional geometric parameters for full or truncated cones */
-typedef struct {
-  coord BottomCenter;
-  coord TopCenter;
-  coord BottomToTopVec;
-  coord BottomRadialRefVec;
-  coord TopRadialRefVec;  
-  double BottomRadius;
-  double TopRadius;  
-  double height;
-} TruncConeGeomParameter;
-
-
-
-
-/** Additional geometric parameters for ellpsoids */
-typedef struct { 
-  double a,b,c;
-  double n1, n2;
-} EllipsoidGeomParameter;
-
-
-
-
-/** Rigid body geometric parameters */
-typedef struct {
-  coord center;
-  AABB BBox;
-  coord* perclonecenters;  
-  double radius;
-  int ncorners;
-  int nperclones;
-  PolyGeomParameter* pgp;
-  CylGeomParameter* cgp; 
-  TruncConeGeomParameter* tcgp;
-  EllipsoidGeomParameter* elgp;  
-} GeomParameter;
-
-
-
-
-/** Rigid body parameters for the toy granular solver */
-typedef struct {
-  double kn, en, vzero, wished_ratio;
-  coord normalvector;
-  GeomParameter gnm1;  
-} ToyGSParameter;
-
-
-
-
-/** Set of parameters describing a rigid body */
-typedef struct {
-  size_t pnum;
-  size_t geomType;
-  char typetag[4];
-  enum RigidBodyType type;
-  enum RigidBodyShape shape;  
-  RigidBodyBoundary s;
-  GeomParameter g;
-  double M, Ip[6], rho_s, Vp, DLMFD_couplingfactor, RotMat[3][3];  
-  ToyGSParameter *toygsp;
-  double Ip_inv[3][3];
-  coord addforce;    
-# if TRANSLATION
-    coord U, Unm1, splitUacc, qU, tU, imposedU;    
-# endif
-# if ROTATION
-    coord w, wnm1, Iwnm1, splitwacc, qw, tw, imposedw;
-# endif
-  Cache Interior;
-  Cache Boundary;
-} RigidBody;
-
-
-
-
-/** Total number of DLMFD cells and points for statistics */
-typedef struct {
-  size_t total_number_of_DLMFDcells; 
-  size_t total_number_of_DLMFDpts;  
-} DLMFDptscells;
-
-
-
-
-# define DYNARRAYBLOCK 128
-
-/** Structure for a dynamic array of unsigned integers */
-typedef struct {
-  size_t n;
-  size_t nm;   
-  size_t* elem; 
-} dynUIarray;
-
-
-
-
 /** Initialize and allocate a dynUIarray */
 //----------------------------------------------------------------------------
 void initialize_and_allocate_dynUIarray( dynUIarray* a, const int nm ) 
@@ -247,16 +41,6 @@ void append_dynUIarray( dynUIarray* a, size_t newelem )
   a->elem[a->n] = newelem;
   a->n += 1;    
 }
-
-
-
-
-/** Structure for a dynamic array of pointers to double */
-typedef struct {
-  size_t n;
-  size_t nm;   
-  double** elem; 
-} dynPDBarray;
 
 
 
@@ -318,13 +102,13 @@ trace void synchronize( scalar* list )
 
 
 
-/** Allocates memory for m points in the RigidBodyBoundary structure. */
+/** Allocates memory for m points in the RigidBodyBoundary structure */
 //----------------------------------------------------------------------------
 void allocate_RigidBodyBoundary( RigidBodyBoundary* sbm, const int m ) 
 //----------------------------------------------------------------------------
 {
   sbm->bp = (coord*) calloc( m, sizeof(coord) );
-  sbm->normal = (coord*) calloc( m, sizeof(coord) );   
+  sbm->outwardnormalvector = (coord*) calloc( m, sizeof(coord) );   
   sbm->deactivated = (bool*) calloc( m, sizeof(bool) );
   sbm->m = m;
 }
@@ -332,27 +116,28 @@ void allocate_RigidBodyBoundary( RigidBodyBoundary* sbm, const int m )
 
 
 
-/** Re-allocates memory for m points in the RigidBodyBoundary structure. */
+/** Re-allocates memory for m points in the RigidBodyBoundary structure */
 //----------------------------------------------------------------------------
 void reallocate_RigidBodyBoundary( RigidBodyBoundary* sbm, const int m ) 
 //----------------------------------------------------------------------------
 {
   sbm->bp = (coord*) realloc( sbm->bp, m * sizeof(coord) ); 
-  sbm->normal = (coord*) realloc( sbm->normal, m * sizeof(coord) );   
-  sbm->deactivated = (bool*) realloc( sbm->deactivated, m * sizeof(bool) );       
+  sbm->outwardnormalvector = (coord*) realloc( sbm->outwardnormalvector, 
+  	m * sizeof(coord) );   
+  sbm->deactivated = (bool*) realloc( sbm->deactivated, m * sizeof(bool) );
   sbm->m = m;
 }
 
 
 
 
-/** Frees memory associated to the points in the RigidBodyBoundary structure. */
+/** Frees memory associated to the points in the RigidBodyBoundary structure */
 //----------------------------------------------------------------------------
 void free_RigidBodyBoundary( RigidBodyBoundary* sbm ) 
 //----------------------------------------------------------------------------
 {
   free( sbm->bp ); sbm->bp = NULL;
-  free( sbm->normal ); sbm->normal = NULL;  
+  free( sbm->outwardnormalvector ); sbm->outwardnormalvector = NULL;  
   free( sbm->deactivated ); sbm->deactivated = NULL;
   sbm->m = 0;  
 }
@@ -463,7 +248,7 @@ void matCoordDotProduct( const double Matrix[3][3], const coord v, coord* res )
 /** 3 x 3 matrix - vector dot product where the matrix is stored as a 
 double[][] and the vector as a double*, the result is stored as a double* */
 //----------------------------------------------------------------------------
-void matVecDotProduct( const double Matrix[3][3], double const* v, double* res ) 
+void matVecDotProduct( const double Matrix[3][3], double const* v, double* res )
 //----------------------------------------------------------------------------
 {
   res[0] = Matrix[0][0] * v[0] + Matrix[0][1] * v[1] + Matrix[0][2] * v[2];
@@ -715,18 +500,20 @@ void compute_local_domain_AABB( AABB* A )
 }
 
  
-# include "CircularCylinder2D.h"
-# include "Sphere.h"
-# include "Cube.h"
-# include "Tetrahedron.h"
-# include "Octahedron.h"
-# include "Dodecahedron.h"
-# include "Icosahedron.h"
-# include "Box.h"
-# include "CircularCylinder3D.h"
-# include "TruncatedCone.h"
-# include "Cone.h"
-# include "Ellipsoid.h"
+# include "DLMFD_CircularCylinder2D.h"
+# include "DLMFD_Sphere.h"
+# include "DLMFD_Cube.h"
+# include "DLMFD_Tetrahedron.h"
+# include "DLMFD_Octahedron.h"
+# include "DLMFD_Dodecahedron.h"
+# include "DLMFD_Icosahedron.h"
+# include "DLMFD_Box.h"
+# include "DLMFD_CircularCylinder3D.h"
+# include "DLMFD_TruncatedCone.h"
+# include "DLMFD_Cone.h"
+# include "DLMFD_Ellipsoid.h"
+# include "DLMFD_HexagonalPrism.h"
+
 
 /** Frees the rigid body data that were dynamically allocated */
 //----------------------------------------------------------------------------
@@ -812,8 +599,12 @@ void free_rigidbodies( RigidBody* allrbs, const size_t nrb, bool full_free )
 	  
         case ELLIPSOID:
 	  free_Ellipsoid( &(allrbs[k].g) );
-	  break;	  	  	  	  	
-	  
+	  break;
+	  	  	  	  	  	
+        case HEXAGONALPRISM:
+          free_Polyhedron( &(allrbs[k].g) );
+	  break;	  
+		  
         default:
           fprintf( stderr,"Unknown Rigid Body shape !!\n" );
       }
@@ -884,6 +675,10 @@ void print_rigidbody( RigidBody const* p, char const* poshift )
       case ELLIPSOID:
         printf( "ELLIPSOID" );
 	break;					
+	  
+      case HEXAGONALPRISM:
+        printf( "HEXAGONALPRISM" );
+	break;	      	  
 	  
       default:
         fprintf( stderr,"Unknown Rigid Body shape !!\n" );
@@ -987,7 +782,7 @@ void print_all_rigidbodies( RigidBody const* allrbs, const size_t nrb,
   strcat( poshift, oshift );
   for (size_t k=0;k<nrb;k++)
   { 
-    if ( pid() == 0 ) printf( "%sRigid body %lu\n", oshift, allrbs[k].pnum );    
+    if ( pid() == 0 ) printf( "%sRigid body %lu\n", oshift, allrbs[k].pnum );
     print_rigidbody( &(allrbs[k]), &poshift[0] );
   }
 }
@@ -1054,7 +849,11 @@ void print_referencerigidbody( RigidBody const* p, char const* poshift )
       case ELLIPSOID:
         printf( "ELLIPSOID" );
 	break;	
-	  
+
+      case HEXAGONALPRISM:
+        printf( "HEXAGONALPRISM" );
+	break;
+			  
       default:
         fprintf( stderr,"Unknown Rigid Body shape !!\n" );
     }
@@ -1107,18 +906,18 @@ number to the x component of the index field and the rigid body number to the y
 component of the index field. If there is no DLMFD boundary point, index.x is
 set to -1 */
 //----------------------------------------------------------------------------
-void fill_DLM_Index( size_t const* rbnumToIndex, const RigidBodyBoundary dlm_bd,
+void fill_DLM_Index( size_t const* rbnumToIndex, const RigidBodyBoundary rbb,
 	vector Index, const size_t pnum, dynUIarray* deactivatedBPindices_,
 	dynPDBarray* deactivatedIndexFieldValues_,
 	bool* at_least_one_deactivated_ ) 
 //----------------------------------------------------------------------------
 {    
-  for (int i=0;i<dlm_bd.m;i++) 
+  for (int i=0;i<rbb.m;i++) 
   {
     # if dimension == 2 
-        foreach_point( serial, dlm_bd.bp[i].x, dlm_bd.bp[i].y )
+        foreach_point( serial, rbb.bp[i].x, rbb.bp[i].y )
     # elif dimension == 3
-        foreach_point( serial, dlm_bd.bp[i].x, dlm_bd.bp[i].y, dlm_bd.bp[i].z )
+        foreach_point( serial, rbb.bp[i].x, rbb.bp[i].y, rbb.bp[i].z )
     # endif    
 
     if ( level == depth() ) 
@@ -1145,9 +944,9 @@ void fill_DLM_Index( size_t const* rbnumToIndex, const RigidBodyBoundary dlm_bd,
     else  
       printf( "On thread %d, point dlmfd %d of RB %lu at (%f, %f, %f) is in a"
 	" cell that has not the maximum level of refinement %d, it "
-	"is on level %d \n", pid(), i, pnum, dlm_bd.bp[i].x, dlm_bd.bp[i].y, 
+	"is on level %d \n", pid(), i, pnum, rbb.bp[i].x, rbb.bp[i].y, 
         # if dimension == 3 
-            dlm_bd.bp[i].z, 
+            rbb.bp[i].z, 
         # endif	
 	depth(), level );    
   }    
@@ -1211,7 +1010,11 @@ bool is_in_rigidbody( RigidBody const* p, double x, double y, double z )
       
     case ELLIPSOID:
       is_in = is_in_Ellipsoid( x, y, z, p );             
-      break;                        
+      break;
+      
+    case HEXAGONALPRISM:
+      is_in = is_in_Polyhedron( x, y, z, gcp );  
+      break;	                              
 	  
     default:
       fprintf( stderr,"Unknown Rigid Body shape !!\n" );
@@ -1517,12 +1320,12 @@ void reverse_fill_DLM_Flag( RigidBody* allrbs, const size_t nrb,
       lambdacellpos.y = y;
       lambdapos.x = allrbs[pindex].s.bp[bpnum].x;
       lambdapos.y = allrbs[pindex].s.bp[bpnum].y;
-      normal.x = allrbs[pindex].s.normal[bpnum].x;
-      normal.y = allrbs[pindex].s.normal[bpnum].y;            
+      normal.x = allrbs[pindex].s.outwardnormalvector[bpnum].x;
+      normal.y = allrbs[pindex].s.outwardnormalvector[bpnum].y;            
 #     if dimension == 3 
         lambdacellpos.z = z;
 	lambdapos.z = allrbs[pindex].s.bp[bpnum].z;
-	normal.z = allrbs[pindex].s.normal[bpnum].z; 	
+	normal.z = allrbs[pindex].s.outwardnormalvector[bpnum].z; 	
 #     endif
 
       /* Compute relative vector from the cell (containning the boundary) 
@@ -1677,7 +1480,8 @@ void create_boundary_points( RigidBody* p, RigidBody const* refrb,
       p->s.bp[i].x = pos.x; 
       
     // Rotate normal vector of the reference rigid body
-    matCoordDotProduct( p->RotMat, refrb->s.normal[i], &(p->s.normal[i]) );
+    matCoordDotProduct( p->RotMat, refrb->s.outwardnormalvector[i], 
+    	&(p->s.outwardnormalvector[i]) );
   }      
 }
 
@@ -1693,7 +1497,7 @@ void create_referencerigidbody_boundary_geomfeatures( RigidBody* p )
 {  
   GeomParameter gci = p->g;
   int m = 0;
-  int lN = 0;
+  int lN = 0, lH = 0;
     
   switch( p->shape )
   {
@@ -1775,7 +1579,14 @@ void create_referencerigidbody_boundary_geomfeatures( RigidBody* p )
       allocate_RigidBodyBoundary( &(p->s), m );
       create_referenceRB_boundary_geomfeatures_Ellipsoid( &gci, 
       	&(p->s), m );
-      break;                       	
+      break;
+      
+    case HEXAGONALPRISM:
+      compute_nboundary_HexagonalPrism( &gci, &m, &lN, &lH );	
+      allocate_RigidBodyBoundary( &(p->s), m );
+      create_referenceRB_boundary_geomfeatures_HexagonalPrism( &gci, &(p->s), m,
+      	lN, lH ); 
+      break;	                             	
 	  
     default:
       fprintf( stderr, "Unknown Rigid Body shape !!\n" );
@@ -2016,8 +1827,8 @@ void rigidbody_data( RigidBody* allrbs, const size_t nrb, const double t,
 //----------------------------------------------------------------------------
 void computeHydroForceTorque( RigidBody* allrbs, const size_t nrb, FILE** sl, 
 	const double t, const double dt, 
-	scalar Flag, vector lambda, vector Index, 
-	const double rho_f, vector prefcenter ) 
+	scalar const Flag, vector const lambda, vector const Index, 
+	const double rho_f, vector const prefcenter ) 
 //----------------------------------------------------------------------------
 {
   /* Compute hydrodynamic force & torque and write to a file */
@@ -2268,7 +2079,8 @@ void init_file_pointers( RigidBody const* allrbs, const size_t nrb, FILE** p,
 {
   char name[80] = "";
   char suffix[80] = "";
-  char buffer[80] = "";  
+  char buffer[80] = "";
+    
 # if _MPI
     if ( pid() == 0 )
 # endif
@@ -2334,6 +2146,100 @@ void init_file_pointers( RigidBody const* allrbs, const size_t nrb, FILE** p,
 
 
 
+/** Check particle data files in case of restart */
+//----------------------------------------------------------------------------
+void check_one_particle_datafile( char const* name, 
+	const double current_time, const double current_dt,
+	bool mess ) 
+//----------------------------------------------------------------------------
+{  
+  char line[256] = "";
+  double time;
+  size_t ndatalines = 0;
+     
+  FILE * fp = fopen( name,  "r" );
+  if ( fp )
+  {
+    if ( fgets( line, sizeof(line), fp ) != NULL ) ndatalines = 1;
+    else printf( "Failed to read line in check_one_particle_datafile\n" );
+    while ( fgets( line, sizeof(line), fp ) ) {++ndatalines;}
+    sscanf( line, "%lf", &time);
+    fclose( fp );
+	    
+    if ( fabs( time - current_time ) > 0.01 * current_dt )
+    {
+      if ( mess )
+        printf( "Time mismatch in particle data files handled\n" );
+		
+      char** datarray = (char**) calloc( ndatalines, sizeof(char*) );
+      fp = fopen( name,  "r" );
+      for (size_t i=0;i<ndatalines;++i)
+      {
+	datarray[i] = (char*) calloc( 257, sizeof(char) );
+	if ( fgets( datarray[i], 256, fp ) == NULL )
+	  printf( "Failed to read line in check_one_particle_datafile\n" );
+      }
+      fclose( fp );
+      
+      fp = fopen( name,  "w" );
+      fprintf( fp, "%s", datarray[0] );
+      for (size_t i=1;i<ndatalines;++i)
+      {
+	sscanf( datarray[i], "%lf", &time);
+	if ( time - current_time < 0.01 * current_dt )
+	  fprintf( fp, "%s", datarray[i] );
+      }
+      fclose( fp );
+		
+      for (size_t i=0;i<ndatalines;++i) free( datarray[i] );
+      free( datarray );	
+    }
+  }	              
+}
+
+
+
+
+/** Check particle data files in case of restart */
+//----------------------------------------------------------------------------
+void check_particle_datafiles_restart( RigidBody const* allrbs, 
+	const size_t nrb, const bool check_pdata, const double current_time,
+	const double current_dt ) 
+//----------------------------------------------------------------------------
+{
+  char name[80] = "";
+  char suffix[80] = "";  
+     
+# if _MPI
+    if ( pid() == 0 )
+# endif
+    {
+      // Particle data
+      for (size_t k = 0; k < nrb; k++) 
+      {
+        sprintf( suffix, "_%lu.dat", allrbs[k].pnum );
+
+        if ( check_pdata )
+	{
+          strcpy( name, RESULT_DIR );
+          strcat( name, "/" );
+          strcat( name, RESULT_RIGIDBODY_VP_ROOTFILENAME );
+          strcat( name, suffix );	  
+          check_one_particle_datafile( name, current_time, current_dt, !k );
+	}
+	
+        strcpy( name, RESULT_DIR );
+        strcat( name, "/" );
+        strcat( name, RESULT_RIGIDBODY_HYDROFAT_ROOTFILENAME );
+        strcat( name, suffix );	  
+        check_one_particle_datafile( name, current_time, current_dt, false );
+      }         
+    }    
+}
+
+
+
+
 /** Close all DLMFD files */
 //----------------------------------------------------------------------------
 void close_file_pointers( const size_t nrb, FILE** p, const bool pdata_is_open,
@@ -2375,30 +2281,20 @@ void vorticity_3D( const vector u, vector omega )
 
 
 
-/** Computes the flow rate on the right boundary (x+ direction) */
+/** Computes the flow rate in the x periodic direction */
 //----------------------------------------------------------------------------
-double compute_flowrate_right( const vector u, const int level ) 
+double compute_flowrate_xperiodic( const vector u ) 
 //----------------------------------------------------------------------------
 {
-  double flowrate = 0.;
-# if ADAPTIVE
-    double hh = L0 / pow(2,level);
-# else
-    double hh = Delta;
-# endif 
-  double zi = 0., yj = 0., xval = X0 + 0.999999 * L0, uinter = 0.;
-  int ii = 0, jj = 0;
-    
-  for (ii = 0; ii < pow(2,level); ii++) 
-  {
-    zi = 0.5 * hh + ii * hh + Z0;
-    for (jj = 0; jj < pow(2,level); jj++) 
+  double flowrate = 0., delta = L0 / (double)(1 << MAXLEVEL),
+  	xval = X0 + 0.1 * delta;   
+
+  foreach(reduction(+:flowrate))
+    if ( x - X0 < 0.6 * Delta )
     {
-      yj = 0.5 * hh + jj * hh + Y0;
-      uinter = interpolate( u.x, xval, yj, zi );
-      flowrate += sq(hh) * uinter;
+      double uinter = interpolate_linear( point, u.x, xval, y, z ); 
+      flowrate += uinter * sq(Delta);      
     }
-  }      
  
   return flowrate;
 }
@@ -2406,30 +2302,20 @@ double compute_flowrate_right( const vector u, const int level )
 
 
 
-/** Computes the flow rate on the top boundary (y+ direction) */
+/** Computes the flow rate in the y periodic direction */
 //----------------------------------------------------------------------------
-double compute_flowrate_top( const vector u, const int level ) 
+double compute_flowrate_yperiodic( const vector u ) 
 //----------------------------------------------------------------------------
 {
-  double flowrate = 0.;
-# if ADAPTIVE
-    double hh = L0 / pow(2,level);
-# else
-    double hh = Delta;
-# endif 
-  double zi = 0., yval = Y0 + 0.999999 * L0, xj = 0., uinter = 0.;
-  int ii = 0, jj = 0;
+  double flowrate = 0., delta = L0 / (double)(1 << MAXLEVEL), 
+  	yval = Y0 + 0.1 * delta;
   
-  for (ii = 0; ii < pow(2,level); ii++) 
-  {
-    zi = 0.5 * hh + ii * hh + Z0;
-    for (jj = 0; jj < pow(2,level); jj++) 
+  foreach(reduction(+:flowrate))
+    if ( y - Y0 < 0.6 * Delta )
     {
-      xj = 0.5 * hh + jj * hh + X0;
-      uinter = interpolate( u.y, xj, yval, zi );
-      flowrate += sq(hh) * uinter;
-    }
-  }  
+      double uinter = interpolate_linear( point, u.y, x, yval, z ); 
+      flowrate += uinter * sq(Delta);      
+    }     
  
   return flowrate;
 }
@@ -2437,30 +2323,20 @@ double compute_flowrate_top( const vector u, const int level )
 
 
 
-/** Computes the flow rate on the front boundary (z+ direction) */
+/** Computes the flow rate in the z periodic direction */
 //----------------------------------------------------------------------------
-double compute_flowrate_front( const vector u, const int level ) 
+double compute_flowrate_zperiodic( const vector u ) 
 //----------------------------------------------------------------------------
 {
-  double flowrate = 0.;  
-# if ADAPTIVE
-    double hh = L0 / pow(2,level);
-# else
-    double hh = Delta;
-# endif    
-  double xi = 0., yj = 0., zval = Z0 + 0.999999 * L0, uinter = 0.;
-  int ii = 0, jj = 0;
-
-  for (ii = 0; ii < pow(2,level); ii++) 
-  {
-    xi = 0.5 * hh + ii * hh + X0;
-    for (jj = 0; jj < pow(2,level); jj++) 
+  double flowrate = 0., delta = L0 / (double)(1 << MAXLEVEL),
+  	zval = Z0 + 0.1 * delta;  
+  
+  foreach(reduction(+:flowrate))
+    if ( z - Z0 < 0.6 * Delta )
     {
-      yj = 0.5 * hh + jj * hh + Y0;
-      uinter = interpolate ( u.z, xi, yj, zval );
-      flowrate += sq(hh) * uinter;
-    }
-  }
+      double uinter = interpolate_linear( point, u.z, x, y, zval ); 
+      flowrate += uinter * sq(Delta);      
+    }      
  
   return flowrate;
 }
@@ -2800,6 +2676,163 @@ astats adapt_wavelet_multimaxlevel (scalar * slist,       // list of scalars
 {
   scalar * ilist = list;
   
+  if (is_constant (cm)) {
+    if (list == NULL || list == all)
+      list = list_copy (all);
+    boundary (list);
+    restriction (slist);
+  } else {
+    if (list == NULL || list == all) {
+      list = list_copy ({cm, fm});
+      for (scalar s in all)
+        list = list_add (list, s);
+    }
+    boundary (list);
+    scalar* listr = list_concat ({cm}, slist);
+    restriction (listr);
+    free (listr);
+  }
+
+  astats st = {0, 0};
+  scalar* listc = NULL;
+  for (scalar s in list)
+    listc = list_add_depend (listc, s);
+
+  // refinement
+  if (minlevel < 1)
+    minlevel = 1;
+
+  int overall_maxlevel = minlevel;
+  if (slist && maxlevel)
+    for (int i = 0; i < list_len (slist); i++)
+      if (maxlevel[i] > overall_maxlevel)
+        overall_maxlevel = maxlevel[i];
+
+  tree->refined.n = 0;
+  static const int refined = 1 << user, too_fine = 1 << (user + 1);
+  foreach_cell () {
+    if (is_active (cell)) {
+      static const int too_coarse = 1 << (user + 2);
+      if (is_leaf (cell)) {
+        if (cell.flags & too_coarse) {
+          cell.flags &= ~too_coarse;
+          refine_cell (point, listc, refined, &tree->refined);
+          st.nf++;
+        }
+        continue;
+      } else { // !is_leaf (cell)
+        if (cell.flags & refined) {
+          // cell has already been refined, skip its children
+          cell.flags &= ~too_coarse;
+          continue;
+        }
+        // check whether the cell or any of its children is local
+        bool local = is_local (cell);
+        if (!local) {
+          foreach_child () {
+            if (is_local (cell)) {
+              local = true;
+              break;
+            }
+          }
+        }
+        if (local) {
+          int i = 0;
+          static const int just_fine = 1 << (user + 3);
+          for (scalar s in slist) {
+            double emax = max[i], sc[(1 << dimension) * s.block];
+            int mlev = maxlevel[i++];
+            double* b = sc;
+            foreach_child () foreach_blockf (s)* b++ = s[];
+            s.prolongation (point, s);
+            b = sc;
+            foreach_child () {
+              foreach_blockf (s) {
+                double e = fabs (*b - s[]);
+                if (e > emax && level < mlev) {
+                  cell.flags &= ~too_fine;
+                  cell.flags |= too_coarse;
+                } else if ((e <= emax / 1.5 || level > mlev) &&
+                           !(cell.flags & (too_coarse | just_fine))) {
+                  if (level >= minlevel)
+                    cell.flags |= too_fine;
+                } else if (!(cell.flags & too_coarse)) {
+                  cell.flags &= ~too_fine;
+                  cell.flags |= just_fine;
+                }
+                s[] = *b++;
+              }
+            }
+          }
+          foreach_child () {
+            cell.flags &= ~just_fine;
+            if (!is_leaf (cell)) {
+              cell.flags &= ~too_coarse;
+              if (level >= overall_maxlevel)
+                cell.flags |= too_fine;
+            } else if (!is_active (cell))
+              cell.flags &= ~too_coarse;
+          }
+        }
+      }
+    } else // inactive cell
+      continue;
+  }
+  mpi_boundary_refine (listc);
+  // coarsening
+  // the loop below is only necessary to ensure symmetry of 2:1 constraint
+  for (int l = depth (); l >= 0; l--) {
+    foreach_cell () if (!is_boundary (cell)) {
+      if (level == l) {
+        if (!is_leaf (cell)) {
+          if (cell.flags & refined)
+            // cell was refined previously, unset the flag
+            cell.flags &= ~(refined | too_fine);
+          else if (cell.flags & too_fine) {
+            if (is_local (cell) && coarsen_cell (point, listc))
+              st.nc++;
+            cell.flags &= ~too_fine; // do not coarsen parent
+          }
+        }
+        if (cell.flags & too_fine)
+          cell.flags &= ~too_fine;
+        else if (level > 0 && (aparent (0).flags & too_fine))
+          aparent (0).flags &= ~too_fine;
+        continue;
+      } else if (is_leaf (cell))
+        continue;
+    }
+    mpi_boundary_coarsen (l, too_fine);
+  }
+  free (listc);
+  mpi_all_reduce (st.nf, MPI_INT, MPI_SUM);
+  mpi_all_reduce (st.nc, MPI_INT, MPI_SUM);
+  if (st.nc || st.nf)
+    mpi_boundary_update (list);
+
+  if (list != ilist)
+    free (list);
+  
+  return st;
+}
+
+
+
+
+/** Adapt_wavelet algorithm with a different max lev in regions flagged
+by the Flag field larger than 0 */
+//----------------------------------------------------------------------------
+astats adapt_wavelet_spatial ( scalar Flag, // Flag field
+		int maxlevel_flag,    // max level in flagged regions > maxlevel
+		scalar * slist,       // list of scalars
+		double * max,         // tolerance for each scalar
+		int maxlevel,         // maximum level of refinement
+		int minlevel = 1,     // minimum level of refinement
+		scalar * list = all)
+//----------------------------------------------------------------------------
+{
+  scalar * ilist = list;
+  
   if (is_constant(cm)) {
     if (list == NULL || list == all)
       list = list_copy (all);
@@ -2829,6 +2862,7 @@ astats adapt_wavelet_multimaxlevel (scalar * slist,       // list of scalars
   tree->refined.n = 0;
   static const int refined = 1 << user, too_fine = 1 << (user + 1);
   foreach_cell() {
+    int cellMAX = Flag[] > 1.e-8 ? maxlevel_flag : maxlevel;
     if (is_active(cell)) {
       static const int too_coarse = 1 << (user + 2);
       if (is_leaf (cell)) {
@@ -2856,35 +2890,37 @@ astats adapt_wavelet_multimaxlevel (scalar * slist,       // list of scalars
 	  int i = 0;
 	  static const int just_fine = 1 << (user + 3);
 	  for (scalar s in slist) {
-	    double emax = max[i], sc[1 << dimension];
-	    int c = 0, smaxlevel = maxlevel[i++];
+	    double emax = max[i++], sc[(1 << dimension)*s.block];
+	    double * b = sc;
 	    foreach_child()
-	      sc[c++] = s[];
+	      foreach_blockf(s)
+	        *b++ = s[];
 	    s.prolongation (point, s);
-	    c = 0;
-	    foreach_child() {
-	      double e = fabs(sc[c] - s[]);
-	      if (e > emax && level < smaxlevel) {
-		cell.flags &= ~too_fine;
-		cell.flags |= too_coarse;
+	    b = sc;
+	    foreach_child()
+	      foreach_blockf(s) {
+	        double e = fabs(*b - s[]);
+		if (e > emax && level < cellMAX) {
+		  cell.flags &= ~too_fine;
+		  cell.flags |= too_coarse;
+		}
+		else if ((e <= emax/1.5 || level > cellMAX) &&
+			 !(cell.flags & (too_coarse|just_fine))) {
+		  if (level >= minlevel)
+		    cell.flags |= too_fine;
+		}
+		else if (!(cell.flags & too_coarse)) {
+		  cell.flags &= ~too_fine;
+		  cell.flags |= just_fine;
+		}
+		s[] = *b++;
 	      }
-	      else if ((e <= emax/1.5 || level > smaxlevel) &&
-		       !(cell.flags & (too_coarse|just_fine))) {
-		if (level >= minlevel)
-		  cell.flags |= too_fine;
-	      }
-	      else if (!(cell.flags & too_coarse)) {
-		cell.flags &= ~too_fine;
-		cell.flags |= just_fine;
-	      }
-	      s[] = sc[c++];
-	    }
 	  }
 	  foreach_child() {
 	    cell.flags &= ~just_fine;
 	    if (!is_leaf(cell)) {
 	      cell.flags &= ~too_coarse;
-	      if (level >= MAXLEVEL)
+	      if (level >= cellMAX)
 		cell.flags |= too_fine;
 	    }
 	    else if (!is_active(cell))
@@ -2936,4 +2972,89 @@ astats adapt_wavelet_multimaxlevel (scalar * slist,       // list of scalars
     free (list);
   
   return st;
+} 
+
+
+
+
+/** Flag regions  */
+//----------------------------------------------------------------------------
+void flag_rigidbodies_with_boundarylayers( RigidBody const* allrbs, 
+	const size_t nrb, scalar flag_maxlevel, double const dcoef, 
+	AABB const* ld )
+//----------------------------------------------------------------------------
+{
+  // Re-initialize the flag field to 0 
+  foreach() flag_maxlevel[] = 0.;
+
+  for (size_t k = 0; k < nrb; k++)
+  {
+    // Flag cells that are already identified as interior points
+    foreach_cache(allrbs[k].Interior) flag_maxlevel[] = 1.;
+    
+    // Flag additional cells in a halo of width dcoef * min_dx around 
+    // the rigid body
+    switch ( allrbs[k].shape )
+    {
+      case SPHERE:
+        flag_boundarylayer_Sphere( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	  
+      case CIRCULARCYLINDER2D:
+        flag_boundarylayer_CircularCylinder2D( flag_maxlevel, dcoef, 
+	  	&(allrbs[k]), ld );
+	break;
+	  
+      case CUBE:
+        flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+
+      case TETRAHEDRON:
+        flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	
+      case OCTAHEDRON:
+	flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	
+      case ICOSAHEDRON:
+	flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+
+      case DODECAHEDRON:
+	flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	  
+      case BOX:
+	flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	  
+      case CIRCULARCYLINDER3D:
+	flag_boundarylayer_CircularCylinder3D( flag_maxlevel, dcoef, 
+		&(allrbs[k]), ld );
+	break;
+
+      case CONE:
+	flag_boundarylayer_Cone( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	  
+      case TRUNCATEDCONE:
+	flag_boundarylayer_TruncatedCone( flag_maxlevel, dcoef, &(allrbs[k]),
+		 ld );
+	break;
+	  
+      case ELLIPSOID:
+	flag_boundarylayer_Ellipsoid( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;
+	  	  	  	  	  	
+      case HEXAGONALPRISM:
+        flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;	  
+		  
+      default:
+        fprintf( stderr,"Unknown Rigid Body shape !!\n" );
+    }    
+  }
+
+  synchronize({flag_maxlevel});  
 }

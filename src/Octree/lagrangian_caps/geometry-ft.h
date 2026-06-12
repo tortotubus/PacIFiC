@@ -3,6 +3,8 @@
 
 From defining geometric computations such as normal vectors, volume and
 centroid, useful macros, subdividing triangles, below is a collection of helpful
+From defining geometric computations such as normal vectors, volume and
+centroid, useful macros, subdividing triangles, below is a collection of helpful
 functions to deal with triangular meshes.
 */
 
@@ -18,7 +20,7 @@ double edge_length(lagMesh* mesh, int i) {
   v1 = mesh->edges[i].node_ids[0];
   v2 = mesh->edges[i].node_ids[1];
   foreach_dimension() {
-    length += sq(GENERAL_1DIST(mesh->nodes[v1].pos.x, mesh->nodes[v2].pos.x));
+    length += sq(GENERAL_1DIST(mesh->nodes[v1].pos.x, mesh->nodes[v2].pos.x, L0*L0_ratio.x));
   }
   return sqrt(length);
 }
@@ -29,10 +31,14 @@ takes as an argument a pointer to the mesh. If the optional argument
 ```force``` is set to ```true```, the edges' lengths are computed no matter the value of ```updated_stretches```.
 */
 struct compute_lengths_type{
+struct compute_lengths_type{
   lagMesh* mesh;
   bool force;
 };
 
+typedef struct compute_lengths_type _compute_lengths;
+
+void compute_lengths(_compute_lengths p) {
 typedef struct compute_lengths_type _compute_lengths;
 
 void compute_lengths(_compute_lengths p) {
@@ -54,9 +60,9 @@ void comp_edge_normal(lagMesh* mesh, int i) {
   int node_id[2];
   for(int j=0; j<2; j++) node_id[j] = mesh->edges[i].node_ids[j];
   mesh->edges[i].normal.y = GENERAL_1DIST(mesh->nodes[node_id[0]].pos.x,
-    mesh->nodes[node_id[1]].pos.x);
+    mesh->nodes[node_id[1]].pos.x, L0*L0_ratio.x );
   mesh->edges[i].normal.x = GENERAL_1DIST(mesh->nodes[node_id[1]].pos.y,
-    mesh->nodes[node_id[0]].pos.y);
+    mesh->nodes[node_id[0]].pos.y, L0*L0_ratio.y );
   double normn = sqrt(sq(mesh->edges[i].normal.x)
     + sq(mesh->edges[i].normal.y));
   foreach_dimension() mesh->edges[i].normal.x /= normn;
@@ -86,7 +92,7 @@ void comp_initial_area_normals(lagMesh* mesh) {
     for(int j=0; j<2; j++)
       foreach_dimension()
         e[j].x = GENERAL_1DIST(mesh->nodes[nid[0]].pos.x,
-          mesh->nodes[nid[j+1]].pos.x);
+          mesh->nodes[nid[j+1]].pos.x, L0*L0_ratio.x);
     foreach_dimension() normal.x = e[0].y*e[1].z - e[0].z*e[1].y;
     double norm = sqrt(sq(normal.x) + sq(normal.y) + sq(normal.z));
     double dp = 0.; // dp for "dot product"
@@ -125,6 +131,17 @@ void comp_triangle_area_normal(lagMesh* mesh, int i) {
   // }
 
 ///////ggd 
+
+  // for(int j=0; j<3; j++) {
+  //   foreach_dimension() {
+  //     mesh->triangles[i].centroid.x +=
+  //       ACROSS_PERIODIC(mesh->nodes[nid[j]].pos.x/3,
+  //       mesh->nodes[nid[0]].pos.x/3) ? mesh->nodes[nid[j]].pos.x/3 - L0 :
+  //       mesh->nodes[nid[j]].pos.x/3;
+  //   }
+  // }
+
+///////ggd 
   for(int j=0; j<3; j++) {
     foreach_dimension() {
       mesh->triangles[i].centroid.x += mesh->centroid.x + GENERAL_1DIST(mesh->nodes[nid[j]].pos.x, mesh->centroid.x);
@@ -136,17 +153,17 @@ foreach_dimension() mesh->triangles[i].centroid.x /=3.;
 
   coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
   foreach_dimension() {
-    if (fabs(mesh->triangles[i].centroid.x - origin.x) > L0/2.) {
+    if (fabs(mesh->triangles[i].centroid.x - origin.x) > L0*L0_ratio.x/2.) {
       if (mesh->triangles[i].centroid.x - origin.x > 0)
-        mesh->triangles[i].centroid.x -= L0;
-      else mesh->triangles[i].centroid.x += L0;
+        mesh->triangles[i].centroid.x -= L0*L0_ratio.x;
+      else mesh->triangles[i].centroid.x += L0*L0_ratio.x;
     }
   }
   coord normal, e[2];
   for(int j=0; j<2; j++)
     foreach_dimension()
       e[j].x = GENERAL_1DIST(mesh->nodes[nid[0]].pos.x,
-        mesh->nodes[nid[j+1]].pos.x);
+        mesh->nodes[nid[j+1]].pos.x, L0*L0_ratio.x);
   foreach_dimension() normal.x = e[0].y*e[1].z - e[0].z*e[1].y;
   double norm = sqrt(sq(normal.x) + sq(normal.y) + sq(normal.z));
   foreach_dimension() mesh->triangles[i].normal.x = normal.x/norm;
@@ -169,16 +186,17 @@ bool on_face(double p, int n, double l0) {
   else return false;
 }
 
-void correct_node_pos(coord* node) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+void correct_node_pos(coord* node) {  
+  coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2};
+  
   foreach_dimension() {
-    if (on_face(node->x, N, L0))
+    if (on_face(node->x, N, L0*L0_ratio.x))
       node->x += 1.e-10;
     //FIXME: the nodes should not be sent to the other side of the domain if the boundary is not periodic...
-    if (node->x > origin.x + L0/2)
-      node->x -= L0;
-    else if (node->x < origin.x - L0/2)
-      node->x += L0;
+    if (node->x > origin.x + L0*L0_ratio.x/2)
+      node->x -= L0*L0_ratio.x;
+    else if (node->x < origin.x - L0*L0_ratio.x/2)
+      node->x += L0*L0_ratio.x;
   }
 }
 
@@ -197,7 +215,7 @@ coordinates of all its nodes. The centroid is stored as an attribute of the
 caps structure.
 */
 void comp_centroid(lagMesh* mesh) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+  coord origin = {X0 + L0/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2};
   foreach_dimension() mesh->centroid.x = 0.;
   for(int i=0; i<mesh->nln; i++)
     foreach_dimension() {
@@ -208,13 +226,14 @@ void comp_centroid(lagMesh* mesh) {
           tentative_pos);
     }
   foreach_dimension()
+  foreach_dimension()
     mesh->centroid.x = mesh->centroid.x/mesh->nln + mesh->nodes[0].pos.x;
   correct_node_pos(&mesh->centroid);
 }
 
 trace
 void comp_volume(lagMesh* mesh) {
-  coord origin = {X0 + L0/2, Y0 + L0/2, Z0 + L0/2};
+  coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2}; //FIXME
   comp_centroid(mesh);
   double volume = 0;
   for(int i=0; i<mesh->nlt; i++) {
@@ -230,6 +249,8 @@ void comp_volume(lagMesh* mesh) {
       }
     for(int j=0; j<3; j++) {
       coord cross_product;
+      foreach_dimension()
+        cross_product.x = nodes[(j+1)%3].y*nodes[(j+2)%3].z -
       foreach_dimension()
         cross_product.x = nodes[(j+1)%3].y*nodes[(j+2)%3].z -
           nodes[(j+1)%3].z*nodes[(j+2)%3].y;
@@ -491,6 +512,7 @@ void comp_normals(lagMesh* mesh) {
   if (!mesh->updated_normals) {
     #if dimension < 3
     compute_lengths((compute_lengths){.mesh=mesh});
+    compute_lengths((compute_lengths){.mesh=mesh});
     for(int i=0; i<mesh->nln; i++) {
       coord n[2];
       double l[2];
@@ -563,6 +585,7 @@ The macros below are useful to define an icosahedron
 The function below returns true if the two nodes $i$ and $j$ are neighbors
 */
 bool is_neighbor_ft(lagMesh* mesh, int i, int j) {
+bool is_neighbor_ft(lagMesh* mesh, int i, int j) {
   for(int k=0; k<mesh->nodes[i].nb_neighbors; k++) {
     if (mesh->nodes[i].neighbor_ids[k] == j) return true;
   }
@@ -585,9 +608,9 @@ boundary. */
 bool is_edge_across_periodic(lagMesh* mesh, int i) {
   int n[2];
   for(int k=0; k<2; k++) n[k] = mesh->edges[i].node_ids[k];
-  if (ACROSS_PERIODIC(mesh->nodes[n[0]].pos.x, mesh->nodes[n[1]].pos.x)
-    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.y, mesh->nodes[n[1]].pos.y)
-    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.z, mesh->nodes[n[1]].pos.z))
+  if (ACROSS_PERIODIC(mesh->nodes[n[0]].pos.x, mesh->nodes[n[1]].pos.x, L0*L0_ratio.x)
+    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.y, mesh->nodes[n[1]].pos.y, L0*L0_ratio.y)
+    || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.z, mesh->nodes[n[1]].pos.z, L0*L0_ratio.z))
       return true;
   return false;
 }
@@ -603,6 +626,7 @@ bool is_edge_across_periodic(lagMesh* mesh, int i) {
 
 
 struct write_edge_type {
+struct write_edge_type {
   lagMesh* mesh;
   int i;
   int j;
@@ -613,9 +637,12 @@ struct write_edge_type {
 
 typedef struct write_edge_type _write_edge;
 
+typedef struct write_edge_type _write_edge;
+
 /** The function below writes edge i, connecting nodes j and k. If the edge
 exists, the function returns false (no edge creation), true otherwise (edge
 creation) */
+bool write_edge(_write_edge p) {
 bool write_edge(_write_edge p) {
   lagMesh* mesh = p.mesh;
   int i = p.i;
@@ -639,6 +666,7 @@ bool write_edge(_write_edge p) {
     return true;
   }
 }
+
 
 
 /** The function below creates a new edge between nodes i and j, and updates the
@@ -700,6 +728,8 @@ void split_edge(lagMesh* mesh, int i) {
   /** Create new edge and update current one */
   write_edge((_write_edge){.mesh=mesh, .i = i, .j = nid[0], .k = mesh->nln, .overwrite = true});
   write_edge((_write_edge){.mesh=mesh, .i = mesh->nle, .j = nid[1], .k = mesh->nln});
+  write_edge((_write_edge){.mesh=mesh, .i = i, .j = nid[0], .k = mesh->nln, .overwrite = true});
+  write_edge((_write_edge){.mesh=mesh, .i = mesh->nle, .j = nid[1], .k = mesh->nln});
   for (int j=0; j<2; j++) {
     mesh->edges[i].triangle_ids[j] = -1;
     mesh->edges[mesh->nle].triangle_ids[j] = -1;
@@ -757,6 +787,7 @@ bool is_triangle_across_periodic(lagMesh* mesh, int i) {
 }
 
 struct write_triangle_type {
+struct write_triangle_type {
   lagMesh* mesh;
   int tid;
   int i;
@@ -767,8 +798,11 @@ struct write_triangle_type {
 
 typedef struct write_triangle_type _write_triangle;
 
+typedef struct write_triangle_type _write_triangle;
+
 /** The function below writes a triangle at index location tid, connecting nodes
 i, j and k. It updates the connectivity information of its nodes and edges.*/
+bool write_triangle(_write_triangle p) {
 bool write_triangle(_write_triangle p) {
   lagMesh* mesh = p.mesh;
   int tid = p.tid;
@@ -929,6 +963,8 @@ double comp_angle(lagNode* n1, lagNode* n2, lagNode* n3) {
   }
   double norm1 = GENERAL_SQNORM(n1->pos, n2->pos);
   double norm2 = GENERAL_SQNORM(n1->pos, n3->pos);
+  double norm1 = GENERAL_SQNORM(n1->pos, n2->pos);
+  double norm2 = GENERAL_SQNORM(n1->pos, n3->pos);
   theta /= sqrt(norm1)*sqrt(norm2);
   theta = acos(theta);
   return theta;
@@ -943,7 +979,22 @@ bool is_obtuse_node(lagMesh* mesh, int tid, int i) {
   // n[0] is the node to check if obtuse in the triangle tid
   n[0] = &(mesh->nodes[i]);
   int count_pts = 1;
+  // n[0] is the node to check if obtuse in the triangle tid
+  n[0] = &(mesh->nodes[i]);
+  int count_pts = 1;
   for(int j=0; j<3; j++)
+  {
+      if(mesh->triangles[tid].node_ids[j] != i)
+      {
+        n[count_pts] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+        count_pts ++;
+      }
+  }
+
+  // Check if three points of the triangle are all found and well assigned
+  assert(count_pts==3);
+
+  if (comp_angle(n[0], n[1], n[2]) > pi/2.) return true;
   {
       if(mesh->triangles[tid].node_ids[j] != i)
       {
@@ -964,6 +1015,23 @@ The function below returns true if the triangle $tid$ is obtuse at any of its
 three angles.
 */
 bool is_obtuse_triangle(lagMesh* mesh, int tid) {
+  lagNode* n[3];
+  for(int j=0; j<3; j++)
+    n[j] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+  if (comp_angle(n[0], n[1], n[2]) > pi/2.) return true;
+  else if (comp_angle(n[1], n[2], n[0]) > pi/2.) return true;
+  else if (comp_angle(n[2], n[0], n[1]) > pi/2.) return true;
+  else return false;
+}
+
+// /**
+// The function below returns true if the triangle $tid$ is obtuse at any of its
+// three angles.
+// */
+// bool is_obtuse_triangle(lagMesh* mesh, int tid) {
+//   for(int i=0; i<3; i++) if (is_obtuse_node(mesh, tid, i)) return true;
+//   return false;
+// }
   lagNode* n[3];
   for(int j=0; j<3; j++)
     n[j] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
@@ -1021,6 +1089,8 @@ void refine_mesh(lagMesh* mesh) {
         corner_id = mesh->triangles[i].node_ids[k];
         if (is_neighbor_ft(mesh, corner_id, mid_ids[j]) &&
           is_neighbor_ft(mesh, corner_id, mid_ids[(j+1)%3])) {
+        if (is_neighbor_ft(mesh, corner_id, mid_ids[j]) &&
+          is_neighbor_ft(mesh, corner_id, mid_ids[(j+1)%3])) {
           break;
         }
       }
@@ -1036,7 +1106,9 @@ void refine_mesh(lagMesh* mesh) {
 ## Periodicity helper functions
 
 In some situations, for instance to compute the volume of a capsule, we need to
+In some situations, for instance to compute the volume of a capsule, we need to
 take the dot and cross products of
+neighboring nodes that can be across periodic boundaries. The next three
 neighboring nodes that can be across periodic boundaries. The next three
 functions implement ``periodic-friendly" versions of the dot and cross products
 that do not take into account the coordinates jump across the periodic
@@ -1047,6 +1119,7 @@ boundaries. The implementation relies on the assumption that a capsule is
 /**
 The function below corrects the coordinates of one node $a$ in order to
 ensure it is placed on the same side of a reference coordinate (in practice,
+the centroid of the capsule). The function returns the corrected node
 the centroid of the capsule). The function returns the corrected node
 coordinate.
 */
@@ -1078,6 +1151,8 @@ void correct_periodic_nodes_pos(coord* result, coord a, coord b, coord ref) {
 The function below computes the cross product of two coordinates $a$ and $b$
 that potentially lie across periodic boundaries. The coordinates are
 temporarilly moved on the same side of the periodic boundary as a reference
+that potentially lie across periodic boundaries. The coordinates are
+temporarilly moved on the same side of the periodic boundary as a reference
 coordinate `ref`, in practice the centroid of the capsule.
 */
 foreach_dimension()
@@ -1089,6 +1164,8 @@ double periodic_friendly_cross_product_x(coord a, coord b, coord ref) {
 
 /**
 The function below computes the dot product of two coordinates $a$ and $b$
+that potentially lie across periodic boundaries. The coordinates are
+temporarilly moved on the same side of the periodic boundary as a reference
 that potentially lie across periodic boundaries. The coordinates are
 temporarilly moved on the same side of the periodic boundary as a reference
 coordinate `ref`, in practice the centroid of the capsule.
@@ -1166,3 +1243,4 @@ double compute_node_area(lagMesh* mesh, int i) {
 
 
 #endif // dimension > 2
+

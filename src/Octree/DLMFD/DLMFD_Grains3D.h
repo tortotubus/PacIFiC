@@ -12,17 +12,11 @@
 #   define GRAINS_INPUTFILE "Grains/Simu/simul.xml"
 # endif
 
-/** Split explicit acceleration treatment in case of particles are lighter 
-than the fluid or neutrally buoyant */
-# ifndef B_SPLIT_EXPLICIT_ACCELERATION
-#   define B_SPLIT_EXPLICIT_ACCELERATION 0
-# endif
-
 /** Coupling Interface for Grains3D */
-# include "InterfaceGrains3DBasilisk.h"
+# include "DLMFD_InterfaceGrains3DBasilisk.h"
 
 /** Additional functions for the coupling with Grains3D */
-# include "BasiliskGrains3DCouplingFunctions.h"
+# include "DLMFD_BasiliskGrains3DCouplingFunctions.h"
 
 
 /** Here we overload the generic events defined in the general DLMFD plugin 

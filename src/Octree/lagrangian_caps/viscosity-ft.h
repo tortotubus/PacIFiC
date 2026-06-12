@@ -17,6 +17,7 @@
 /** We define the "grid gradient" $\bm{G}$, according to Tryggvason, JCP 2001.*/
 vector G[];
 void construct_divG(scalar divG, lagMesh* mesh) {
+
   comp_normals(mesh);
   #if dimension < 3
   compute_lengths((compute_lengths){.mesh=mesh});
@@ -32,8 +33,8 @@ void construct_divG(scalar divG, lagMesh* mesh) {
         //spread half the grid gradient of the edge from each of its nodes
         if (point.level >= 0) {
         coord dist;
-          dist.x = GENERAL_1DIST(x, mesh->nodes[en[j]].pos.x);
-          dist.y = GENERAL_1DIST(y, mesh->nodes[en[j]].pos.y);
+          dist.x = GENERAL_1DIST(x, mesh->nodes[en[j]].pos.x, L0*L0_ratio.x);
+          dist.y = GENERAL_1DIST(y, mesh->nodes[en[j]].pos.y, L0*L0_ratio.y);
           if (sq(dist.x) <= sq(2*Delta) && sq(dist.y) <= sq(2*Delta)) {
             // double weight =
             //   (1 + cos(.5*pi*dist.x/Delta))*(1 + cos(.5*pi*dist.y/Delta))/
@@ -60,9 +61,9 @@ void construct_divG(scalar divG, lagMesh* mesh) {
         /** Spread one third of the grid gradient of the triangle to each of its vertices */
         if (point.level >= 0) {
         coord dist;
-          dist.x = GENERAL_1DIST(x, mesh->nodes[tn[j]].pos.x);
-          dist.y = GENERAL_1DIST(y, mesh->nodes[tn[j]].pos.y);
-          dist.z = GENERAL_1DIST(z, mesh->nodes[tn[j]].pos.z);
+          dist.x = GENERAL_1DIST(x, mesh->nodes[tn[j]].pos.x, L0*L0_ratio.x);
+          dist.y = GENERAL_1DIST(y, mesh->nodes[tn[j]].pos.y, L0*L0_ratio.y);
+          dist.z = GENERAL_1DIST(z, mesh->nodes[tn[j]].pos.z, L0*L0_ratio.z);
           if (sq(dist.x) <= sq(2*Delta) && sq(dist.y) <= sq(2*Delta)
             && sq(dist.z) <= sq(2*Delta)) {
             // double weight = (1 + cos(.5*pi*dist.x/Delta))
