@@ -9,7 +9,7 @@
 	url = https://github.com/zlib-ng/zlib-ng.git
 [submodule "third_party/basilisk/basilisk_submodule"]
 	path = third_party/basilisk/basilisk_submodule
-	url = https://github.com/tortotubus/pacific-basilisk.git
+	url = https://github.com/PacIFiC-Development-Team/basilisk.git
 [submodule "third_party/petsc/petsc_submodule"]
 	path = third_party/petsc/petsc_submodule
 	url = https://gitlab.com/petsc/petsc.git
