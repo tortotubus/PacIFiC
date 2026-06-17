@@ -116,6 +116,11 @@ macro2 foreach_cell_root_BFS(Point root) {
 
 macro2 foreach_cell_BFS(ivec d = Dimensions) {
   {
+    /*
+     * Root trees must be emitted in vtk_hdf_tree_id_from_root() order:
+     * x fastest, then y, then z. Descriptors, masks, and cell data are all
+     * packed in this stream and decoded through TreeIds.
+     */
 #if dimension == 1
     for (int ox = 0; ox < d.x; ox++) {
       Point root = {GHOSTS + ox, 0};
@@ -125,8 +130,8 @@ macro2 foreach_cell_BFS(ivec d = Dimensions) {
       // clang-format on
     }
 #elif dimension == 2
-    for (int ox = 0; ox < d.x; ox++) {
-      for (int oy = 0; oy < d.y; oy++) {
+    for (int oy = 0; oy < d.y; oy++) {
+      for (int ox = 0; ox < d.x; ox++) {
         Point root = {GHOSTS + ox, GHOSTS + oy, 0};
         foreach_cell_root_BFS(root)
         // clang-format off
@@ -135,9 +140,9 @@ macro2 foreach_cell_BFS(ivec d = Dimensions) {
       }
     }
 #else // dimension == 3
-    for (int ox = 0; ox < d.x; ox++) {
+    for (int oz = 0; oz < d.z; oz++) {
       for (int oy = 0; oy < d.y; oy++) {
-        for (int oz = 0; oz < d.z; oz++) {
+        for (int ox = 0; ox < d.x; ox++) {
           Point root = {GHOSTS + ox, GHOSTS + oy, GHOSTS + oz};
           foreach_cell_root_BFS(root)
           // clang-format off
