@@ -57,7 +57,15 @@ static bool _ibsolver_initialized = false;
 // ============================================================================
 
 void init_ibsolver ();
-inline double* _ibval (IBscalar s, IBNode* n);
+
+// inline double* _ibval (IBscalar s, IBNode* n);
+static inline double* _ibval (IBscalar s, IBNode* n) {
+  // if (set_dirty)
+  //   _ibattribute[s.i].dirty = true;
+
+  return &((double*) ((char*) n + sizeof (IBNode)))[s.i];
+}
+
 
 IBscalar _init_ibscalar (const char* name);
 
@@ -226,12 +234,12 @@ IBscalar _init_ibscalar (const char* name) {
  * @brief
  * @relates IBscalar
  */
-inline double* _ibval (IBscalar s, IBNode* n) {
-  // if (set_dirty)
-  //   _ibattribute[s.i].dirty = true;
+// inline double* _ibval (IBscalar s, IBNode* n) {
+//   // if (set_dirty)
+//   //   _ibattribute[s.i].dirty = true;
 
-  return &((double*) ((char*) n + sizeof (IBNode)))[s.i];
-}
+//   return &((double*) ((char*) n + sizeof (IBNode)))[s.i];
+// }
 
 /**
  * @brief

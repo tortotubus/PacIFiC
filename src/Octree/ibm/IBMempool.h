@@ -32,7 +32,7 @@ IBNode* ibmempool_alloc_node (IBMempool* ibmp);
 long ibmempool_index_of (IBMempool* ibmp, IBNode* node);
 int ibmempool_free_node_ptr (IBMempool* ibmp, IBNode* node);
 void ibmempool_free_node (IBMempool* ibmp, long i);
-inline size_t round_up_multiple(size_t n, size_t a);
+static inline size_t round_up_multiple(size_t n, size_t a);
 static inline size_t ibmempool_stride (const IBMempool* ibmp);
 
 
@@ -55,7 +55,7 @@ static inline size_t ibmempool_stride (const IBMempool* ibmp);
  * 
  * @relates IBMempool
  */
-inline size_t round_up_multiple(size_t n, size_t a)
+static inline size_t round_up_multiple(size_t n, size_t a)
 {
   return a ? ((n + a - 1) / a) * a : n;
 }
