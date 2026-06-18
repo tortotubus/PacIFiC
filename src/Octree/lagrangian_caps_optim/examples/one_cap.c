@@ -101,7 +101,7 @@ static void one_cap_spread_raw_lagforce(vector forcing, CapsuleMesh *lag) {
 
     peskin_cosine_kernel_spread_dimensionless(node) {
       foreach_dimension()
-        forcing.x[] += weight * lag->nodes[node_id].lagForce.x / dv();
+        forcing.x[] += -weight * ibval(nforce.x) * ibval(nweight) / dv();
     }
   }
 }
