@@ -28,13 +28,13 @@ CC99="${PACIFIC_MPICC:-mpicc} -std=c99 -D_GNU_SOURCE=1" \
   -DTRACE=2 \
   "$SRC" \
   -I"${PACIFIC_OCTREE_ABS}" \
+  ${PACIFIC_HDF5_CFLAGS} \
   -L"${PACIFIC_THIRDPARTY_LIBDIR}" \
   -lfb_tiny \
   -lglutils \
   -ltinyrenderer \
   -lwsserver \
   -lm \
-  ${PACIFIC_HDF5_CFLAGS} \
   ${PACIFIC_HDF5_LFLAGS} \
   ${PACIFIC_MPICC_LFLAGS} \
   -Wno-unused-result \
