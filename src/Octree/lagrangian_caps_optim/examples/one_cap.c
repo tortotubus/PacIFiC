@@ -24,7 +24,7 @@ static double radius = 0.1;
 static double shear_rate = 1.;
 static double reynolds_number = 0.1;
 static double fluid_viscosity = 1.;
-static double capsule_inside_viscosity = 1.;
+static double capsule_inside_viscosity = 2.;
 static double membrane_viscosity = 1.;
 static double capillary_number = 0.2;
 static double bending_ratio = .025;
@@ -42,7 +42,7 @@ static int output_freq = 500;
 static int output_freq_pv_dump = 500;
 static int output_freq_stats = 25;
 static bool stokes_flow = true;
-static bool capsule_viscosity_enabled = false;
+static bool capsule_viscosity_enabled = true;
 
 #define RADIUS radius
 #define SHEAR_RATE shear_rate
@@ -64,7 +64,7 @@ static bool capsule_viscosity_enabled = false;
 
 #include "lagrangian_caps_optim/capsule-ft.h"
 #include "lagrangian_caps_optim/capsule-ibm-adapter.h"
-// #include "lagrangian_caps_optim/bending-ft.h"
+#include "lagrangian_caps_optim/bending-ft.h"
 #include "lagrangian_caps_optim/skalak-ft.h"
 #include "lagrangian_caps_optim/common-shapes-ft.h"
 #include "lagrangian_caps_optim/capsule-viscosity-ratio.h"
@@ -87,6 +87,7 @@ vector capsule_lagforce_spread[];
 
 static void one_cap_capsule_forces(CapsuleMesh *mesh) {
   comp_elastic_stress(mesh);
+  comp_bending_force(mesh);
 }
 
 static void one_cap_spread_raw_lagforce(vector forcing, CapsuleMesh *lag) {
@@ -300,11 +301,9 @@ event init(i = 0) {
 
 event properties(i++, last) {
   if (capsule_viscosity_enabled) {
-    foreach() myrho[] = RHO;
     capsule_viscosity_construct_indicator(capsule_indicator);
     capsule_viscosity_set_from_indicator(
         mymu, capsule_indicator, fluid_viscosity, capsule_inside_viscosity);
-    foreach_face() myalpha.x[] = 1. / RHO;
   }
 }
 
@@ -312,13 +311,9 @@ event vtk(i += output_freq) {
   one_cap_update_lagforce_spread();
 
 #if TREE
-  output_hdf_htg({p, capsule_indicator, capsule_viscosity_divergence},
-                 {u, ibmf, capsule_lagforce_spread,
-                  capsule_viscosity_grid_gradient}, base_path);
+  output_hdf_htg({p}, {u, ibmf, capsule_lagforce_spread}, base_path);
 #else
-  output_hdf_imagedata({p, capsule_indicator, capsule_viscosity_divergence},
-                       {u, ibmf, capsule_lagforce_spread,
-                        capsule_viscosity_grid_gradient}, base_path);
+  output_hdf_imagedata({p}, {u, ibmf, capsule_lagforce_spread}, base_path);
 #endif
   output_hdf_ibm(NULL, (IBvector[]){nforce, nvel, capsule_viscosity_area_normal, {{-1}}}, base_path);
   output_hdf_capsules(base_path);
@@ -354,7 +349,10 @@ event logfile(i += output_freq_stats) {
       continue;
 
     CapsuleRheologyStress stress =
-        capsule_rheology_compute_stress(mesh, fluid_viscosity, 0., false);
+        capsule_rheology_compute_stress(mesh, fluid_viscosity,
+                                        capsule_viscosity_enabled
+                                            ? capsule_inside_viscosity : 0.,
+                                        capsule_viscosity_enabled);
     send[stride*k + 0] = stress.n1;
     send[stride*k + 1] = stress.n2;
     send[stride*k + 2] = stress.shear;

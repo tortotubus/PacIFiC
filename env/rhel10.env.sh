@@ -86,7 +86,7 @@ fi
 # HDF5
 #
 
-export PACIFIC_HDF5_USE_THIRDPARTY=0
+export PACIFIC_HDF5_USE_THIRDPARTY=1
 if [ $PACIFIC_HDF5_USE_THIRDPARTY = 0 ]
 then
 export PACIFIC_HDF5_CFLAGS="-I/usr/lib64/openmpi/include"

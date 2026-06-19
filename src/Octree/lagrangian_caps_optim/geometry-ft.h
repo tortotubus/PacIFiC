@@ -269,14 +269,23 @@ void compute_taylor_factor(CapsuleMesh *mesh, double *Taylor_deform,
   double R = (2 * A * A * A - 9 * A * B + 27 * C) / 54;
   double D = Q * Q * Q - R * R;
 
-  if ((D < 0) && (t > dt))
-    fprintf(stderr, "No roots found for inertia equivalent ellipsoid!\n");
-  // Normal Case: Three real roots
-  double theta = acos(R / sqrt(Q * Q * Q));
-  double r = -2 * sqrt(Q);
-  double lambd1 = r * cos(theta / 3) - A / 3;
-  double lambd2 = r * cos((theta - 2 * M_PI) / 3) - A / 3;
-  double lambd3 = r * cos((theta - 4 * M_PI) / 3) - A / 3;
+  double lambd1, lambd2, lambd3;
+  if (Q > 0. && D >= 0.) {
+    double theta = acos(fmax(-1., fmin(1., R / sqrt(Q * Q * Q))));
+    double r = -2. * sqrt(Q);
+    lambd1 = r * cos(theta / 3) - A / 3;
+    lambd2 = r * cos((theta - 2 * M_PI) / 3) - A / 3;
+    lambd3 = r * cos((theta - 4 * M_PI) / 3) - A / 3;
+  } else {
+    if (t > dt)
+      fprintf(stderr, "compute_taylor_factor: degenerate inertia tensor (Q=%g D=%g), skipping.\n", Q, D);
+    *Taylor_deform = 0.;
+    *Inclin_angle  = 0.;
+    rs->x = rs->y = rs->z = 0.;
+    *TDmaxmin = 0.;
+    *TDang    = 0.;
+    return;
+  }
 
   double lambd_tmp = 0.;
   if (lambd1 > lambd2) {
@@ -296,7 +305,7 @@ void compute_taylor_factor(CapsuleMesh *mesh, double *Taylor_deform,
   }
 
   double Evx = 1.;
-  double Evy = -(Ixx - lambd1) / Ixy;
+  double Evy = (fabs(Ixy) > 1e-14 * fabs(Ixx)) ? -(Ixx - lambd1) / Ixy : 0.;
   // double Evz = -(Ixy * Evx + (Iyy - lambd1) * Evy) / Iyz;
 
   double r1 = sqrt((5.0 / (2.0 * mesh->volume)) * (lambd2 - lambd1 + lambd3));

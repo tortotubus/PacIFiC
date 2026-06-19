@@ -2,6 +2,16 @@
 #include "ibm/IBNode.h"
 #include "ibm/IBMacros.h"
 
+/* Yang et al. (2009) smoothed 3-point kernel (IBM_stencil=11 in lagrangian_caps).
+   Support ±1.5Δ. Normalised so that Σ w(rᵢ) = 1 in each dimension. */
+static inline double weight_stencil_yang11 (double r) {
+  if (r <= 0.5)
+    return 0.75 - r*r;
+  if (r <= 1.5)
+    return 1.125 - 1.5*r + 0.5*r*r;
+  return 0.;
+}
+
 macro peskin_cosine_kernel_gather_dimensionless (IBNode* node = node) {
   // bool ib_set_dirty = true;
   IBNODE_VARIABLES();
@@ -17,11 +27,8 @@ macro peskin_cosine_kernel_gather_dimensionless (IBNode* node = node) {
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
       kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
-      if (kernel_dist.x <= PESKIN_SUPPORT_RADIUS) {
-        weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));
-      } else {
-        weight = 0;
-      }
+      // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
+      weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
     // clang-format off
     {...}
@@ -39,11 +46,8 @@ macro peskin_cosine_kernel_spread_dimensionless (IBNode* node = node) {
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
       kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
-      if (kernel_dist.x <= PESKIN_SUPPORT_RADIUS) {
-        weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));
-      } else {
-        weight = 0;
-      }
+      // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
+      weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
     if (is_local (cell)) {
       // clang-format off
@@ -58,11 +62,8 @@ macro peskin_cosine_kernel_spread_dimensionless (IBNode* node = node) {
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
       kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
-      if (kernel_dist.x <= PESKIN_SUPPORT_RADIUS) {
-        weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));
-      } else {
-        weight = 0;
-      }
+      // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
+      weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
 
     {
