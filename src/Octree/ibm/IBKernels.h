@@ -12,6 +12,18 @@ static inline double weight_stencil_yang11 (double r) {
   return 0.;
 }
 
+static inline double ibm_kernel_distance_1d (double a, double b,
+                                             bool periodic) {
+  double d = a - b;
+  if (periodic) {
+    if (d > 0.5*L0)
+      d -= L0;
+    else if (d < -0.5*L0)
+      d += L0;
+  }
+  return fabs (d);
+}
+
 macro peskin_cosine_kernel_gather_dimensionless (IBNode* node = node) {
   // bool ib_set_dirty = true;
   IBNODE_VARIABLES();
@@ -26,7 +38,8 @@ macro peskin_cosine_kernel_gather_dimensionless (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
+      kernel_dist.x =
+        ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x) / Delta;
       // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
       weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
@@ -45,7 +58,8 @@ macro peskin_cosine_kernel_spread_dimensionless (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
+      kernel_dist.x =
+        ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x) / Delta;
       // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
       weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
@@ -61,7 +75,8 @@ macro peskin_cosine_kernel_spread_dimensionless (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x) / Delta;
+      kernel_dist.x =
+        ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x) / Delta;
       // weight *= .25 * (1 + cos (.5 * pi * kernel_dist.x));  // Peskin cosine 4-pt
       weight *= weight_stencil_yang11 (kernel_dist.x);  // Yang smoothed 3-pt (IBM_stencil=11)
     }
@@ -89,7 +104,7 @@ macro peskin_cosine_kernel_gather (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x);
+      kernel_dist.x = ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x);
       if (kernel_dist.x <= Delta * PESKIN_SUPPORT_RADIUS) {
         weight *= (1. + cos (pi * kernel_dist.x / (Delta * PESKIN_SUPPORT_RADIUS))) / (2. * PESKIN_SUPPORT_RADIUS);
       } else {
@@ -110,7 +125,7 @@ macro peskin_cosine_kernel_spread (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x);
+      kernel_dist.x = ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x);
       if (kernel_dist.x <= Delta *  PESKIN_SUPPORT_RADIUS)
         weight *= (1. + cos (pi * kernel_dist.x / (Delta * PESKIN_SUPPORT_RADIUS))) / (2. * PESKIN_SUPPORT_RADIUS);
       else 
@@ -131,7 +146,7 @@ macro peskin_cosine_kernel_spread (IBNode* node = node) {
     coord kernel_dist = {0};
     coord cell_centre = {.x = x, .y = y, .z = z};
     foreach_dimension () {
-      kernel_dist.x = fabs (d.x - cell_centre.x);
+      kernel_dist.x = ibm_kernel_distance_1d (d.x, cell_centre.x, Period.x);
       if (kernel_dist.x <= Delta *  PESKIN_SUPPORT_RADIUS)
         weight *= (1. + cos (pi * kernel_dist.x / (Delta * PESKIN_SUPPORT_RADIUS))) / (2. * PESKIN_SUPPORT_RADIUS);
       else 
