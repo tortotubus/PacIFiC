@@ -62,6 +62,7 @@ char *base_path = DEFAULT_BASE_PATH;
 #define C0 reference_curvature
 
 #include "grid/octree.h"
+// #include "grid/multigrid3D.h"
 
 #include "ibm/IBMeshManager.h"
 #include "ibm/navier-stokes/centered-ibm.h"
@@ -236,15 +237,9 @@ static void suspension_apply_fresh_initial_conditions(void) {
 
   ibmeshmanager_sync_velocity_coupled_model_outputs();
 
-#if TREE
-  adapt_wavelet_ibm(
-      {u},
-      (double[]){velocity_tolerance, velocity_tolerance, velocity_tolerance},
-      max_level, min_level,
-      {u, p, pf, capsule_indicator, capsule_viscosity_divergence,
-       capsule_viscosity_grid_gradient, ibmf, Index_lagnode, Index_lag_id},
-      false); 
-#endif
+// #if TREE
+//   adapt_wavelet_ibm(NULL, NULL, max_level, min_level, NULL, true); 
+// #endif
 }
 
 int main(int argc, char *argv[]) {
@@ -322,7 +317,12 @@ int main(int argc, char *argv[]) {
   periodic(right);
   periodic(front);
 
-  N = 1 << min_level;
+#if TREE
+  N = 1 << max_level;
+#else 
+  N = 1 << max_level;
+#endif
+
   mu = mymu;
   rho = myrho;
   alpha = myalpha;

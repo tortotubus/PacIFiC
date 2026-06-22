@@ -1,6 +1,6 @@
-#include "ibm/IBMeshManager.h"
-#include "ibm/IBMacros.h"
 #include "ibm/IBLocate.h"
+#include "ibm/IBMacros.h"
+#include "ibm/IBMeshManager.h"
 
 #include "utils.h"
 
@@ -9,29 +9,198 @@
 // ============================================================================
 
 struct Adapt2 {
-  scalar* slist; // list of scalars
-  double* max;   // tolerance for each scalar
-  int* maxlevel; // maximum level of refinement for each scalar
+  scalar *slist; // list of scalars
+  double *max;   // tolerance for each scalar
+  int *maxlevel; // maximum level of refinement for each scalar
   int minlevel;  // minimum level of refinement (default 1)
-  scalar* list;  // list of fields to update (default all)
+  scalar *list;  // list of fields to update (default all)
 };
 
 // ============================================================================
 // Function declarations
 // ============================================================================
 
-astats adapt_wavelet_ibm (
-  scalar* slist, double* max, int maxlevel, int minlevel = 1, scalar* list = all, bool init = false);
+astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
+                                 int minlevel = 1, scalar *list = all,
+                                 bool init = false);
 
-astats adapt_wavelet2 (
-  scalar* slist, double* max, int* maxlevel, int minlevel = 1, scalar* list = all);
+astats adapt_wavelet_ibm(scalar *slist, double *max, int maxlevel,
+                         int minlevel = 1, scalar *list = all,
+                         bool init = false);
+
+astats adapt_wavelet_ibm_2(scalar *slist, double *max, int maxlevel,
+                           int minlevel = 1, scalar *list = all,
+                           bool init = false);
+
+astats adapt_wavelet2(scalar *slist, double *max, int *maxlevel,
+                      int minlevel = 1, scalar *list = all);
+
+astats adapt_wavelet_spatial(scalar Flag, int maxlevel_flag, scalar *slist,
+                             double *max, int maxlevel, int minlevel = 1,
+                             scalar *list = all);
 
 // ============================================================================
 // Function definitions
 // ============================================================================
 
-astats adapt_wavelet_ibm (
-  scalar* slist, double* max, int maxlevel, int minlevel = 1, scalar* list = all, bool init = false) {
+astats adapt_wavelet_ibm(scalar *slist, double *max, int maxlevel,
+                         int minlevel = 1, scalar *list = all,
+                         bool init = false) {
+  return adapt_wavelet_ibm_2(slist, max, maxlevel, minlevel, list, init);
+}
+
+static inline double ibadapt_periodic_distance_1d(double a, double b,
+                                                  bool periodic) {
+  double d = a - b;
+  if (periodic) {
+    if (d > 0.5*L0)
+      d -= L0;
+    else if (d < -0.5*L0)
+      d += L0;
+  }
+  return fabs(d);
+}
+
+astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
+                                 int minlevel = 1, scalar *list = all,
+                                 bool init = false) {
+
+  bool list_is_all = (list == all);
+  astats st = {0, 0};
+  scalar ib_flag[];
+  int iblevel_0 = 0;
+
+  foreach_ibnode_per_ibmesh() {
+    if (mesh->depth > iblevel_0)
+      iblevel_0 = mesh->depth;
+  }
+
+  scalar *slist_c = slist ? list_copy(slist) : NULL;
+  slist_c = list_append(slist_c, ib_flag);
+  int n = list_len(slist_c);
+
+  double *max_c = (double *)malloc((size_t)n * sizeof(double));
+  assert(max_c);
+
+  int max_level_or_ibm = (iblevel_0 > maxlevel) ? iblevel_0 : maxlevel;
+  int max_iter = init ? max_level_or_ibm : 1;
+
+  minlevel = init ? grid->depth : minlevel;
+
+  for (int iter = 0; iter < max_iter; iter++) {
+    for (int li = 0; li < n - 1; li++)
+      max_c[li] = max[li];
+    max_c[n - 1] = 1e-6;
+
+    foreach_cell()
+      ib_flag[] = 0.;
+    boundary({ib_flag});
+
+    foreach_ibnode_per_ibmesh() {
+      int r = PESKIN_SUPPORT_RADIUS;
+      double d = L0/(1 << node->depth);
+#if dimension == 1
+      for (int i = -r; i <= r; i++) {
+        coord e = {pos.x + i*d, pos.y, pos.z};
+        coord_periodic_boundary(e);
+        Point point = locate_nonlocal(e.x, e.y, e.z);
+        int ig = 0, jg = 0, kg = 0;
+        NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+        POINT_VARIABLES();
+        if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+          coord cell_centre = {.x = x, .y = y, .z = z};
+          double rd = 0.;
+          foreach_dimension() {
+            double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+            rd += sq(dx);
+          }
+          double target_delta = L0/(1 << node->depth);
+          double width = Delta > target_delta ? Delta : target_delta;
+          double flag = exp(-rd/(2.*sq(width)));
+          if (flag > ib_flag[])
+            ib_flag[] = flag;
+        }
+      }
+#elif dimension == 2
+      for (int i = -r; i <= r; i++) {
+        for (int j = -r; j <= r; j++) {
+          coord e = {pos.x + i*d, pos.y + j*d, pos.z};
+          coord_periodic_boundary(e);
+          Point point = locate_nonlocal(e.x, e.y);
+          int ig = 0, jg = 0, kg = 0;
+          NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+          POINT_VARIABLES();
+          if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+            coord cell_centre = {.x = x, .y = y, .z = z};
+            double rd = 0.;
+            foreach_dimension() {
+              double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+              rd += sq(dx);
+            }
+            double target_delta = L0/(1 << node->depth);
+            double width = Delta > target_delta ? Delta : target_delta;
+            double flag = exp(-rd/(2.*sq(width)));
+            if (flag > ib_flag[])
+              ib_flag[] = flag;
+          }
+        }
+      }
+#else
+      for (int i = -r; i <= r; i++) {
+        for (int j = -r; j <= r; j++) {
+          for (int k = -r; k <= r; k++) {
+            coord e = {pos.x + i*d, pos.y + j*d, pos.z + k*d};
+            coord_periodic_boundary(e);
+            Point point = locate_nonlocal(e.x, e.y, e.z);
+            int ig = 0, jg = 0, kg = 0;
+            NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+            POINT_VARIABLES();
+            if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+              coord cell_centre = {.x = x, .y = y, .z = z};
+              double rd = 0.;
+              foreach_dimension() {
+                double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+                rd += sq(dx);
+              }
+              double target_delta = L0/(1 << node->depth);
+              double width = Delta > target_delta ? Delta : target_delta;
+              double flag = exp(-rd/(2.*sq(width)));
+              if (flag > ib_flag[])
+                ib_flag[] = flag;
+            }
+          }
+        }
+      }
+#endif
+    }
+    boundary({ib_flag});
+
+    // Temporary scalars can reallocate Basilisk's global `all` list.
+    scalar *adapt_list = list_is_all ? all : list;
+    astats st_i = adapt_wavelet_spatial(ib_flag, max_level_or_ibm, slist_c,
+                                        max_c, maxlevel, minlevel, adapt_list);
+
+    st.nc += st_i.nc;
+    st.nf += st_i.nf;
+
+    if (st_i.nf == 0)
+      break;
+  }
+
+  free(slist_c);
+  free(max_c);
+
+  ibmm.dirty = true;
+#if _MPI
+  ibmeshmanager_update_pid();
+#endif
+
+  return st;
+}
+
+astats adapt_wavelet_ibm_2(scalar *slist, double *max, int maxlevel,
+                           int minlevel = 1, scalar *list = all,
+                           bool init = false) {
 
   bool list_is_all = (list == all);
   astats st = {0, 0};
@@ -40,18 +209,18 @@ astats adapt_wavelet_ibm (
   // scalar ib_noise_1[]; int iblevel_1;
   // scalar ib_noise_2[]; int iblevel_2;
 
-  foreach_ibnode_per_ibmesh () {
+  foreach_ibnode_per_ibmesh() {
     if (mesh->depth > iblevel_0)
       iblevel_0 = mesh->depth;
   }
 
-  scalar* slist_c = slist ? list_copy (slist) : NULL;
-  slist_c = list_append (slist_c, ib_noise_0);
-  int n = list_len (slist_c);
+  scalar *slist_c = slist ? list_copy(slist) : NULL;
+  slist_c = list_append(slist_c, ib_noise_0);
+  int n = list_len(slist_c);
 
-  double* max_c = (double*) malloc ((size_t) n * sizeof (double));
-  int* maxlevel_c = (int*) malloc ((size_t) n * sizeof (int));
-  assert (max_c && maxlevel_c);
+  double *max_c = (double *)malloc((size_t)n * sizeof(double));
+  int *maxlevel_c = (int *)malloc((size_t)n * sizeof(int));
+  assert(max_c && maxlevel_c);
 
   int max_level_or_ibm = (iblevel_0 > maxlevel) ? iblevel_0 : maxlevel;
   int max_iter = init ? max_level_or_ibm : 1;
@@ -67,42 +236,51 @@ astats adapt_wavelet_ibm (
     max_c[n - 1] = 1e-6;
     maxlevel_c[n - 1] = iblevel_0;
 
-    foreach_cell () {
-      ib_noise_0[] = 0.;
-    }
-    boundary ({ib_noise_0});
+    foreach_cell() { ib_noise_0[] = 0.; }
+    boundary({ib_noise_0});
 
-    foreach_ibnode_per_ibmesh () {
+    foreach_ibnode_per_ibmesh() {
       int r = PESKIN_SUPPORT_RADIUS;
       double d = L0 / (1 << node->depth);
 #if dimension == 1
       for (int i = -r; i <= r; i++) {
         coord e = {pos.x + i * d, pos.y, pos.z};
-        coord_periodic_boundary (e);
-        Point point = locate_nonlocal (e.x, e.y, e.z);
+        coord_periodic_boundary(e);
+        Point point = locate_nonlocal(e.x, e.y, e.z);
         int ig = 0, jg = 0, kg = 0;
-        NOT_UNUSED (ig);
-        NOT_UNUSED (jg);
-        NOT_UNUSED (kg);
+        NOT_UNUSED(ig);
+        NOT_UNUSED(jg);
+        NOT_UNUSED(kg);
+        POINT_VARIABLES();
         if (point.level >= 0) {
-          double rd = sq (x - c.x);
-          ib_noise_0[] += exp (-rd / (2 * Delta));
+          coord cell_centre = {.x = x, .y = y, .z = z};
+          double rd = 0.;
+          foreach_dimension() {
+            double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+            rd += sq(dx);
+          }
+          ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
         }
       }
 #elif dimension == 2
       for (int i = -r; i <= r; i++) {
         for (int j = -r; j <= r; j++) {
           coord e = {pos.x + i * d, pos.y + j * d, pos.z};
-          coord_periodic_boundary (e);
-          Point point = locate_nonlocal (e.x, e.y, e.z);
+          coord_periodic_boundary(e);
+          Point point = locate_nonlocal(e.x, e.y, e.z);
           int ig = 0, jg = 0, kg = 0;
-          NOT_UNUSED (ig);
-          NOT_UNUSED (jg);
-          NOT_UNUSED (kg);
-          POINT_VARIABLES ();
+          NOT_UNUSED(ig);
+          NOT_UNUSED(jg);
+          NOT_UNUSED(kg);
+          POINT_VARIABLES();
           if (point.level >= 0) {
-            double rd = sq (x - pos.x) + sq (y - pos.y);
-            ib_noise_0[] += exp (-rd / (2 * Delta));
+            coord cell_centre = {.x = x, .y = y, .z = z};
+            double rd = 0.;
+            foreach_dimension() {
+              double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+              rd += sq(dx);
+            }
+            ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
           }
         }
       }
@@ -111,28 +289,35 @@ astats adapt_wavelet_ibm (
         for (int j = -r; j <= r; j++) {
           for (int k = -r; k <= r; k++) {
             coord e = {pos.x + i * d, pos.y + j * d, pos.z + k * d};
-            coord_periodic_boundary (e);
-            Point point = locate_nonlocal (e.x, e.y, e.z);
+            coord_periodic_boundary(e);
+            Point point = locate_nonlocal(e.x, e.y, e.z);
             int ig = 0, jg = 0, kg = 0;
-            NOT_UNUSED (ig);
-            NOT_UNUSED (jg);
-            NOT_UNUSED (kg);
-            POINT_VARIABLES ();
+            NOT_UNUSED(ig);
+            NOT_UNUSED(jg);
+            NOT_UNUSED(kg);
+            POINT_VARIABLES();
             if (point.level >= 0) {
-              double rd = sq (x - pos.x) + sq (y - pos.y) + sq (z - pos.z);
-              ib_noise_0[] += exp (-rd / (2 * Delta));
+              coord cell_centre = {.x = x, .y = y, .z = z};
+              double rd = 0.;
+              foreach_dimension() {
+                double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+                rd += sq(dx);
+              }
+              ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
             }
           }
         }
       }
 #endif
     }
-    boundary ({ib_noise_0});
+    boundary({ib_noise_0});
 
     // Temporary scalars can reallocate Basilisk's global `all` list.
-    scalar* adapt_list = list_is_all ? all : list;
-    // astats st_i = adapt_wavelet2 (slist_c, max_c, maxlevel_c, minlevel, adapt_list);
-    astats st_i = adapt_wavelet(slist_c, max_c, max_level_or_ibm, minlevel, adapt_list);
+    scalar *adapt_list = list_is_all ? all : list;
+    // astats st_i = adapt_wavelet2 (slist_c, max_c, maxlevel_c, minlevel,
+    // adapt_list);
+    astats st_i =
+        adapt_wavelet(slist_c, max_c, max_level_or_ibm, minlevel, adapt_list);
 
     st.nc += st_i.nc;
     st.nf += st_i.nf;
@@ -142,43 +327,43 @@ astats adapt_wavelet_ibm (
     }
   }
 
-  free (slist_c);
-  free (max_c);
-  free (maxlevel_c);
+  free(slist_c);
+  free(max_c);
+  free(maxlevel_c);
 
   ibmm.dirty = true;
 #if _MPI
-  ibmeshmanager_update_pid ();
+  ibmeshmanager_update_pid();
 #endif
 
   return st;
 }
 
-trace astats adapt_wavelet2 (
-  scalar* slist, double* max, int* maxlevel, int minlevel = 1, scalar* list = all) {
-  scalar* ilist = list;
+trace astats adapt_wavelet2(scalar *slist, double *max, int *maxlevel,
+                            int minlevel = 1, scalar *list = all) {
+  scalar *ilist = list;
 
-  if (is_constant (cm)) {
+  if (is_constant(cm)) {
     if (list == NULL || list == all)
-      list = list_copy (all);
-    boundary (list);
-    restriction (slist);
+      list = list_copy(all);
+    boundary(list);
+    restriction(slist);
   } else {
     if (list == NULL || list == all) {
-      list = list_copy ({cm, fm});
+      list = list_copy({cm, fm});
       for (scalar s in all)
-        list = list_add (list, s);
+        list = list_add(list, s);
     }
-    boundary (list);
-    scalar* listr = list_concat ({cm}, slist);
-    restriction (listr);
-    free (listr);
+    boundary(list);
+    scalar *listr = list_concat({cm}, slist);
+    restriction(listr);
+    free(listr);
   }
 
   astats st = {0, 0};
-  scalar* listc = NULL;
+  scalar *listc = NULL;
   for (scalar s in list)
-    listc = list_add_depend (listc, s);
+    listc = list_add_depend(listc, s);
 
   // refinement
   if (minlevel < 1)
@@ -186,19 +371,19 @@ trace astats adapt_wavelet2 (
 
   int overall_maxlevel = minlevel;
   if (slist && maxlevel)
-    for (int i = 0; i < list_len (slist); i++)
+    for (int i = 0; i < list_len(slist); i++)
       if (maxlevel[i] > overall_maxlevel)
         overall_maxlevel = maxlevel[i];
 
   tree->refined.n = 0;
   static const int refined = 1 << user, too_fine = 1 << (user + 1);
-  foreach_cell () {
-    if (is_active (cell)) {
+  foreach_cell() {
+    if (is_active(cell)) {
       static const int too_coarse = 1 << (user + 2);
-      if (is_leaf (cell)) {
+      if (is_leaf(cell)) {
         if (cell.flags & too_coarse) {
           cell.flags &= ~too_coarse;
-          refine_cell (point, listc, refined, &tree->refined);
+          refine_cell(point, listc, refined, &tree->refined);
           st.nf++;
         }
         continue;
@@ -209,10 +394,10 @@ trace astats adapt_wavelet2 (
           continue;
         }
         // check whether the cell or any of its children is local
-        bool local = is_local (cell);
+        bool local = is_local(cell);
         if (!local) {
-          foreach_child () {
-            if (is_local (cell)) {
+          foreach_child() {
+            if (is_local(cell)) {
               local = true;
               break;
             }
@@ -224,13 +409,13 @@ trace astats adapt_wavelet2 (
           for (scalar s in slist) {
             double emax = max[i], sc[(1 << dimension) * s.block];
             int mlev = maxlevel[i++];
-            double* b = sc;
-            foreach_child () foreach_blockf (s)* b++ = s[];
-            s.prolongation (point, s);
+            double *b = sc;
+            foreach_child() foreach_blockf(s) *b++ = s[];
+            s.prolongation(point, s);
             b = sc;
-            foreach_child () {
-              foreach_blockf (s) {
-                double e = fabs (*b - s[]);
+            foreach_child() {
+              foreach_blockf(s) {
+                double e = fabs(*b - s[]);
                 if (e > emax && level < mlev) {
                   cell.flags &= ~too_fine;
                   cell.flags |= too_coarse;
@@ -246,13 +431,13 @@ trace astats adapt_wavelet2 (
               }
             }
           }
-          foreach_child () {
+          foreach_child() {
             cell.flags &= ~just_fine;
-            if (!is_leaf (cell)) {
+            if (!is_leaf(cell)) {
               cell.flags &= ~too_coarse;
               if (level >= overall_maxlevel)
                 cell.flags |= too_fine;
-            } else if (!is_active (cell))
+            } else if (!is_active(cell))
               cell.flags &= ~too_coarse;
           }
         }
@@ -260,40 +445,180 @@ trace astats adapt_wavelet2 (
     } else // inactive cell
       continue;
   }
-  mpi_boundary_refine (listc);
+  mpi_boundary_refine(listc);
   // coarsening
   // the loop below is only necessary to ensure symmetry of 2:1 constraint
-  for (int l = depth (); l >= 0; l--) {
-    foreach_cell () if (!is_boundary (cell)) {
+  for (int l = depth(); l >= 0; l--) {
+    foreach_cell() if (!is_boundary(cell)) {
       if (level == l) {
-        if (!is_leaf (cell)) {
+        if (!is_leaf(cell)) {
           if (cell.flags & refined)
             // cell was refined previously, unset the flag
             cell.flags &= ~(refined | too_fine);
           else if (cell.flags & too_fine) {
-            if (is_local (cell) && coarsen_cell (point, listc))
+            if (is_local(cell) && coarsen_cell(point, listc))
               st.nc++;
             cell.flags &= ~too_fine; // do not coarsen parent
           }
         }
         if (cell.flags & too_fine)
           cell.flags &= ~too_fine;
-        else if (level > 0 && (aparent (0).flags & too_fine))
-          aparent (0).flags &= ~too_fine;
+        else if (level > 0 && (aparent(0).flags & too_fine))
+          aparent(0).flags &= ~too_fine;
         continue;
-      } else if (is_leaf (cell))
+      } else if (is_leaf(cell))
         continue;
     }
-    mpi_boundary_coarsen (l, too_fine);
+    mpi_boundary_coarsen(l, too_fine);
   }
-  free (listc);
-  mpi_all_reduce (st.nf, MPI_INT, MPI_SUM);
-  mpi_all_reduce (st.nc, MPI_INT, MPI_SUM);
+  free(listc);
+  mpi_all_reduce(st.nf, MPI_INT, MPI_SUM);
+  mpi_all_reduce(st.nc, MPI_INT, MPI_SUM);
   if (st.nc || st.nf)
-    mpi_boundary_update (list);
+    mpi_boundary_update(list);
 
   if (list != ilist)
-    free (list);
+    free(list);
+
+  return st;
+}
+
+astats adapt_wavelet_spatial(
+    scalar Flag,       /*< Flag field */
+    int maxlevel_flag, /*< max level in flagged regions > maxlevel */
+    scalar *slist,     /*< list of scalars */
+    double *max,       /*< tolerance for each scalar */
+    int maxlevel,      /*< maximum level of refinement */
+    int minlevel = 1,  /*< minimum level of refinement */
+    scalar *list = all) {
+  scalar *ilist = list;
+
+  if (is_constant(cm)) {
+    if (list == NULL || list == all)
+      list = list_copy(all);
+    boundary(list);
+    restriction(slist);
+  } else {
+    if (list == NULL || list == all) {
+      list = list_copy({cm, fm});
+      for (scalar s in all)
+        list = list_add(list, s);
+    }
+    boundary(list);
+    scalar *listr = list_concat(slist, {cm});
+    restriction(listr);
+    free(listr);
+  }
+
+  astats st = {0, 0};
+  scalar *listc = NULL;
+  for (scalar s in list)
+    listc = list_add_depend(listc, s);
+
+  // refinement
+  if (minlevel < 1)
+    minlevel = 1;
+  tree->refined.n = 0;
+  static const int refined = 1 << user, too_fine = 1 << (user + 1);
+  foreach_cell() {
+    int cellMAX = Flag[] > 1.e-8 ? maxlevel_flag : maxlevel;
+    if (is_active(cell)) {
+      static const int too_coarse = 1 << (user + 2);
+      if (is_leaf(cell)) {
+        if (cell.flags & too_coarse) {
+          cell.flags &= ~too_coarse;
+          refine_cell(point, listc, refined, &tree->refined);
+          st.nf++;
+        }
+        continue;
+      } else { // !is_leaf (cell)
+        if (cell.flags & refined) {
+          // cell has already been refined, skip its children
+          cell.flags &= ~too_coarse;
+          continue;
+        }
+        // check whether the cell or any of its children is local
+        bool local = is_local(cell);
+        if (!local)
+          foreach_child() if (is_local(cell)) {
+            local = true;
+            break;
+          }
+        if (local) {
+          int i = 0;
+          static const int just_fine = 1 << (user + 3);
+          for (scalar s in slist) {
+            double emax = max[i++], sc[(1 << dimension) * s.block];
+            double *b = sc;
+            foreach_child() foreach_blockf(s) *b++ = s[];
+            s.prolongation(point, s);
+            b = sc;
+            foreach_child() foreach_blockf(s) {
+              double e = fabs(*b - s[]);
+              if (e > emax && level < cellMAX) {
+                cell.flags &= ~too_fine;
+                cell.flags |= too_coarse;
+              } else if ((e <= emax / 1.5 || level > cellMAX) &&
+                         !(cell.flags & (too_coarse | just_fine))) {
+                if (level >= minlevel)
+                  cell.flags |= too_fine;
+              } else if (!(cell.flags & too_coarse)) {
+                cell.flags &= ~too_fine;
+                cell.flags |= just_fine;
+              }
+              s[] = *b++;
+            }
+          }
+          foreach_child() {
+            cell.flags &= ~just_fine;
+            if (!is_leaf(cell)) {
+              cell.flags &= ~too_coarse;
+              if (level >= cellMAX)
+                cell.flags |= too_fine;
+            } else if (!is_active(cell))
+              cell.flags &= ~too_coarse;
+          }
+        }
+      }
+    } else // inactive cell
+      continue;
+  }
+  mpi_boundary_refine(listc);
+
+  // coarsening
+  // the loop below is only necessary to ensure symmetry of 2:1 constraint
+  for (int l = depth(); l >= 0; l--) {
+    foreach_cell() if (!is_boundary(cell)) {
+      if (level == l) {
+        if (!is_leaf(cell)) {
+          if (cell.flags & refined)
+            // cell was refined previously, unset the flag
+            cell.flags &= ~(refined | too_fine);
+          else if (cell.flags & too_fine) {
+            if (is_local(cell) && coarsen_cell(point, listc))
+              st.nc++;
+            cell.flags &= ~too_fine; // do not coarsen parent
+          }
+        }
+        if (cell.flags & too_fine)
+          cell.flags &= ~too_fine;
+        else if (level > 0 && (aparent(0).flags & too_fine))
+          aparent(0).flags &= ~too_fine;
+        continue;
+      } else if (is_leaf(cell))
+        continue;
+    }
+    mpi_boundary_coarsen(l, too_fine);
+  }
+  free(listc);
+
+  mpi_all_reduce(st.nf, MPI_INT, MPI_SUM);
+  mpi_all_reduce(st.nc, MPI_INT, MPI_SUM);
+  if (st.nc || st.nf)
+    mpi_boundary_update(list);
+
+  if (list != ilist)
+    free(list);
 
   return st;
 }
