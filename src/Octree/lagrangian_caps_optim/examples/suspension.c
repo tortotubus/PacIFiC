@@ -237,9 +237,9 @@ static void suspension_apply_fresh_initial_conditions(void) {
 
   ibmeshmanager_sync_velocity_coupled_model_outputs();
 
-// #if TREE
-//   adapt_wavelet_ibm(NULL, NULL, max_level, min_level, NULL, true); 
-// #endif
+#if TREE
+  adapt_wavelet_ibm(NULL,NULL, max_level, min_level, NULL, true);
+#endif
 }
 
 int main(int argc, char *argv[]) {
@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
   periodic(front);
 
 #if TREE
-  N = 1 << max_level;
+  N = 1 << min_level;
 #else 
   N = 1 << max_level;
 #endif

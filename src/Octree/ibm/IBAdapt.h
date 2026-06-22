@@ -1,3 +1,4 @@
+#include "ibm/IBKernels.h"
 #include "ibm/IBLocate.h"
 #include "ibm/IBMacros.h"
 #include "ibm/IBMeshManager.h"
@@ -20,17 +21,13 @@ struct Adapt2 {
 // Function declarations
 // ============================================================================
 
-astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
-                                 int minlevel = 1, scalar *list = all,
-                                 bool init = false);
-
 astats adapt_wavelet_ibm(scalar *slist, double *max, int maxlevel,
                          int minlevel = 1, scalar *list = all,
                          bool init = false);
 
-astats adapt_wavelet_ibm_2(scalar *slist, double *max, int maxlevel,
-                           int minlevel = 1, scalar *list = all,
-                           bool init = false);
+astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
+                                 int minlevel = 1, scalar *list = all,
+                                 bool init = false);
 
 astats adapt_wavelet2(scalar *slist, double *max, int *maxlevel,
                       int minlevel = 1, scalar *list = all);
@@ -46,19 +43,127 @@ astats adapt_wavelet_spatial(scalar Flag, int maxlevel_flag, scalar *slist,
 astats adapt_wavelet_ibm(scalar *slist, double *max, int maxlevel,
                          int minlevel = 1, scalar *list = all,
                          bool init = false) {
-  return adapt_wavelet_ibm_2(slist, max, maxlevel, minlevel, list, init);
-}
 
-static inline double ibadapt_periodic_distance_1d(double a, double b,
-                                                  bool periodic) {
-  double d = a - b;
-  if (periodic) {
-    if (d > 0.5*L0)
-      d -= L0;
-    else if (d < -0.5*L0)
-      d += L0;
+                          
+  astats st = {0, 0};
+
+  if (init) {
+    int max_iter = fabs(maxlevel - depth());
+    for (int iter = 0; iter < max_iter; iter++) {
+      ibmeshmanager_sync_velocity_coupled_model_outputs();
+      astats st_i = adapt_wavelet_ibm(NULL, NULL, maxlevel, minlevel, all, false);
+      st.nc += st_i.nc; st.nf += st_i.nf;
+    }
+    return st;
+  }                          
+
+  scalar ib_noise_0[];
+  int iblevel_0 = 0;
+
+  foreach_ibnode_per_ibmesh() {
+    if (mesh->depth > iblevel_0)
+      iblevel_0 = mesh->depth;
   }
-  return fabs(d);
+
+  bool list_is_all = (list == all);
+  scalar *slist_c = slist ? list_copy(slist) : NULL;
+  slist_c = list_append(slist_c, ib_noise_0);
+  int n = list_len(slist_c);
+
+  int max_level_or_ibm = (iblevel_0 > maxlevel) ? iblevel_0 : maxlevel;
+
+  double *max_c = (double *)malloc((size_t)n * sizeof(double));
+  for (int li = 0; li < n - 1; li++)
+    max_c[li] = max[li];
+  max_c[n - 1] = 1e-6;
+
+  foreach_cell() { ib_noise_0[] = 0.; }
+  foreach_ibnode_per_ibmesh() {
+    int r = PESKIN_SUPPORT_RADIUS;
+    double d = L0 / (1 << node->depth);
+#if dimension == 1
+    for (int i = -r; i <= r; i++) {
+      coord e = {pos.x + i * d, pos.y, pos.z};
+      coord_periodic_boundary(e);
+      Point point = locate_nonlocal(e.x, e.y, e.z);
+      int ig = 0, jg = 0, kg = 0;
+      NOT_UNUSED(ig);
+      NOT_UNUSED(jg);
+      NOT_UNUSED(kg);
+      POINT_VARIABLES();
+      if (point.level >= 0) {
+        coord cell_centre = {.x = x, .y = y, .z = z};
+        double rd = 0.;
+        foreach_dimension() {
+          double dx = ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
+          rd += sq(dx);
+        }
+        ib_noise_0[] += exp(-rd / (2. * sq(Delta)));
+      }
+    }
+#elif dimension == 2
+    for (int i = -r; i <= r; i++) {
+      for (int j = -r; j <= r; j++) {
+        coord e = {pos.x + i * d, pos.y + j * d, pos.z};
+        coord_periodic_boundary(e);
+        Point point = locate_nonlocal(e.x, e.y, e.z);
+        int ig = 0, jg = 0, kg = 0;
+        NOT_UNUSED(ig);
+        NOT_UNUSED(jg);
+        NOT_UNUSED(kg);
+        POINT_VARIABLES();
+        if (point.level >= 0) {
+          coord cell_centre = {.x = x, .y = y, .z = z};
+          double rd = 0.;
+          foreach_dimension() {
+            double dx = ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
+            rd += sq(dx);
+          }
+          ib_noise_0[] += exp(-rd / (2. * sq(Delta)));
+        }
+      }
+    }
+#else
+    for (int i = -r; i <= r; i++) {
+      for (int j = -r; j <= r; j++) {
+        for (int k = -r; k <= r; k++) {
+          coord e = {pos.x + i * d, pos.y + j * d, pos.z + k * d};
+          coord_periodic_boundary(e);
+          Point point = locate_nonlocal(e.x, e.y, e.z);
+          int ig = 0, jg = 0, kg = 0;
+          NOT_UNUSED(ig);
+          NOT_UNUSED(jg);
+          NOT_UNUSED(kg);
+          POINT_VARIABLES();
+          if (point.level >= 0) {
+            coord cell_centre = {.x = x, .y = y, .z = z};
+            double rd = 0.;
+            foreach_dimension() {
+              double dx =
+                  ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
+              rd += sq(dx);
+            }
+            ib_noise_0[] += exp(-rd / (2. * sq(Delta)));
+          }
+        }
+      }
+    }
+#endif
+  }
+  boundary({ib_noise_0});
+
+  scalar *adapt_list = list_is_all ? all : list;
+  st = adapt_wavelet(slist_c, max_c, max_level_or_ibm, minlevel, adapt_list);
+
+  free(slist_c);
+  free(max_c);
+
+  ibmm.dirty = true;
+#if _MPI
+  ibmeshmanager_update_pid();
+#endif
+
+  return st;
 }
 
 astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
@@ -83,40 +188,45 @@ astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
   assert(max_c);
 
   int max_level_or_ibm = (iblevel_0 > maxlevel) ? iblevel_0 : maxlevel;
-  int max_iter = init ? max_level_or_ibm : 1;
+  int current_depth = grid->depth;
+  int max_iter = init && max_level_or_ibm > current_depth
+                     ? max_level_or_ibm - current_depth
+                     : 1;
 
   minlevel = init ? grid->depth : minlevel;
 
   for (int iter = 0; iter < max_iter; iter++) {
     for (int li = 0; li < n - 1; li++)
       max_c[li] = max[li];
-    max_c[n - 1] = 1e-6;
+    max_c[n - 1] = 1e-7;
 
-    foreach_cell()
-      ib_flag[] = 0.;
+    foreach_cell() ib_flag[] = 0.;
     boundary({ib_flag});
 
     foreach_ibnode_per_ibmesh() {
       int r = PESKIN_SUPPORT_RADIUS;
-      double d = L0/(1 << node->depth);
+      double d = L0 / (1 << node->depth);
 #if dimension == 1
       for (int i = -r; i <= r; i++) {
-        coord e = {pos.x + i*d, pos.y, pos.z};
+        coord e = {pos.x + i * d, pos.y, pos.z};
         coord_periodic_boundary(e);
         Point point = locate_nonlocal(e.x, e.y, e.z);
         int ig = 0, jg = 0, kg = 0;
-        NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+        NOT_UNUSED(ig);
+        NOT_UNUSED(jg);
+        NOT_UNUSED(kg);
         POINT_VARIABLES();
-        if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+        if (point.level >= 0 && allocated(0) && is_leaf(cell) &&
+            is_local(cell)) {
           coord cell_centre = {.x = x, .y = y, .z = z};
           double rd = 0.;
           foreach_dimension() {
-            double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+            double dx = ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
             rd += sq(dx);
           }
-          double target_delta = L0/(1 << node->depth);
+          double target_delta = L0 / (1 << node->depth);
           double width = Delta > target_delta ? Delta : target_delta;
-          double flag = exp(-rd/(2.*sq(width)));
+          double flag = exp(-rd / (2. * sq(width)));
           if (flag > ib_flag[])
             ib_flag[] = flag;
         }
@@ -124,22 +234,26 @@ astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
 #elif dimension == 2
       for (int i = -r; i <= r; i++) {
         for (int j = -r; j <= r; j++) {
-          coord e = {pos.x + i*d, pos.y + j*d, pos.z};
+          coord e = {pos.x + i * d, pos.y + j * d, pos.z};
           coord_periodic_boundary(e);
           Point point = locate_nonlocal(e.x, e.y);
           int ig = 0, jg = 0, kg = 0;
-          NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+          NOT_UNUSED(ig);
+          NOT_UNUSED(jg);
+          NOT_UNUSED(kg);
           POINT_VARIABLES();
-          if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+          if (point.level >= 0 && allocated(0) && is_leaf(cell) &&
+              is_local(cell)) {
             coord cell_centre = {.x = x, .y = y, .z = z};
             double rd = 0.;
             foreach_dimension() {
-              double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+              double dx =
+                  ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
               rd += sq(dx);
             }
-            double target_delta = L0/(1 << node->depth);
+            double target_delta = L0 / (1 << node->depth);
             double width = Delta > target_delta ? Delta : target_delta;
-            double flag = exp(-rd/(2.*sq(width)));
+            double flag = exp(-rd / (2. * sq(width)));
             if (flag > ib_flag[])
               ib_flag[] = flag;
           }
@@ -149,22 +263,26 @@ astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
       for (int i = -r; i <= r; i++) {
         for (int j = -r; j <= r; j++) {
           for (int k = -r; k <= r; k++) {
-            coord e = {pos.x + i*d, pos.y + j*d, pos.z + k*d};
+            coord e = {pos.x + i * d, pos.y + j * d, pos.z + k * d};
             coord_periodic_boundary(e);
             Point point = locate_nonlocal(e.x, e.y, e.z);
             int ig = 0, jg = 0, kg = 0;
-            NOT_UNUSED(ig); NOT_UNUSED(jg); NOT_UNUSED(kg);
+            NOT_UNUSED(ig);
+            NOT_UNUSED(jg);
+            NOT_UNUSED(kg);
             POINT_VARIABLES();
-            if (point.level >= 0 && allocated(0) && is_leaf(cell) && is_local(cell)) {
+            if (point.level >= 0 && allocated(0) && is_leaf(cell) &&
+                is_local(cell)) {
               coord cell_centre = {.x = x, .y = y, .z = z};
               double rd = 0.;
               foreach_dimension() {
-                double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
+                double dx =
+                    ibm_kernel_distance_1d(pos.x, cell_centre.x, Period.x);
                 rd += sq(dx);
               }
-              double target_delta = L0/(1 << node->depth);
+              double target_delta = L0 / (1 << node->depth);
               double width = Delta > target_delta ? Delta : target_delta;
-              double flag = exp(-rd/(2.*sq(width)));
+              double flag = exp(-rd / (2. * sq(width)));
               if (flag > ib_flag[])
                 ib_flag[] = flag;
             }
@@ -189,147 +307,6 @@ astats adapt_wavelet_ibm_spatial(scalar *slist, double *max, int maxlevel,
 
   free(slist_c);
   free(max_c);
-
-  ibmm.dirty = true;
-#if _MPI
-  ibmeshmanager_update_pid();
-#endif
-
-  return st;
-}
-
-astats adapt_wavelet_ibm_2(scalar *slist, double *max, int maxlevel,
-                           int minlevel = 1, scalar *list = all,
-                           bool init = false) {
-
-  bool list_is_all = (list == all);
-  astats st = {0, 0};
-  scalar ib_noise_0[];
-  int iblevel_0 = 0;
-  // scalar ib_noise_1[]; int iblevel_1;
-  // scalar ib_noise_2[]; int iblevel_2;
-
-  foreach_ibnode_per_ibmesh() {
-    if (mesh->depth > iblevel_0)
-      iblevel_0 = mesh->depth;
-  }
-
-  scalar *slist_c = slist ? list_copy(slist) : NULL;
-  slist_c = list_append(slist_c, ib_noise_0);
-  int n = list_len(slist_c);
-
-  double *max_c = (double *)malloc((size_t)n * sizeof(double));
-  int *maxlevel_c = (int *)malloc((size_t)n * sizeof(int));
-  assert(max_c && maxlevel_c);
-
-  int max_level_or_ibm = (iblevel_0 > maxlevel) ? iblevel_0 : maxlevel;
-  int max_iter = init ? max_level_or_ibm : 1;
-
-  minlevel = init ? grid->depth : minlevel;
-
-  for (int i = 0; i < max_iter; i++) {
-    for (int li = 0; li < n - 1; li++) {
-      max_c[li] = max[li];
-      maxlevel_c[li] = maxlevel;
-    }
-
-    max_c[n - 1] = 1e-6;
-    maxlevel_c[n - 1] = iblevel_0;
-
-    foreach_cell() { ib_noise_0[] = 0.; }
-    boundary({ib_noise_0});
-
-    foreach_ibnode_per_ibmesh() {
-      int r = PESKIN_SUPPORT_RADIUS;
-      double d = L0 / (1 << node->depth);
-#if dimension == 1
-      for (int i = -r; i <= r; i++) {
-        coord e = {pos.x + i * d, pos.y, pos.z};
-        coord_periodic_boundary(e);
-        Point point = locate_nonlocal(e.x, e.y, e.z);
-        int ig = 0, jg = 0, kg = 0;
-        NOT_UNUSED(ig);
-        NOT_UNUSED(jg);
-        NOT_UNUSED(kg);
-        POINT_VARIABLES();
-        if (point.level >= 0) {
-          coord cell_centre = {.x = x, .y = y, .z = z};
-          double rd = 0.;
-          foreach_dimension() {
-            double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
-            rd += sq(dx);
-          }
-          ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
-        }
-      }
-#elif dimension == 2
-      for (int i = -r; i <= r; i++) {
-        for (int j = -r; j <= r; j++) {
-          coord e = {pos.x + i * d, pos.y + j * d, pos.z};
-          coord_periodic_boundary(e);
-          Point point = locate_nonlocal(e.x, e.y, e.z);
-          int ig = 0, jg = 0, kg = 0;
-          NOT_UNUSED(ig);
-          NOT_UNUSED(jg);
-          NOT_UNUSED(kg);
-          POINT_VARIABLES();
-          if (point.level >= 0) {
-            coord cell_centre = {.x = x, .y = y, .z = z};
-            double rd = 0.;
-            foreach_dimension() {
-              double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
-              rd += sq(dx);
-            }
-            ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
-          }
-        }
-      }
-#else
-      for (int i = -r; i <= r; i++) {
-        for (int j = -r; j <= r; j++) {
-          for (int k = -r; k <= r; k++) {
-            coord e = {pos.x + i * d, pos.y + j * d, pos.z + k * d};
-            coord_periodic_boundary(e);
-            Point point = locate_nonlocal(e.x, e.y, e.z);
-            int ig = 0, jg = 0, kg = 0;
-            NOT_UNUSED(ig);
-            NOT_UNUSED(jg);
-            NOT_UNUSED(kg);
-            POINT_VARIABLES();
-            if (point.level >= 0) {
-              coord cell_centre = {.x = x, .y = y, .z = z};
-              double rd = 0.;
-              foreach_dimension() {
-                double dx = ibadapt_periodic_distance_1d(pos.x, cell_centre.x, Period.x);
-                rd += sq(dx);
-              }
-              ib_noise_0[] += exp(-rd/(2.*sq(Delta)));
-            }
-          }
-        }
-      }
-#endif
-    }
-    boundary({ib_noise_0});
-
-    // Temporary scalars can reallocate Basilisk's global `all` list.
-    scalar *adapt_list = list_is_all ? all : list;
-    // astats st_i = adapt_wavelet2 (slist_c, max_c, maxlevel_c, minlevel,
-    // adapt_list);
-    astats st_i =
-        adapt_wavelet(slist_c, max_c, max_level_or_ibm, minlevel, adapt_list);
-
-    st.nc += st_i.nc;
-    st.nf += st_i.nf;
-
-    if (st_i.nf == 0) {
-      break;
-    }
-  }
-
-  free(slist_c);
-  free(max_c);
-  free(maxlevel_c);
 
   ibmm.dirty = true;
 #if _MPI
