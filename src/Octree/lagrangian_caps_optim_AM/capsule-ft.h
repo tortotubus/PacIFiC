@@ -243,6 +243,31 @@ typedef struct Capsules {
 Capsules allCaps;
 #define CAPS(i) (allCaps.caps[i])
 
+#if dimension < 3
+  #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
+#else
+  #define LAG_NODE_NB_NEIGHBORS(M, I) ((M)->topology ? \
+    (M)->topology->node_nb_neighbors[I] : (M)->nodes[I].nb_neighbors)
+  #define LAG_NODE_NEIGHBOR_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->node_neighbor_ids[I][J] : (M)->nodes[I].neighbor_ids[J])
+  #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
+  #define LAG_NODE_NB_TRIANGLES(M, I) ((M)->topology ? \
+    (M)->topology->node_nb_triangles[I] : (M)->nodes[I].nb_triangles)
+  #define LAG_NODE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->node_triangle_ids[I][J] : (M)->nodes[I].triangle_ids[J])
+  #define LAG_EDGE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->edge_triangle_ids[I][J] : (M)->edges[I].triangle_ids[J])
+  #define LAG_TRIANGLE_NODE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->triangle_node_ids[I][J] : (M)->triangles[I].node_ids[J])
+  #define LAG_TRIANGLE_EDGE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->triangle_edge_ids[I][J] : (M)->triangles[I].edge_ids[J])
+#endif
+
+#define LAG_EDGE_NODE_ID(M, I, J) ((M)->topology ? \
+  (M)->topology->edge_node_ids[I][J] : (M)->edges[I].node_ids[J])
+
 
 /**
 ## Initialization, memory management and useful macros.
@@ -265,6 +290,88 @@ void initialize_empty_capsule(lagMesh* mesh) {
   mesh->updated_normals = false;
   mesh->updated_curvatures = false;
   mesh->isactive = false;
+}
+
+lagTopology* copy_lag_topology_from_mesh(lagMesh* mesh) {
+  lagTopology* topology = calloc(1, sizeof(lagTopology));
+  assert(topology);
+  topology->nln = mesh->nln;
+  topology->nle = mesh->nle;
+  topology->edge_node_ids = malloc(mesh->nle*sizeof(int[2]));
+  assert(topology->edge_node_ids);
+
+  #if dimension < 3
+    topology->node_edge_ids = malloc(mesh->nln*sizeof(int[2]));
+    assert(topology->node_edge_ids);
+  #else
+    topology->nlt = mesh->nlt;
+    topology->node_nb_neighbors = malloc(mesh->nln*sizeof(int));
+    topology->node_neighbor_ids = malloc(mesh->nln*sizeof(int[6]));
+    topology->node_edge_ids = malloc(mesh->nln*sizeof(int[6]));
+    topology->node_nb_triangles = malloc(mesh->nln*sizeof(int));
+    topology->node_triangle_ids = malloc(mesh->nln*sizeof(int[6]));
+    topology->edge_triangle_ids = malloc(mesh->nle*sizeof(int[2]));
+    topology->triangle_node_ids = malloc(mesh->nlt*sizeof(int[3]));
+    topology->triangle_edge_ids = malloc(mesh->nlt*sizeof(int[3]));
+    assert(topology->node_nb_neighbors);
+    assert(topology->node_neighbor_ids);
+    assert(topology->node_edge_ids);
+    assert(topology->node_nb_triangles);
+    assert(topology->node_triangle_ids);
+    assert(topology->edge_triangle_ids);
+    assert(topology->triangle_node_ids);
+    assert(topology->triangle_edge_ids);
+  #endif
+
+  for(int i=0; i<mesh->nln; i++) {
+    #if dimension < 3
+      for(int j=0; j<2; j++)
+        topology->node_edge_ids[i][j] = mesh->nodes[i].edge_ids[j];
+    #else
+      topology->node_nb_neighbors[i] = mesh->nodes[i].nb_neighbors;
+      topology->node_nb_triangles[i] = mesh->nodes[i].nb_triangles;
+      for(int j=0; j<6; j++) {
+        topology->node_neighbor_ids[i][j] = mesh->nodes[i].neighbor_ids[j];
+        topology->node_edge_ids[i][j] = mesh->nodes[i].edge_ids[j];
+        topology->node_triangle_ids[i][j] = mesh->nodes[i].triangle_ids[j];
+      }
+    #endif
+  }
+  for(int i=0; i<mesh->nle; i++) {
+    for(int j=0; j<2; j++)
+      topology->edge_node_ids[i][j] = mesh->edges[i].node_ids[j];
+    #if dimension > 2
+      for(int j=0; j<2; j++)
+        topology->edge_triangle_ids[i][j] = mesh->edges[i].triangle_ids[j];
+    #endif
+  }
+  #if dimension > 2
+    for(int i=0; i<mesh->nlt; i++) {
+      for(int j=0; j<3; j++) {
+        topology->triangle_node_ids[i][j] = mesh->triangles[i].node_ids[j];
+        topology->triangle_edge_ids[i][j] = mesh->triangles[i].edge_ids[j];
+      }
+    }
+  #endif
+  return topology;
+}
+
+void free_lag_topology(lagTopology* topology) {
+  if (!topology) return;
+  free(topology->edge_node_ids);
+  #if dimension < 3
+    free(topology->node_edge_ids);
+  #else
+    free(topology->node_nb_neighbors);
+    free(topology->node_neighbor_ids);
+    free(topology->node_edge_ids);
+    free(topology->node_nb_triangles);
+    free(topology->node_triangle_ids);
+    free(topology->edge_triangle_ids);
+    free(topology->triangle_node_ids);
+    free(topology->triangle_edge_ids);
+  #endif
+  free(topology);
 }
 
 void free_one_caps(lagMesh* mesh) {
