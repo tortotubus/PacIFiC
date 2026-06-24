@@ -47,8 +47,8 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
   for(int i=0; i<nln; i++) {
     p.mesh->nodes[i].pos.x = radius*cos(alpha*i) + shift.x;
     p.mesh->nodes[i].pos.y = radius*sin(alpha*i) + shift.y;
-    p.mesh->nodes[i].edge_ids[0] = -1;
-    p.mesh->nodes[i].edge_ids[1] = -1;
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, -1);
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, -1);
     foreach_dimension() {
       p.mesh->nodes[i].lagForce.x = 0.;
       p.mesh->nodes[i].lagVel.x = 0.;
@@ -57,22 +57,22 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
   /** Fill the array of edges.
   For the last edge, the next vertex id is 0 */
   for(int i=0; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].node_ids[0] = i;
-    if (p.mesh->nodes[i].edge_ids[0] < 0)
-      p.mesh->nodes[i].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 0, i);
+    if (LAG_NODE_EDGE_ID(p.mesh, i, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, i);
     else
-      p.mesh->nodes[i].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, i);
     int next_vertex_id = (i+1<nln) ? i+1 : 0;
-    p.mesh->edges[i].node_ids[1] = next_vertex_id;
-    if (p.mesh->nodes[next_vertex_id].edge_ids[0] < 0)
-      p.mesh->nodes[next_vertex_id].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 1, next_vertex_id);
+    if (LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0, i);
     else
-      p.mesh->nodes[next_vertex_id].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 1, i);
   }
   /** The above procedure switches the two egde ids for the first node, which
   we correct below */
-  p.mesh->nodes[0].edge_ids[0] = p.mesh->nle-1;
-  p.mesh->nodes[0].edge_ids[1] = 0;
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 0, p.mesh->nle-1);
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
     p.mesh->edges[i].l0 = edge_length(p.mesh, i);
@@ -115,8 +115,8 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
       shift.x;
     p.mesh->nodes[i].pos.y = nrx*sin(inclination) + nry*cos(inclination) +
       shift.y;
-    p.mesh->nodes[i].edge_ids[0] = -1;
-    p.mesh->nodes[i].edge_ids[1] = -1;
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, -1);
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, -1);
     foreach_dimension() {
       p.mesh->nodes[i].lagForce.x = 0.;
       p.mesh->nodes[i].lagVel.x = 0.;
@@ -125,22 +125,22 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
   /** Fill the array of edges.
   For the last edge, the next vertex id is 0 */
   for(int i=0; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].node_ids[0] = i;
-    if (p.mesh->nodes[i].edge_ids[0] < 0)
-      p.mesh->nodes[i].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 0, i);
+    if (LAG_NODE_EDGE_ID(p.mesh, i, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, i);
     else
-      p.mesh->nodes[i].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, i);
     int next_vertex_id = (i+1<nln) ? i+1 : 0;
-    p.mesh->edges[i].node_ids[1] = next_vertex_id;
-    if (p.mesh->nodes[next_vertex_id].edge_ids[0] < 0)
-      p.mesh->nodes[next_vertex_id].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 1, next_vertex_id);
+    if (LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0, i);
     else
-      p.mesh->nodes[next_vertex_id].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 1, i);
   }
   /** The above procedure switches the two egde ids for the first node, which
   we correct below */
-  p.mesh->nodes[0].edge_ids[0] = p.mesh->nle-1;
-  p.mesh->nodes[0].edge_ids[1] = 0;
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 0, p.mesh->nle-1);
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
     p.mesh->edges[i].l0 = edge_length(p.mesh, i);
@@ -178,8 +178,8 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
   for(int i=0; i<nln; i++) {
     p.mesh->nodes[i].pos.x = a*cos(alpha*i);
     p.mesh->nodes[i].pos.y = b*sin(alpha*i);
-    p.mesh->nodes[i].edge_ids[0] = -1;
-    p.mesh->nodes[i].edge_ids[1] = -1;
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, -1);
+    SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, -1);
     foreach_dimension() {
       p.mesh->nodes[i].lagForce.x = 0.;
       p.mesh->nodes[i].lagVel.x = 0.;
@@ -188,22 +188,22 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
   /** Fill the array of edges.
   For the last edge, the next vertex id is 0 */
   for(int i=0; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].node_ids[0] = i;
-    if (p.mesh->nodes[i].edge_ids[0] < 0)
-      p.mesh->nodes[i].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 0, i);
+    if (LAG_NODE_EDGE_ID(p.mesh, i, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 0, i);
     else
-      p.mesh->nodes[i].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, i, 1, i);
     int next_vertex_id = (i+1<nln) ? i+1 : 0;
-    p.mesh->edges[i].node_ids[1] = next_vertex_id;
-    if (p.mesh->nodes[next_vertex_id].edge_ids[0] < 0)
-      p.mesh->nodes[next_vertex_id].edge_ids[0] = i;
+    SET_LAG_EDGE_NODE_ID(p.mesh, i, 1, next_vertex_id);
+    if (LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0) < 0)
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 0, i);
     else
-      p.mesh->nodes[next_vertex_id].edge_ids[1] = i;
+      SET_LAG_NODE_EDGE_ID(p.mesh, next_vertex_id, 1, i);
   }
   /** The above procedure switches the two egde ids for the first node, which
   we correct below */
-  p.mesh->nodes[0].edge_ids[0] = p.mesh->nle-1;
-  p.mesh->nodes[0].edge_ids[1] = 0;
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 0, p.mesh->nle-1);
+  SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
     p.mesh->edges[i].l0 = edge_length(p.mesh, i);
@@ -245,8 +245,8 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
   int s[9] = {0, 1, 1, -1, -1, -1, 1, -1, 1}; // s for "signs"
   for(int i=0; i<3; i++) {
     for(int j=0; j<4; j++) {
-      p.mesh->nodes[i*4+j].nb_neighbors = 0;
-      p.mesh->nodes[i*4+j].nb_triangles = i;
+      SET_LAG_NODE_NB_NEIGHBORS(p.mesh, i*4+j, 0);
+      SET_LAG_NODE_NB_TRIANGLES(p.mesh, i*4+j, i);
       foreach_dimension()
         p.mesh->nodes[i*4+j].pos.x = c[i].x*
           s[(1+j+4*((fabs(c[i].x - sl) < 1.e-8) ? 0 : 1))*
@@ -258,10 +258,10 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
   * Create the edges
   */
   for(int i=0; i<p.mesh->nln; i++) {
-    int my_gr = p.mesh->nodes[i].nb_triangles; // gr for "golden ratio"
+    int my_gr = LAG_NODE_NB_TRIANGLES(p.mesh, i); // gr for "golden ratio"
     int my_ld_sign = GET_LD_SIGN(p.mesh->nodes[i]); // ld for "large distance"
     for(int j=0; j<p.mesh->nln; j++) {
-      if (p.mesh->nodes[j].nb_triangles == my_gr && j != i) {
+      if (LAG_NODE_NB_TRIANGLES(p.mesh, j) == my_gr && j != i) {
         if (my_ld_sign == GET_LD_SIGN(p.mesh->nodes[j])) {
           if (write_edge((_write_edge){.mesh=p.mesh, .i=p.mesh->nle, .j=i, .k=j, .new_mesh = true}))
             p.mesh->nle++;
@@ -280,17 +280,17 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
   * Create the triangular faces
   */
   for(int i=0; i<p.mesh->nln; i++) {
-    p.mesh->nodes[i].nb_triangles = 0;
+    SET_LAG_NODE_NB_TRIANGLES(p.mesh, i, 0);
   }
   for(int i=0; i<p.mesh->nle; i++) {
     int nid[2];
-    for(int j=0; j<2; j++) nid[j] = p.mesh->edges[i].node_ids[j];
-    for(int j=0; j<p.mesh->nodes[nid[0]].nb_neighbors; j++) {
-      for(int k=0; k<p.mesh->nodes[nid[1]].nb_neighbors; k++) {
-        if (p.mesh->nodes[nid[0]].neighbor_ids[j] ==
-          p.mesh->nodes[nid[1]].neighbor_ids[k] && p.mesh->nodes[nid[0]].neighbor_ids[j] != -1)
+    for(int j=0; j<2; j++) nid[j] = LAG_EDGE_NODE_ID(p.mesh, i, j);
+    for(int j=0; j<LAG_NODE_NB_NEIGHBORS(p.mesh, nid[0]); j++) {
+      for(int k=0; k<LAG_NODE_NB_NEIGHBORS(p.mesh, nid[1]); k++) {
+        if (LAG_NODE_NEIGHBOR_ID(p.mesh, nid[0], j) ==
+          LAG_NODE_NEIGHBOR_ID(p.mesh, nid[1], k) && LAG_NODE_NEIGHBOR_ID(p.mesh, nid[0], j) != -1)
           if (write_triangle((_write_triangle){.mesh=p.mesh, .tid=p.mesh->nlt, .i=nid[0], .j=nid[1],
-            .k=p.mesh->nodes[nid[0]].neighbor_ids[j]}))
+            .k=LAG_NODE_NEIGHBOR_ID(p.mesh, nid[0], j)}))
               p.mesh->nlt++;
       }
     }

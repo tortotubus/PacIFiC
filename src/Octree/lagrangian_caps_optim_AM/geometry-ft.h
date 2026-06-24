@@ -94,8 +94,8 @@ void comp_initial_area_normals(lagMesh* mesh) {
     /** If the dot product is negative, the computed normal is inward and we
     need to swap two nodes of the triangle.*/
     if (dp < 0) {
-      mesh->triangles[i].node_ids[1] = nid[2];
-      mesh->triangles[i].node_ids[2] = nid[1];
+      SET_LAG_TRIANGLE_NODE_ID(mesh, i, 1, nid[2]);
+      SET_LAG_TRIANGLE_NODE_ID(mesh, i, 2, nid[1]);
       foreach_dimension() normal.x *= -1;
     }
     foreach_dimension() {
@@ -627,16 +627,18 @@ bool write_edge(_write_edge p) {
   bool overwrite = (p.overwrite) ? p.overwrite : false;
   if (!overwrite && edge_exists(mesh, j, k)) return false;
   else {
-    mesh->edges[i].node_ids[0] = j;
-    mesh->edges[i].node_ids[1] = k;
-    for(int ii=0; ii<2; ii++) mesh->edges[i].triangle_ids[ii] = -1;
+    SET_LAG_EDGE_NODE_ID(mesh, i, 0, j);
+    SET_LAG_EDGE_NODE_ID(mesh, i, 1, k);
+    for(int ii=0; ii<2; ii++) SET_LAG_EDGE_TRIANGLE_ID(mesh, i, ii, -1);
     if (new_mesh) {
-      mesh->nodes[j].neighbor_ids[mesh->nodes[j].nb_neighbors] = k;
-      mesh->nodes[k].neighbor_ids[mesh->nodes[k].nb_neighbors] = j;
-      mesh->nodes[j].edge_ids[mesh->nodes[j].nb_neighbors] = i;
-      mesh->nodes[k].edge_ids[mesh->nodes[k].nb_neighbors] = i;
-      mesh->nodes[j].nb_neighbors++;
-      mesh->nodes[k].nb_neighbors++;
+      int nbj = LAG_NODE_NB_NEIGHBORS(mesh, j);
+      int nbk = LAG_NODE_NB_NEIGHBORS(mesh, k);
+      SET_LAG_NODE_NEIGHBOR_ID(mesh, j, nbj, k);
+      SET_LAG_NODE_NEIGHBOR_ID(mesh, k, nbk, j);
+      SET_LAG_NODE_EDGE_ID(mesh, j, nbj, i);
+      SET_LAG_NODE_EDGE_ID(mesh, k, nbk, i);
+      SET_LAG_NODE_NB_NEIGHBORS(mesh, j, nbj + 1);
+      SET_LAG_NODE_NB_NEIGHBORS(mesh, k, nbk + 1);
     }
     return true;
   }
@@ -651,26 +653,26 @@ void new_edge(lagMesh* mesh, int i, int j) {
   int nodes[2];
   nodes[0] = i; nodes[1] = j;
   for(int k=0; k<2; k++) {
-    mesh->edges[eid].node_ids[k] = nodes[k];
+    SET_LAG_EDGE_NODE_ID(mesh, eid, k, nodes[k]);
 
     /** Add the edge id to the newly connected nodes */
-    for(int l=0; l<mesh->nodes[nodes[k]].nb_neighbors; l++) {
-      if (mesh->nodes[nodes[k]].edge_ids[l] == -1) {
-        mesh->nodes[nodes[k]].edge_ids[l] = eid;
+    for(int l=0; l<LAG_NODE_NB_NEIGHBORS(mesh, nodes[k]); l++) {
+      if (LAG_NODE_EDGE_ID(mesh, nodes[k], l) == -1) {
+        SET_LAG_NODE_EDGE_ID(mesh, nodes[k], l, eid);
         break;
       }
     }
 
     /** Update the neighbors' list of the newly connected nodes */
-    for(int l=0; l<mesh->nodes[nodes[k]].nb_neighbors; l++) {
-      if (mesh->nodes[nodes[k]].neighbor_ids[l] == -1) {
-        mesh->nodes[nodes[k]].neighbor_ids[l] = nodes[(k+1)%2];
+    for(int l=0; l<LAG_NODE_NB_NEIGHBORS(mesh, nodes[k]); l++) {
+      if (LAG_NODE_NEIGHBOR_ID(mesh, nodes[k], l) == -1) {
+        SET_LAG_NODE_NEIGHBOR_ID(mesh, nodes[k], l, nodes[(k+1)%2]);
         break;
       }
     }
 
     /** The newly created edge is not yet surrounded by any triangle */
-    mesh->edges[eid].triangle_ids[k] = -1;
+    SET_LAG_EDGE_TRIANGLE_ID(mesh, eid, k, -1);
   }
   mesh->nle++;
 }
@@ -679,23 +681,23 @@ void new_edge(lagMesh* mesh, int i, int j) {
 at its midpoint. */
 void split_edge(lagMesh* mesh, int i) {
   int nid[2];
-  for(int j=0; j<2; j++) nid[j] = mesh->edges[i].node_ids[j];
+  for(int j=0; j<2; j++) nid[j] = LAG_EDGE_NODE_ID(mesh, i, j);
 
   /** Create new node */
   foreach_dimension()
     mesh->nodes[mesh->nln].pos.x =
       .5*(mesh->nodes[nid[0]].pos.x + mesh->nodes[nid[1]].pos.x);
-  mesh->nodes[mesh->nln].nb_neighbors = 6;
-  mesh->nodes[mesh->nln].nb_triangles = 6;
-  mesh->nodes[mesh->nln].neighbor_ids[0] = nid[0];
-  mesh->nodes[mesh->nln].neighbor_ids[1] = nid[1];
-  mesh->nodes[mesh->nln].edge_ids[0] = i;
-  mesh->nodes[mesh->nln].edge_ids[1] = mesh->nle;
+  SET_LAG_NODE_NB_NEIGHBORS(mesh, mesh->nln, 6);
+  SET_LAG_NODE_NB_TRIANGLES(mesh, mesh->nln, 6);
+  SET_LAG_NODE_NEIGHBOR_ID(mesh, mesh->nln, 0, nid[0]);
+  SET_LAG_NODE_NEIGHBOR_ID(mesh, mesh->nln, 1, nid[1]);
+  SET_LAG_NODE_EDGE_ID(mesh, mesh->nln, 0, i);
+  SET_LAG_NODE_EDGE_ID(mesh, mesh->nln, 1, mesh->nle);
   for(int j=0; j<6; j++) {
-    mesh->nodes[mesh->nln].triangle_ids[j] = -1;
+    SET_LAG_NODE_TRIANGLE_ID(mesh, mesh->nln, j, -1);
     if (j>1) {
-      mesh->nodes[mesh->nln].neighbor_ids[j] = -1;
-      mesh->nodes[mesh->nln].edge_ids[j] = -1;
+      SET_LAG_NODE_NEIGHBOR_ID(mesh, mesh->nln, j, -1);
+      SET_LAG_NODE_EDGE_ID(mesh, mesh->nln, j, -1);
     }
   }
 
@@ -703,20 +705,20 @@ void split_edge(lagMesh* mesh, int i) {
   write_edge((_write_edge){.mesh=mesh, .i = i, .j = nid[0], .k = mesh->nln, .overwrite = true});
   write_edge((_write_edge){.mesh=mesh, .i = mesh->nle, .j = nid[1], .k = mesh->nln});
   for (int j=0; j<2; j++) {
-    mesh->edges[i].triangle_ids[j] = -1;
-    mesh->edges[mesh->nle].triangle_ids[j] = -1;
+    SET_LAG_EDGE_TRIANGLE_ID(mesh, i, j, -1);
+    SET_LAG_EDGE_TRIANGLE_ID(mesh, mesh->nle, j, -1);
   }
 
   /** Update node information: neighboring nodes, connecting edges */
-  for(int j=0; j<mesh->nodes[nid[0]].nb_neighbors; j++)
-    if (mesh->nodes[nid[0]].neighbor_ids[j] == nid[1])
-      mesh->nodes[nid[0]].neighbor_ids[j] = mesh->nln;
-  for(int j=0; j<mesh->nodes[nid[1]].nb_neighbors; j++)
-    if (mesh->nodes[nid[1]].neighbor_ids[j] == nid[0])
-      mesh->nodes[nid[1]].neighbor_ids[j] = mesh->nln;
-  for(int j=0; j<mesh->nodes[nid[1]].nb_neighbors; j++)
-    if (mesh->nodes[nid[1]].edge_ids[j] == i)
-      mesh->nodes[nid[1]].edge_ids[j] = mesh->nle;
+  for(int j=0; j<LAG_NODE_NB_NEIGHBORS(mesh, nid[0]); j++)
+    if (LAG_NODE_NEIGHBOR_ID(mesh, nid[0], j) == nid[1])
+      SET_LAG_NODE_NEIGHBOR_ID(mesh, nid[0], j, mesh->nln);
+  for(int j=0; j<LAG_NODE_NB_NEIGHBORS(mesh, nid[1]); j++)
+    if (LAG_NODE_NEIGHBOR_ID(mesh, nid[1], j) == nid[0])
+      SET_LAG_NODE_NEIGHBOR_ID(mesh, nid[1], j, mesh->nln);
+  for(int j=0; j<LAG_NODE_NB_NEIGHBORS(mesh, nid[1]); j++)
+    if (LAG_NODE_EDGE_ID(mesh, nid[1], j) == i)
+      SET_LAG_NODE_EDGE_ID(mesh, nid[1], j, mesh->nle);
 
   mesh->nln++;
   mesh->nle++;
@@ -780,32 +782,36 @@ bool write_triangle(_write_triangle p) {
   bool overwrite = (p.overwrite) ? p.overwrite : false;
   if (!overwrite && triangle_exists(mesh, i, j, k)) return false;
   else {
-    mesh->triangles[tid].node_ids[0] = i;
-    mesh->triangles[tid].node_ids[1] = j;
-    mesh->triangles[tid].node_ids[2] = k;
+    SET_LAG_TRIANGLE_NODE_ID(mesh, tid, 0, i);
+    SET_LAG_TRIANGLE_NODE_ID(mesh, tid, 1, j);
+    SET_LAG_TRIANGLE_NODE_ID(mesh, tid, 2, k);
     int c = 0;
     for(int a=0; a<3; a++) {
-      int va = mesh->triangles[tid].node_ids[a];
+      int va = LAG_TRIANGLE_NODE_ID(mesh, tid, a);
       int b=(a+1)%3;
-      int vb = mesh->triangles[tid].node_ids[b];
-      for(int m=0; m<mesh->nodes[va].nb_neighbors; m++) {
-        for(int n=0; n<mesh->nodes[vb].nb_neighbors; n++) {
-          if (mesh->nodes[va].edge_ids[m] == mesh->nodes[vb].edge_ids[n]) {
-            mesh->triangles[tid].edge_ids[c] = mesh->nodes[va].edge_ids[m];
+      int vb = LAG_TRIANGLE_NODE_ID(mesh, tid, b);
+      for(int m=0; m<LAG_NODE_NB_NEIGHBORS(mesh, va); m++) {
+        for(int n=0; n<LAG_NODE_NB_NEIGHBORS(mesh, vb); n++) {
+          if (LAG_NODE_EDGE_ID(mesh, va, m) == LAG_NODE_EDGE_ID(mesh, vb, n)) {
+            int eid = LAG_NODE_EDGE_ID(mesh, va, m);
+            SET_LAG_TRIANGLE_EDGE_ID(mesh, tid, c, eid);
             c++;
-            int p = (mesh->edges[mesh->nodes[va].edge_ids[m]].triangle_ids[0]
+            int p = (LAG_EDGE_TRIANGLE_ID(mesh, eid, 0)
               == -1) ? 0 : 1;
-            mesh->edges[mesh->nodes[va].edge_ids[m]].triangle_ids[p] = tid;
+            SET_LAG_EDGE_TRIANGLE_ID(mesh, eid, p, tid);
           }
         }
       }
     }
-    mesh->nodes[i].triangle_ids[mesh->nodes[i].nb_triangles] = tid;
-    mesh->nodes[j].triangle_ids[mesh->nodes[j].nb_triangles] = tid;
-    mesh->nodes[k].triangle_ids[mesh->nodes[k].nb_triangles] = tid;
-    mesh->nodes[i].nb_triangles++;
-    mesh->nodes[j].nb_triangles++;
-    mesh->nodes[k].nb_triangles++;
+    int nbt = LAG_NODE_NB_TRIANGLES(mesh, i);
+    SET_LAG_NODE_TRIANGLE_ID(mesh, i, nbt, tid);
+    SET_LAG_NODE_NB_TRIANGLES(mesh, i, nbt + 1);
+    nbt = LAG_NODE_NB_TRIANGLES(mesh, j);
+    SET_LAG_NODE_TRIANGLE_ID(mesh, j, nbt, tid);
+    SET_LAG_NODE_NB_TRIANGLES(mesh, j, nbt + 1);
+    nbt = LAG_NODE_NB_TRIANGLES(mesh, k);
+    SET_LAG_NODE_TRIANGLE_ID(mesh, k, nbt, tid);
+    SET_LAG_NODE_NB_TRIANGLES(mesh, k, nbt + 1);
     return true;
   }
 }
@@ -828,19 +834,19 @@ void new_triangle(lagMesh* mesh, int i, int j, int k, int prev_tid) {
 
   int tid = mesh->nlt;
   for(int k=0; k<3; k++) {
-    mesh->triangles[tid].node_ids[k] = nodes[k];
+    SET_LAG_TRIANGLE_NODE_ID(mesh, tid, k, nodes[k]);
     /** Specify the id of the new triangle for node k */
     bool replaced_tid = false;
-    for(int l=0; l<mesh->nodes[nodes[k]].nb_triangles; l++)
-      if (mesh->nodes[nodes[k]].triangle_ids[l] == prev_tid) {
-        mesh->nodes[nodes[k]].triangle_ids[l] = tid;
+    for(int l=0; l<LAG_NODE_NB_TRIANGLES(mesh, nodes[k]); l++)
+      if (LAG_NODE_TRIANGLE_ID(mesh, nodes[k], l) == prev_tid) {
+        SET_LAG_NODE_TRIANGLE_ID(mesh, nodes[k], l, tid);
         replaced_tid = true;
         break;
       }
     if (!replaced_tid) {
-      for(int l=0; l<mesh->nodes[nodes[k]].nb_triangles; l++)
-        if (mesh->nodes[nodes[k]].triangle_ids[l] == -1) {
-          mesh->nodes[nodes[k]].triangle_ids[l] = tid;
+      for(int l=0; l<LAG_NODE_NB_TRIANGLES(mesh, nodes[k]); l++)
+        if (LAG_NODE_TRIANGLE_ID(mesh, nodes[k], l) == -1) {
+          SET_LAG_NODE_TRIANGLE_ID(mesh, nodes[k], l, tid);
           replaced_tid = true;
           break;
         }
@@ -849,26 +855,26 @@ void new_triangle(lagMesh* mesh, int i, int j, int k, int prev_tid) {
     triangle; (ii) specify the id of the new triangle for the edges */
     /** First, we find the edge that connects node i to node i+1 */
     int ce = -1; // ce for "current edge
-    for(int l=0; l<mesh->nodes[nodes[k]].nb_neighbors; l++) {
-      ce = mesh->nodes[nodes[k]].edge_ids[l];
-      int cn = (mesh->edges[ce].node_ids[0] == nodes[k]) ?
-        mesh->edges[ce].node_ids[1] : mesh->edges[ce].node_ids[0];
+    for(int l=0; l<LAG_NODE_NB_NEIGHBORS(mesh, nodes[k]); l++) {
+      ce = LAG_NODE_EDGE_ID(mesh, nodes[k], l);
+      int cn = (LAG_EDGE_NODE_ID(mesh, ce, 0) == nodes[k]) ?
+        LAG_EDGE_NODE_ID(mesh, ce, 1) : LAG_EDGE_NODE_ID(mesh, ce, 0);
       if (cn == nodes[(k+1)%3]) break;
     }
     /** Then, we add this edge to the list of edges of our new triangle */
-    mesh->triangles[tid].edge_ids[k] = ce;
+    SET_LAG_TRIANGLE_EDGE_ID(mesh, tid, k, ce);
     /** And we have to update the triangle id of the edge */
     replaced_tid = false;
     for(int l=0; l<2; l++)
-      if (mesh->edges[ce].triangle_ids[l] == prev_tid) {
-        mesh->edges[ce].triangle_ids[l] = tid;
+      if (LAG_EDGE_TRIANGLE_ID(mesh, ce, l) == prev_tid) {
+        SET_LAG_EDGE_TRIANGLE_ID(mesh, ce, l, tid);
         replaced_tid = true;
         break;
       }
-    if (!replaced_tid && mesh->edges[ce].triangle_ids[0] != tid) {
+    if (!replaced_tid && LAG_EDGE_TRIANGLE_ID(mesh, ce, 0) != tid) {
       for(int l=0; l<2; l++)
-        if (mesh->edges[ce].triangle_ids[l] == -1) {
-          mesh->edges[ce].triangle_ids[l] = tid;
+        if (LAG_EDGE_TRIANGLE_ID(mesh, ce, l) == -1) {
+          SET_LAG_EDGE_TRIANGLE_ID(mesh, ce, l, tid);
           replaced_tid = true;
           break;
         }
@@ -882,13 +888,13 @@ void overwrite_triangle(lagMesh* mesh, int tid, int i, int j, int k) {
   nodes[0] = i; nodes[1] = j; nodes[2] = k;
   for(int i=0; i<3; i++) {
     /** 1. Take care of the nodes of the triangle */
-    mesh->triangles[tid].node_ids[i] = nodes[i];
+    SET_LAG_TRIANGLE_NODE_ID(mesh, tid, i, nodes[i]);
     /** Update the list of triangles for the node $i$ */
     bool already_there = false;
-    for(int j=0; j<mesh->nodes[nodes[i]].nb_triangles; j++) {
-      if (mesh->nodes[nodes[i]].triangle_ids[j] == tid) already_there = true;
-      else if (mesh->nodes[nodes[i]].triangle_ids[j] == -1 && !already_there) {
-        mesh->nodes[nodes[i]].triangle_ids[j] = tid;
+    for(int j=0; j<LAG_NODE_NB_TRIANGLES(mesh, nodes[i]); j++) {
+      if (LAG_NODE_TRIANGLE_ID(mesh, nodes[i], j) == tid) already_there = true;
+      else if (LAG_NODE_TRIANGLE_ID(mesh, nodes[i], j) == -1 && !already_there) {
+        SET_LAG_NODE_TRIANGLE_ID(mesh, nodes[i], j, tid);
         break;
       }
     }
@@ -896,18 +902,18 @@ void overwrite_triangle(lagMesh* mesh, int tid, int i, int j, int k) {
     /** 2. Take care of the egdes of the triangle */
     /** 2.1. Identify the edge id connecting nodes $i$, $i+1$ */
     int eid = -1; // eid for "edge id"
-    for(int j=0; j<mesh->nodes[nodes[i]].nb_neighbors; j++) {
-      eid = mesh->nodes[nodes[i]].edge_ids[j];
-      int cn = (mesh->edges[eid].node_ids[0] == nodes[i]) ?
-        mesh->edges[eid].node_ids[1] : mesh->edges[eid].node_ids[0];
+    for(int j=0; j<LAG_NODE_NB_NEIGHBORS(mesh, nodes[i]); j++) {
+      eid = LAG_NODE_EDGE_ID(mesh, nodes[i], j);
+      int cn = (LAG_EDGE_NODE_ID(mesh, eid, 0) == nodes[i]) ?
+        LAG_EDGE_NODE_ID(mesh, eid, 1) : LAG_EDGE_NODE_ID(mesh, eid, 0);
       if (cn == nodes[(i+1)%3]) break;
     }
     /** 2.2 Add this edge to the triangle's list of edges */
-    mesh->triangles[tid].edge_ids[i] = eid;
+    SET_LAG_TRIANGLE_EDGE_ID(mesh, tid, i, eid);
     /** 2.3 Add the triangle id to the edge's list of triangles */
-    int index = (mesh->edges[eid].triangle_ids[0] > -1 &&
-      mesh->edges[eid].triangle_ids[0] != tid) ? 1 : 0;
-    mesh->edges[eid].triangle_ids[index] = tid;
+    int index = (LAG_EDGE_TRIANGLE_ID(mesh, eid, 0) > -1 &&
+      LAG_EDGE_TRIANGLE_ID(mesh, eid, 0) != tid) ? 1 : 0;
+    SET_LAG_EDGE_TRIANGLE_ID(mesh, eid, index, tid);
   }
 }
 
@@ -999,16 +1005,16 @@ void refine_mesh(lagMesh* mesh) {
     int mid_ids[3];
     /** If not done yet, we split each edge into two */
     for(int j=0; j<3; j++) {
-      int edge_id = mesh->triangles[i].edge_ids[j];
-      if (mesh->edges[edge_id].triangle_ids[1] > -1) {
+      int edge_id = LAG_TRIANGLE_EDGE_ID(mesh, i, j);
+      if (LAG_EDGE_TRIANGLE_ID(mesh, edge_id, 1) > -1) {
         split_edge(mesh, edge_id);
         mid_ids[j] = mesh->nln-1;
       }
       else {
         mid_ids[j] = is_triangle_vertex(mesh, i,
-          mesh->edges[edge_id].node_ids[0]) ?
-          mesh->edges[edge_id].node_ids[1] :
-          mesh->edges[edge_id].node_ids[0];
+          LAG_EDGE_NODE_ID(mesh, edge_id, 0)) ?
+          LAG_EDGE_NODE_ID(mesh, edge_id, 1) :
+          LAG_EDGE_NODE_ID(mesh, edge_id, 0);
       }
     }
 
@@ -1020,7 +1026,7 @@ void refine_mesh(lagMesh* mesh) {
       /** Create the corner triangle with the new edge */
       int corner_id = -1;
       for(int k=0; k<3; k++) { // Loop over the current triangle vertices
-        corner_id = mesh->triangles[i].node_ids[k];
+        corner_id = LAG_TRIANGLE_NODE_ID(mesh, i, k);
         if (is_neighbor_ft(mesh, corner_id, mid_ids[j]) &&
           is_neighbor_ft(mesh, corner_id, mid_ids[(j+1)%3])) {
           break;

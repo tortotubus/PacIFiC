@@ -246,6 +246,10 @@ Capsules allCaps;
 #if dimension < 3
   #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
     (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
+  #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
+    else (M)->nodes[I].edge_ids[J] = (V); \
+  } while (0)
 #else
   #define LAG_NODE_NB_NEIGHBORS(M, I) ((M)->topology ? \
     (M)->topology->node_nb_neighbors[I] : (M)->nodes[I].nb_neighbors)
@@ -263,10 +267,46 @@ Capsules allCaps;
     (M)->topology->triangle_node_ids[I][J] : (M)->triangles[I].node_ids[J])
   #define LAG_TRIANGLE_EDGE_ID(M, I, J) ((M)->topology ? \
     (M)->topology->triangle_edge_ids[I][J] : (M)->triangles[I].edge_ids[J])
+  #define SET_LAG_NODE_NB_NEIGHBORS(M, I, V) do { \
+    if ((M)->topology) (M)->topology->node_nb_neighbors[I] = (V); \
+    else (M)->nodes[I].nb_neighbors = (V); \
+  } while (0)
+  #define SET_LAG_NODE_NEIGHBOR_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->node_neighbor_ids[I][J] = (V); \
+    else (M)->nodes[I].neighbor_ids[J] = (V); \
+  } while (0)
+  #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
+    else (M)->nodes[I].edge_ids[J] = (V); \
+  } while (0)
+  #define SET_LAG_NODE_NB_TRIANGLES(M, I, V) do { \
+    if ((M)->topology) (M)->topology->node_nb_triangles[I] = (V); \
+    else (M)->nodes[I].nb_triangles = (V); \
+  } while (0)
+  #define SET_LAG_NODE_TRIANGLE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->node_triangle_ids[I][J] = (V); \
+    else (M)->nodes[I].triangle_ids[J] = (V); \
+  } while (0)
+  #define SET_LAG_EDGE_TRIANGLE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->edge_triangle_ids[I][J] = (V); \
+    else (M)->edges[I].triangle_ids[J] = (V); \
+  } while (0)
+  #define SET_LAG_TRIANGLE_NODE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->triangle_node_ids[I][J] = (V); \
+    else (M)->triangles[I].node_ids[J] = (V); \
+  } while (0)
+  #define SET_LAG_TRIANGLE_EDGE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->triangle_edge_ids[I][J] = (V); \
+    else (M)->triangles[I].edge_ids[J] = (V); \
+  } while (0)
 #endif
 
 #define LAG_EDGE_NODE_ID(M, I, J) ((M)->topology ? \
   (M)->topology->edge_node_ids[I][J] : (M)->edges[I].node_ids[J])
+#define SET_LAG_EDGE_NODE_ID(M, I, J, V) do { \
+  if ((M)->topology) (M)->topology->edge_node_ids[I][J] = (V); \
+  else (M)->edges[I].node_ids[J] = (V); \
+} while (0)
 
 
 /**
