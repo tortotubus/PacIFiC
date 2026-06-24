@@ -1,22 +1,22 @@
 
 # Gallery 
 
-Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis. Tempus leo eu aenean sed diam urna tempor. Pulvinar vivamus fringilla lacus nec metus bibendum egestas. Iaculis massa nisl malesuada lacinia integer nunc posuere. Ut hendrerit semper vel class aptent taciti sociosqu. Ad litora torquent per conubia nostra inceptos himenaeos.
+Here is a preview of what can be simulated using Grains3D.
 
 
-## Markdown Image
+## Example 1
 
 ![Alt text](images/FluidizedBed-PRS-GasSolid.jpg "a title")
 
-## Bootstrap HTML Figure
+## Example 2
 
 <figure class="figure">
   <img src="../images/Spheres-phi=01-Rec=148.jpg" class="figure-img img-fluid rounded" alt="..."> 
-  <figcaption class="figure-caption">A caption for the above image.</figcaption>
+  <figcaption class="figure-caption">Dynamic simulation of n spheres</figcaption>
 </figure>
 
 
-## Bootstrap HTML Carousel
+## Example 3
 
 <div id="carouselExampleIndicators" class="carousel slide" data-bs-ride="true">
   <div class="carousel-indicators">
