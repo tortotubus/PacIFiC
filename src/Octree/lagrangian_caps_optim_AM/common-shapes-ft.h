@@ -41,6 +41,7 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
   p.mesh->nle = nln;
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
+  p.mesh->topology = allocate_lag_topology(nln, nln, 0);
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -104,6 +105,7 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
   p.mesh->nle = nln;
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
+  p.mesh->topology = allocate_lag_topology(nln, nln, 0);
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -172,6 +174,7 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
   p.mesh->nle = nln;
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
+  p.mesh->topology = allocate_lag_topology(nln, nln, 0);
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -231,6 +234,7 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
   p.mesh->edges = malloc(30*sizeof(Edge));
   p.mesh->nlt = 0;
   p.mesh->triangles = malloc(20*sizeof(Triangle));
+  p.mesh->topology = allocate_lag_topology(12, 30, 20);
 
   /**
   * Create the Lagrangian nodes
@@ -357,6 +361,7 @@ void initialize_spherical_capsule(_initialize_circular_capsule p) {
   p.mesh->nodes = realloc(p.mesh->nodes, nn*sizeof(lagNode));
   p.mesh->edges = realloc(p.mesh->edges, ne*sizeof(Edge));
   p.mesh->triangles = realloc(p.mesh->triangles, nt*sizeof(Triangle));
+  resize_lag_topology(p.mesh->topology, nn, ne, nt);
 
   /** It's time to perform our $ns$ triangle subdivisions */
   for(int i=0; i<ns; i++) refine_mesh(p.mesh);
@@ -469,6 +474,7 @@ void activate_spherical_capsule(_initialize_circular_capsule p) {
   p.mesh->isactive = true;
   initialize_spherical_capsule(p);
   attach_shared_lag_topology(p.mesh);
+  debug_lag_topology(p.mesh, "activate_spherical_capsule");
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT
@@ -488,6 +494,7 @@ void activate_biconcave_capsule(_initialize_circular_capsule p) {
   p.mesh->isactive = true;
   initialize_rbc_capsule(p);
   attach_shared_lag_topology(p.mesh);
+  debug_lag_topology(p.mesh, "activate_biconcave_capsule");
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT

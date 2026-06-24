@@ -6,7 +6,8 @@ to restart simulations.
 At the moment these functions are only valid for three-dimensional simulations.
 */
 
-void dump_lagnode(FILE* fp, lagNode* node) {
+void dump_lagnode(FILE* fp, lagMesh* mesh, int i) {
+  lagNode* node = &mesh->nodes[i];
   foreach_dimension() fwrite(&(node->pos.x), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(node->lagVel.x), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(node->normal.x), sizeof(double), 1, fp);
@@ -14,14 +15,22 @@ void dump_lagnode(FILE* fp, lagNode* node) {
   fwrite(&(node->gcurv), sizeof(double), 1, fp);
   fwrite(&(node->ref_curv), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(node->lagForce.x), sizeof(double), 1, fp);
-  fwrite(&(node->nb_neighbors), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fwrite(&(node->neighbor_ids[j]), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fwrite(&(node->edge_ids[j]), sizeof(int), 1, fp);
-  fwrite(&(node->nb_triangles), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fwrite(&(node->triangle_ids[j]), sizeof(int), 1, fp);
+  int nb_neighbors = LAG_NODE_NB_NEIGHBORS(mesh, i);
+  fwrite(&nb_neighbors, sizeof(int), 1, fp);
+  for(int j=0; j<6; j++) {
+    int id = LAG_NODE_NEIGHBOR_ID(mesh, i, j);
+    fwrite(&id, sizeof(int), 1, fp);
+  }
+  for(int j=0; j<6; j++) {
+    int id = LAG_NODE_EDGE_ID(mesh, i, j);
+    fwrite(&id, sizeof(int), 1, fp);
+  }
+  int nb_triangles = LAG_NODE_NB_TRIANGLES(mesh, i);
+  fwrite(&nb_triangles, sizeof(int), 1, fp);
+  for(int j=0; j<6; j++) {
+    int id = LAG_NODE_TRIANGLE_ID(mesh, i, j);
+    fwrite(&id, sizeof(int), 1, fp);
+  }
   fwrite(&(node->nb_fit_iterations), sizeof(int), 1, fp);
 }
 
@@ -44,11 +53,16 @@ void restore_lagnode(FILE* fp, lagNode* node) {
   fread(&(node->nb_fit_iterations), sizeof(int), 1, fp);
 }
 
-void dump_edge(FILE* fp, Edge* edge) {
-  fwrite(&(edge->node_ids[0]), sizeof(int), 1, fp);
-  fwrite(&(edge->node_ids[1]), sizeof(int), 1, fp);
-  fwrite(&(edge->triangle_ids[0]), sizeof(int), 1, fp);
-  fwrite(&(edge->triangle_ids[1]), sizeof(int), 1, fp);
+void dump_edge(FILE* fp, lagMesh* mesh, int i) {
+  Edge* edge = &mesh->edges[i];
+  int id = LAG_EDGE_NODE_ID(mesh, i, 0);
+  fwrite(&id, sizeof(int), 1, fp);
+  id = LAG_EDGE_NODE_ID(mesh, i, 1);
+  fwrite(&id, sizeof(int), 1, fp);
+  id = LAG_EDGE_TRIANGLE_ID(mesh, i, 0);
+  fwrite(&id, sizeof(int), 1, fp);
+  id = LAG_EDGE_TRIANGLE_ID(mesh, i, 1);
+  fwrite(&id, sizeof(int), 1, fp);
   fwrite(&(edge->l0), sizeof(double), 1, fp);
   fwrite(&(edge->length), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(edge->normal.x), sizeof(double), 1, fp);
@@ -64,10 +78,13 @@ void restore_edge(FILE* fp, Edge* edge) {
   foreach_dimension() fread(&(edge->normal.x), sizeof(double), 1, fp);
 }
 
-void dump_triangle(FILE* fp, Triangle* triangle) {
+void dump_triangle(FILE* fp, lagMesh* mesh, int i) {
+  Triangle* triangle = &mesh->triangles[i];
   for(int k=0; k<3; k++) {
-    fwrite(&(triangle->node_ids[k]), sizeof(int), 1, fp);
-    fwrite(&(triangle->edge_ids[k]), sizeof(int), 1, fp);
+    int id = LAG_TRIANGLE_NODE_ID(mesh, i, k);
+    fwrite(&id, sizeof(int), 1, fp);
+    id = LAG_TRIANGLE_EDGE_ID(mesh, i, k);
+    fwrite(&id, sizeof(int), 1, fp);
   }
   fwrite(&(triangle->area), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(triangle->normal.x), sizeof(double), 1, fp);
@@ -108,12 +125,12 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   fwrite(&(mesh->cap_es), sizeof(double), 1, fp);
   fwrite(&(mesh->cap_radius), sizeof(double), 1, fp);
   fwrite(&(mesh->nln), sizeof(int), 1, fp);
-  for(int i=0; i<mesh->nln; i++) dump_lagnode(fp, &(mesh->nodes[i]));
+  for(int i=0; i<mesh->nln; i++) dump_lagnode(fp, mesh, i);
   fwrite(&(mesh->nle), sizeof(int), 1, fp);
-  for(int i=0; i<mesh->nle; i++) dump_edge(fp, &(mesh->edges[i]));
+  for(int i=0; i<mesh->nle; i++) dump_edge(fp, mesh, i);
   fwrite(&(mesh->nlt), sizeof(int), 1, fp);
   for(int i=0; i<mesh->nlt; i++) 
-    dump_triangle(fp, &(mesh->triangles[i]));
+    dump_triangle(fp, mesh, i);
   foreach_dimension() fwrite(&(mesh->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(mesh->ang_vel.x), sizeof(double), 1, fp);
   fwrite(&(mesh->volume), sizeof(double), 1, fp);
@@ -180,8 +197,10 @@ void restore_capsules(char* filename) {
   assert(file);
   for(int i=0; i<NCAPS; i++) {
     restore_lagmesh(file, &CAPS(i));
-    if (CAPS(i).isactive)
+    if (CAPS(i).isactive) {
       attach_shared_lag_topology(&CAPS(i));
+      debug_lag_topology(&CAPS(i), "restore_capsules");
+    }
   }
   fclose(file);
   initialize_all_capsules_stencils();

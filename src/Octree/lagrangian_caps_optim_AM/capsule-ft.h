@@ -231,6 +231,9 @@ the simulation. It is one by default. */
 #ifndef RESTART_CASE
   #define RESTART_CASE 0
 #endif
+#ifndef LAG_TOPOLOGY_DEBUG
+  #define LAG_TOPOLOGY_DEBUG 0
+#endif
 
 /** The Lagrangian mesh is accessible in the code thanks to the structure
 below, which is simply an array of Lagrangian meshes (useful when several of
@@ -332,27 +335,27 @@ void initialize_empty_capsule(lagMesh* mesh) {
   mesh->isactive = false;
 }
 
-lagTopology* copy_lag_topology_from_mesh(lagMesh* mesh) {
+lagTopology* allocate_lag_topology(int nln, int nle, int nlt) {
   lagTopology* topology = calloc(1, sizeof(lagTopology));
   assert(topology);
-  topology->nln = mesh->nln;
-  topology->nle = mesh->nle;
-  topology->edge_node_ids = malloc(mesh->nle*sizeof(int[2]));
+  topology->nln = nln;
+  topology->nle = nle;
+  topology->edge_node_ids = malloc(nle*sizeof(int[2]));
   assert(topology->edge_node_ids);
 
   #if dimension < 3
-    topology->node_edge_ids = malloc(mesh->nln*sizeof(int[2]));
+    topology->node_edge_ids = malloc(nln*sizeof(int[2]));
     assert(topology->node_edge_ids);
   #else
-    topology->nlt = mesh->nlt;
-    topology->node_nb_neighbors = malloc(mesh->nln*sizeof(int));
-    topology->node_neighbor_ids = malloc(mesh->nln*sizeof(int[6]));
-    topology->node_edge_ids = malloc(mesh->nln*sizeof(int[6]));
-    topology->node_nb_triangles = malloc(mesh->nln*sizeof(int));
-    topology->node_triangle_ids = malloc(mesh->nln*sizeof(int[6]));
-    topology->edge_triangle_ids = malloc(mesh->nle*sizeof(int[2]));
-    topology->triangle_node_ids = malloc(mesh->nlt*sizeof(int[3]));
-    topology->triangle_edge_ids = malloc(mesh->nlt*sizeof(int[3]));
+    topology->nlt = nlt;
+    topology->node_nb_neighbors = malloc(nln*sizeof(int));
+    topology->node_neighbor_ids = malloc(nln*sizeof(int[6]));
+    topology->node_edge_ids = malloc(nln*sizeof(int[6]));
+    topology->node_nb_triangles = malloc(nln*sizeof(int));
+    topology->node_triangle_ids = malloc(nln*sizeof(int[6]));
+    topology->edge_triangle_ids = malloc(nle*sizeof(int[2]));
+    topology->triangle_node_ids = malloc(nlt*sizeof(int[3]));
+    topology->triangle_edge_ids = malloc(nlt*sizeof(int[3]));
     assert(topology->node_nb_neighbors);
     assert(topology->node_neighbor_ids);
     assert(topology->node_edge_ids);
@@ -363,33 +366,137 @@ lagTopology* copy_lag_topology_from_mesh(lagMesh* mesh) {
     assert(topology->triangle_edge_ids);
   #endif
 
+  for(int i=0; i<nln; i++) {
+    #if dimension < 3
+      for(int j=0; j<2; j++) topology->node_edge_ids[i][j] = -1;
+    #else
+      topology->node_nb_neighbors[i] = 0;
+      topology->node_nb_triangles[i] = 0;
+      for(int j=0; j<6; j++) {
+        topology->node_neighbor_ids[i][j] = -1;
+        topology->node_edge_ids[i][j] = -1;
+        topology->node_triangle_ids[i][j] = -1;
+      }
+    #endif
+  }
+  for(int i=0; i<nle; i++) {
+    for(int j=0; j<2; j++) topology->edge_node_ids[i][j] = -1;
+    #if dimension > 2
+      for(int j=0; j<2; j++) topology->edge_triangle_ids[i][j] = -1;
+    #endif
+  }
+  #if dimension > 2
+    for(int i=0; i<nlt; i++)
+      for(int j=0; j<3; j++) {
+        topology->triangle_node_ids[i][j] = -1;
+        topology->triangle_edge_ids[i][j] = -1;
+      }
+  #endif
+
+  return topology;
+}
+
+void resize_lag_topology(lagTopology* topology, int nln, int nle, int nlt) {
+  assert(topology);
+  int old_nln = topology->nln;
+  int old_nle = topology->nle;
+  #if dimension > 2
+    int old_nlt = topology->nlt;
+  #endif
+
+  topology->nln = nln;
+  topology->nle = nle;
+  topology->edge_node_ids = realloc(topology->edge_node_ids, nle*sizeof(int[2]));
+  assert(topology->edge_node_ids);
+
+  #if dimension < 3
+    topology->node_edge_ids = realloc(topology->node_edge_ids, nln*sizeof(int[2]));
+    assert(topology->node_edge_ids);
+  #else
+    topology->nlt = nlt;
+    topology->node_nb_neighbors = realloc(topology->node_nb_neighbors, nln*sizeof(int));
+    topology->node_neighbor_ids = realloc(topology->node_neighbor_ids, nln*sizeof(int[6]));
+    topology->node_edge_ids = realloc(topology->node_edge_ids, nln*sizeof(int[6]));
+    topology->node_nb_triangles = realloc(topology->node_nb_triangles, nln*sizeof(int));
+    topology->node_triangle_ids = realloc(topology->node_triangle_ids, nln*sizeof(int[6]));
+    topology->edge_triangle_ids = realloc(topology->edge_triangle_ids, nle*sizeof(int[2]));
+    topology->triangle_node_ids = realloc(topology->triangle_node_ids, nlt*sizeof(int[3]));
+    topology->triangle_edge_ids = realloc(topology->triangle_edge_ids, nlt*sizeof(int[3]));
+    assert(topology->node_nb_neighbors);
+    assert(topology->node_neighbor_ids);
+    assert(topology->node_edge_ids);
+    assert(topology->node_nb_triangles);
+    assert(topology->node_triangle_ids);
+    assert(topology->edge_triangle_ids);
+    assert(topology->triangle_node_ids);
+    assert(topology->triangle_edge_ids);
+  #endif
+
+  for(int i=old_nln; i<nln; i++) {
+    #if dimension < 3
+      for(int j=0; j<2; j++) topology->node_edge_ids[i][j] = -1;
+    #else
+      topology->node_nb_neighbors[i] = 0;
+      topology->node_nb_triangles[i] = 0;
+      for(int j=0; j<6; j++) {
+        topology->node_neighbor_ids[i][j] = -1;
+        topology->node_edge_ids[i][j] = -1;
+        topology->node_triangle_ids[i][j] = -1;
+      }
+    #endif
+  }
+  for(int i=old_nle; i<nle; i++) {
+    for(int j=0; j<2; j++) topology->edge_node_ids[i][j] = -1;
+    #if dimension > 2
+      for(int j=0; j<2; j++) topology->edge_triangle_ids[i][j] = -1;
+    #endif
+  }
+  #if dimension > 2
+    for(int i=old_nlt; i<nlt; i++)
+      for(int j=0; j<3; j++) {
+        topology->triangle_node_ids[i][j] = -1;
+        topology->triangle_edge_ids[i][j] = -1;
+      }
+  #else
+    (void) nlt;
+  #endif
+}
+
+lagTopology* copy_lag_topology_from_mesh(lagMesh* mesh) {
+  #if dimension > 2
+    int nlt = mesh->nlt;
+  #else
+    int nlt = 0;
+  #endif
+  lagTopology* topology = allocate_lag_topology(mesh->nln, mesh->nle, nlt);
+
   for(int i=0; i<mesh->nln; i++) {
     #if dimension < 3
       for(int j=0; j<2; j++)
-        topology->node_edge_ids[i][j] = mesh->nodes[i].edge_ids[j];
+        topology->node_edge_ids[i][j] = LAG_NODE_EDGE_ID(mesh, i, j);
     #else
-      topology->node_nb_neighbors[i] = mesh->nodes[i].nb_neighbors;
-      topology->node_nb_triangles[i] = mesh->nodes[i].nb_triangles;
+      topology->node_nb_neighbors[i] = LAG_NODE_NB_NEIGHBORS(mesh, i);
+      topology->node_nb_triangles[i] = LAG_NODE_NB_TRIANGLES(mesh, i);
       for(int j=0; j<6; j++) {
-        topology->node_neighbor_ids[i][j] = mesh->nodes[i].neighbor_ids[j];
-        topology->node_edge_ids[i][j] = mesh->nodes[i].edge_ids[j];
-        topology->node_triangle_ids[i][j] = mesh->nodes[i].triangle_ids[j];
+        topology->node_neighbor_ids[i][j] = LAG_NODE_NEIGHBOR_ID(mesh, i, j);
+        topology->node_edge_ids[i][j] = LAG_NODE_EDGE_ID(mesh, i, j);
+        topology->node_triangle_ids[i][j] = LAG_NODE_TRIANGLE_ID(mesh, i, j);
       }
     #endif
   }
   for(int i=0; i<mesh->nle; i++) {
     for(int j=0; j<2; j++)
-      topology->edge_node_ids[i][j] = mesh->edges[i].node_ids[j];
+      topology->edge_node_ids[i][j] = LAG_EDGE_NODE_ID(mesh, i, j);
     #if dimension > 2
       for(int j=0; j<2; j++)
-        topology->edge_triangle_ids[i][j] = mesh->edges[i].triangle_ids[j];
+        topology->edge_triangle_ids[i][j] = LAG_EDGE_TRIANGLE_ID(mesh, i, j);
     #endif
   }
   #if dimension > 2
     for(int i=0; i<mesh->nlt; i++) {
       for(int j=0; j<3; j++) {
-        topology->triangle_node_ids[i][j] = mesh->triangles[i].node_ids[j];
-        topology->triangle_edge_ids[i][j] = mesh->triangles[i].edge_ids[j];
+        topology->triangle_node_ids[i][j] = LAG_TRIANGLE_NODE_ID(mesh, i, j);
+        topology->triangle_edge_ids[i][j] = LAG_TRIANGLE_EDGE_ID(mesh, i, j);
       }
     }
   #endif
@@ -422,6 +529,137 @@ typedef struct lagTopologyRegistry {
 
 static lagTopologyRegistry lag_topologies = {0, 0, NULL};
 
+#if LAG_TOPOLOGY_DEBUG
+  void lag_topology_debug_error(int* errors, const char* what, int a, int b, int c) {
+    if (*errors < 20)
+      fprintf(stderr, "lagTopology debug error: %s (%d, %d, %d)\n", what, a, b, c);
+    (*errors)++;
+  }
+
+  int lag_topology_validate(lagMesh* mesh) {
+    int errors = 0;
+    if (!mesh->topology)
+      lag_topology_debug_error(&errors, "missing topology", mesh->cap_id, -1, -1);
+    if (mesh->topology && mesh->topology->nln != mesh->nln)
+      lag_topology_debug_error(&errors, "nln mismatch", mesh->topology->nln, mesh->nln, -1);
+    if (mesh->topology && mesh->topology->nle != mesh->nle)
+      lag_topology_debug_error(&errors, "nle mismatch", mesh->topology->nle, mesh->nle, -1);
+    #if dimension > 2
+      if (mesh->topology && mesh->topology->nlt != mesh->nlt)
+        lag_topology_debug_error(&errors, "nlt mismatch", mesh->topology->nlt, mesh->nlt, -1);
+    #endif
+
+    for(int i=0; i<mesh->nle; i++) {
+      int n0 = LAG_EDGE_NODE_ID(mesh, i, 0);
+      int n1 = LAG_EDGE_NODE_ID(mesh, i, 1);
+      if (n0 < 0 || n0 >= mesh->nln)
+        lag_topology_debug_error(&errors, "edge node 0 out of range", i, n0, mesh->nln);
+      if (n1 < 0 || n1 >= mesh->nln)
+        lag_topology_debug_error(&errors, "edge node 1 out of range", i, n1, mesh->nln);
+    }
+
+    #if dimension < 3
+      for(int i=0; i<mesh->nln; i++)
+        for(int j=0; j<2; j++) {
+          int eid = LAG_NODE_EDGE_ID(mesh, i, j);
+          if (eid < 0 || eid >= mesh->nle)
+            lag_topology_debug_error(&errors, "node edge out of range", i, j, eid);
+        }
+    #else
+      for(int i=0; i<mesh->nln; i++) {
+        int nbn = LAG_NODE_NB_NEIGHBORS(mesh, i);
+        int nbt = LAG_NODE_NB_TRIANGLES(mesh, i);
+        if (nbn < 0 || nbn > 6)
+          lag_topology_debug_error(&errors, "node neighbor count out of range", i, nbn, -1);
+        if (nbt < 0 || nbt > 6)
+          lag_topology_debug_error(&errors, "node triangle count out of range", i, nbt, -1);
+        for(int j=0; j<nbn; j++) {
+          int ngb = LAG_NODE_NEIGHBOR_ID(mesh, i, j);
+          int eid = LAG_NODE_EDGE_ID(mesh, i, j);
+          if (ngb < 0 || ngb >= mesh->nln) {
+            lag_topology_debug_error(&errors, "node neighbor out of range", i, j, ngb);
+            continue;
+          }
+          if (eid < 0 || eid >= mesh->nle)
+            lag_topology_debug_error(&errors, "node edge out of range", i, j, eid);
+          bool reciprocal = false;
+          for(int k=0; k<LAG_NODE_NB_NEIGHBORS(mesh, ngb); k++)
+            if (LAG_NODE_NEIGHBOR_ID(mesh, ngb, k) == i)
+              reciprocal = true;
+          if (!reciprocal)
+            lag_topology_debug_error(&errors, "node neighbor not reciprocal", i, ngb, -1);
+        }
+        for(int j=0; j<nbt; j++) {
+          int tid = LAG_NODE_TRIANGLE_ID(mesh, i, j);
+          if (tid < 0 || tid >= mesh->nlt) {
+            lag_topology_debug_error(&errors, "node triangle out of range", i, j, tid);
+            continue;
+          }
+          bool found = false;
+          for(int k=0; k<3; k++)
+            if (LAG_TRIANGLE_NODE_ID(mesh, tid, k) == i)
+              found = true;
+          if (!found)
+            lag_topology_debug_error(&errors, "node triangle does not contain node", i, tid, -1);
+        }
+      }
+
+      for(int i=0; i<mesh->nlt; i++) {
+        int tn[3];
+        for(int j=0; j<3; j++) {
+          tn[j] = LAG_TRIANGLE_NODE_ID(mesh, i, j);
+          if (tn[j] < 0 || tn[j] >= mesh->nln)
+            lag_topology_debug_error(&errors, "triangle node out of range", i, j, tn[j]);
+        }
+        for(int j=0; j<3; j++) {
+          int eid = LAG_TRIANGLE_EDGE_ID(mesh, i, j);
+          if (eid < 0 || eid >= mesh->nle) {
+            lag_topology_debug_error(&errors, "triangle edge out of range", i, j, eid);
+            continue;
+          }
+          int en0 = LAG_EDGE_NODE_ID(mesh, eid, 0);
+          int en1 = LAG_EDGE_NODE_ID(mesh, eid, 1);
+          bool en0_in_tri = false, en1_in_tri = false;
+          for(int k=0; k<3; k++) {
+            if (tn[k] == en0) en0_in_tri = true;
+            if (tn[k] == en1) en1_in_tri = true;
+          }
+          if (!en0_in_tri || !en1_in_tri)
+            lag_topology_debug_error(&errors, "triangle edge does not match triangle nodes", i, j, eid);
+        }
+      }
+
+      for(int i=0; i<mesh->nle; i++)
+        for(int j=0; j<2; j++) {
+          int tid = LAG_EDGE_TRIANGLE_ID(mesh, i, j);
+          if (tid < 0 || tid >= mesh->nlt)
+            lag_topology_debug_error(&errors, "edge triangle out of range", i, j, tid);
+        }
+    #endif
+
+    return errors;
+  }
+
+  void debug_lag_topology(lagMesh* mesh, const char* context) {
+    int errors = lag_topology_validate(mesh);
+    #if dimension > 2
+      fprintf(stderr,
+        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d nln %d nle %d nlt %d validation_errors %d\n",
+        pid(), context ? context : "none", mesh->cap_id, (void*) mesh->topology,
+        lag_topologies.n, mesh->nln, mesh->nle, mesh->nlt, errors);
+    #else
+      fprintf(stderr,
+        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d nln %d nle %d validation_errors %d\n",
+        pid(), context ? context : "none", mesh->cap_id, (void*) mesh->topology,
+        lag_topologies.n, mesh->nln, mesh->nle, errors);
+    #endif
+    if (errors > 20)
+      fprintf(stderr, "lagTopology debug: %d additional errors suppressed\n", errors - 20);
+  }
+#else
+  #define debug_lag_topology(mesh, context) ((void) 0)
+#endif
+
 bool lag_topology_matches_mesh(lagTopology* topology, lagMesh* mesh) {
   if (!topology || topology->nln != mesh->nln || topology->nle != mesh->nle)
     return false;
@@ -433,35 +671,35 @@ bool lag_topology_matches_mesh(lagTopology* topology, lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) {
     #if dimension < 3
       for(int j=0; j<2; j++)
-        if (topology->node_edge_ids[i][j] != mesh->nodes[i].edge_ids[j])
+        if (topology->node_edge_ids[i][j] != LAG_NODE_EDGE_ID(mesh, i, j))
           return false;
     #else
-      if (topology->node_nb_neighbors[i] != mesh->nodes[i].nb_neighbors ||
-        topology->node_nb_triangles[i] != mesh->nodes[i].nb_triangles)
+      if (topology->node_nb_neighbors[i] != LAG_NODE_NB_NEIGHBORS(mesh, i) ||
+        topology->node_nb_triangles[i] != LAG_NODE_NB_TRIANGLES(mesh, i))
         return false;
       for(int j=0; j<6; j++) {
-        if (topology->node_neighbor_ids[i][j] != mesh->nodes[i].neighbor_ids[j] ||
-          topology->node_edge_ids[i][j] != mesh->nodes[i].edge_ids[j] ||
-          topology->node_triangle_ids[i][j] != mesh->nodes[i].triangle_ids[j])
+        if (topology->node_neighbor_ids[i][j] != LAG_NODE_NEIGHBOR_ID(mesh, i, j) ||
+          topology->node_edge_ids[i][j] != LAG_NODE_EDGE_ID(mesh, i, j) ||
+          topology->node_triangle_ids[i][j] != LAG_NODE_TRIANGLE_ID(mesh, i, j))
           return false;
       }
     #endif
   }
   for(int i=0; i<mesh->nle; i++) {
     for(int j=0; j<2; j++)
-      if (topology->edge_node_ids[i][j] != mesh->edges[i].node_ids[j])
+      if (topology->edge_node_ids[i][j] != LAG_EDGE_NODE_ID(mesh, i, j))
         return false;
     #if dimension > 2
       for(int j=0; j<2; j++)
-        if (topology->edge_triangle_ids[i][j] != mesh->edges[i].triangle_ids[j])
+        if (topology->edge_triangle_ids[i][j] != LAG_EDGE_TRIANGLE_ID(mesh, i, j))
           return false;
     #endif
   }
   #if dimension > 2
     for(int i=0; i<mesh->nlt; i++) {
       for(int j=0; j<3; j++) {
-        if (topology->triangle_node_ids[i][j] != mesh->triangles[i].node_ids[j] ||
-          topology->triangle_edge_ids[i][j] != mesh->triangles[i].edge_ids[j])
+        if (topology->triangle_node_ids[i][j] != LAG_TRIANGLE_NODE_ID(mesh, i, j) ||
+          topology->triangle_edge_ids[i][j] != LAG_TRIANGLE_EDGE_ID(mesh, i, j))
           return false;
       }
     }
@@ -470,10 +708,10 @@ bool lag_topology_matches_mesh(lagTopology* topology, lagMesh* mesh) {
 }
 
 void attach_shared_lag_topology(lagMesh* mesh) {
-  if (mesh->topology)
-    return;
   for(int i=0; i<lag_topologies.n; i++) {
     if (lag_topology_matches_mesh(lag_topologies.items[i], mesh)) {
+      if (mesh->topology && mesh->topology != lag_topologies.items[i])
+        free_lag_topology(mesh->topology);
       mesh->topology = lag_topologies.items[i];
       return;
     }
@@ -484,7 +722,8 @@ void attach_shared_lag_topology(lagMesh* mesh) {
       realloc(lag_topologies.items, lag_topologies.nm*sizeof(lagTopology*));
     assert(lag_topologies.items);
   }
-  mesh->topology = copy_lag_topology_from_mesh(mesh);
+  if (!mesh->topology)
+    mesh->topology = copy_lag_topology_from_mesh(mesh);
   lag_topologies.items[lag_topologies.n++] = mesh->topology;
 }
 
