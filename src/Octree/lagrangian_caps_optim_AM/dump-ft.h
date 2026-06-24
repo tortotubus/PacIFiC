@@ -178,7 +178,11 @@ void dump_capsules(const char* fname, FILE* fp) {
 void restore_capsules(char* filename) {
   FILE* file = fopen(filename, "r");
   assert(file);
-  for(int i=0; i<NCAPS; i++) restore_lagmesh(file, &CAPS(i));
+  for(int i=0; i<NCAPS; i++) {
+    restore_lagmesh(file, &CAPS(i));
+    if (CAPS(i).isactive)
+      attach_shared_lag_topology(&CAPS(i));
+  }
   fclose(file);
   initialize_all_capsules_stencils();
   generate_lag_stencils(true);

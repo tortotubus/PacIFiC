@@ -468,6 +468,7 @@ void activate_spherical_capsule(_initialize_circular_capsule p) {
   p.mesh->cap_type = p.cap_type;
   p.mesh->isactive = true;
   initialize_spherical_capsule(p);
+  attach_shared_lag_topology(p.mesh);
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT
@@ -486,6 +487,7 @@ void activate_biconcave_capsule(_initialize_circular_capsule p) {
   p.mesh->cap_radius = p.cap_radius;
   p.mesh->isactive = true;
   initialize_rbc_capsule(p);
+  attach_shared_lag_topology(p.mesh);
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT

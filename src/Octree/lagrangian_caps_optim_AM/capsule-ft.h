@@ -374,6 +374,89 @@ void free_lag_topology(lagTopology* topology) {
   free(topology);
 }
 
+typedef struct lagTopologyRegistry {
+  int n;
+  int nm;
+  lagTopology** items;
+} lagTopologyRegistry;
+
+static lagTopologyRegistry lag_topologies = {0, 0, NULL};
+
+bool lag_topology_matches_mesh(lagTopology* topology, lagMesh* mesh) {
+  if (!topology || topology->nln != mesh->nln || topology->nle != mesh->nle)
+    return false;
+  #if dimension > 2
+    if (topology->nlt != mesh->nlt)
+      return false;
+  #endif
+
+  for(int i=0; i<mesh->nln; i++) {
+    #if dimension < 3
+      for(int j=0; j<2; j++)
+        if (topology->node_edge_ids[i][j] != mesh->nodes[i].edge_ids[j])
+          return false;
+    #else
+      if (topology->node_nb_neighbors[i] != mesh->nodes[i].nb_neighbors ||
+        topology->node_nb_triangles[i] != mesh->nodes[i].nb_triangles)
+        return false;
+      for(int j=0; j<6; j++) {
+        if (topology->node_neighbor_ids[i][j] != mesh->nodes[i].neighbor_ids[j] ||
+          topology->node_edge_ids[i][j] != mesh->nodes[i].edge_ids[j] ||
+          topology->node_triangle_ids[i][j] != mesh->nodes[i].triangle_ids[j])
+          return false;
+      }
+    #endif
+  }
+  for(int i=0; i<mesh->nle; i++) {
+    for(int j=0; j<2; j++)
+      if (topology->edge_node_ids[i][j] != mesh->edges[i].node_ids[j])
+        return false;
+    #if dimension > 2
+      for(int j=0; j<2; j++)
+        if (topology->edge_triangle_ids[i][j] != mesh->edges[i].triangle_ids[j])
+          return false;
+    #endif
+  }
+  #if dimension > 2
+    for(int i=0; i<mesh->nlt; i++) {
+      for(int j=0; j<3; j++) {
+        if (topology->triangle_node_ids[i][j] != mesh->triangles[i].node_ids[j] ||
+          topology->triangle_edge_ids[i][j] != mesh->triangles[i].edge_ids[j])
+          return false;
+      }
+    }
+  #endif
+  return true;
+}
+
+void attach_shared_lag_topology(lagMesh* mesh) {
+  if (mesh->topology)
+    return;
+  for(int i=0; i<lag_topologies.n; i++) {
+    if (lag_topology_matches_mesh(lag_topologies.items[i], mesh)) {
+      mesh->topology = lag_topologies.items[i];
+      return;
+    }
+  }
+  if (lag_topologies.n >= lag_topologies.nm) {
+    lag_topologies.nm = lag_topologies.nm ? 2*lag_topologies.nm : 4;
+    lag_topologies.items =
+      realloc(lag_topologies.items, lag_topologies.nm*sizeof(lagTopology*));
+    assert(lag_topologies.items);
+  }
+  mesh->topology = copy_lag_topology_from_mesh(mesh);
+  lag_topologies.items[lag_topologies.n++] = mesh->topology;
+}
+
+void free_shared_lag_topologies() {
+  for(int i=0; i<lag_topologies.n; i++)
+    free_lag_topology(lag_topologies.items[i]);
+  free(lag_topologies.items);
+  lag_topologies.n = 0;
+  lag_topologies.nm = 0;
+  lag_topologies.items = NULL;
+}
+
 void free_one_caps(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].stencil.p);
   for(int i=0; i<mesh->nln; i++) free(mesh->nodes[i].eulcell.p);
@@ -388,6 +471,7 @@ void free_all_caps(Capsules* caps) {
   for(int i=0; i<caps->nbcaps; i++)
     if (CAPS(i).isactive)
       free_one_caps(&(caps->caps[i]));
+  free_shared_lag_topologies();
 }
 
 /**
