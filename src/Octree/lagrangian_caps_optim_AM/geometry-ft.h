@@ -15,8 +15,8 @@ a pointer to the mesh as well as the ID of the edge of interest.
 double edge_length(lagMesh* mesh, int i) {
   double length = 0.;
   int v1, v2;
-  v1 = mesh->edges[i].node_ids[0];
-  v2 = mesh->edges[i].node_ids[1];
+  v1 = LAG_EDGE_NODE_ID(mesh, i, 0);
+  v2 = LAG_EDGE_NODE_ID(mesh, i, 1);
   foreach_dimension() {
     length += sq(GENERAL_1DIST(mesh->nodes[v1].pos.x, mesh->nodes[v2].pos.x, L0*L0_ratio.x));
   }
@@ -52,7 +52,7 @@ a Lagrangian mesh, for 2D simulations.
 */
 void comp_edge_normal(lagMesh* mesh, int i) {
   int node_id[2];
-  for(int j=0; j<2; j++) node_id[j] = mesh->edges[i].node_ids[j];
+  for(int j=0; j<2; j++) node_id[j] = LAG_EDGE_NODE_ID(mesh, i, j);
   mesh->edges[i].normal.y = GENERAL_1DIST(mesh->nodes[node_id[0]].pos.x,
     mesh->nodes[node_id[1]].pos.x, L0*L0_ratio.x );
   mesh->edges[i].normal.x = GENERAL_1DIST(mesh->nodes[node_id[1]].pos.y,
@@ -79,7 +79,7 @@ void comp_initial_area_normals(lagMesh* mesh) {
     assumed the center of the membrane is at the origin. */
     foreach_dimension() centroid.x = 0.;
     for(int j=0; j<3; j++) {
-      nid[j] = mesh->triangles[i].node_ids[j];
+      nid[j] = LAG_TRIANGLE_NODE_ID(mesh, i, j);
       foreach_dimension() centroid.x += mesh->nodes[nid[j]].pos.x/3;
     }
     coord normal, e[2];
@@ -110,7 +110,7 @@ void comp_initial_area_normals(lagMesh* mesh) {
 triangles of the mesh, for 3D simulations. */
 void comp_triangle_area_normal(lagMesh* mesh, int i) {
   int nid[3]; // node ids
-  for(int j=0; j<3; j++) nid[j] = mesh->triangles[i].node_ids[j];
+  for(int j=0; j<3; j++) nid[j] = LAG_TRIANGLE_NODE_ID(mesh, i, j);
   /** The next 15 lines compute the centroid of the triangle, making sure it is
   valid when the triangle lies across periodic boundaries. */
   foreach_dimension() mesh->triangles[i].centroid.x = 0.;
@@ -223,7 +223,7 @@ void comp_volume(lagMesh* mesh) {
     coord nodes[3];
     for(int j=0; j<3; j++)
       foreach_dimension() {
-        double tentative_pos = mesh->nodes[mesh->triangles[i].node_ids[j]].pos.x
+        double tentative_pos = mesh->nodes[LAG_TRIANGLE_NODE_ID(mesh, i, j)].pos.x
           - mesh->centroid.x;
         nodes[j].x = (tentative_pos < origin.x - L0*L0_ratio.x/2) ?
           tentative_pos + L0*L0_ratio.x :
@@ -499,7 +499,7 @@ void comp_normals(lagMesh* mesh) {
       double normn;
       for(int j=0; j<2; j++) {
         int edge_id;
-        edge_id = mesh->nodes[i].edge_ids[j];
+        edge_id = LAG_NODE_EDGE_ID(mesh, i, j);
         l[j] = mesh->edges[edge_id].length;
         comp_edge_normal(mesh, edge_id);
         foreach_dimension() n[j].x = mesh->edges[edge_id].normal.x;
@@ -521,8 +521,8 @@ void comp_normals(lagMesh* mesh) {
     for(int i=0; i<mesh->nln; i++) {
       foreach_dimension() mesh->nodes[i].normal.x = 0.;
       double sw = 0.; // sum of the weights
-      for(int j=0; j<mesh->nodes[i].nb_triangles; j++) {
-        int tid = mesh->nodes[i].triangle_ids[j];
+      for(int j=0; j<LAG_NODE_NB_TRIANGLES(mesh, i); j++) {
+        int tid = LAG_NODE_TRIANGLE_ID(mesh, i, j);
         double dist = 0.;
         foreach_dimension()
           dist += sq(mesh->nodes[i].pos.x - mesh->triangles[tid].centroid.x);
@@ -565,8 +565,8 @@ The macros below are useful to define an icosahedron
 The function below returns true if the two nodes $i$ and $j$ are neighbors
 */
 bool is_neighbor_ft(lagMesh* mesh, int i, int j) {
-  for(int k=0; k<mesh->nodes[i].nb_neighbors; k++) {
-    if (mesh->nodes[i].neighbor_ids[k] == j) return true;
+  for(int k=0; k<LAG_NODE_NB_NEIGHBORS(mesh, i); k++) {
+    if (LAG_NODE_NEIGHBOR_ID(mesh, i, k) == j) return true;
   }
   return false;
 }
@@ -575,9 +575,9 @@ bool is_neighbor_ft(lagMesh* mesh, int i, int j) {
 j */
 bool edge_exists(lagMesh* mesh, int j, int k) {
   for(int i=0; i<mesh->nle; i++) {
-    if ((mesh->edges[i].node_ids[0] == j && mesh->edges[i].node_ids[1] == k)
-      || (mesh->edges[i].node_ids[0] == k
-      && mesh->edges[i].node_ids[1] == j)) return true;
+    if ((LAG_EDGE_NODE_ID(mesh, i, 0) == j && LAG_EDGE_NODE_ID(mesh, i, 1) == k)
+      || (LAG_EDGE_NODE_ID(mesh, i, 0) == k
+      && LAG_EDGE_NODE_ID(mesh, i, 1) == j)) return true;
   }
   return false;
 }
@@ -586,7 +586,7 @@ bool edge_exists(lagMesh* mesh, int j, int k) {
 boundary. */
 bool is_edge_across_periodic(lagMesh* mesh, int i) {
   int n[2];
-  for(int k=0; k<2; k++) n[k] = mesh->edges[i].node_ids[k];
+  for(int k=0; k<2; k++) n[k] = LAG_EDGE_NODE_ID(mesh, i, k);
   if (ACROSS_PERIODIC(mesh->nodes[n[0]].pos.x, mesh->nodes[n[1]].pos.x, L0*L0_ratio.x)
     || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.y, mesh->nodes[n[1]].pos.y, L0*L0_ratio.y)
     || ACROSS_PERIODIC(mesh->nodes[n[0]].pos.z, mesh->nodes[n[1]].pos.z, L0*L0_ratio.z))
@@ -730,11 +730,11 @@ already exists in the mesh. */
 bool triangle_exists(lagMesh* mesh, int i, int j, int k) {
   for(int t=0; t<mesh->nlt; t++) {
     for(int a=0; a<3; a++) {
-      if (mesh->triangles[t].node_ids[a] == i) {
+      if (LAG_TRIANGLE_NODE_ID(mesh, t, a) == i) {
         for(int b=0; b<3; b++) {
-          if (b != a && mesh->triangles[t].node_ids[b] == j) {
+          if (b != a && LAG_TRIANGLE_NODE_ID(mesh, t, b) == j) {
             for(int c=0; c<3; c++) {
-              if (c != a && c != b && mesh->triangles[t].node_ids[c] == k) {
+              if (c != a && c != b && LAG_TRIANGLE_NODE_ID(mesh, t, c) == k) {
                 return true;
               }
             }
@@ -750,7 +750,7 @@ bool triangle_exists(lagMesh* mesh, int i, int j, int k) {
 boundary. */
 bool is_triangle_across_periodic(lagMesh* mesh, int i) {
   int e[3];
-  for(int k=0; k<3; k++) e[k] = mesh->triangles[i].edge_ids[k];
+  for(int k=0; k<3; k++) e[k] = LAG_TRIANGLE_EDGE_ID(mesh, i, k);
   if (is_edge_across_periodic(mesh, e[0])
     || is_edge_across_periodic(mesh, e[1])
     || is_edge_across_periodic(mesh, e[2]))
@@ -914,7 +914,7 @@ void overwrite_triangle(lagMesh* mesh, int tid, int i, int j, int k) {
 /** The function below returns true if node j is a vertex of triangle i */
 bool is_triangle_vertex(lagMesh* mesh, int i, int j) {
   for(int k=0; k<3; k++) {
-    if (mesh->triangles[i].node_ids[k] == j) return true;
+    if (LAG_TRIANGLE_NODE_ID(mesh, i, k) == j) return true;
   }
   return false;
 }
@@ -947,9 +947,9 @@ bool is_obtuse_node(lagMesh* mesh, int tid, int i) {
   int count_pts = 1;
   for(int j=0; j<3; j++)
   {
-      if(mesh->triangles[tid].node_ids[j] != i)
+      if(LAG_TRIANGLE_NODE_ID(mesh, tid, j) != i)
       {
-        n[count_pts] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+        n[count_pts] = &(mesh->nodes[LAG_TRIANGLE_NODE_ID(mesh, tid, j)]);
         count_pts ++;
       }
   }
@@ -968,7 +968,7 @@ three angles.
 bool is_obtuse_triangle(lagMesh* mesh, int tid) {
   lagNode* n[3];
   for(int j=0; j<3; j++)
-    n[j] = &(mesh->nodes[mesh->triangles[tid].node_ids[j]]);
+    n[j] = &(mesh->nodes[LAG_TRIANGLE_NODE_ID(mesh, tid, j)]);
   if (comp_angle(n[0], n[1], n[2]) > pi/2.) return true;
   else if (comp_angle(n[1], n[2], n[0]) > pi/2.) return true;
   else if (comp_angle(n[2], n[0], n[1]) > pi/2.) return true;
@@ -1114,8 +1114,8 @@ The function below computes the nodal area of node $i$.
 trace
 double compute_node_area(lagMesh* mesh, int i) {
   double area = 0.;
-  for(int j=0; j<mesh->nodes[i].nb_triangles; j++) {
-    int tid = mesh->nodes[i].triangle_ids[j];
+  for(int j=0; j<LAG_NODE_NB_TRIANGLES(mesh, i); j++) {
+    int tid = LAG_NODE_TRIANGLE_ID(mesh, i, j);
     if (is_obtuse_triangle(mesh, tid)) {
       area += (is_obtuse_node(mesh, tid, i)) ? mesh->triangles[tid].area/2 :
         mesh->triangles[tid].area/4;
@@ -1123,25 +1123,25 @@ double compute_node_area(lagMesh* mesh, int i) {
     else {
       double voronoi_area = 0.;
       for(int k=0; k<3; k++) {
-        int nid = mesh->triangles[tid].node_ids[k];
+        int nid = LAG_TRIANGLE_NODE_ID(mesh, tid, k);
         if (nid != i) {
           int eid = -1; // eid for "edge id", connecting i and nid
           for (int l=0; l<3; l++) {
-            int teid = mesh->triangles[tid].edge_ids[l]; // temporary edge id
-            if ((mesh->edges[teid].node_ids[0] == i ||
-              mesh->edges[teid].node_ids[1] == i) &&
-              (mesh->edges[teid].node_ids[0] == nid ||
-              mesh->edges[teid].node_ids[1] == nid)) eid = teid;
+            int teid = LAG_TRIANGLE_EDGE_ID(mesh, tid, l); // temporary edge id
+            if ((LAG_EDGE_NODE_ID(mesh, teid, 0) == i ||
+              LAG_EDGE_NODE_ID(mesh, teid, 1) == i) &&
+              (LAG_EDGE_NODE_ID(mesh, teid, 0) == nid ||
+              LAG_EDGE_NODE_ID(mesh, teid, 1) == nid)) eid = teid;
           }
           int onid[2]; // onid for "opposite node ids"
           // find onid[0], onid[1]
           for(int l=0; l<2; l++) {
             // tneid for "triangle neighboring eid"
-            int tneid = mesh->edges[eid].triangle_ids[l];
+            int tneid = LAG_EDGE_TRIANGLE_ID(mesh, eid, l);
             for(int m=0; m<3; m++)
-              if (mesh->triangles[tneid].node_ids[m] != i &&
-                mesh->triangles[tneid].node_ids[m] != nid)
-                onid[l] = mesh->triangles[tneid].node_ids[m];
+              if (LAG_TRIANGLE_NODE_ID(mesh, tneid, m) != i &&
+                LAG_TRIANGLE_NODE_ID(mesh, tneid, m) != nid)
+                onid[l] = LAG_TRIANGLE_NODE_ID(mesh, tneid, m);
           }
           // compute their angle facing the relevant triangle
           double theta[2];

@@ -34,7 +34,7 @@ void rotate_to_reference_plane(lagMesh* mesh, int tid, coord rn[2],
   double IM[3][3]) {
   if (!mesh->updated_normals) comp_normals(mesh);
   int nodes[3];
-  for(int i=0; i<3; i++) nodes[i] = mesh->triangles[tid].node_ids[i];
+  for(int i=0; i<3; i++) nodes[i] = LAG_TRIANGLE_NODE_ID(mesh, tid, i);
 
   //coord L0_ratio = {1., Dimensions.y/Dimensions.x, Dimensions.z/Dimensions.x};
 
@@ -136,14 +136,14 @@ void comp_elastic_stress(lagMesh* mesh) {
     coord T[2];
     for(int j=0; j<2; j++) {
       int edge_id, edge_node1, edge_node2;
-      edge_id = mesh->nodes[i].edge_ids[j];
+      edge_id = LAG_NODE_EDGE_ID(mesh, i, j);
       double stretch_cube =
         cube(mesh->edges[edge_id].length/mesh->edges[edge_id].l0);
       double tension_norm = (fabs(stretch_cube) > 1.e-10) ?
         mesh->cap_es*(stretch_cube - 1.)/sqrt(stretch_cube) : 0.;
       /** We compute the direction vector $e$ for the tension */
-      edge_node1 = mesh->edges[edge_id].node_ids[0];
-      edge_node2 = mesh->edges[edge_id].node_ids[1];
+      edge_node1 = LAG_EDGE_NODE_ID(mesh, edge_id, 0);
+      edge_node2 = LAG_EDGE_NODE_ID(mesh, edge_id, 1);
       coord e;
       double ne = 0.;
       //coord L0_ratio = {1., Dimensions.y/Dimensions.x, Dimensions.z/Dimensions.x};
@@ -236,7 +236,7 @@ void comp_elastic_stress(lagMesh* mesh) {
     then rotate it and add it to the Lagrangian force of the node */
     for(int j=0; j<3; j++) {
       int nodes[3];
-      for (int k=0; k<3; k++) nodes[k] = mesh->triangles[i].node_ids[k];
+      for (int k=0; k<3; k++) nodes[k] = LAG_TRIANGLE_NODE_ID(mesh, i, k);
 
       /** 5.1 Compute $\frac{\partial \lambda_1}{\partial \bm{v_j}}$ and
       $\frac{\partial \lambda_2}{\partial \bm{v_j}}$ */
