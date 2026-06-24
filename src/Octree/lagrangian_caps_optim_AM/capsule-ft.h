@@ -28,6 +28,10 @@ meant to track the position and compute the stresses of an elasitc membrane.
   #define LUBR_VEL 0
 #endif
 
+#ifndef LAG_SHARED_TOPOLOGY
+  #define LAG_SHARED_TOPOLOGY 1
+#endif
+
 /*Create the Index_lag*/
 scalar Index_lagnode[];
 vector Index_lag_id[];
@@ -83,13 +87,17 @@ typedef struct lagNode {
     int pid;
   #endif
   #if dimension < 3
-    int edge_ids[2];
+    #if !LAG_SHARED_TOPOLOGY
+      int edge_ids[2];
+    #endif
   #else
-    int nb_neighbors;
-    int neighbor_ids[6];
-    int edge_ids[6];
-    int nb_triangles;
-    int triangle_ids[6];
+    #if !LAG_SHARED_TOPOLOGY
+      int nb_neighbors;
+      int neighbor_ids[6];
+      int edge_ids[6];
+      int nb_triangles;
+      int triangle_ids[6];
+    #endif
     double gcurv;
     int nb_fit_iterations;
   #endif
@@ -120,9 +128,11 @@ typedef struct lagNode {
 
 */
 typedef struct Edge {
-  int node_ids[2];
-  #if dimension > 2
-    int triangle_ids[2];
+  #if !LAG_SHARED_TOPOLOGY
+    int node_ids[2];
+    #if dimension > 2
+      int triangle_ids[2];
+    #endif
   #endif
   double l0;
   double length;
@@ -142,8 +152,10 @@ typedef struct Edge {
  */
 #if dimension > 2
   typedef struct Triangle {
-    int node_ids[3];
-    int edge_ids[3];
+    #if !LAG_SHARED_TOPOLOGY
+      int node_ids[3];
+      int edge_ids[3];
+    #endif
     double area;
     coord normal;
     coord centroid;
@@ -246,70 +258,116 @@ typedef struct Capsules {
 Capsules allCaps;
 #define CAPS(i) (allCaps.caps[i])
 
-#if dimension < 3
-  #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
-  #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
-    else (M)->nodes[I].edge_ids[J] = (V); \
+#if LAG_SHARED_TOPOLOGY
+  #if dimension < 3
+    #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology->node_edge_ids[I][J])
+    #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+      (M)->topology->node_edge_ids[I][J] = (V); \
+    } while (0)
+  #else
+    #define LAG_NODE_NB_NEIGHBORS(M, I) ((M)->topology->node_nb_neighbors[I])
+    #define LAG_NODE_NEIGHBOR_ID(M, I, J) ((M)->topology->node_neighbor_ids[I][J])
+    #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology->node_edge_ids[I][J])
+    #define LAG_NODE_NB_TRIANGLES(M, I) ((M)->topology->node_nb_triangles[I])
+    #define LAG_NODE_TRIANGLE_ID(M, I, J) ((M)->topology->node_triangle_ids[I][J])
+    #define LAG_EDGE_TRIANGLE_ID(M, I, J) ((M)->topology->edge_triangle_ids[I][J])
+    #define LAG_TRIANGLE_NODE_ID(M, I, J) ((M)->topology->triangle_node_ids[I][J])
+    #define LAG_TRIANGLE_EDGE_ID(M, I, J) ((M)->topology->triangle_edge_ids[I][J])
+    #define SET_LAG_NODE_NB_NEIGHBORS(M, I, V) do { \
+      (M)->topology->node_nb_neighbors[I] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_NEIGHBOR_ID(M, I, J, V) do { \
+      (M)->topology->node_neighbor_ids[I][J] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+      (M)->topology->node_edge_ids[I][J] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_NB_TRIANGLES(M, I, V) do { \
+      (M)->topology->node_nb_triangles[I] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_TRIANGLE_ID(M, I, J, V) do { \
+      (M)->topology->node_triangle_ids[I][J] = (V); \
+    } while (0)
+    #define SET_LAG_EDGE_TRIANGLE_ID(M, I, J, V) do { \
+      (M)->topology->edge_triangle_ids[I][J] = (V); \
+    } while (0)
+    #define SET_LAG_TRIANGLE_NODE_ID(M, I, J, V) do { \
+      (M)->topology->triangle_node_ids[I][J] = (V); \
+    } while (0)
+    #define SET_LAG_TRIANGLE_EDGE_ID(M, I, J, V) do { \
+      (M)->topology->triangle_edge_ids[I][J] = (V); \
+    } while (0)
+  #endif
+  #define LAG_EDGE_NODE_ID(M, I, J) ((M)->topology->edge_node_ids[I][J])
+  #define SET_LAG_EDGE_NODE_ID(M, I, J, V) do { \
+    (M)->topology->edge_node_ids[I][J] = (V); \
   } while (0)
 #else
-  #define LAG_NODE_NB_NEIGHBORS(M, I) ((M)->topology ? \
-    (M)->topology->node_nb_neighbors[I] : (M)->nodes[I].nb_neighbors)
-  #define LAG_NODE_NEIGHBOR_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->node_neighbor_ids[I][J] : (M)->nodes[I].neighbor_ids[J])
-  #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
-  #define LAG_NODE_NB_TRIANGLES(M, I) ((M)->topology ? \
-    (M)->topology->node_nb_triangles[I] : (M)->nodes[I].nb_triangles)
-  #define LAG_NODE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->node_triangle_ids[I][J] : (M)->nodes[I].triangle_ids[J])
-  #define LAG_EDGE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->edge_triangle_ids[I][J] : (M)->edges[I].triangle_ids[J])
-  #define LAG_TRIANGLE_NODE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->triangle_node_ids[I][J] : (M)->triangles[I].node_ids[J])
-  #define LAG_TRIANGLE_EDGE_ID(M, I, J) ((M)->topology ? \
-    (M)->topology->triangle_edge_ids[I][J] : (M)->triangles[I].edge_ids[J])
-  #define SET_LAG_NODE_NB_NEIGHBORS(M, I, V) do { \
-    if ((M)->topology) (M)->topology->node_nb_neighbors[I] = (V); \
-    else (M)->nodes[I].nb_neighbors = (V); \
-  } while (0)
-  #define SET_LAG_NODE_NEIGHBOR_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->node_neighbor_ids[I][J] = (V); \
-    else (M)->nodes[I].neighbor_ids[J] = (V); \
-  } while (0)
-  #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
-    else (M)->nodes[I].edge_ids[J] = (V); \
-  } while (0)
-  #define SET_LAG_NODE_NB_TRIANGLES(M, I, V) do { \
-    if ((M)->topology) (M)->topology->node_nb_triangles[I] = (V); \
-    else (M)->nodes[I].nb_triangles = (V); \
-  } while (0)
-  #define SET_LAG_NODE_TRIANGLE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->node_triangle_ids[I][J] = (V); \
-    else (M)->nodes[I].triangle_ids[J] = (V); \
-  } while (0)
-  #define SET_LAG_EDGE_TRIANGLE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->edge_triangle_ids[I][J] = (V); \
-    else (M)->edges[I].triangle_ids[J] = (V); \
-  } while (0)
-  #define SET_LAG_TRIANGLE_NODE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->triangle_node_ids[I][J] = (V); \
-    else (M)->triangles[I].node_ids[J] = (V); \
-  } while (0)
-  #define SET_LAG_TRIANGLE_EDGE_ID(M, I, J, V) do { \
-    if ((M)->topology) (M)->topology->triangle_edge_ids[I][J] = (V); \
-    else (M)->triangles[I].edge_ids[J] = (V); \
+  #if dimension < 3
+    #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
+    #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
+      else (M)->nodes[I].edge_ids[J] = (V); \
+    } while (0)
+  #else
+    #define LAG_NODE_NB_NEIGHBORS(M, I) ((M)->topology ? \
+      (M)->topology->node_nb_neighbors[I] : (M)->nodes[I].nb_neighbors)
+    #define LAG_NODE_NEIGHBOR_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->node_neighbor_ids[I][J] : (M)->nodes[I].neighbor_ids[J])
+    #define LAG_NODE_EDGE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->node_edge_ids[I][J] : (M)->nodes[I].edge_ids[J])
+    #define LAG_NODE_NB_TRIANGLES(M, I) ((M)->topology ? \
+      (M)->topology->node_nb_triangles[I] : (M)->nodes[I].nb_triangles)
+    #define LAG_NODE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->node_triangle_ids[I][J] : (M)->nodes[I].triangle_ids[J])
+    #define LAG_EDGE_TRIANGLE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->edge_triangle_ids[I][J] : (M)->edges[I].triangle_ids[J])
+    #define LAG_TRIANGLE_NODE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->triangle_node_ids[I][J] : (M)->triangles[I].node_ids[J])
+    #define LAG_TRIANGLE_EDGE_ID(M, I, J) ((M)->topology ? \
+      (M)->topology->triangle_edge_ids[I][J] : (M)->triangles[I].edge_ids[J])
+    #define SET_LAG_NODE_NB_NEIGHBORS(M, I, V) do { \
+      if ((M)->topology) (M)->topology->node_nb_neighbors[I] = (V); \
+      else (M)->nodes[I].nb_neighbors = (V); \
+    } while (0)
+    #define SET_LAG_NODE_NEIGHBOR_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->node_neighbor_ids[I][J] = (V); \
+      else (M)->nodes[I].neighbor_ids[J] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_EDGE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->node_edge_ids[I][J] = (V); \
+      else (M)->nodes[I].edge_ids[J] = (V); \
+    } while (0)
+    #define SET_LAG_NODE_NB_TRIANGLES(M, I, V) do { \
+      if ((M)->topology) (M)->topology->node_nb_triangles[I] = (V); \
+      else (M)->nodes[I].nb_triangles = (V); \
+    } while (0)
+    #define SET_LAG_NODE_TRIANGLE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->node_triangle_ids[I][J] = (V); \
+      else (M)->nodes[I].triangle_ids[J] = (V); \
+    } while (0)
+    #define SET_LAG_EDGE_TRIANGLE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->edge_triangle_ids[I][J] = (V); \
+      else (M)->edges[I].triangle_ids[J] = (V); \
+    } while (0)
+    #define SET_LAG_TRIANGLE_NODE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->triangle_node_ids[I][J] = (V); \
+      else (M)->triangles[I].node_ids[J] = (V); \
+    } while (0)
+    #define SET_LAG_TRIANGLE_EDGE_ID(M, I, J, V) do { \
+      if ((M)->topology) (M)->topology->triangle_edge_ids[I][J] = (V); \
+      else (M)->triangles[I].edge_ids[J] = (V); \
+    } while (0)
+  #endif
+
+  #define LAG_EDGE_NODE_ID(M, I, J) ((M)->topology ? \
+    (M)->topology->edge_node_ids[I][J] : (M)->edges[I].node_ids[J])
+  #define SET_LAG_EDGE_NODE_ID(M, I, J, V) do { \
+    if ((M)->topology) (M)->topology->edge_node_ids[I][J] = (V); \
+    else (M)->edges[I].node_ids[J] = (V); \
   } while (0)
 #endif
-
-#define LAG_EDGE_NODE_ID(M, I, J) ((M)->topology ? \
-  (M)->topology->edge_node_ids[I][J] : (M)->edges[I].node_ids[J])
-#define SET_LAG_EDGE_NODE_ID(M, I, J, V) do { \
-  if ((M)->topology) (M)->topology->edge_node_ids[I][J] = (V); \
-  else (M)->edges[I].node_ids[J] = (V); \
-} while (0)
 
 
 /**
@@ -341,11 +399,11 @@ lagTopology* allocate_lag_topology(int nln, int nle, int nlt) {
   topology->nln = nln;
   topology->nle = nle;
   topology->edge_node_ids = malloc(nle*sizeof(int[2]));
-  assert(topology->edge_node_ids);
+  assert(topology->edge_node_ids || nle == 0);
 
   #if dimension < 3
     topology->node_edge_ids = malloc(nln*sizeof(int[2]));
-    assert(topology->node_edge_ids);
+    assert(topology->node_edge_ids || nln == 0);
   #else
     topology->nlt = nlt;
     topology->node_nb_neighbors = malloc(nln*sizeof(int));
@@ -356,14 +414,14 @@ lagTopology* allocate_lag_topology(int nln, int nle, int nlt) {
     topology->edge_triangle_ids = malloc(nle*sizeof(int[2]));
     topology->triangle_node_ids = malloc(nlt*sizeof(int[3]));
     topology->triangle_edge_ids = malloc(nlt*sizeof(int[3]));
-    assert(topology->node_nb_neighbors);
-    assert(topology->node_neighbor_ids);
-    assert(topology->node_edge_ids);
-    assert(topology->node_nb_triangles);
-    assert(topology->node_triangle_ids);
-    assert(topology->edge_triangle_ids);
-    assert(topology->triangle_node_ids);
-    assert(topology->triangle_edge_ids);
+    assert(topology->node_nb_neighbors || nln == 0);
+    assert(topology->node_neighbor_ids || nln == 0);
+    assert(topology->node_edge_ids || nln == 0);
+    assert(topology->node_nb_triangles || nln == 0);
+    assert(topology->node_triangle_ids || nln == 0);
+    assert(topology->edge_triangle_ids || nle == 0);
+    assert(topology->triangle_node_ids || nlt == 0);
+    assert(topology->triangle_edge_ids || nlt == 0);
   #endif
 
   for(int i=0; i<nln; i++) {
@@ -407,11 +465,11 @@ void resize_lag_topology(lagTopology* topology, int nln, int nle, int nlt) {
   topology->nln = nln;
   topology->nle = nle;
   topology->edge_node_ids = realloc(topology->edge_node_ids, nle*sizeof(int[2]));
-  assert(topology->edge_node_ids);
+  assert(topology->edge_node_ids || nle == 0);
 
   #if dimension < 3
     topology->node_edge_ids = realloc(topology->node_edge_ids, nln*sizeof(int[2]));
-    assert(topology->node_edge_ids);
+    assert(topology->node_edge_ids || nln == 0);
   #else
     topology->nlt = nlt;
     topology->node_nb_neighbors = realloc(topology->node_nb_neighbors, nln*sizeof(int));
@@ -422,14 +480,14 @@ void resize_lag_topology(lagTopology* topology, int nln, int nle, int nlt) {
     topology->edge_triangle_ids = realloc(topology->edge_triangle_ids, nle*sizeof(int[2]));
     topology->triangle_node_ids = realloc(topology->triangle_node_ids, nlt*sizeof(int[3]));
     topology->triangle_edge_ids = realloc(topology->triangle_edge_ids, nlt*sizeof(int[3]));
-    assert(topology->node_nb_neighbors);
-    assert(topology->node_neighbor_ids);
-    assert(topology->node_edge_ids);
-    assert(topology->node_nb_triangles);
-    assert(topology->node_triangle_ids);
-    assert(topology->edge_triangle_ids);
-    assert(topology->triangle_node_ids);
-    assert(topology->triangle_edge_ids);
+    assert(topology->node_nb_neighbors || nln == 0);
+    assert(topology->node_neighbor_ids || nln == 0);
+    assert(topology->node_edge_ids || nln == 0);
+    assert(topology->node_nb_triangles || nln == 0);
+    assert(topology->node_triangle_ids || nln == 0);
+    assert(topology->edge_triangle_ids || nle == 0);
+    assert(topology->triangle_node_ids || nlt == 0);
+    assert(topology->triangle_edge_ids || nlt == 0);
   #endif
 
   for(int i=old_nln; i<nln; i++) {
@@ -708,6 +766,9 @@ bool lag_topology_matches_mesh(lagTopology* topology, lagMesh* mesh) {
 }
 
 void attach_shared_lag_topology(lagMesh* mesh) {
+  #if LAG_SHARED_TOPOLOGY
+    assert(mesh->topology);
+  #endif
   for(int i=0; i<lag_topologies.n; i++) {
     if (lag_topology_matches_mesh(lag_topologies.items[i], mesh)) {
       if (mesh->topology && mesh->topology != lag_topologies.items[i])
@@ -722,8 +783,10 @@ void attach_shared_lag_topology(lagMesh* mesh) {
       realloc(lag_topologies.items, lag_topologies.nm*sizeof(lagTopology*));
     assert(lag_topologies.items);
   }
-  if (!mesh->topology)
-    mesh->topology = copy_lag_topology_from_mesh(mesh);
+  #if !LAG_SHARED_TOPOLOGY
+    if (!mesh->topology)
+      mesh->topology = copy_lag_topology_from_mesh(mesh);
+  #endif
   lag_topologies.items[lag_topologies.n++] = mesh->topology;
 }
 

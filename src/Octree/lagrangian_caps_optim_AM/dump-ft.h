@@ -34,7 +34,8 @@ void dump_lagnode(FILE* fp, lagMesh* mesh, int i) {
   fwrite(&(node->nb_fit_iterations), sizeof(int), 1, fp);
 }
 
-void restore_lagnode(FILE* fp, lagNode* node) {
+void restore_lagnode(FILE* fp, lagMesh* mesh, int i) {
+  lagNode* node = &mesh->nodes[i];
   foreach_dimension() fread(&(node->pos.x), sizeof(double), 1, fp);
   foreach_dimension() fread(&(node->lagVel.x), sizeof(double), 1, fp);
   foreach_dimension() fread(&(node->normal.x), sizeof(double), 1, fp);
@@ -42,14 +43,23 @@ void restore_lagnode(FILE* fp, lagNode* node) {
   fread(&(node->gcurv), sizeof(double), 1, fp);
   fread(&(node->ref_curv), sizeof(double), 1, fp);
   foreach_dimension() fread(&(node->lagForce.x), sizeof(double), 1, fp);
-  fread(&(node->nb_neighbors), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fread(&(node->neighbor_ids[j]), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fread(&(node->edge_ids[j]), sizeof(int), 1, fp);
-  fread(&(node->nb_triangles), sizeof(int), 1, fp);
-  for(int j=0; j<6; j++)
-    fread(&(node->triangle_ids[j]), sizeof(int), 1, fp);
+  int value;
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_NODE_NB_NEIGHBORS(mesh, i, value);
+  for(int j=0; j<6; j++) {
+    fread(&value, sizeof(int), 1, fp);
+    SET_LAG_NODE_NEIGHBOR_ID(mesh, i, j, value);
+  }
+  for(int j=0; j<6; j++) {
+    fread(&value, sizeof(int), 1, fp);
+    SET_LAG_NODE_EDGE_ID(mesh, i, j, value);
+  }
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_NODE_NB_TRIANGLES(mesh, i, value);
+  for(int j=0; j<6; j++) {
+    fread(&value, sizeof(int), 1, fp);
+    SET_LAG_NODE_TRIANGLE_ID(mesh, i, j, value);
+  }
   fread(&(node->nb_fit_iterations), sizeof(int), 1, fp);
 }
 
@@ -68,11 +78,17 @@ void dump_edge(FILE* fp, lagMesh* mesh, int i) {
   foreach_dimension() fwrite(&(edge->normal.x), sizeof(double), 1, fp);
 }
 
-void restore_edge(FILE* fp, Edge* edge) {
-  fread(&(edge->node_ids[0]), sizeof(int), 1, fp);
-  fread(&(edge->node_ids[1]), sizeof(int), 1, fp);
-  fread(&(edge->triangle_ids[0]), sizeof(int), 1, fp);
-  fread(&(edge->triangle_ids[1]), sizeof(int), 1, fp);
+void restore_edge(FILE* fp, lagMesh* mesh, int i) {
+  Edge* edge = &mesh->edges[i];
+  int value;
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_EDGE_NODE_ID(mesh, i, 0, value);
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_EDGE_NODE_ID(mesh, i, 1, value);
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_EDGE_TRIANGLE_ID(mesh, i, 0, value);
+  fread(&value, sizeof(int), 1, fp);
+  SET_LAG_EDGE_TRIANGLE_ID(mesh, i, 1, value);
   fread(&(edge->l0), sizeof(double), 1, fp);
   fread(&(edge->length), sizeof(double), 1, fp);
   foreach_dimension() fread(&(edge->normal.x), sizeof(double), 1, fp);
@@ -100,10 +116,14 @@ void dump_triangle(FILE* fp, lagMesh* mesh, int i) {
   fwrite(&(triangle->tension[0]), sizeof(double), 2, fp);
 }
 
-void restore_triangle(FILE* fp, Triangle* triangle) {
+void restore_triangle(FILE* fp, lagMesh* mesh, int i) {
+  Triangle* triangle = &mesh->triangles[i];
   for(int k=0; k<3; k++) {
-    fread(&(triangle->node_ids[k]), sizeof(int), 1, fp);
-    fread(&(triangle->edge_ids[k]), sizeof(int), 1, fp);
+    int value;
+    fread(&value, sizeof(int), 1, fp);
+    SET_LAG_TRIANGLE_NODE_ID(mesh, i, k, value);
+    fread(&value, sizeof(int), 1, fp);
+    SET_LAG_TRIANGLE_EDGE_ID(mesh, i, k, value);
   }
   fread(&(triangle->area), sizeof(double), 1, fp);
   foreach_dimension() fread(&(triangle->normal.x), sizeof(double), 1, fp);
@@ -152,13 +172,16 @@ void restore_lagmesh(FILE* fp, lagMesh* mesh) {
   fread(&(mesh->cap_radius), sizeof(double), 1, fp);
   fread(&(mesh->nln), sizeof(int), 1, fp);
   mesh->nodes = malloc(mesh->nln*sizeof(lagNode));
-  for(int i=0; i<mesh->nln; i++) restore_lagnode(fp, &mesh->nodes[i]);
+  mesh->topology = allocate_lag_topology(mesh->nln, 0, 0);
+  for(int i=0; i<mesh->nln; i++) restore_lagnode(fp, mesh, i);
   fread(&(mesh->nle), sizeof(int), 1, fp);
   mesh->edges = malloc(mesh->nle*sizeof(Edge));
-  for(int i=0; i<mesh->nle; i++) restore_edge(fp, &mesh->edges[i]);
+  resize_lag_topology(mesh->topology, mesh->nln, mesh->nle, 0);
+  for(int i=0; i<mesh->nle; i++) restore_edge(fp, mesh, i);
   fread(&(mesh->nlt), sizeof(int), 1, fp);
   mesh->triangles = malloc(mesh->nlt*sizeof(Triangle));
-  for(int i=0; i<mesh->nlt; i++) restore_triangle(fp, &mesh->triangles[i]);
+  resize_lag_topology(mesh->topology, mesh->nln, mesh->nle, mesh->nlt);
+  for(int i=0; i<mesh->nlt; i++) restore_triangle(fp, mesh, i);
   foreach_dimension() fread(&(mesh->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() fread(&(mesh->ang_vel.x), sizeof(double), 1, fp);
   fread(&(mesh->volume), sizeof(double), 1, fp);
