@@ -35,7 +35,7 @@ void bending(lagMesh* mesh) {
   for(int i=0; i<mesh->nln; i++) {
     double l[2];
     for(int j=0; j<2; j++)
-      l[j] = mesh->edges[mesh->nodes[i].edge_ids[j]].length;
+      l[j] = mesh->edges[LAG_NODE_EDGE_ID(mesh, i, j)].length;
     double lavg = .5*(l[0] + l[1]);
     double curv[3];
     for(int j=0; j<3; j++) {

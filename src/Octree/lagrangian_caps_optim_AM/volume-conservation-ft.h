@@ -19,14 +19,14 @@ trace
 coord compute_alpha_m(lagMesh* mesh, int m) {
   coord alpha = {0., 0., 0.};
 
-  for(int i=0; i<mesh->nodes[m].nb_triangles; i++) {
-    int tid = mesh->nodes[m].triangle_ids[i];
+  for(int i=0; i<LAG_NODE_NB_TRIANGLES(mesh, m); i++) {
+    int tid = LAG_NODE_TRIANGLE_ID(mesh, m, i);
     int local_id = 0;
-    while (mesh->triangles[tid].node_ids[local_id] != m && local_id < 3) 
+    while (LAG_TRIANGLE_NODE_ID(mesh, tid, local_id) != m && local_id < 3) 
       local_id++;
     int nids[2];  // `nids` for "neighbor ids"
-    nids[0] = mesh->triangles[tid].node_ids[(local_id + 1)%3];
-    nids[1] = mesh->triangles[tid].node_ids[(local_id + 2)%3];
+    nids[0] = LAG_TRIANGLE_NODE_ID(mesh, tid, (local_id + 1)%3);
+    nids[1] = LAG_TRIANGLE_NODE_ID(mesh, tid, (local_id + 2)%3);
 
     foreach_dimension()
       alpha.x += -periodic_friendly_cross_product_x(
@@ -101,7 +101,7 @@ void enforce_optimal_volume_conservation(lagMesh* mesh) {
   for(int j=0; j<mesh->nlt; j++) {
     int tn[3]; // `tn` for "triangle nodes"
     for(int k=0; k<3; k++) 
-      tn[k] = mesh->triangles[j].node_ids[k];
+      tn[k] = LAG_TRIANGLE_NODE_ID(mesh, j, k);
     for(int k=0; k<3; k++) {
       coord cp0; coord cp2; // `cp` for "cross-product"
       foreach_dimension() {

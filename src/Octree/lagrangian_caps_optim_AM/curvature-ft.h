@@ -91,8 +91,8 @@ statement can be easily written as a dot product between edge i's normal
 vector and edge (i+1)'s direction vector.*/
     coord a, b;
     foreach_dimension() {
-      a.x = mesh->edges[mesh->nodes[i].edge_ids[0]].normal.x;
-      b.x = mesh->edges[mesh->nodes[i].edge_ids[1]].normal.x;
+      a.x = mesh->edges[LAG_NODE_EDGE_ID(mesh, i, 0)].normal.x;
+      b.x = mesh->edges[LAG_NODE_EDGE_ID(mesh, i, 1)].normal.x;
     }
     int s = (a.x*b.x + a.y*b.y > 0) ? 1 : -1;
     cn->curv = s*fabs(ddy)/cube(sqrt(1 + sq(dy)));
@@ -202,7 +202,6 @@ double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
   not used. */
   double lbcurv = 0.; // lbcurv for "Laplace-Beltrami of the curvature"
   lagNode* cn = &(mesh->nodes[i]); // cn for "current node"
-  int* ngb = cn->neighbor_ids;
 
   coord L0_ratio = {1., Dimensions.y/Dimensions.x, Dimensions.z/Dimensions.x};
 
@@ -223,7 +222,7 @@ double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
     /** Create local frame of reference and the linear system to solve */
     coord ex, ey, ez;
     foreach_dimension() ez.x = cn->normal.x;
-    foreach_dimension() ey.x = GENERAL_1DIST(mesh->nodes[ngb[0]].pos.x,
+    foreach_dimension() ey.x = GENERAL_1DIST(mesh->nodes[LAG_NODE_NEIGHBOR_ID(mesh, i, 0)].pos.x,
       cn->pos.x, L0*L0_ratio.x);
     double eydez, ney, nex;
     eydez = 0.; ney = 0.; nex = 0.;
@@ -241,10 +240,12 @@ double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
 
     double ipngb[6][3]; // ipngb for "initial position of neighbors"
     double rpngb[6][3]; // rpngb for "rotated position of neighbors"
-    for(int j=0; j<cn->nb_neighbors; j++) {
-      ipngb[j][0] = GENERAL_1DIST(mesh->nodes[ngb[j]].pos.x, cn->pos.x, L0*L0_ratio.x);
-      ipngb[j][1] = GENERAL_1DIST(mesh->nodes[ngb[j]].pos.y, cn->pos.y, L0*L0_ratio.y);
-      ipngb[j][2] = GENERAL_1DIST(mesh->nodes[ngb[j]].pos.z, cn->pos.z, L0*L0_ratio.z);
+    int nb_neighbors = LAG_NODE_NB_NEIGHBORS(mesh, i);
+    for(int j=0; j<nb_neighbors; j++) {
+      int ngb = LAG_NODE_NEIGHBOR_ID(mesh, i, j);
+      ipngb[j][0] = GENERAL_1DIST(mesh->nodes[ngb].pos.x, cn->pos.x, L0*L0_ratio.x);
+      ipngb[j][1] = GENERAL_1DIST(mesh->nodes[ngb].pos.y, cn->pos.y, L0*L0_ratio.y);
+      ipngb[j][2] = GENERAL_1DIST(mesh->nodes[ngb].pos.z, cn->pos.z, L0*L0_ratio.z);
       for(int k=0; k<3; k++) {
         rpngb[j][k] = 0;
         for(int l=0; l<3; l++) {
@@ -255,9 +256,10 @@ double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
 
     /** Store the coordinates of the neighboring nodes in the appropriate
     data structure before using the ordinary least squares method.*/
-    for(int j=0; j<cn->nb_neighbors; j++) {
-      yy[j] = (diff_curv) ? (mesh->nodes[ngb[j]].curv -
-        mesh->nodes[ngb[j]].ref_curv - cn->curv + cn->ref_curv) : rpngb[j][2];
+    for(int j=0; j<nb_neighbors; j++) {
+      int ngb = LAG_NODE_NEIGHBOR_ID(mesh, i, j);
+      yy[j] = (diff_curv) ? (mesh->nodes[ngb].curv -
+        mesh->nodes[ngb].ref_curv - cn->curv + cn->ref_curv) : rpngb[j][2];
       XX[j][0] = sq(rpngb[j][0]);
       XX[j][1] = rpngb[j][0]*rpngb[j][1];
       XX[j][2] = sq(rpngb[j][1]);
@@ -267,7 +269,7 @@ double laplace_beltrami(lagMesh* mesh, int i, bool diff_curv) {
 
     /** Solve the linear system directly (in case of 5 neighbors) or with
     the least-squares method (in case of 6 neighbors) */
-    bool perform_least_squares = (cn->nb_neighbors > 5);
+    bool perform_least_squares = (nb_neighbors > 5);
     fit_paraboloid(XX, beta, yy, perform_least_squares);
 
     if (!diff_curv) {

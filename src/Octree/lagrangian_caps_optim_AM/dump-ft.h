@@ -128,6 +128,7 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
 }
 
 void restore_lagmesh(FILE* fp, lagMesh* mesh) {
+  mesh->topology = NULL;
   fread(&(mesh->cap_id), sizeof(int), 1, fp);
   fread(&(mesh->cap_type), sizeof(int), 1, fp);
   fread(&(mesh->cap_es), sizeof(double), 1, fp);

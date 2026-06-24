@@ -94,8 +94,8 @@ void draw_lag (_draw_lag p)
       draw_lines (view, my_color, p.lw) {
         for (int i = 0; i < p.mesh->nle; i++) {
           int v1, v2;
-          v1 = p.mesh->edges[i].node_ids[0];
-          v2 = p.mesh->edges[i].node_ids[1];
+          v1 = LAG_EDGE_NODE_ID(p.mesh, i, 0);
+          v2 = LAG_EDGE_NODE_ID(p.mesh, i, 1);
 	  coord node1 = correct_periodic_node_pos(p.mesh->nodes[v1].pos,
 						  p.mesh->centroid);
 	  coord node2 = correct_periodic_node_pos(p.mesh->nodes[v2].pos,
@@ -143,7 +143,7 @@ void draw_lag (_draw_lag p)
       for (int i = 0; i < p.mesh->nlt; i++) {
 	coord nodes[3];
 	for(int j = 0; j < 3; j++)
-	  nodes[j] = correct_periodic_node_pos(p.mesh->nodes[p.mesh->triangles[i].node_ids[j]].pos, p.mesh->centroid);
+	  nodes[j] = correct_periodic_node_pos(p.mesh->nodes[LAG_TRIANGLE_NODE_ID(p.mesh, i, j)].pos, p.mesh->centroid);
 	glBegin (GL_TRIANGLE_FAN);
 	for(int j=0; j<3; j++) {
 	  glColor3f (my_color[0], my_color[1], my_color[2]);

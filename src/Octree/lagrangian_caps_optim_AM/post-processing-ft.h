@@ -40,8 +40,8 @@ void dump_plain_triangles(lagMesh* mesh, char* filename) {
     assert(file);
     fprintf(file, "%g", t);
     for(int i=0; i<mesh->nlt; i++) {
-      fprintf(file, ",%d %d %d %g", mesh->triangles[i].node_ids[0],
-      mesh->triangles[i].node_ids[1], mesh->triangles[i].node_ids[2],
+      fprintf(file, ",%d %d %d %g", LAG_TRIANGLE_NODE_ID(mesh, i, 0),
+      LAG_TRIANGLE_NODE_ID(mesh, i, 1), LAG_TRIANGLE_NODE_ID(mesh, i, 2),
       mesh->triangles[i].area);
     }
     fprintf(file, "\n");
@@ -108,9 +108,9 @@ void pv_output_ascii(int pv_timestep) {
     for(int j=0; j<NCAPS; j++) {
       for(int k=0; k<CAPS(j).nlt; k++) {
       fprintf(file, "%d %d %d %d\n", 3,
-        CAPS(j).triangles[k].node_ids[0] + node_offset,
-        CAPS(j).triangles[k].node_ids[1] + node_offset,
-        CAPS(j).triangles[k].node_ids[2] + node_offset);
+        LAG_TRIANGLE_NODE_ID(&CAPS(j), k, 0) + node_offset,
+        LAG_TRIANGLE_NODE_ID(&CAPS(j), k, 1) + node_offset,
+        LAG_TRIANGLE_NODE_ID(&CAPS(j), k, 2) + node_offset);
       }
       node_offset += CAPS(j).nln;
     }

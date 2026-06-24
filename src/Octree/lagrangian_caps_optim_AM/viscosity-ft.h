@@ -25,8 +25,8 @@ void construct_divG(scalar divG, lagMesh* mesh) {
     // compute the grid gradient on the midpoint of the edge
     coord gg; // grid gradient
     int en[2];
-    en[0] = mesh->edges[i].node_ids[0];
-    en[1] = mesh->edges[i].node_ids[1];
+    en[0] = LAG_EDGE_NODE_ID(mesh, i, 0);
+    en[1] = LAG_EDGE_NODE_ID(mesh, i, 1);
     foreach_dimension() gg.x = mesh->edges[i].normal.x*mesh->edges[i].length;
     for(int j=0; j<2; j++) {
       foreach_cache(mesh->nodes[en[j]].stencil) {
@@ -51,9 +51,9 @@ void construct_divG(scalar divG, lagMesh* mesh) {
     /** compute the grid gradient on the midpoint of the edge */
     coord gg; // gg for "grid gradient"
     int tn[3]; // tn for "triangle's nodes"
-    tn[0] = mesh->triangles[i].node_ids[0];
-    tn[1] = mesh->triangles[i].node_ids[1];
-    tn[2] = mesh->triangles[i].node_ids[2];
+    tn[0] = LAG_TRIANGLE_NODE_ID(mesh, i, 0);
+    tn[1] = LAG_TRIANGLE_NODE_ID(mesh, i, 1);
+    tn[2] = LAG_TRIANGLE_NODE_ID(mesh, i, 2);
     foreach_dimension()
       gg.x = mesh->triangles[i].normal.x*mesh->triangles[i].area;
     for(int j=0; j<3; j++) {
