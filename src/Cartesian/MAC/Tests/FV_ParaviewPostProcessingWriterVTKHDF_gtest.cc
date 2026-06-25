@@ -8,6 +8,7 @@
 #include <MAC_Double.hh>
 #include <MAC_DoubleVector.hh>
 #include <MAC_Communicator.hh>
+#include <MAC_Data.hh>
 #include <MAC_Exec.hh>
 #include <MAC_Int.hh>
 #include <MAC_IntVector.hh>
@@ -16,6 +17,7 @@
 #include <MAC_Root.hh>
 #include <MAC_String.hh>
 
+#include <doubleArray2D.hh>
 #include <doubleVector.hh>
 #include <intVector.hh>
 
@@ -143,11 +145,37 @@ protected:
           u->set_DOF_value(i, j, 0, 0, 0, static_cast<double>(i));
         }
         if (u->DOF_is_unknown(i, j, 0, 1)) {
-          u->set_DOF_value(i, j, 0, 1, 0, static_cast<double>(-j));
+          u->set_DOF_value(i, j, 0, 1, 0, -static_cast<double>(j));
         }
       }
     }
     fields_owned_.push_back(u);
+  }
+
+  void check_u_write_field_values() {
+    ASSERT_GE(fields_owned_.size(), 2u);
+    FV_DiscreteField const *u = fields_owned_[1];
+
+    MAC_Module *point_data = MAC_Module::create(MAC_Root::object(), "PointData");
+    MAC_Module *cell_data = MAC_Module::create(MAC_Root::object(), "CellData");
+    u->write_field(point_data, cell_data);
+
+    ASSERT_TRUE(cell_data->has_entry("u"));
+    MAC_Data const *data = cell_data->data_of_entry("u");
+    ASSERT_EQ(data->data_type(), MAC_Data::DoubleArray2D);
+    doubleArray2D const &arr = data->to_double_array2D();
+    ASSERT_EQ(arr.index_bound(0), 2u);
+    ASSERT_EQ(arr.index_bound(1), 16u);
+
+    for (size_t t = 0; t < arr.index_bound(1); ++t) {
+      const size_t i = t % 4;
+      const size_t j = t / 4;
+      EXPECT_DOUBLE_EQ(arr(0, t), static_cast<double>(i + 1));
+      EXPECT_DOUBLE_EQ(arr(1, t), -static_cast<double>(j + 1));
+    }
+
+    point_data->destroy();
+    cell_data->destroy();
   }
 
   void build_writer_config() {
@@ -188,6 +216,7 @@ protected:
 TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest, WritesOneCycleToVtrAndPvd) {
   build_minimal_mesh();
   build_fields();
+  check_u_write_field_values();
   build_writer_config();
   build_time_iterator();
 
