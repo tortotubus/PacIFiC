@@ -3,7 +3,7 @@
 #
 
 module reset
-module load StdEnv/2023 hdf5-mpi/1.14.2 petsc
+module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 hdf5-mpi/1.14.2 petsc/3.23.4
 
 #
 # CC/CXX
@@ -57,9 +57,6 @@ export PACIFIC_INSTALLDIR_ABS="${PACIFIC_ROOT_ABS}/${PACIFIC_INSTALLDIR}"
 
 export PACIFIC_THIRDPARTY_BUILDDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party/build"
 export PACIFIC_THIRDPARTY_INSTALLDIR_ABS="${PACIFIC_BUILDDIR_ABS}/third_party"
-
-
-
 
 # Export Grains binary path
 export PATH="$PACIFIC_BUILDDIR_ABS/Grains3D/bin:$PATH"
@@ -273,4 +270,3 @@ echo -e "${C_GREEN}${C_BOLD}Basilisk${C_RESET}"
 echo -e "${C_GREEN}PACIFIC_BASILISK_USE_THIRDPARTY${C_RESET} = ${PACIFIC_BASILISK_USE_THIRDPARTY}"
 echo -e "${C_GREEN}PACIFIC_BASILISK_QCC${C_RESET} = ${PACIFIC_BASILISK_QCC}"
 echo -e ""
-

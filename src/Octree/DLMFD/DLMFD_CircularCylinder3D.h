@@ -2,7 +2,7 @@
 # Set of functions for a 3D circular cylinder 
 */
 
-# include "foreach_region_plusplus.h"
+# include "DLMFD_foreach_region_plusplus.h"
 
 
 /** Tests whether a point lies inside the 3D circular cylinder */
@@ -55,6 +55,87 @@ bool is_in_CircularCylinder3D( const double x1, const double y1,
     }
 
   return ( status );
+}
+
+
+
+
+/** Flag boundary layer around the 3D circular cylinder */
+//----------------------------------------------------------------------------
+void flag_boundarylayer_CircularCylinder3D( scalar flag_maxlevel, 
+	double const dcoef, RigidBody const* p, AABB const* ld )
+//----------------------------------------------------------------------------
+{
+  GeomParameter const* gcp = &(p->g); 
+  AABB ExpBBox;
+  double delta = L0 / (double)(1 << MAXLEVEL) ;
+  double swellheight = 1. + 2. * dcoef * delta / gcp->cgp->height, x2, y2, z2;
+  
+  coord bottomToTopVec;  
+  foreach_dimension()
+    bottomToTopVec.x = swellheight * gcp->cgp->BottomToTopVec.x;
+  coord bottomCenter;
+  double norm = sqrt( sq( gcp->cgp->BottomToTopVec.x ) 
+  	+ sq( gcp->cgp->BottomToTopVec.y ) 
+	+ sq( gcp->cgp->BottomToTopVec.z ) );
+  foreach_dimension()
+    bottomCenter.x = gcp->cgp->BottomCenter.x - dcoef * delta
+    	* gcp->cgp->BottomToTopVec.x / norm;
+  double height = swellheight * gcp->cgp->height; 
+  double radius = gcp->cgp->radius + dcoef * delta; 
+       
+  foreach_dimension()
+  {
+    ExpBBox.min.x = gcp->BBox.min.x - dcoef * delta;
+    ExpBBox.max.x = gcp->BBox.max.x + dcoef * delta;
+  } 
+      
+  // Loops over cells in the bounding box of the expanded 3D circular cylinder
+  if ( intersect( ld, &ExpBBox ) )  
+    foreach_region_plus_plus( ExpBBox.min, ExpBBox.max ) 
+      if ( is_leaf(cell) )
+        if ( flag_maxlevel[] == 0. )
+        {    
+          double dot = ( ( x - bottomCenter.x ) * bottomToTopVec.x
+  		+ ( y - bottomCenter.y ) * bottomToTopVec.y
+  		+ ( z - bottomCenter.z ) * bottomToTopVec.z ) / height ;
+
+          if ( dot < height && dot > 0. )
+            if ( ( x - bottomCenter.x ) * ( x - bottomCenter.x )
+  		+ ( y - bottomCenter.y ) * ( y - bottomCenter.y )
+  		+ ( z - bottomCenter.z ) * ( z - bottomCenter.z ) - sq( dot ) 
+		< sq( radius ) )
+              flag_maxlevel[] = 1.;	  
+        }
+	
+  // Loops over cells in the bounding box of its clones
+  AABB cloneBBox;
+  coord shift;
+  for (size_t i = 0; i < gcp->nperclones; i++)
+  {
+    foreach_dimension() shift.x = gcp->perclonecenters[i].x - gcp->center.x; 
+    assign_shifted_BBox( &cloneBBox, &ExpBBox, shift );
+    if ( intersect( ld, &cloneBBox ) )
+      foreach_region_plus_plus(cloneBBox.min, cloneBBox.max) 
+        if ( is_leaf(cell) )
+	  if ( flag_maxlevel[] == 0. ) 
+          {    
+            x2 = x - shift.x;
+            y2 = y - shift.y;
+            z2 = z - shift.z;        
+
+            double dot = ( ( x2 - bottomCenter.x ) * bottomToTopVec.x
+  		+ ( y2 - bottomCenter.y ) * bottomToTopVec.y
+  		+ ( z2 - bottomCenter.z ) * bottomToTopVec.z ) / height ;
+
+            if ( dot < height && dot > 0. )
+              if ( ( x2 - bottomCenter.x ) * ( x2 - bottomCenter.x )
+  		+ ( y2 - bottomCenter.y ) * ( y2 - bottomCenter.y )
+  		+ ( z2 - bottomCenter.z ) * ( z2 - bottomCenter.z ) - sq( dot ) 
+		< sq( radius ) )
+              flag_maxlevel[] = 1.;
+          }
+  }	
 }
 
 
@@ -147,19 +228,19 @@ void create_referenceRB_boundary_geomfeatures_CircularCylinder3D(
       
       if ( i == 0 )
         foreach_dimension() 
-          dlm_bd->normal[isb].x = ( ( cos( local_angle ) 
+          dlm_bd->outwardnormalvector[isb].x = ( ( cos( local_angle ) 
 	  	* gcp->cgp->RadialRefVec.x
       		+ sin( local_angle ) * n_cross_rad.x ) / 4.
 		+ bottom_normal.x ) / sqrt(2.) ;
       else if ( i == npts_height - 1 )
         foreach_dimension() 
-          dlm_bd->normal[isb].x = ( ( cos( local_angle ) 
+          dlm_bd->outwardnormalvector[isb].x = ( ( cos( local_angle ) 
 	  	* gcp->cgp->RadialRefVec.x
       		+ sin( local_angle ) * n_cross_rad.x ) / 4.
 		+ top_normal.x ) / sqrt(2.) ;
       else
         foreach_dimension() 
-          dlm_bd->normal[isb].x = ( cos( local_angle ) 
+          dlm_bd->outwardnormalvector[isb].x = ( cos( local_angle ) 
 	  	* gcp->cgp->RadialRefVec.x
       		+ sin( local_angle ) * n_cross_rad.x ) / 4.;
       isb++;
@@ -170,14 +251,14 @@ void create_referenceRB_boundary_geomfeatures_CircularCylinder3D(
   foreach_dimension() 
   {
     dlm_bd->bp[isb].x = gcp->cgp->BottomCenter.x;
-    dlm_bd->normal[isb].x = bottom_normal.x;
+    dlm_bd->outwardnormalvector[isb].x = bottom_normal.x;
   }
   isb++;
   		  
   foreach_dimension() 
   {
     dlm_bd->bp[isb].x = gcp->cgp->TopCenter.x;
-    dlm_bd->normal[isb].x = top_normal.x;
+    dlm_bd->outwardnormalvector[isb].x = top_normal.x;
   }    
   isb++;  
 
@@ -205,7 +286,7 @@ void create_referenceRB_boundary_geomfeatures_CircularCylinder3D(
       foreach_dimension() 
       {
         dlm_bd->bp[isb].x = pos.x;
-	dlm_bd->normal[isb].x = bottom_normal.x;
+	dlm_bd->outwardnormalvector[isb].x = bottom_normal.x;
       }
       isb++;      
       
@@ -215,7 +296,7 @@ void create_referenceRB_boundary_geomfeatures_CircularCylinder3D(
       foreach_dimension() 
       {
         dlm_bd->bp[isb].x = pos.x;
-        dlm_bd->normal[isb].x = top_normal.x;
+        dlm_bd->outwardnormalvector[isb].x = top_normal.x;
       }	
       isb++;      
     }
@@ -234,6 +315,7 @@ void create_FD_Interior_CircularCylinder3D( RigidBody* p, vector Index,
   GeomParameter const* gcp = &(p->g);  
   Cache* fd = &(p->Interior);
   Point ppp;
+  double x2, y2, z2;  
 
   // Loops over cells in the bounding box of the sphere
   if ( intersect( ld, &(gcp->BBox) ) )
@@ -250,8 +332,6 @@ void create_FD_Interior_CircularCylinder3D( RigidBody* p, vector Index,
 	    cache_append( fd, ppp, 0 );
             Index.y[] = p->pnum;
           }
-
-  double x2, y2, z2;
 
   // Loops over cells in the bounding box of its clones
   AABB cloneBBox;

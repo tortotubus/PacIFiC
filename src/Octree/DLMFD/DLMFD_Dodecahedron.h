@@ -2,7 +2,7 @@
 # Set of functions for a dodecahedron
 */
 
-# include "Polyhedron.h"
+# include "DLMFD_Polyhedron.h"
 
 /** Computes the number of boundary points on the surface of the dodecahedron */
 //----------------------------------------------------------------------------
@@ -48,26 +48,25 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
 	const int lN )
 //----------------------------------------------------------------------------
 {
-  int nfaces = gcp->pgp->allFaces, nc = gcp->ncorners;
+  int nfaces = gcp->pgp->nfaces, nc = gcp->ncorners;
   int iref, i1, i2, isb = 0, npoints;
-  double orig_x, orig_y, orig_z;
-  coord pos, gc_to_center_face, normal;
-  double norm = 0.;
+  coord gc_to_center_face, surfnormvec, refcorner, dir1, dir2, pt1;
+  double surfnormvecnorm = 0.;
   
-  // Note: we arbitrary set the norm of the normal vector to 0.25 *
+  // Note: we arbitrary set the norm of the surface normal vector to 0.25 *
   // circumscribed radius
 
   /* Normal at the corners */
   coord* corner_normals = (coord*) calloc( nc, sizeof(coord) );
   for (size_t k=0;k<nc;++k)
   {
-    corner_normals[k].x = gcp->pgp->cornersCoord[k][0] - gcp->center.x;
-    corner_normals[k].y = gcp->pgp->cornersCoord[k][1] - gcp->center.y;    
-    corner_normals[k].z = gcp->pgp->cornersCoord[k][2] - gcp->center.z; 
-    norm = 0.;
-    foreach_dimension() norm += sq( corner_normals[k].x );
-    norm = sqrt( norm );
-    foreach_dimension() corner_normals[k].x *= 0.25 * gcp->radius / norm;       
+    foreach_dimension()
+      corner_normals[k].x = gcp->pgp->cornersCoord[k].x - gcp->center.x;
+    surfnormvecnorm = 0.;
+    foreach_dimension() surfnormvecnorm += sq( corner_normals[k].x );
+    surfnormvecnorm = sqrt( surfnormvecnorm );
+    foreach_dimension() corner_normals[k].x *= 0.25 * gcp->radius 
+    	/ surfnormvecnorm;       
   }  
 
 
@@ -75,19 +74,14 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
   for (int i = 0; i < nfaces; i++)
   {
     npoints = gcp->pgp->numPointsOnFaces[i];
-    orig_x = 0.;
-    orig_y = 0.;
-    orig_z = 0.;
+    foreach_dimension() refcorner.x = 0. ;
 
     for (int j = 0; j < npoints; j++)
     {
       iref = gcp->pgp->cornersIndex[i][j];
-      orig_x += gcp->pgp->cornersCoord[iref][0] / npoints;
-      orig_y += gcp->pgp->cornersCoord[iref][1] / npoints;
-      orig_z += gcp->pgp->cornersCoord[iref][2] / npoints;
+      foreach_dimension() 
+       refcorner.x += gcp->pgp->cornersCoord[iref].x / npoints;
     }
-
-    coord refcorner = { orig_x, orig_y, orig_z } ;
     
     foreach_dimension() 
       gc_to_center_face.x = refcorner.x - gcp->center.x;    
@@ -96,22 +90,17 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
     foreach_dimension()
       dlm_bd->bp[isb].x = refcorner.x;
 
-    isb++;
-
     for (int k = 0; k < npoints; k++)
     {
       i1 = gcp->pgp->cornersIndex[i][k];
       i2 = gcp->pgp->cornersIndex[i][(k+1) % npoints];
 
-      coord dir1 = {gcp->pgp->cornersCoord[i1][0],
-    		gcp->pgp->cornersCoord[i1][1],
-    		gcp->pgp->cornersCoord[i1][2]};
-      coord pt1;
-      foreach_dimension() pt1.x = dir1.x;		
-
-      coord dir2 = {gcp->pgp->cornersCoord[i2][0],
-   	 	gcp->pgp->cornersCoord[i2][1],
-   	 	gcp->pgp->cornersCoord[i2][2]};
+      foreach_dimension() 
+      {
+        dir1.x = gcp->pgp->cornersCoord[i1].x;
+	pt1.x = dir1.x;
+	dir2.x = gcp->pgp->cornersCoord[i2].x;
+      }
 
       foreach_dimension()
       {
@@ -121,16 +110,27 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
         dir2.x /= ( lN - 1 );
       }
 		
-      VecVecCrossProduct( dir1, dir2, &normal );
-      if ( VecVecDotProduct( gc_to_center_face, normal ) < 0. )
-        foreach_dimension() normal.x *= -1.;
-      norm = 0.;
-      foreach_dimension() norm += sq( normal.x );
-      norm = sqrt( norm );
-      foreach_dimension() normal.x *= 0.25 * gcp->radius / norm;		
+      if ( !k )
+      {
+        // Compute surfnormvec vector of the face
+	VecVecCrossProduct( dir1, dir2, &surfnormvec );
+        if ( VecVecDotProduct( gc_to_center_face, surfnormvec ) < 0. )
+          foreach_dimension() surfnormvec.x *= -1.;
+        surfnormvecnorm = 0.;
+        foreach_dimension() surfnormvecnorm += sq( surfnormvec.x );
+        surfnormvecnorm = sqrt( surfnormvecnorm );
+        foreach_dimension() surfnormvec.x *= 0.25 * gcp->radius 
+		/ surfnormvecnorm;
+	
+	// Set surfnormvec vector of the central point
+	foreach_dimension()
+          dlm_bd->outwardnormalvector[isb].x = surfnormvec.x;
+	isb++;
+      }		
 
       // Insert points on the innerface edges
-      distribute_points_edge( gcp, refcorner, pt1, dlm_bd, lN, isb, normal );
+      distribute_points_edge( gcp, refcorner, pt1, dlm_bd, lN, isb, 
+      	surfnormvec );
       isb += lN - 2;
 
       // Insert points on the innerface triangles
@@ -142,7 +142,7 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
 	  {
 	    dlm_bd->bp[isb].x = refcorner.x + (double) ii * dir1.x
 		      + (double) jj * dir2.x;
-	    dlm_bd->normal[isb].x = normal.x ;	      
+	    dlm_bd->outwardnormalvector[isb].x = surfnormvec.x ;	      
 	  }
           isb++;
         }
@@ -165,23 +165,18 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
       j1 = gcp->pgp->cornersIndex[i][(j+1) % npoints];
 
       foreach_dimension() 
-        normal.x = 0.5 * ( corner_normals[jm1].x + corner_normals[j1].x );
-      norm = 0.;
-      foreach_dimension() norm += sq( normal.x );
-      norm = sqrt( norm );
-      foreach_dimension() normal.x *= 0.25 * gcp->radius / norm;
+        surfnormvec.x = 0.5 * ( corner_normals[jm1].x + corner_normals[j1].x );
+      surfnormvecnorm = 0.;
+      foreach_dimension() surfnormvecnorm += sq( surfnormvec.x );
+      surfnormvecnorm = sqrt( surfnormvecnorm );
+      foreach_dimension() surfnormvec.x *= 0.25 * gcp->radius / surfnormvecnorm;
 
       if ( jm1 > j1 )
       {
 	if ( allindextable[jm1][j1] == 0 )
 	{
-	  coord c1 = {gcp->pgp->cornersCoord[jm1][0],
-	  	gcp->pgp->cornersCoord[jm1][1],
-	  	gcp->pgp->cornersCoord[jm1][2]};
-	  coord c2 = {gcp->pgp->cornersCoord[j1][0],
-	  	gcp->pgp->cornersCoord[j1][1],
-	  	gcp->pgp->cornersCoord[j1][2]};
-	  distribute_points_edge( gcp, c1, c2, dlm_bd, lN, isb, normal );
+	  distribute_points_edge( gcp, gcp->pgp->cornersCoord[jm1], 
+	  	gcp->pgp->cornersCoord[j1], dlm_bd, lN, isb, surfnormvec );
 	  allindextable[jm1][j1] = 1;
 	  isb += lN - 2;
 	}
@@ -190,13 +185,8 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
       {
 	if ( allindextable[j1][jm1] == 0 )
 	{
-	  coord c1 = {gcp->pgp->cornersCoord[j1][0],
-	  	gcp->pgp->cornersCoord[j1][1],
-	  	gcp->pgp->cornersCoord[j1][2]};
-	  coord c2 = {gcp->pgp->cornersCoord[jm1][0],
-	  	gcp->pgp->cornersCoord[jm1][1],
-	  	gcp->pgp->cornersCoord[jm1][2]};
-	  distribute_points_edge( gcp, c1, c2, dlm_bd, lN, isb, normal );
+	  distribute_points_edge( gcp, gcp->pgp->cornersCoord[j1], 
+	  	gcp->pgp->cornersCoord[jm1], dlm_bd, lN, isb, surfnormvec );
 	  allindextable[j1][jm1] = 1;
 	  isb += lN - 2;
 	}
@@ -207,14 +197,10 @@ void create_referenceRB_boundary_geomfeatures_Dodecahedron(
   /* Add the final 20 corners points */
   for (size_t i = 0; i < nc; i++)
   {
-    pos.x = gcp->pgp->cornersCoord[i][0];
-    pos.y = gcp->pgp->cornersCoord[i][1];
-    pos.z = gcp->pgp->cornersCoord[i][2];
-
     foreach_dimension()
     {
-      dlm_bd->bp[isb].x = pos.x;
-      dlm_bd->normal[isb].x = corner_normals[i].x;
+      dlm_bd->bp[isb].x = gcp->pgp->cornersCoord[i].x;
+      dlm_bd->outwardnormalvector[isb].x = corner_normals[i].x;
     }
 
     isb++;
@@ -242,19 +228,17 @@ void read_reference_Dodecahedron( GeomParameter* gcp,
 
   // Allocate the PolyGeomParameter structure
   gcp->pgp = (PolyGeomParameter*) malloc( sizeof(PolyGeomParameter) );
-  gcp->pgp->allPoints = nc;
+  gcp->pgp->ncorners = nc;
 
   // Allocate the array of corner coordinates
-  gcp->pgp->cornersCoord = (double**) malloc( nc * sizeof(double*) );
-  for (size_t i=0;i<nc;i++)
-    gcp->pgp->cornersCoord[i] = (double*) malloc( 3 * sizeof(double) );
+  gcp->pgp->cornersCoord = (coord*) malloc( nc * sizeof(coord) );
 
   // Read the point/corner coordinates
   for (size_t i=0;i<nc;++i)
-    for (size_t j=0;j<3;++j)
+    foreach_dimension()
     {
       token = strtok(NULL, " " );
-      sscanf( token, "%lf", &(gcp->pgp->cornersCoord[i][j]) );
+      sscanf( token, "%lf", &(gcp->pgp->cornersCoord[i].x) );
     }
 
   // Read number of faces, check that it is 12
@@ -263,7 +247,7 @@ void read_reference_Dodecahedron( GeomParameter* gcp,
   sscanf( token, "%lu", &nf );
   if ( nf != 12 )
     printf ("Error in number of faces in update_Dodecahedron\n");
-  gcp->pgp->allFaces = nf;
+  gcp->pgp->nfaces = nf;
 
   // Allocate the array of number of points/corners on each face
   gcp->pgp->numPointsOnFaces = (long int*) malloc( nf * sizeof(long int) );
@@ -297,15 +281,34 @@ void read_reference_Dodecahedron( GeomParameter* gcp,
   // In case the reference rigid body was sent by the granular solver with 
   // a non zero center of mass and/or a non-zero identity angular position
   // we need to reset all corners to the neutral reference position
-  double v[3];
+  coord v;
   for (size_t i=0;i<nc;++i)
   {
     // Translation    
-    v[0] = gcp->pgp->cornersCoord[i][0] - gcp->center.x;
-    v[1] = gcp->pgp->cornersCoord[i][1] - gcp->center.y;
-    v[2] = gcp->pgp->cornersCoord[i][2] - gcp->center.z;
+    foreach_dimension()
+      v.x = gcp->pgp->cornersCoord[i].x - gcp->center.x;
 
     // Rotation
-    matTransposedVecDotProduct( RotMat, v, gcp->pgp->cornersCoord[i] );
+    matTransposedCoordDotProduct( RotMat, v, &(gcp->pgp->cornersCoord[i]) );
   } 
+  
+# if LEVELDIFF_FLAG_U
+    // Allocate the array of corner coordinates of the expanded dodecahedron
+    gcp->pgp->cornersCoordExp = (coord*) malloc( nc * sizeof(coord) ); 
+    
+    // Compute corner coordinates of the expanded dodecahedron
+    double delta = L0 / (double)(1 << MAXLEVEL), 
+    	width = BOUNDARY_LAYER_THICKNESS_COEF * delta,
+	ext = sqrt( 15. / ( 5. + 2. * sqrt( 5. ) ) ) * width, 
+	vecnorm = 0.;
+    for (size_t i=0;i<nc;++i)
+    {	
+      vecnorm = sqrt( sq( gcp->pgp->cornersCoord[i].x ) 
+      		+ sq( gcp->pgp->cornersCoord[i].y ) 
+		+ sq( gcp->pgp->cornersCoord[i].z ) ); 
+      foreach_dimension()
+        gcp->pgp->cornersCoordExp[i].x = ( 1. + ext / vecnorm )
+		* gcp->pgp->cornersCoord[i].x ;		
+    }          
+# endif  
 }
