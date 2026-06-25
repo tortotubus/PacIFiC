@@ -7,6 +7,7 @@
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 
@@ -1666,13 +1667,13 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_cycle(
 {
   MAC_LABEL("FV_ParaviewPostProcessingWriterVTKHDF:: write_cycle");
 
+  if (!TIME_SERIES_LOADED)
+    readTimeFile(t_it, cycle_number);
+
   CYCLE_NUMBER = cycle_number;
 
   std::string vtkhdf_filename = RES_DIRECTORY + "/" + BASE_FILENAME + "T" +
                                 std::to_string(cycle_number) + ".vtkhdf";
-
-  if (!TIME_SERIES_LOADED)
-    readTimeFile(t_it, cycle_number);
 
   TIME_SERIES_RECORDS.push_back({
       .time = t_it->time(),
@@ -1697,7 +1698,12 @@ size_t FV_ParaviewPostProcessingWriterVTKHDF::getPreviousCycleNumber(void)
 //----------------------------------------------------------------------
 {
   MAC_LABEL("FV_ParaviewPostProcessingWriterVTKHDF:: getPreviousCycleNumber");
-  return 0;
+  read_vtkhdf_series_idx();
+
+  if (TIME_SERIES_RECORDS.empty())
+    return 0;
+
+  return TIME_SERIES_RECORDS.back().cycle;
 }
 
 //----------------------------------------------------------------------
@@ -1708,4 +1714,41 @@ void FV_ParaviewPostProcessingWriterVTKHDF::readTimeFile(
   MAC_LABEL("FV_ParaviewPostProcessingWriterVTKHDF:: readTimeFile");
   read_vtkhdf_series_idx();
   TIME_SERIES_LOADED = true;
+
+  if (TIME_SERIES_RECORDS.empty())
+    return;
+
+  const double starting_time = t_it->time();
+  const double time_step = t_it->time_step();
+  const bool have_com = (COM != nullptr);
+  const size_t myrank = have_com ? COM->rank() : 0;
+
+  if (std::fabs(TIME_SERIES_RECORDS.back().time - starting_time) < time_step) {
+    if (myrank == 0)
+      FV::out() << "   Starting time matches last output time in "
+                << VTKHDF_SERIES_IDX_FILENAME << std::endl;
+    TIME_SERIES_RECORDS.pop_back();
+    return;
+  }
+
+  if (TIME_SERIES_RECORDS.size() > 1) {
+    TimeSeriesRecord const &penultimate =
+        TIME_SERIES_RECORDS[TIME_SERIES_RECORDS.size() - 2];
+
+    if (std::fabs(penultimate.time - starting_time) < time_step) {
+      if (cycle_number > 0)
+        --cycle_number;
+      if (myrank == 0)
+        FV::out() << "   Starting time matches penultimate output time in "
+                  << VTKHDF_SERIES_IDX_FILENAME << std::endl;
+      TIME_SERIES_RECORDS.pop_back();
+      TIME_SERIES_RECORDS.pop_back();
+      return;
+    }
+  }
+
+  if (myrank == 0) {
+    FV::out() << "   WARNING : Starting time does not match previous VTKHDF "
+              << "output times" << std::endl;
+  }
 }
