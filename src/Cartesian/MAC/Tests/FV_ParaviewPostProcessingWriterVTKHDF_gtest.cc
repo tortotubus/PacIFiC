@@ -22,6 +22,7 @@
 #include <intVector.hh>
 
 #include <filesystem>
+#include <fstream>
 #include <system_error>
 #include <list>
 #include <sstream>
@@ -187,13 +188,33 @@ protected:
     writer_exp_ = MAC_ModuleExplorer::create(MAC_Root::object(), writer_mod_);
   }
 
-  void build_time_iterator() {
+  void build_time_iterator(double start = 0.0, double end = 1.0,
+                           double step = 1.0) {
     time_mod_ = MAC_Module::create(MAC_Root::object(), "FV_TimeIterator");
-    time_mod_->add_entry("time_start", MAC_Double::create(time_mod_, 0.0));
-    time_mod_->add_entry("time_end", MAC_Double::create(time_mod_, 1.0));
-    time_mod_->add_entry("time_step", MAC_Double::create(time_mod_, 1.0));
+    time_mod_->add_entry("time_start", MAC_Double::create(time_mod_, start));
+    time_mod_->add_entry("time_end", MAC_Double::create(time_mod_, end));
+    time_mod_->add_entry("time_step", MAC_Double::create(time_mod_, step));
     time_exp_ = MAC_ModuleExplorer::create(MAC_Root::object(), time_mod_);
-    time_it_ = FV_TimeIterator::create(MAC_Root::object(), time_exp_, 0.0);
+    time_it_ = FV_TimeIterator::create(MAC_Root::object(), time_exp_, start);
+  }
+
+  void build_writer() {
+    std::list<FV_DiscreteField const *> fields;
+    for (FV_DiscreteField *f : fields_owned_) {
+      fields.push_back(f);
+    }
+    writer_ = FV_PostProcessingWriter::make(MAC_Root::object(), "paraview_vtkhdf",
+                                            writer_exp_, com_, fields, mesh_,
+                                            /*a_binary=*/false);
+    ASSERT_NE(writer_, nullptr);
+  }
+
+  std::string file_contents(std::filesystem::path const &path) {
+    std::ifstream in(path);
+    EXPECT_TRUE(in.is_open()) << path.string();
+    std::ostringstream contents;
+    contents << in.rdbuf();
+    return contents.str();
   }
 
   std::string out_dir_;
@@ -219,15 +240,7 @@ TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest, WritesOneCycleToVtrAndPvd)
   check_u_write_field_values();
   build_writer_config();
   build_time_iterator();
-
-  std::list<FV_DiscreteField const *> fields;
-  for (FV_DiscreteField *f : fields_owned_) {
-    fields.push_back(f);
-  }
-  writer_ = FV_PostProcessingWriter::make(MAC_Root::object(), "paraview_vtkhdf",
-                                          writer_exp_, com_, fields, mesh_,
-                                          /*a_binary=*/false);
-  ASSERT_NE(writer_, nullptr);
+  build_writer();
 
   writer_->write_cycle(time_it_, /*cycle_number=*/0);
 
@@ -236,6 +249,52 @@ TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest, WritesOneCycleToVtrAndPvd)
 
 //   EXPECT_TRUE(std::filesystem::exists(pvd)) << pvd.string();
 //   EXPECT_TRUE(std::filesystem::exists(vtr)) << vtr.string();
+}
+
+TEST_F(FVParaviewPostProcessingWriterVTKHDFSmokeTest,
+       RestartsFromPenultimateIdxRecordAndRewritesSeries) {
+  build_minimal_mesh();
+  build_fields();
+  build_writer_config();
+  build_time_iterator(/*start=*/1.0, /*end=*/2.0, /*step=*/1.0);
+
+  const std::filesystem::path idx_path =
+      std::filesystem::path(out_dir_) / "paraview_vtkhdf_smoke.vtkhdf.series.idx";
+  const std::string file0 = out_dir_ + "/paraview_vtkhdf_smokeT0.vtkhdf";
+  const std::string file1 = out_dir_ + "/paraview_vtkhdf_smokeT1.vtkhdf";
+  const std::string file2 = out_dir_ + "/paraview_vtkhdf_smokeT2.vtkhdf";
+
+  if (com_->rank() == 0) {
+    std::ofstream idx(idx_path);
+    ASSERT_TRUE(idx.is_open()) << idx_path.string();
+    idx << "0 0 " << file0 << "\n";
+    idx << "1 1 " << file1 << "\n";
+    idx << "2 2 " << file2 << "\n";
+  }
+  com_->barrier();
+
+  build_writer();
+  EXPECT_EQ(writer_->getPreviousCycleNumber(), 2u);
+
+  writer_->write_cycle(time_it_, /*cycle_number=*/2);
+  com_->barrier();
+
+  if (com_->rank() == 0) {
+    const std::string idx_contents = file_contents(idx_path);
+    EXPECT_NE(idx_contents.find("0 0 " + file0), std::string::npos);
+    EXPECT_NE(idx_contents.find("1 1 " + file1), std::string::npos);
+    EXPECT_EQ(idx_contents.find("2 2 " + file2), std::string::npos);
+
+    const std::filesystem::path series_path =
+        std::filesystem::path(out_dir_) / "paraview_vtkhdf_smoke.vtkhdf.series";
+    const std::string series_contents = file_contents(series_path);
+    EXPECT_NE(series_contents.find("\"iter\" : 0"), std::string::npos);
+    EXPECT_NE(series_contents.find("\"iter\" : 1"), std::string::npos);
+    EXPECT_EQ(series_contents.find("\"iter\" : 2"), std::string::npos);
+    EXPECT_NE(series_contents.find(file0), std::string::npos);
+    EXPECT_NE(series_contents.find(file1), std::string::npos);
+    EXPECT_EQ(series_contents.find(file2), std::string::npos);
+  }
 }
 
 } // namespace
