@@ -32,6 +32,10 @@ meant to track the position and compute the stresses of an elasitc membrane.
   #define LAG_SHARED_TOPOLOGY 1
 #endif
 
+#ifndef LAG_REF_GEOMETRY
+  #define LAG_REF_GEOMETRY 0
+#endif
+
 /*Create the Index_lag*/
 scalar Index_lagnode[];
 vector Index_lag_id[];
@@ -92,11 +96,11 @@ typedef struct lagNode {
     #endif
   #else
     #if !LAG_SHARED_TOPOLOGY
-      int nb_neighbors;
-      int neighbor_ids[6];
-      int edge_ids[6];
-      int nb_triangles;
-      int triangle_ids[6];
+      int nb_neighbors;       // 1 ints
+      int neighbor_ids[6];    // 6 ints
+      int edge_ids[6];        // 6 ints
+      int nb_triangles;       // 1 ints
+      int triangle_ids[6];    // 6 ints
     #endif
     double gcurv;
     int nb_fit_iterations;
@@ -129,12 +133,14 @@ typedef struct lagNode {
 */
 typedef struct Edge {
   #if !LAG_SHARED_TOPOLOGY
-    int node_ids[2];
+    int node_ids[2];    // 2 ints
     #if dimension > 2
-      int triangle_ids[2];
+      int triangle_ids[2];  //2 ints
     #endif
   #endif
-  double l0;
+  #if !LAG_REF_GEOMETRY
+    double l0;
+  #endif
   double length;
   coord normal;
 } Edge;
@@ -153,14 +159,16 @@ typedef struct Edge {
 #if dimension > 2
   typedef struct Triangle {
     #if !LAG_SHARED_TOPOLOGY
-      int node_ids[3];
-      int edge_ids[3];
+      int node_ids[3];   // 3 ints
+      int edge_ids[3];   // 3 ints
     #endif
     double area;
     coord normal;
     coord centroid;
-    coord refShape[2];
-    double sfc[3][2]; // sfc for "shape function coefficients"
+    #if !LAG_REF_GEOMETRY
+       coord refShape[2];
+       double sfc[3][2]; // sfc for "shape function coefficients"
+    #endif
     double stretch[2];
     double tension[2];
   } Triangle;
@@ -193,6 +201,17 @@ typedef struct lagTopology {
   int (*edge_node_ids)[2];
 } lagTopology;
 
+typedef struct lagReferenceGeometry {
+  int nle;
+  double *edge_l0;
+  #if dimension > 2
+    int nlt;
+    coord (*triangle_refShape)[2];
+    double (*triangle_sfc)[3][2];
+  #endif
+  double initial_volume;
+} lagReferenceGeometry;
+
 /** The ```lagMesh``` structure contains arrays of the previously introduced nodes, edges and triangles. It defines an unstructured mesh, the membrane of our capsule. Its attributes are:
 
 *  ```nln``` the number of Lagrangian nodes
@@ -215,6 +234,7 @@ typedef struct lagMesh {
   double cap_es;
   double cap_radius;
   lagTopology* topology;
+  lagReferenceGeometry* ref_geometry;
   int nln;
   lagNode* nodes;
   int nle;
@@ -225,7 +245,9 @@ typedef struct lagMesh {
   #endif
   coord centroid;
   coord ang_vel;
-  double initial_volume;
+  #if !LAG_REF_GEOMETRY
+    double initial_volume;
+  #endif
   double volume;
   double circum_radius;
   double taylor_deform;
@@ -369,6 +391,50 @@ Capsules allCaps;
   } while (0)
 #endif
 
+#if LAG_REF_GEOMETRY
+  #define LAG_EDGE_L0(M, I) ((M)->ref_geometry->edge_l0[I])
+  #define SET_LAG_EDGE_L0(M, I, V) do { \
+    (M)->ref_geometry->edge_l0[I] = (V); \
+  } while (0)
+  #define LAG_INITIAL_VOLUME(M) ((M)->ref_geometry->initial_volume)
+  #define SET_LAG_INITIAL_VOLUME(M, V) do { \
+    (M)->ref_geometry->initial_volume = (V); \
+  } while (0)
+  #if dimension > 2
+    #define LAG_TRIANGLE_REFSHAPE(M, I) ((M)->ref_geometry->triangle_refShape[I])
+    #define LAG_TRIANGLE_REFSHAPE_COMPONENT(M, I, J, C) \
+      ((M)->ref_geometry->triangle_refShape[I][J].C)
+    #define SET_LAG_TRIANGLE_REFSHAPE_COMPONENT(M, I, J, C, V) do { \
+      (M)->ref_geometry->triangle_refShape[I][J].C = (V); \
+    } while (0)
+    #define LAG_TRIANGLE_SFC(M, I, J, K) ((M)->ref_geometry->triangle_sfc[I][J][K])
+    #define SET_LAG_TRIANGLE_SFC(M, I, J, K, V) do { \
+      (M)->ref_geometry->triangle_sfc[I][J][K] = (V); \
+    } while (0)
+  #endif
+#else
+  #define LAG_EDGE_L0(M, I) ((M)->edges[I].l0)
+  #define SET_LAG_EDGE_L0(M, I, V) do { \
+    (M)->edges[I].l0 = (V); \
+  } while (0)
+  #define LAG_INITIAL_VOLUME(M) ((M)->initial_volume)
+  #define SET_LAG_INITIAL_VOLUME(M, V) do { \
+    (M)->initial_volume = (V); \
+  } while (0)
+  #if dimension > 2
+    #define LAG_TRIANGLE_REFSHAPE(M, I) ((M)->triangles[I].refShape)
+    #define LAG_TRIANGLE_REFSHAPE_COMPONENT(M, I, J, C) \
+      ((M)->triangles[I].refShape[J].C)
+    #define SET_LAG_TRIANGLE_REFSHAPE_COMPONENT(M, I, J, C, V) do { \
+      (M)->triangles[I].refShape[J].C = (V); \
+    } while (0)
+    #define LAG_TRIANGLE_SFC(M, I, J, K) ((M)->triangles[I].sfc[J][K])
+    #define SET_LAG_TRIANGLE_SFC(M, I, J, K, V) do { \
+      (M)->triangles[I].sfc[J][K] = (V); \
+    } while (0)
+  #endif
+#endif
+
 
 /**
 ## Initialization, memory management and useful macros.
@@ -379,6 +445,7 @@ void initialize_empty_capsule(lagMesh* mesh) {
   mesh->cap_id = -1;
   mesh->cap_type = -1;
   mesh->topology = NULL;
+  mesh->ref_geometry = NULL;
   mesh->nln = 0;
   mesh->nle = 0;
   mesh->nodes = NULL;
