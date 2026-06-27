@@ -1246,6 +1246,26 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
     vtk_hdf = vtk_HDF_init(file.c_str(), overwrite);
 
   /*
+   * Attribute: /VTKHDF/Dimensions
+   * Datatype: H5T_NATIVE_INT / int
+   * Dimension: {3}
+   */
+  {
+    const int dimensions_value[3] = {static_cast<int>(x_coords.size()),
+                                     static_cast<int>(y_coords.size()),
+                                     static_cast<int>(z_coords.size())};
+    const hsize_t dims_attr[1] = {3};
+
+    vtk_HDF_write_attribute("Dimensions",          /* attribute_name */
+                            dimensions_value,      /* data */
+                            H5T_NATIVE_INT,        /* dtype_id */
+                            vtk_hdf.grp_vtkhdf_id, /* group_id */
+                            dims_attr,             /* dims */
+                            &vtk_hdf               /* vtkHDF object/struct */
+    );
+  }
+
+  /*
    * Attribute: /VTKHDF/Type
    * Datatype: H5T_C_S1 / char
    * Dimension: {1}
