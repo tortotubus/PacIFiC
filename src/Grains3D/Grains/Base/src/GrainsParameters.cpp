@@ -9,6 +9,7 @@
 #include "ContactForceModel.hh"
 #include "TrilobeCylinder.hh"
 #include "QuadrilobeCylinder.hh"
+#include "Dendrite.hh"
 
 
 // ----------------------------------------------------------------------------
@@ -155,6 +156,8 @@ void GrainsParameters::Construction( DOMElement* rootElement )
 	  	"SpecificShape" );
 	if ( sshape == "TrilobeCylinder" )
 	  particleRef = new TrilobeCylinder( nCompParticle, nbPC+int(i) );
+  else if ( sshape == "Dendrite" )
+	  particleRef = new Dendrite( nCompParticle, nbPC+int(i) );
 	else if ( sshape == "QuadrilobeCylinder" )
 	  particleRef = new QuadrilobeCylinder( nCompParticle, nbPC+int(i) );
 	else 	

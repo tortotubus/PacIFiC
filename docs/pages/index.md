@@ -2,52 +2,29 @@
 toc: false
 ---
 
-# Welcome to MkDocs
+# Welcome to PacIFiC!
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+PacIFiC is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. PacIFiC stands for "PArtiCles In FluId Computations".
 
-## Commands
+PacIFiC is open-sourced under the MIT license, and is developed by the research group of Prof. Anthony Wachs at the University of British Columbia, Vancouver, Canada with the support of IFP Energies nouvelles, France.
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
-
-## Project layout
-
-```text
-mkdocs.yml    # The configuration file.
-docs/
-    index.md  # The documentation homepage.
-    ...       # Other markdown pages, images and other files.
+```mermaid
+graph TD;
+  pacific-->Octree;
+  pacific-->Cartesian;
+  pacific-->Grains3D;
+  Octree-.->basilisk;
+  Octree-->FDM1[DLMFD];
+  Octree-->LBM;
+  Octree-->MovingCutCell;
+  Octree-->VTKHyperTree;
+  Octree-->eulerian_caps;
+  Octree-->lagrangian_caps
+  Cartesian-->FLUID;
+  FLUID-->FDM2[DLMFD];
+  FLUID-->DirectionSplitting;
+  Cartesian-->MacWorld;
+  MacWorld-->MAC;
+  MacWorld-.->HYPRE;
+  MacWorld-.->PETSc;
 ```
-
-## LaTeX 
-
-$$f(x) = \frac{a}{b}$$
-
-## Code block
-
-```cpp
-Cell::Cell( int id1, int x, int y, int z, Point3 const& OL,
-	double arete_X, double arete_Y, double arete_Z, 
-	double xmax_, double ymax_, double zmax_, 
-	int tag_, GeoPosition geoloc_ ) 
-  : m_number( id1 ) 
-  , m_tag( tag_ ) 
-  , m_GeoPosCell( geoloc_ )
-{
-  m_cel[X] = x;
-  m_cel[Y] = y;
-  m_cel[Z] = z;
-  Cell::m_edge_X = arete_X;
-  Cell::m_edge_Y = arete_Y;  
-  Cell::m_edge_Z = arete_Z; 
-  Cell::m_LC_local_origin = OL;
-  Cell::m_LC_local_xmax = xmax_; 
-  Cell::m_LC_local_ymax = ymax_;  
-  Cell::m_LC_local_zmax = zmax_; 
-  setCentre();
-}
-```
-
