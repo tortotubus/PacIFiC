@@ -383,7 +383,7 @@ free(recv_stress_pack);
   {
     double cap_area = 0;
     double cap_volume = 0;
-    cap_volume += CAPS(cap_number).volume/CAPS(cap_number).initial_volume;
+    cap_volume += CAPS(cap_number).volume/LAG_INITIAL_VOLUME(&CAPS(cap_number));
     for(int i=0; i<CAPS(cap_number).nlt; i++) cap_area += CAPS(cap_number).triangles[i].area/(4*pi*sq(CAPS(cap_number).cap_radius)); 
 
   /*Compute average Taylor deformation and angular velocity*/
@@ -568,7 +568,7 @@ free(recv_stress_pack);
       for(int k = 0; k < NCAPS; k++) {
         if(CAPS(k).cap_type == pop_type)
         {
-          avg_ncaps_volume += CAPS(k).volume/CAPS(k).initial_volume;
+          avg_ncaps_volume += CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
           for(int i=0; i<CAPS(k).nlt; i++) avg_ncaps_area += CAPS(k).triangles[i].area/(4*pi*sq(CAPS(k).cap_radius));
         }
       }
@@ -639,7 +639,7 @@ free(recv_stress_pack);
       double avg_ncaps_area = 0;
       double avg_ncaps_volume = 0;
       for(int k = 0; k < NCAPS; k++) {
-          avg_ncaps_volume += CAPS(k).volume/CAPS(k).initial_volume;
+          avg_ncaps_volume += CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
           for(int i=0; i<CAPS(k).nlt; i++) avg_ncaps_area += CAPS(k).triangles[i].area/(4*pi*sq(CAPS(k).cap_radius));
       }
       

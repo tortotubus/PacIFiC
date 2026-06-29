@@ -120,7 +120,7 @@ void enforce_optimal_volume_conservation(lagMesh* mesh) {
   coeff_polynomial[3] /= 18;
   coeff_polynomial[2] /= 6;
   coeff_polynomial[1] /= 6;
-  coeff_polynomial[0] = mesh->volume - mesh->initial_volume;
+  coeff_polynomial[0] = mesh->volume - LAG_INITIAL_VOLUME(mesh);
   double normalize_factor = 
     max(max(fabs(coeff_polynomial[3]), coeff_polynomial[2]), 
     max(fabs(coeff_polynomial[1]), coeff_polynomial[0]));

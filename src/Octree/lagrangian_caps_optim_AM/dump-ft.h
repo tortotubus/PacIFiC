@@ -73,7 +73,8 @@ void dump_edge(FILE* fp, lagMesh* mesh, int i) {
   fwrite(&id, sizeof(int), 1, fp);
   id = LAG_EDGE_TRIANGLE_ID(mesh, i, 1);
   fwrite(&id, sizeof(int), 1, fp);
-  fwrite(&(edge->l0), sizeof(double), 1, fp);
+  double value = LAG_EDGE_L0(mesh, i);
+  fwrite(&value, sizeof(double), 1, fp);
   fwrite(&(edge->length), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(edge->normal.x), sizeof(double), 1, fp);
 }
@@ -89,7 +90,9 @@ void restore_edge(FILE* fp, lagMesh* mesh, int i) {
   SET_LAG_EDGE_TRIANGLE_ID(mesh, i, 0, value);
   fread(&value, sizeof(int), 1, fp);
   SET_LAG_EDGE_TRIANGLE_ID(mesh, i, 1, value);
-  fread(&(edge->l0), sizeof(double), 1, fp);
+  double dvalue;
+  fread(&dvalue, sizeof(double), 1, fp);
+  SET_LAG_EDGE_L0(mesh, i, dvalue);
   fread(&(edge->length), sizeof(double), 1, fp);
   foreach_dimension() fread(&(edge->normal.x), sizeof(double), 1, fp);
 }
@@ -106,12 +109,16 @@ void dump_triangle(FILE* fp, lagMesh* mesh, int i) {
   foreach_dimension() fwrite(&(triangle->normal.x), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(triangle->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() {
-    fwrite(&(triangle->refShape[0].x), sizeof(double), 1, fp);
-    fwrite(&(triangle->refShape[1].x), sizeof(double), 1, fp);
+    double value = LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, 0, x);
+    fwrite(&value, sizeof(double), 1, fp);
+    value = LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, 1, x);
+    fwrite(&value, sizeof(double), 1, fp);
   }
   for(int k=0; k<3; k++)
-    for(int l=0; l<2; l++)
-      fwrite(&(triangle->sfc[k][l]), sizeof(double), 1, fp);
+    for(int l=0; l<2; l++) {
+      double value = LAG_TRIANGLE_SFC(mesh, i, k, l);
+      fwrite(&value, sizeof(double), 1, fp);
+    }
   fwrite(&(triangle->stretch[0]), sizeof(double), 2, fp);
   fwrite(&(triangle->tension[0]), sizeof(double), 2, fp);
 }
@@ -129,12 +136,18 @@ void restore_triangle(FILE* fp, lagMesh* mesh, int i) {
   foreach_dimension() fread(&(triangle->normal.x), sizeof(double), 1, fp);
   foreach_dimension() fread(&(triangle->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() {
-    fread(&(triangle->refShape[0].x), sizeof(double), 1, fp);
-    fread(&(triangle->refShape[1].x), sizeof(double), 1, fp);
+    double value;
+    fread(&value, sizeof(double), 1, fp);
+    SET_LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, 0, x, value);
+    fread(&value, sizeof(double), 1, fp);
+    SET_LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, 1, x, value);
   }
   for(int k=0; k<3; k++)
-    for(int l=0; l<2; l++)
-      fread(&(triangle->sfc[k][l]), sizeof(double), 1, fp);
+    for(int l=0; l<2; l++) {
+      double value;
+      fread(&value, sizeof(double), 1, fp);
+      SET_LAG_TRIANGLE_SFC(mesh, i, k, l, value);
+    }
   fread(&(triangle->stretch[0]), sizeof(double), 2, fp);
   fread(&(triangle->tension[0]), sizeof(double), 2, fp);
 }
@@ -156,7 +169,8 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   fwrite(&(mesh->volume), sizeof(double), 1, fp);
   fwrite(&(mesh->circum_radius), sizeof(double), 1, fp);
   fwrite(&(mesh->taylor_deform), sizeof(double), 1, fp);
-  fwrite(&(mesh->initial_volume), sizeof(double), 1, fp);
+  double initial_volume = LAG_INITIAL_VOLUME(mesh);
+  fwrite(&initial_volume, sizeof(double), 1, fp);
   int tmp;
   tmp = mesh->updated_stretches ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
   tmp = mesh->updated_normals ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
@@ -166,6 +180,7 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
 
 void restore_lagmesh(FILE* fp, lagMesh* mesh) {
   mesh->topology = NULL;
+  mesh->ref_geometry = NULL;
   fread(&(mesh->cap_id), sizeof(int), 1, fp);
   fread(&(mesh->cap_type), sizeof(int), 1, fp);
   fread(&(mesh->cap_es), sizeof(double), 1, fp);
@@ -177,17 +192,25 @@ void restore_lagmesh(FILE* fp, lagMesh* mesh) {
   fread(&(mesh->nle), sizeof(int), 1, fp);
   mesh->edges = malloc(mesh->nle*sizeof(Edge));
   resize_lag_topology(mesh->topology, mesh->nln, mesh->nle, 0);
+  #if LAG_REF_GEOMETRY
+    mesh->ref_geometry = allocate_lag_ref_geometry(mesh->nle, 0);
+  #endif
   for(int i=0; i<mesh->nle; i++) restore_edge(fp, mesh, i);
   fread(&(mesh->nlt), sizeof(int), 1, fp);
   mesh->triangles = malloc(mesh->nlt*sizeof(Triangle));
   resize_lag_topology(mesh->topology, mesh->nln, mesh->nle, mesh->nlt);
+  #if LAG_REF_GEOMETRY
+    resize_lag_ref_geometry(mesh->ref_geometry, mesh->nle, mesh->nlt);
+  #endif
   for(int i=0; i<mesh->nlt; i++) restore_triangle(fp, mesh, i);
   foreach_dimension() fread(&(mesh->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() fread(&(mesh->ang_vel.x), sizeof(double), 1, fp);
   fread(&(mesh->volume), sizeof(double), 1, fp);
   fread(&(mesh->circum_radius), sizeof(double), 1, fp);
   fread(&(mesh->taylor_deform), sizeof(double), 1, fp);
-  fread(&(mesh->initial_volume), sizeof(double), 1, fp);
+  double initial_volume;
+  fread(&initial_volume, sizeof(double), 1, fp);
+  SET_LAG_INITIAL_VOLUME(mesh, initial_volume);
   int tmp;
   fread(&(tmp), sizeof(int), 1, fp);
   mesh->updated_stretches = (tmp == 0) ? false : true;
@@ -222,6 +245,7 @@ void restore_capsules(char* filename) {
     restore_lagmesh(file, &CAPS(i));
     if (CAPS(i).isactive) {
       attach_shared_lag_topology(&CAPS(i));
+      attach_shared_lag_ref_geometry(&CAPS(i));
       debug_lag_topology(&CAPS(i), "restore_capsules");
     }
   }

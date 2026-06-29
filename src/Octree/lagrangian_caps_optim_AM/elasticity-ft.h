@@ -99,25 +99,25 @@ void store_initial_configuration(lagMesh* mesh) {
   for(int i=0; i<mesh->nlt; i++) {
     /** 1. Rotate the triangle to the reference plane and store the
     coordinates of nodes 1 and 2 (node 0 has coordinates (0,0)).*/
-    rotate_to_reference_plane(mesh, i, mesh->triangles[i].refShape, buff);
+    rotate_to_reference_plane(mesh, i, LAG_TRIANGLE_REFSHAPE(mesh, i), buff);
 
     /** 2. Compute the shape functions $N_k = a_k x + b_k y + c_k$.
     We only compute the coefficient $a_k$, $b_k$ because $c_k$ will be lost in
     the derivations. */
     coord rn[2];
     for(int k=0; k<2; k++)
-      foreach_dimension() rn[k].x = mesh->triangles[i].refShape[k].x;
+      foreach_dimension() rn[k].x = LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, k, x);
     double det;
     /** 2.1. Compute $a_0$, $b_0$ */
     det = rn[0].x*rn[1].y - rn[0].y*rn[1].x;
     assert(fabs(det) > 1.e-9*TOLERANCE);
-    mesh->triangles[i].sfc[0][0] = (rn[0].y - rn[1].y)/det;
-    mesh->triangles[i].sfc[0][1] = (rn[1].x - rn[0].x)/det;
+    SET_LAG_TRIANGLE_SFC(mesh, i, 0, 0, (rn[0].y - rn[1].y)/det);
+    SET_LAG_TRIANGLE_SFC(mesh, i, 0, 1, (rn[1].x - rn[0].x)/det);
     /** 2.2. Compute $a_1$, $b_1$, $a_2$, $b_2$ */
-    mesh->triangles[i].sfc[1][0] = rn[1].y/det;
-    mesh->triangles[i].sfc[1][1] = -rn[1].x/det;
-    mesh->triangles[i].sfc[2][0] = -rn[0].y/det;
-    mesh->triangles[i].sfc[2][1] = rn[0].x/det;
+    SET_LAG_TRIANGLE_SFC(mesh, i, 1, 0, rn[1].y/det);
+    SET_LAG_TRIANGLE_SFC(mesh, i, 1, 1, -rn[1].x/det);
+    SET_LAG_TRIANGLE_SFC(mesh, i, 2, 0, -rn[0].y/det);
+    SET_LAG_TRIANGLE_SFC(mesh, i, 2, 1, rn[0].x/det);
   }
 }
 #endif
@@ -138,7 +138,7 @@ void comp_elastic_stress(lagMesh* mesh) {
       int edge_id, edge_node1, edge_node2;
       edge_id = LAG_NODE_EDGE_ID(mesh, i, j);
       double stretch_cube =
-        cube(mesh->edges[edge_id].length/mesh->edges[edge_id].l0);
+        cube(mesh->edges[edge_id].length/LAG_EDGE_L0(mesh, edge_id));
       double tension_norm = (fabs(stretch_cube) > 1.e-10) ?
         mesh->cap_es*(stretch_cube - 1.)/sqrt(stretch_cube) : 0.;
       /** We compute the direction vector $e$ for the tension */
@@ -187,8 +187,8 @@ void comp_elastic_stress(lagMesh* mesh) {
     have to manipulate 2D vectors and matrices. */
     double v[2][2];
     for(int k=0; k<2; k++) {
-      v[k][0] = cn[k].x - mesh->triangles[i].refShape[k].x;
-      v[k][1] = cn[k].y - mesh->triangles[i].refShape[k].y;
+      v[k][0] = cn[k].x - LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, k, x);
+      v[k][1] = cn[k].y - LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, k, y);
     }
 
     /** #### Step 3. Compute the right Cauchy-Green deformation tensor from the displacement $\bm{v_k}$:
@@ -203,7 +203,7 @@ void comp_elastic_stress(lagMesh* mesh) {
       for(int j=0; j<2; j++) {
         F[ii][j] = (ii == j) ? 1. : 0.;
         for(int k=1; k<3; k++) {
-          F[ii][j] += mesh->triangles[i].sfc[k][j]*v[k-1][ii];
+          F[ii][j] += LAG_TRIANGLE_SFC(mesh, i, k, j)*v[k-1][ii];
         }
       }
     }
@@ -244,8 +244,8 @@ void comp_elastic_stress(lagMesh* mesh) {
       double den = sqrt(sq(C[0][0] - C[1][1]) + 4*sq(C[0][1]));
       int sign[2] = {-1, 1};
       double a[2];
-      a[0] = mesh->triangles[i].sfc[j][0];
-      a[1] = mesh->triangles[i].sfc[j][1];
+      a[0] = LAG_TRIANGLE_SFC(mesh, i, j, 0);
+      a[1] = LAG_TRIANGLE_SFC(mesh, i, j, 1);
       for(int k=0; k<2; k++) {
         for(int l=0; l<2; l++) {
           int c1, c2;

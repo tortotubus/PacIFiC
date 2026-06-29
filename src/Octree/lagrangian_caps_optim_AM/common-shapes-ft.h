@@ -42,6 +42,9 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
   p.mesh->topology = allocate_lag_topology(nln, nln, 0);
+  #if LAG_REF_GEOMETRY
+    p.mesh->ref_geometry = allocate_lag_ref_geometry(nln, 0);
+  #endif
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -76,8 +79,8 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
   SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].l0 = edge_length(p.mesh, i);
-    p.mesh->edges[i].length = p.mesh->edges[i].l0;
+    SET_LAG_EDGE_L0(p.mesh, i, edge_length(p.mesh, i));
+    p.mesh->edges[i].length = LAG_EDGE_L0(p.mesh, i);
   }
 
   #ifdef CAPS_VISCOSITY
@@ -86,7 +89,7 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 /**
@@ -106,6 +109,9 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
   p.mesh->topology = allocate_lag_topology(nln, nln, 0);
+  #if LAG_REF_GEOMETRY
+    p.mesh->ref_geometry = allocate_lag_ref_geometry(nln, 0);
+  #endif
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -145,12 +151,12 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
   SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].l0 = edge_length(p.mesh, i);
-    p.mesh->edges[i].length = p.mesh->edges[i].l0;
+    SET_LAG_EDGE_L0(p.mesh, i, edge_length(p.mesh, i));
+    p.mesh->edges[i].length = LAG_EDGE_L0(p.mesh, i);
   }
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 
@@ -175,6 +181,9 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
   p.mesh->nodes = malloc(nln*sizeof(lagNode));
   p.mesh->edges = malloc(nln*sizeof(Edge));
   p.mesh->topology = allocate_lag_topology(nln, nln, 0);
+  #if LAG_REF_GEOMETRY
+    p.mesh->ref_geometry = allocate_lag_ref_geometry(nln, 0);
+  #endif
 
   double alpha = 2*pi/(nln);
   /** Fill the array of nodes */
@@ -209,8 +218,8 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
   SET_LAG_NODE_EDGE_ID(p.mesh, 0, 1, 0);
   correct_lag_pos(p.mesh);
   for(int i=0.; i<p.mesh->nle; i++) {
-    p.mesh->edges[i].l0 = edge_length(p.mesh, i);
-    p.mesh->edges[i].length = p.mesh->edges[i].l0;
+    SET_LAG_EDGE_L0(p.mesh, i, edge_length(p.mesh, i));
+    p.mesh->edges[i].length = LAG_EDGE_L0(p.mesh, i);
   }
 
   #ifdef CAPS_VISCOSITY
@@ -219,7 +228,7 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 #else // dimension > 2
@@ -235,6 +244,9 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
   p.mesh->nlt = 0;
   p.mesh->triangles = malloc(20*sizeof(Triangle));
   p.mesh->topology = allocate_lag_topology(12, 30, 20);
+  #if LAG_REF_GEOMETRY
+    p.mesh->ref_geometry = allocate_lag_ref_geometry(30, 20);
+  #endif
 
   /**
   * Create the Lagrangian nodes
@@ -302,7 +314,7 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 /**
@@ -362,6 +374,9 @@ void initialize_spherical_capsule(_initialize_circular_capsule p) {
   p.mesh->edges = realloc(p.mesh->edges, ne*sizeof(Edge));
   p.mesh->triangles = realloc(p.mesh->triangles, nt*sizeof(Triangle));
   resize_lag_topology(p.mesh->topology, nn, ne, nt);
+  #if LAG_REF_GEOMETRY
+    resize_lag_ref_geometry(p.mesh->ref_geometry, ne, nt);
+  #endif
 
   /** It's time to perform our $ns$ triangle subdivisions */
   for(int i=0; i<ns; i++) refine_mesh(p.mesh);
@@ -415,7 +430,7 @@ void initialize_spherical_capsule(_initialize_circular_capsule p) {
   comp_normals(p.mesh);
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 void initialize_rbc_capsule(_initialize_circular_capsule p) {
@@ -462,7 +477,7 @@ void initialize_rbc_capsule(_initialize_circular_capsule p) {
   correct_lag_pos(p.mesh);
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
-  p.mesh->initial_volume = p.mesh->volume;
+  SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
 void activate_spherical_capsule(_initialize_circular_capsule p) {
@@ -474,12 +489,13 @@ void activate_spherical_capsule(_initialize_circular_capsule p) {
   p.mesh->isactive = true;
   initialize_spherical_capsule(p);
   attach_shared_lag_topology(p.mesh);
-  debug_lag_topology(p.mesh, "activate_spherical_capsule");
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT
     store_initial_configuration(p.mesh);
   #endif
+  attach_shared_lag_ref_geometry(p.mesh);
+  debug_lag_topology(p.mesh, "activate_spherical_capsule");
   #if _BENDING_FT
     initialize_refcurv_onecaps(p.mesh);
   #endif
@@ -494,12 +510,13 @@ void activate_biconcave_capsule(_initialize_circular_capsule p) {
   p.mesh->isactive = true;
   initialize_rbc_capsule(p);
   attach_shared_lag_topology(p.mesh);
-  debug_lag_topology(p.mesh, "activate_biconcave_capsule");
   initialize_capsule_stencils(p.mesh);
   generate_lag_stencils(true);
   #if _ELASTICITY_FT
     store_initial_configuration(p.mesh);
   #endif
+  attach_shared_lag_ref_geometry(p.mesh);
+  debug_lag_topology(p.mesh, "activate_biconcave_capsule");
   #if _BENDING_FT
     initialize_refcurv_onecaps(p.mesh);
   #endif
