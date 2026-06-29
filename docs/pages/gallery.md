@@ -11,11 +11,7 @@ Here is a preview of what can be simulated using Grains3D.
 ## Example 2
 
 <figure class="figure">
-<<<<<<< HEAD
-  <img src="images/Spheres-phi=01-Rec=148.jpg" class="figure-img img-fluid rounded" alt="..."> 
-=======
   <img src="../images/Spheres-phi=01-Rec=148.jpg" class="figure-img img-fluid rounded" alt="..."> 
->>>>>>> 27a863fc7a2c730d64b23559f985abd4433e4892
   <figcaption class="figure-caption">Dynamic simulation of n spheres</figcaption>
 </figure>
 
