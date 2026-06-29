@@ -3,6 +3,10 @@ toc: false
 ---
 
 # Welcome to PacIFiC!
+<<<<<<< HEAD
+=======
+[![Copr build status](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/package/pacific/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/colive/PacIFiC/package/pacific/)
+>>>>>>> 27a863fc7a2c730d64b23559f985abd4433e4892
 
 PacIFiC is a high-performance MPI parallel c/c++ software to compute particle-laden flows at the particle scale. PacIFiC stands for "PArtiCles In FluId Computations".
 
