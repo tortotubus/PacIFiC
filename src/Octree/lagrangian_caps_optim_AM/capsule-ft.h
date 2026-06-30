@@ -33,7 +33,7 @@ meant to track the position and compute the stresses of an elasitc membrane.
 #endif
 
 #ifndef LAG_REF_GEOMETRY
-  #define LAG_REF_GEOMETRY 0
+  #define LAG_REF_GEOMETRY 1
 #endif
 
 /*Create the Index_lag*/
@@ -646,6 +646,110 @@ void free_lag_topology(lagTopology* topology) {
   free(topology);
 }
 
+lagReferenceGeometry* allocate_lag_ref_geometry(int nle, int nlt) {
+  lagReferenceGeometry* ref = calloc(1, sizeof(lagReferenceGeometry));
+  assert(ref);
+  ref->nle = nle;
+  ref->edge_l0 = malloc(nle*sizeof(double));
+  assert(ref->edge_l0 || nle == 0);
+  for(int i=0; i<nle; i++)
+    ref->edge_l0[i] = 0.;
+
+  #if dimension > 2
+    ref->nlt = nlt;
+    ref->triangle_refShape = malloc(nlt*sizeof(coord[2]));
+    ref->triangle_sfc = malloc(nlt*sizeof(double[3][2]));
+    assert(ref->triangle_refShape || nlt == 0);
+    assert(ref->triangle_sfc || nlt == 0);
+    for(int i=0; i<nlt; i++) {
+      for(int j=0; j<2; j++)
+        foreach_dimension()
+          ref->triangle_refShape[i][j].x = 0.;
+      for(int j=0; j<3; j++)
+        for(int k=0; k<2; k++)
+          ref->triangle_sfc[i][j][k] = 0.;
+    }
+  #else
+    (void) nlt;
+  #endif
+
+  ref->initial_volume = 0.;
+  return ref;
+}
+
+void resize_lag_ref_geometry(lagReferenceGeometry* ref, int nle, int nlt) {
+  assert(ref);
+  int old_nle = ref->nle;
+  #if dimension > 2
+    int old_nlt = ref->nlt;
+  #endif
+
+  ref->nle = nle;
+  ref->edge_l0 = realloc(ref->edge_l0, nle*sizeof(double));
+  assert(ref->edge_l0 || nle == 0);
+  for(int i=old_nle; i<nle; i++)
+    ref->edge_l0[i] = 0.;
+
+  #if dimension > 2
+    ref->nlt = nlt;
+    ref->triangle_refShape = realloc(ref->triangle_refShape, nlt*sizeof(coord[2]));
+    ref->triangle_sfc = realloc(ref->triangle_sfc, nlt*sizeof(double[3][2]));
+    assert(ref->triangle_refShape || nlt == 0);
+    assert(ref->triangle_sfc || nlt == 0);
+    for(int i=old_nlt; i<nlt; i++) {
+      for(int j=0; j<2; j++)
+        foreach_dimension()
+          ref->triangle_refShape[i][j].x = 0.;
+      for(int j=0; j<3; j++)
+        for(int k=0; k<2; k++)
+          ref->triangle_sfc[i][j][k] = 0.;
+    }
+  #else
+    (void) nlt;
+  #endif
+}
+
+void free_lag_ref_geometry(lagReferenceGeometry* ref) {
+  if (!ref) return;
+  free(ref->edge_l0);
+  #if dimension > 2
+    free(ref->triangle_refShape);
+    free(ref->triangle_sfc);
+  #endif
+  free(ref);
+}
+
+bool lag_ref_geometry_matches_mesh(lagReferenceGeometry* ref, lagMesh* mesh) {
+  if (!ref || ref->nle != mesh->nle)
+    return false;
+  #if dimension > 2
+    if (ref->nlt != mesh->nlt)
+      return false;
+  #endif
+
+  for(int i=0; i<mesh->nle; i++)
+    if (fabs(ref->edge_l0[i] - LAG_EDGE_L0(mesh, i)) > 1.e-12)
+      return false;
+  if (fabs(ref->initial_volume - LAG_INITIAL_VOLUME(mesh)) > 1.e-12)
+    return false;
+
+  #if dimension > 2
+    for(int i=0; i<mesh->nlt; i++) {
+      for(int j=0; j<2; j++)
+        foreach_dimension()
+          if (fabs(ref->triangle_refShape[i][j].x -
+            LAG_TRIANGLE_REFSHAPE_COMPONENT(mesh, i, j, x)) > 1.e-12)
+            return false;
+      for(int j=0; j<3; j++)
+        for(int k=0; k<2; k++)
+          if (fabs(ref->triangle_sfc[i][j][k] -
+            LAG_TRIANGLE_SFC(mesh, i, j, k)) > 1.e-12)
+            return false;
+    }
+  #endif
+  return true;
+}
+
 typedef struct lagTopologyRegistry {
   int n;
   int nm;
@@ -653,6 +757,14 @@ typedef struct lagTopologyRegistry {
 } lagTopologyRegistry;
 
 static lagTopologyRegistry lag_topologies = {0, 0, NULL};
+
+typedef struct lagRefGeometryRegistry {
+  int n;
+  int nm;
+  lagReferenceGeometry** items;
+} lagRefGeometryRegistry;
+
+static lagRefGeometryRegistry lag_ref_geometries = {0, 0, NULL};
 
 #if LAG_TOPOLOGY_DEBUG
   void lag_topology_debug_error(int* errors, const char* what, int a, int b, int c) {
@@ -766,17 +878,35 @@ static lagTopologyRegistry lag_topologies = {0, 0, NULL};
   }
 
   void debug_lag_topology(lagMesh* mesh, const char* context) {
+    static bool printed_sizes = false;
+    if (!printed_sizes) {
+      fprintf(stderr,
+        "lagStruct sizes: rank %d LAG_SHARED_TOPOLOGY %d LAG_REF_GEOMETRY %d sizeof(coord) %zu sizeof(lagNode) %zu sizeof(Edge) %zu"
+        #if dimension > 2
+          " sizeof(Triangle) %zu"
+        #endif
+        "\n",
+        pid(), LAG_SHARED_TOPOLOGY, LAG_REF_GEOMETRY, sizeof(coord),
+        sizeof(lagNode), sizeof(Edge)
+        #if dimension > 2
+          , sizeof(Triangle)
+        #endif
+      );
+      printed_sizes = true;
+    }
     int errors = lag_topology_validate(mesh);
     #if dimension > 2
       fprintf(stderr,
-        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d nln %d nle %d nlt %d validation_errors %d\n",
+        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d ref_geometry %p ref_registry_n %d nln %d nle %d nlt %d validation_errors %d\n",
         pid(), context ? context : "none", mesh->cap_id, (void*) mesh->topology,
-        lag_topologies.n, mesh->nln, mesh->nle, mesh->nlt, errors);
+        lag_topologies.n, (void*) mesh->ref_geometry, lag_ref_geometries.n,
+        mesh->nln, mesh->nle, mesh->nlt, errors);
     #else
       fprintf(stderr,
-        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d nln %d nle %d validation_errors %d\n",
+        "lagTopology debug: rank %d context %s cap %d topology %p registry_n %d ref_geometry %p ref_registry_n %d nln %d nle %d validation_errors %d\n",
         pid(), context ? context : "none", mesh->cap_id, (void*) mesh->topology,
-        lag_topologies.n, mesh->nln, mesh->nle, errors);
+        lag_topologies.n, (void*) mesh->ref_geometry, lag_ref_geometries.n,
+        mesh->nln, mesh->nle, errors);
     #endif
     if (errors > 20)
       fprintf(stderr, "lagTopology debug: %d additional errors suppressed\n", errors - 20);
@@ -857,6 +987,29 @@ void attach_shared_lag_topology(lagMesh* mesh) {
   lag_topologies.items[lag_topologies.n++] = mesh->topology;
 }
 
+void attach_shared_lag_ref_geometry(lagMesh* mesh) {
+  #if LAG_REF_GEOMETRY
+    assert(mesh->ref_geometry);
+    for(int i=0; i<lag_ref_geometries.n; i++) {
+      if (lag_ref_geometry_matches_mesh(lag_ref_geometries.items[i], mesh)) {
+        if (mesh->ref_geometry != lag_ref_geometries.items[i])
+          free_lag_ref_geometry(mesh->ref_geometry);
+        mesh->ref_geometry = lag_ref_geometries.items[i];
+        return;
+      }
+    }
+    if (lag_ref_geometries.n >= lag_ref_geometries.nm) {
+      lag_ref_geometries.nm = lag_ref_geometries.nm ? 2*lag_ref_geometries.nm : 4;
+      lag_ref_geometries.items = realloc(lag_ref_geometries.items,
+        lag_ref_geometries.nm*sizeof(lagReferenceGeometry*));
+      assert(lag_ref_geometries.items);
+    }
+    lag_ref_geometries.items[lag_ref_geometries.n++] = mesh->ref_geometry;
+  #else
+    (void) mesh;
+  #endif
+}
+
 void free_shared_lag_topologies() {
   for(int i=0; i<lag_topologies.n; i++)
     free_lag_topology(lag_topologies.items[i]);
@@ -864,6 +1017,15 @@ void free_shared_lag_topologies() {
   lag_topologies.n = 0;
   lag_topologies.nm = 0;
   lag_topologies.items = NULL;
+}
+
+void free_shared_lag_ref_geometries() {
+  for(int i=0; i<lag_ref_geometries.n; i++)
+    free_lag_ref_geometry(lag_ref_geometries.items[i]);
+  free(lag_ref_geometries.items);
+  lag_ref_geometries.n = 0;
+  lag_ref_geometries.nm = 0;
+  lag_ref_geometries.items = NULL;
 }
 
 void free_one_caps(lagMesh* mesh) {
@@ -874,6 +1036,11 @@ void free_one_caps(lagMesh* mesh) {
   #if dimension > 2
     free(mesh->triangles);
   #endif
+  #if LAG_REF_GEOMETRY
+    (void) mesh;
+  #else
+    free_lag_ref_geometry(mesh->ref_geometry);
+  #endif
 }
 
 void free_all_caps(Capsules* caps) {
@@ -881,6 +1048,7 @@ void free_all_caps(Capsules* caps) {
     if (CAPS(i).isactive)
       free_one_caps(&(caps->caps[i]));
   free_shared_lag_topologies();
+  free_shared_lag_ref_geometries();
 }
 
 /**

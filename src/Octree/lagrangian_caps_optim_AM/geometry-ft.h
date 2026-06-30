@@ -214,6 +214,21 @@ void comp_centroid(lagMesh* mesh) {
   correct_node_pos(&mesh->centroid);
 }
 
+/**
+The function below computes the radius of a circumscribed sphere around the
+capsule, centered at the current capsule centroid. The optional padding keeps
+the radius conservative for Eulerian stencil operations.
+*/
+
+void comp_circum_radius(lagMesh* mesh, double radius_padding) {
+  double max_radius = 0.;
+  for(int i=0; i<mesh->nln; i++) {
+    double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
+    max_radius = (tentative_radius > max_radius) ? tentative_radius : max_radius;
+  }
+  mesh->circum_radius = max_radius + radius_padding;
+}
+
 trace
 void comp_volume(lagMesh* mesh) {
   coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2}; //FIXME
@@ -377,8 +392,7 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
 
 
   comp_centroid(mesh);
-  double max_radius = -HUGE;
-  double min_radius = HUGE;
+  comp_circum_radius(mesh, 3*delta);
   coord angvel={0.,0.,0.};
 
 
@@ -386,17 +400,11 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
   {
     double tentative_radius = sqrt(GENERAL_SQNORM(mesh->nodes[i].pos, mesh->centroid));
 
-    max_radius = (tentative_radius > max_radius)? tentative_radius: max_radius; 
-    min_radius = (tentative_radius < min_radius)? tentative_radius: min_radius; 
-
     foreach_dimension()
       angvel.x += (GENERAL_1DIST(mesh->nodes[i].pos.y, mesh->centroid.y, L0*L0_ratio.y)*(mesh->nodes[i].lagVel.z - center_vel.z) -
         GENERAL_1DIST(mesh->nodes[i].pos.z, mesh->centroid.z, L0*L0_ratio.z)*(mesh->nodes[i].lagVel.y - center_vel.y)) /tentative_radius /tentative_radius;
  
   }
-
-  /* Compute the circumference radius */
-  mesh->circum_radius = max_radius + 3*delta;
   
   /*Compute the angular velocity of the capsule*/
   foreach_dimension()

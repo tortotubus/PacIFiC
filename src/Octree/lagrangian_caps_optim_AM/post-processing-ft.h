@@ -171,6 +171,124 @@ void pv_output_ascii(int pv_timestep) {
   pv_timestep++;
 }
 
+#ifndef BOUNDING_SPHERE_NLAT
+  #define BOUNDING_SPHERE_NLAT 12
+#endif
+#ifndef BOUNDING_SPHERE_NLON
+  #define BOUNDING_SPHERE_NLON 24
+#endif
+
+void pv_output_bounding_spheres_ascii(int pv_timestep) {
+  if (pid() == 0) {
+    char name[128];
+    char prefix[64];
+    sprintf(prefix, "%s", result_dir);
+    strcat(prefix, "/");
+    strcat(prefix, "caps_bounds");
+    char suffix[64];
+    sprintf(suffix, "_T%d.vtk", pv_timestep);
+    sprintf(name, "%s%s", prefix, suffix);
+
+    FILE* file = fopen(name, "w");
+    assert(file);
+
+    int nactive = 0;
+    for(int j=0; j<NCAPS; j++)
+      if (CAPS(j).isactive)
+        nactive++;
+
+    int nlat = BOUNDING_SPHERE_NLAT;
+    int nlon = BOUNDING_SPHERE_NLON;
+    int points_per_sphere = 2 + (nlat - 1)*nlon;
+    int cells_per_sphere = nlat*nlon;
+    int cell_size_per_sphere = 8*nlon + 5*(nlat - 2)*nlon;
+
+    fprintf(file, "# vtk DataFile Version 4.2\n");
+    fprintf(file, "Capsule bounding spheres at time %g\n", t);
+    fprintf(file, "ASCII\n");
+    fprintf(file, "DATASET POLYDATA\n");
+
+    fprintf(file, "POINTS %d double\n", nactive*points_per_sphere);
+    double pi_sphere = acos(-1.);
+    for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive)
+        continue;
+
+      coord c = CAPS(j).centroid;
+      double r = CAPS(j).circum_radius;
+      fprintf(file, "%g %g %g\n", c.x, c.y, c.z + r);
+      for(int ilat=1; ilat<nlat; ilat++) {
+        double theta = pi_sphere*((double) ilat)/((double) nlat);
+        for(int ilon=0; ilon<nlon; ilon++) {
+          double phi = 2.*pi_sphere*((double) ilon)/((double) nlon);
+          fprintf(file, "%g %g %g\n",
+            c.x + r*sin(theta)*cos(phi),
+            c.y + r*sin(theta)*sin(phi),
+            c.z + r*cos(theta));
+        }
+      }
+      fprintf(file, "%g %g %g\n", c.x, c.y, c.z - r);
+    }
+
+    fprintf(file, "POLYGONS %d %d\n",
+      nactive*cells_per_sphere, nactive*cell_size_per_sphere);
+    int sphere_id = 0;
+    for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive)
+        continue;
+
+      int base = sphere_id*points_per_sphere;
+      int north = base;
+      int south = base + points_per_sphere - 1;
+
+      for(int ilon=0; ilon<nlon; ilon++) {
+        int next = (ilon + 1)%nlon;
+        int p0 = base + 1 + ilon;
+        int p1 = base + 1 + next;
+        fprintf(file, "3 %d %d %d\n", north, p0, p1);
+      }
+
+      for(int ilat=1; ilat<nlat - 1; ilat++) {
+        for(int ilon=0; ilon<nlon; ilon++) {
+          int next = (ilon + 1)%nlon;
+          int p00 = base + 1 + (ilat - 1)*nlon + ilon;
+          int p01 = base + 1 + (ilat - 1)*nlon + next;
+          int p11 = base + 1 + ilat*nlon + next;
+          int p10 = base + 1 + ilat*nlon + ilon;
+          fprintf(file, "4 %d %d %d %d\n", p00, p01, p11, p10);
+        }
+      }
+
+      int last_ring = base + 1 + (nlat - 2)*nlon;
+      for(int ilon=0; ilon<nlon; ilon++) {
+        int next = (ilon + 1)%nlon;
+        int p0 = last_ring + ilon;
+        int p1 = last_ring + next;
+        fprintf(file, "3 %d %d %d\n", south, p1, p0);
+      }
+
+      sphere_id++;
+    }
+
+    fprintf(file, "CELL_DATA %d\n", nactive*cells_per_sphere);
+    fprintf(file, "SCALARS cap_id int 1\n");
+    fprintf(file, "LOOKUP_TABLE default\n");
+    for(int j=0; j<NCAPS; j++)
+      if (CAPS(j).isactive)
+        for(int k=0; k<cells_per_sphere; k++)
+          fprintf(file, "%d\n", CAPS(j).cap_id);
+
+    fprintf(file, "SCALARS circum_radius double 1\n");
+    fprintf(file, "LOOKUP_TABLE default\n");
+    for(int j=0; j<NCAPS; j++)
+      if (CAPS(j).isactive)
+        for(int k=0; k<cells_per_sphere; k++)
+          fprintf(file, "%g\n", CAPS(j).circum_radius);
+
+    fclose(file);
+  }
+}
+
 // return true if the file specified by the filename exists
 bool file_exists(const char *filename)
 {
