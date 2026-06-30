@@ -192,98 +192,240 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
     FILE* file = fopen(name, "w");
     assert(file);
 
-    int nactive = 0;
-    for(int j=0; j<NCAPS; j++)
-      if (CAPS(j).isactive)
-        nactive++;
-
     int nlat = BOUNDING_SPHERE_NLAT;
     int nlon = BOUNDING_SPHERE_NLON;
     int points_per_sphere = 2 + (nlat - 1)*nlon;
     int cells_per_sphere = nlat*nlon;
     int cell_size_per_sphere = 8*nlon + 5*(nlat - 2)*nlon;
+    coord domain_min = {X0, Y0, Z0};
+    coord domain_max = {
+      X0 + L0*L0_ratio.x,
+      Y0 + L0*L0_ratio.y,
+      Z0 + L0*L0_ratio.z
+    };
+    coord domain_length = {
+      L0*L0_ratio.x,
+      L0*L0_ratio.y,
+      L0*L0_ratio.z
+    };
 
-    fprintf(file, "# vtk DataFile Version 4.2\n");
-    fprintf(file, "Capsule bounding spheres at time %g\n", t);
-    fprintf(file, "ASCII\n");
-    fprintf(file, "DATASET POLYDATA\n");
-
-    fprintf(file, "POINTS %d double\n", nactive*points_per_sphere);
-    double pi_sphere = acos(-1.);
+    int nspheres = 0;
     for(int j=0; j<NCAPS; j++) {
       if (!CAPS(j).isactive)
         continue;
 
       coord c = CAPS(j).centroid;
       double r = CAPS(j).circum_radius;
-      fprintf(file, "%g %g %g\n", c.x, c.y, c.z + r);
-      for(int ilat=1; ilat<nlat; ilat++) {
-        double theta = pi_sphere*((double) ilat)/((double) nlat);
-        for(int ilon=0; ilon<nlon; ilon++) {
-          double phi = 2.*pi_sphere*((double) ilon)/((double) nlon);
-          fprintf(file, "%g %g %g\n",
-            c.x + r*sin(theta)*cos(phi),
-            c.y + r*sin(theta)*sin(phi),
-            c.z + r*cos(theta));
-        }
+      int nx = 1, ny = 1, nz = 1;
+      if (Period.x) {
+        if (c.x - r < domain_min.x) nx++;
+        if (c.x + r > domain_max.x) nx++;
       }
-      fprintf(file, "%g %g %g\n", c.x, c.y, c.z - r);
+      if (Period.y) {
+        if (c.y - r < domain_min.y) ny++;
+        if (c.y + r > domain_max.y) ny++;
+      }
+      if (Period.z) {
+        if (c.z - r < domain_min.z) nz++;
+        if (c.z + r > domain_max.z) nz++;
+      }
+      nspheres += nx*ny*nz;
+    }
+
+    fprintf(file, "# vtk DataFile Version 4.2\n");
+    fprintf(file, "Capsule bounding spheres at time %g\n", t);
+    fprintf(file, "ASCII\n");
+    fprintf(file, "DATASET POLYDATA\n");
+
+    fprintf(file, "POINTS %d double\n", nspheres*points_per_sphere);
+    double pi_sphere = acos(-1.);
+    for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive)
+        continue;
+
+      coord base_center = CAPS(j).centroid;
+      double r = CAPS(j).circum_radius;
+
+      double xshift[3] = {0., 0., 0.};
+      double yshift[3] = {0., 0., 0.};
+      double zshift[3] = {0., 0., 0.};
+      int nx = 1, ny = 1, nz = 1;
+      if (Period.x) {
+        if (base_center.x - r < domain_min.x) xshift[nx++] = domain_length.x;
+        if (base_center.x + r > domain_max.x) xshift[nx++] = -domain_length.x;
+      }
+      if (Period.y) {
+        if (base_center.y - r < domain_min.y) yshift[ny++] = domain_length.y;
+        if (base_center.y + r > domain_max.y) yshift[ny++] = -domain_length.y;
+      }
+      if (Period.z) {
+        if (base_center.z - r < domain_min.z) zshift[nz++] = domain_length.z;
+        if (base_center.z + r > domain_max.z) zshift[nz++] = -domain_length.z;
+      }
+
+      for(int ix=0; ix<nx; ix++)
+        for(int iy=0; iy<ny; iy++)
+          for(int iz=0; iz<nz; iz++) {
+            coord c = {
+              base_center.x + xshift[ix],
+              base_center.y + yshift[iy],
+              base_center.z + zshift[iz]
+            };
+            fprintf(file, "%g %g %g\n", c.x, c.y, c.z + r);
+            for(int ilat=1; ilat<nlat; ilat++) {
+              double theta = pi_sphere*((double) ilat)/((double) nlat);
+              for(int ilon=0; ilon<nlon; ilon++) {
+                double phi = 2.*pi_sphere*((double) ilon)/((double) nlon);
+                fprintf(file, "%g %g %g\n",
+                  c.x + r*sin(theta)*cos(phi),
+                  c.y + r*sin(theta)*sin(phi),
+                  c.z + r*cos(theta));
+              }
+            }
+            fprintf(file, "%g %g %g\n", c.x, c.y, c.z - r);
+        }
     }
 
     fprintf(file, "POLYGONS %d %d\n",
-      nactive*cells_per_sphere, nactive*cell_size_per_sphere);
+      nspheres*cells_per_sphere, nspheres*cell_size_per_sphere);
     int sphere_id = 0;
     for(int j=0; j<NCAPS; j++) {
       if (!CAPS(j).isactive)
         continue;
 
-      int base = sphere_id*points_per_sphere;
-      int north = base;
-      int south = base + points_per_sphere - 1;
-
-      for(int ilon=0; ilon<nlon; ilon++) {
-        int next = (ilon + 1)%nlon;
-        int p0 = base + 1 + ilon;
-        int p1 = base + 1 + next;
-        fprintf(file, "3 %d %d %d\n", north, p0, p1);
+      coord base_center = CAPS(j).centroid;
+      double r = CAPS(j).circum_radius;
+      int nx = 1, ny = 1, nz = 1;
+      if (Period.x) {
+        if (base_center.x - r < domain_min.x) nx++;
+        if (base_center.x + r > domain_max.x) nx++;
+      }
+      if (Period.y) {
+        if (base_center.y - r < domain_min.y) ny++;
+        if (base_center.y + r > domain_max.y) ny++;
+      }
+      if (Period.z) {
+        if (base_center.z - r < domain_min.z) nz++;
+        if (base_center.z + r > domain_max.z) nz++;
       }
 
-      for(int ilat=1; ilat<nlat - 1; ilat++) {
-        for(int ilon=0; ilon<nlon; ilon++) {
-          int next = (ilon + 1)%nlon;
-          int p00 = base + 1 + (ilat - 1)*nlon + ilon;
-          int p01 = base + 1 + (ilat - 1)*nlon + next;
-          int p11 = base + 1 + ilat*nlon + next;
-          int p10 = base + 1 + ilat*nlon + ilon;
-          fprintf(file, "4 %d %d %d %d\n", p00, p01, p11, p10);
-        }
-      }
+      for(int ix=0; ix<nx; ix++)
+        for(int iy=0; iy<ny; iy++)
+          for(int iz=0; iz<nz; iz++) {
+            int base = sphere_id*points_per_sphere;
+            int north = base;
+            int south = base + points_per_sphere - 1;
 
-      int last_ring = base + 1 + (nlat - 2)*nlon;
-      for(int ilon=0; ilon<nlon; ilon++) {
-        int next = (ilon + 1)%nlon;
-        int p0 = last_ring + ilon;
-        int p1 = last_ring + next;
-        fprintf(file, "3 %d %d %d\n", south, p1, p0);
-      }
+            for(int ilon=0; ilon<nlon; ilon++) {
+              int next = (ilon + 1)%nlon;
+              int p0 = base + 1 + ilon;
+              int p1 = base + 1 + next;
+              fprintf(file, "3 %d %d %d\n", north, p0, p1);
+            }
 
-      sphere_id++;
+            for(int ilat=1; ilat<nlat - 1; ilat++) {
+              for(int ilon=0; ilon<nlon; ilon++) {
+                int next = (ilon + 1)%nlon;
+                int p00 = base + 1 + (ilat - 1)*nlon + ilon;
+                int p01 = base + 1 + (ilat - 1)*nlon + next;
+                int p11 = base + 1 + ilat*nlon + next;
+                int p10 = base + 1 + ilat*nlon + ilon;
+                fprintf(file, "4 %d %d %d %d\n", p00, p01, p11, p10);
+              }
+            }
+
+            int last_ring = base + 1 + (nlat - 2)*nlon;
+            for(int ilon=0; ilon<nlon; ilon++) {
+              int next = (ilon + 1)%nlon;
+              int p0 = last_ring + ilon;
+              int p1 = last_ring + next;
+              fprintf(file, "3 %d %d %d\n", south, p1, p0);
+            }
+
+            sphere_id++;
+          }
     }
 
-    fprintf(file, "CELL_DATA %d\n", nactive*cells_per_sphere);
+    fprintf(file, "CELL_DATA %d\n", nspheres*cells_per_sphere);
     fprintf(file, "SCALARS cap_id int 1\n");
     fprintf(file, "LOOKUP_TABLE default\n");
-    for(int j=0; j<NCAPS; j++)
-      if (CAPS(j).isactive)
-        for(int k=0; k<cells_per_sphere; k++)
-          fprintf(file, "%d\n", CAPS(j).cap_id);
+    for(int j=0; j<NCAPS; j++) {
+      if (CAPS(j).isactive) {
+        coord base_center = CAPS(j).centroid;
+        double r = CAPS(j).circum_radius;
+        int nx = 1, ny = 1, nz = 1;
+        if (Period.x) {
+          if (base_center.x - r < domain_min.x) nx++;
+          if (base_center.x + r > domain_max.x) nx++;
+        }
+        if (Period.y) {
+          if (base_center.y - r < domain_min.y) ny++;
+          if (base_center.y + r > domain_max.y) ny++;
+        }
+        if (Period.z) {
+          if (base_center.z - r < domain_min.z) nz++;
+          if (base_center.z + r > domain_max.z) nz++;
+        }
+        for(int image=0; image<nx*ny*nz; image++)
+          for(int k=0; k<cells_per_sphere; k++)
+            fprintf(file, "%d\n", CAPS(j).cap_id);
+      }
+    }
 
     fprintf(file, "SCALARS circum_radius double 1\n");
     fprintf(file, "LOOKUP_TABLE default\n");
-    for(int j=0; j<NCAPS; j++)
-      if (CAPS(j).isactive)
-        for(int k=0; k<cells_per_sphere; k++)
-          fprintf(file, "%g\n", CAPS(j).circum_radius);
+    for(int j=0; j<NCAPS; j++) {
+      if (CAPS(j).isactive) {
+        coord base_center = CAPS(j).centroid;
+        double r = CAPS(j).circum_radius;
+        int nx = 1, ny = 1, nz = 1;
+        if (Period.x) {
+          if (base_center.x - r < domain_min.x) nx++;
+          if (base_center.x + r > domain_max.x) nx++;
+        }
+        if (Period.y) {
+          if (base_center.y - r < domain_min.y) ny++;
+          if (base_center.y + r > domain_max.y) ny++;
+        }
+        if (Period.z) {
+          if (base_center.z - r < domain_min.z) nz++;
+          if (base_center.z + r > domain_max.z) nz++;
+        }
+        for(int image=0; image<nx*ny*nz; image++)
+          for(int k=0; k<cells_per_sphere; k++)
+            fprintf(file, "%g\n", CAPS(j).circum_radius);
+      }
+    }
+
+    fprintf(file, "SCALARS periodic_image int 1\n");
+    fprintf(file, "LOOKUP_TABLE default\n");
+    for(int j=0; j<NCAPS; j++) {
+      if (CAPS(j).isactive) {
+        coord base_center = CAPS(j).centroid;
+        double r = CAPS(j).circum_radius;
+        int nx = 1, ny = 1, nz = 1;
+        if (Period.x) {
+          if (base_center.x - r < domain_min.x) nx++;
+          if (base_center.x + r > domain_max.x) nx++;
+        }
+        if (Period.y) {
+          if (base_center.y - r < domain_min.y) ny++;
+          if (base_center.y + r > domain_max.y) ny++;
+        }
+        if (Period.z) {
+          if (base_center.z - r < domain_min.z) nz++;
+          if (base_center.z + r > domain_max.z) nz++;
+        }
+        int image = 0;
+        for(int ix=0; ix<nx; ix++)
+          for(int iy=0; iy<ny; iy++)
+            for(int iz=0; iz<nz; iz++) {
+              for(int k=0; k<cells_per_sphere; k++)
+                fprintf(file, "%d\n", image);
+              image++;
+            }
+      }
+    }
 
     fclose(file);
   }
