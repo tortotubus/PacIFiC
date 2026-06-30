@@ -89,6 +89,7 @@ void initialize_circular_capsule(_initialize_circular_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
@@ -156,6 +157,7 @@ void initialize_biconcave_capsule(_initialize_circular_capsule p) {
   }
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
@@ -228,6 +230,7 @@ void initialize_elliptic_capsule(struct _initialize_elliptic_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
@@ -314,6 +317,7 @@ void initialize_icosahedron(_initialize_circular_capsule p) {
 
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
@@ -430,6 +434,7 @@ void initialize_spherical_capsule(_initialize_circular_capsule p) {
   comp_normals(p.mesh);
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 
@@ -477,6 +482,7 @@ void initialize_rbc_capsule(_initialize_circular_capsule p) {
   correct_lag_pos(p.mesh);
   comp_centroid(p.mesh);
   comp_volume(p.mesh);
+  comp_bounding_sphere(p.mesh);
   SET_LAG_INITIAL_VOLUME(p.mesh, p.mesh->volume);
 }
 

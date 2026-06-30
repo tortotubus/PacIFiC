@@ -229,6 +229,17 @@ void comp_circum_radius(lagMesh* mesh, double radius_padding) {
   mesh->circum_radius = max_radius + radius_padding;
 }
 
+void comp_bounding_sphere(lagMesh* mesh) {
+  #if MULT_GRID == 1
+    double delta = (L0/(1 << grid->maxdepth)/Dimensions.x);
+  #else
+    double delta = (L0/(1 << grid->maxdepth));
+  #endif
+
+  comp_centroid(mesh);
+  comp_circum_radius(mesh, 3*delta);
+}
+
 trace
 void comp_volume(lagMesh* mesh) {
   coord origin = {X0 + L0*L0_ratio.x/2, Y0 + L0*L0_ratio.y/2, Z0 + L0*L0_ratio.z/2}; //FIXME
@@ -373,16 +384,6 @@ coord* rs, double* TDmaxmin, double* TDang)
 
 trace
 void comp_capsule_geodynamics(lagMesh* mesh) {
-  
-  /*Compute the cell size in the grid*/
-  #if MULT_GRID == 1   
-    double delta = (L0/(1 << grid->maxdepth)/Dimensions.x);
-  #else
-    double delta = (L0/(1 << grid->maxdepth));
-  #endif
-
-
-
   coord center_vel = {0., 0., 0.};
   for(int i=0; i<mesh->nln; i++) 
   {
@@ -390,9 +391,7 @@ void comp_capsule_geodynamics(lagMesh* mesh) {
       center_vel.x += mesh->nodes[i].lagVel.x / mesh->nln;
   }
 
-
-  comp_centroid(mesh);
-  comp_circum_radius(mesh, 3*delta);
+  comp_bounding_sphere(mesh);
   coord angvel={0.,0.,0.};
 
 
