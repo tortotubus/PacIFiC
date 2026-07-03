@@ -160,47 +160,97 @@ bool is_capsule_in_proc(lagMesh* mesh) {
 
 void compute_proc_borders(coord* proc_max, coord* proc_min)
 {
+  foreach_dimension() {
+    proc_max->x = -HUGE;
+    proc_min->x = HUGE;
+  }
+
   Cache c = {0};
   foreach() cache_append( &c, point, 0 );
   foreach_cache(c)
   {
-   coord checkpt={x, y, z}; 
    if(point.level>-1)
    {
-    foreach_dimension() if (proc_max->x < checkpt.x) proc_max->x = checkpt.x;
-    foreach_dimension() if (proc_min->x > checkpt.x) proc_min->x = checkpt.x;
+    foreach_dimension() {
+      double cell_min = x - Delta/2.;
+      double cell_max = x + Delta/2.;
+      if (proc_max->x < cell_max) proc_max->x = cell_max;
+      if (proc_min->x > cell_min) proc_min->x = cell_min;
+    }
    }
   }
   free(c.p); //free cache
 }
 
-bool is_capsule_in_boundingbox(coord proc_max, coord proc_min, lagMesh* mesh) 
+bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)
 {
-  /* Check only if the point is in the AABB (Axed-Aligned-Bounding-Box) */
-  coord cap_max = {mesh->centroid.x + mesh->circum_radius, mesh->centroid.y + mesh->circum_radius, mesh->centroid.z + mesh->circum_radius}; 
-  coord cap_min = {mesh->centroid.x - mesh->circum_radius, mesh->centroid.y - mesh->circum_radius, mesh->centroid.z - mesh->circum_radius}; 
-
-  /*Check if the capsule box overlating with the current proc*/
-  if ( ( cap_max.x >= proc_min.x ) && ( cap_min.x <= proc_max.x ) ) 
-    if ( ( cap_max.y >= proc_min.y ) && ( cap_min.y <= proc_max.y ) )
-      if ( ( cap_max.z >= proc_min.z ) && ( cap_min.z <= proc_max.z ) )
-        return true;      
-
-  /*In case of periodicity, check only if the point is in the AABB (Axed-Aligned-Bounding-Box)*/
+  double d2 = 0.;
   foreach_dimension()
   {
-      if(POS_PBC_X(cap_max.x) != cap_max.x) cap_min.x -= L0*L0_ratio.x;
-      if(POS_PBC_X(cap_min.x) != cap_min.x) cap_max.x += L0*L0_ratio.x;
+    double closest = center.x;
+    if (closest < box_min.x)
+      closest = box_min.x;
+    else if (closest > box_max.x)
+      closest = box_max.x;
+    d2 += sq(center.x - closest);
+  }
+  return d2 <= sq(radius);
+}
+
+bool periodic_sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)
+{
+  double xshift[3] = {0., 0., 0.};
+  double yshift[3] = {0., 0., 0.};
+  double zshift[3] = {0., 0., 0.};
+  int nx = 1, ny = 1, nz = 1;
+
+  coord domain_min = {X0, Y0, Z0};
+  coord domain_max = {
+    X0 + L0*L0_ratio.x,
+    Y0 + L0*L0_ratio.y,
+    Z0 + L0*L0_ratio.z
+  };
+  coord domain_length = {
+    L0*L0_ratio.x,
+    L0*L0_ratio.y,
+    L0*L0_ratio.z
+  };
+
+  if (Period.x) {
+    if (center.x - radius < domain_min.x) xshift[nx++] = domain_length.x;
+    if (center.x + radius > domain_max.x) xshift[nx++] = -domain_length.x;
+  }
+  if (Period.y) {
+    if (center.y - radius < domain_min.y) yshift[ny++] = domain_length.y;
+    if (center.y + radius > domain_max.y) yshift[ny++] = -domain_length.y;
+  }
+  if (Period.z) {
+    if (center.z - radius < domain_min.z) zshift[nz++] = domain_length.z;
+    if (center.z + radius > domain_max.z) zshift[nz++] = -domain_length.z;
   }
 
-  /*Check if the copy capsule box overlating with the current proc*/
-  if ( ( cap_max.x >= proc_min.x ) && ( cap_min.x <= proc_max.x ) ) 
-    if ( ( cap_max.y >= proc_min.y ) && ( cap_min.y <= proc_max.y ) )
-      if ( ( cap_max.z >= proc_min.z ) && ( cap_min.z <= proc_max.z ) )
-        return true;    
+  for(int ix=0; ix<nx; ix++)
+    for(int iy=0; iy<ny; iy++)
+      for(int iz=0; iz<nz; iz++) {
+        coord image_center = {
+          center.x + xshift[ix],
+          center.y + yshift[iy],
+          center.z + zshift[iz]
+        };
+        if (sphere_intersects_box(image_center, radius, box_min, box_max))
+          return true;
+      }
 
-  /*If not return false*/
   return false;
 }
 
+bool lagmesh_bounding_sphere_intersects_box(lagMesh* mesh, coord box_min, coord box_max)
+{
+  return periodic_sphere_intersects_box(mesh->centroid, mesh->circum_radius,
+    box_min, box_max);
+}
 
+bool is_capsule_in_boundingbox(coord proc_max, coord proc_min, lagMesh* mesh) 
+{
+  return lagmesh_bounding_sphere_intersects_box(mesh, proc_min, proc_max);
+}

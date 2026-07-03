@@ -1346,6 +1346,13 @@ re-initialize the Lagrangian forces to zero. */
 coord proc_max = {-HUGE, -HUGE, -HUGE};
 coord proc_min = {HUGE, HUGE, HUGE};
 
+#ifndef DEBUG_AABB
+  #define DEBUG_AABB 0
+#endif
+#ifndef DEBUG_AABB_FREQ
+  #define DEBUG_AABB_FREQ 1
+#endif
+
 event tracer_advection(i++) {  
 
   /* Distribute velocity to the lagNodes */
@@ -1380,6 +1387,14 @@ event tracer_advection(i++) {
 
   /* Compute borders of the curren proc */
   compute_proc_borders(&proc_max, &proc_min);
+  #if DEBUG_AABB
+    if (i % DEBUG_AABB_FREQ == 0)
+      fprintf(stderr,
+        "DEBUG_AABB pid %d/%d iter %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
+        pid(), npe(), i,
+        proc_min.x, proc_min.y, proc_min.z,
+        proc_max.x, proc_max.y, proc_max.z);
+  #endif
 
   /*Clean the index field before generating the stencils*/
   foreach()
@@ -1391,10 +1406,20 @@ event tracer_advection(i++) {
   }
 
   /* Generate new stencils in corresponding procs */
-  for(int i=0; i<NCAPS; i++) {
-    if (CAPS(i).isactive)
-      if(is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(i))) 
-        generate_lag_stencils_one_caps(&CAPS(i), true);
+  for(int cap=0; cap<NCAPS; cap++) {
+    if (CAPS(cap).isactive) {
+      bool intersects_proc = is_capsule_in_boundingbox(proc_max, proc_min, &CAPS(cap));
+      #if DEBUG_AABB
+        if (i % DEBUG_AABB_FREQ == 0)
+          fprintf(stderr,
+            "DEBUG_AABB pid %d/%d iter %d cap %d centroid=(%g %g %g) circum_radius=%g intersects_proc=%d\n",
+            pid(), npe(), i, cap,
+            CAPS(cap).centroid.x, CAPS(cap).centroid.y, CAPS(cap).centroid.z,
+            CAPS(cap).circum_radius, intersects_proc);
+      #endif
+      if(intersects_proc) 
+        generate_lag_stencils_one_caps(&CAPS(cap), true);
+    }
   }
 
 }
