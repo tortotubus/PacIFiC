@@ -160,26 +160,65 @@ bool is_capsule_in_proc(lagMesh* mesh) {
 
 void compute_proc_borders(coord* proc_max, coord* proc_min)
 {
-  foreach_dimension() {
-    proc_max->x = -HUGE;
-    proc_min->x = HUGE;
+  #if MULT_GRID == 1
+    coord domain_length = {
+      L0*L0_ratio.x,
+      L0*L0_ratio.y,
+      L0*L0_ratio.z
+    };
+
+    proc_min->x = X0 + mpi_coords[0]*domain_length.x/Dimensions.x;
+    proc_max->x = X0 + (mpi_coords[0] + 1)*domain_length.x/Dimensions.x;
+    proc_min->y = Y0 + mpi_coords[1]*domain_length.y/Dimensions.y;
+    proc_max->y = Y0 + (mpi_coords[1] + 1)*domain_length.y/Dimensions.y;
+    proc_min->z = Z0 + mpi_coords[2]*domain_length.z/Dimensions.z;
+    proc_max->z = Z0 + (mpi_coords[2] + 1)*domain_length.z/Dimensions.z;
+  #else
+  double xmin = HUGE, ymin = HUGE, zmin = HUGE;
+  double xmax = -HUGE, ymax = -HUGE, zmax = -HUGE;
+
+  foreach(reduction(min:xmin) reduction(min:ymin) reduction(min:zmin)
+    reduction(max:xmax) reduction(max:ymax) reduction(max:zmax))
+  {
+    xmin = min(xmin, x - Delta/2.);
+    xmax = max(xmax, x + Delta/2.);
+    ymin = min(ymin, y - Delta/2.);
+    ymax = max(ymax, y + Delta/2.);
+    zmin = min(zmin, z - Delta/2.);
+    zmax = max(zmax, z + Delta/2.);
   }
 
-  Cache c = {0};
-  foreach() cache_append( &c, point, 0 );
-  foreach_cache(c)
-  {
-   if(point.level>-1)
-   {
-    foreach_dimension() {
-      double cell_min = x - Delta/2.;
-      double cell_max = x + Delta/2.;
-      if (proc_max->x < cell_max) proc_max->x = cell_max;
-      if (proc_min->x > cell_min) proc_min->x = cell_min;
-    }
-   }
+  proc_min->x = xmin;
+  proc_min->y = ymin;
+  proc_min->z = zmin;
+  proc_max->x = xmax;
+  proc_max->y = ymax;
+  proc_max->z = zmax;
+  #endif
+}
+
+void gather_all_proc_borders(coord local_min, coord local_max,
+  coord* all_proc_min, coord* all_proc_max)
+{
+  double send_data[6] = {
+    local_min.x, local_min.y, local_min.z,
+    local_max.x, local_max.y, local_max.z
+  };
+  double* recv_data = (double*)malloc(6*mpi_npe*sizeof(double));
+
+  MPI_Allgather(send_data, 6, MPI_DOUBLE, recv_data, 6, MPI_DOUBLE,
+    MPI_COMM_WORLD);
+
+  for(int p=0; p<mpi_npe; p++) {
+    all_proc_min[p].x = recv_data[6*p];
+    all_proc_min[p].y = recv_data[6*p + 1];
+    all_proc_min[p].z = recv_data[6*p + 2];
+    all_proc_max[p].x = recv_data[6*p + 3];
+    all_proc_max[p].y = recv_data[6*p + 4];
+    all_proc_max[p].z = recv_data[6*p + 5];
   }
-  free(c.p); //free cache
+
+  free(recv_data);
 }
 
 bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)

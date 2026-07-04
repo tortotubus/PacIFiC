@@ -1345,6 +1345,10 @@ re-initialize the Lagrangian forces to zero. */
 
 coord proc_max = {-HUGE, -HUGE, -HUGE};
 coord proc_min = {HUGE, HUGE, HUGE};
+#if _MPI
+coord* all_proc_max = NULL;
+coord* all_proc_min = NULL;
+#endif
 
 #ifndef DEBUG_AABB
   #define DEBUG_AABB 0
@@ -1388,12 +1392,31 @@ event tracer_advection(i++) {
   /* Compute borders of the curren proc */
   compute_proc_borders(&proc_max, &proc_min);
   #if DEBUG_AABB
-    if (i % DEBUG_AABB_FREQ == 0)
+    if (i % DEBUG_AABB_FREQ == 0) {
+      #if _MPI
+        if (all_proc_min == NULL) {
+          all_proc_min = (coord*)malloc(npe()*sizeof(coord));
+          all_proc_max = (coord*)malloc(npe()*sizeof(coord));
+        }
+        gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+      #endif
       fprintf(stderr,
         "DEBUG_AABB pid %d/%d iter %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
         pid(), npe(), i,
         proc_min.x, proc_min.y, proc_min.z,
         proc_max.x, proc_max.y, proc_max.z);
+      #if _MPI
+        if (pid() == 0) {
+          fprintf(stderr, "DEBUG_AABB_TABLE iter %d npe %d\n", i, npe());
+          for(int p=0; p<npe(); p++)
+            fprintf(stderr,
+              "DEBUG_AABB_TABLE iter %d proc %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
+              i, p,
+              all_proc_min[p].x, all_proc_min[p].y, all_proc_min[p].z,
+              all_proc_max[p].x, all_proc_max[p].y, all_proc_max[p].z);
+        }
+      #endif
+    }
   #endif
 
   /*Clean the index field before generating the stencils*/
@@ -1521,6 +1544,10 @@ event acceleration (i++) {
 
 /** At the end of the simulation, we free the allocated memory.*/
 event cleanup (t = end) {
+  #if _MPI
+    free(all_proc_min);
+    free(all_proc_max);
+  #endif
   free_all_caps(&allCaps);
 }
 
