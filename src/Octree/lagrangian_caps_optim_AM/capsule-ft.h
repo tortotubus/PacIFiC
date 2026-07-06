@@ -1349,7 +1349,9 @@ coord proc_min = {HUGE, HUGE, HUGE};
 coord* all_proc_max = NULL;
 coord* all_proc_min = NULL;
 int* ncaps_for_proc = NULL;
-int* cap_ids_for_proc = NULL;
+int* proc_cap_offsets = NULL;
+int* proc_cap_ids = NULL;
+int proc_cap_ids_nm = 0;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1400,7 +1402,7 @@ event tracer_advection(i++) {
           all_proc_min = (coord*)malloc(npe()*sizeof(coord));
           all_proc_max = (coord*)malloc(npe()*sizeof(coord));
           ncaps_for_proc = (int*)malloc(npe()*sizeof(int));
-          cap_ids_for_proc = (int*)malloc(npe()*NCAPS*sizeof(int));
+          proc_cap_offsets = (int*)malloc((npe() + 1)*sizeof(int));
         }
         gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
         for(int p=0; p<npe(); p++)
@@ -1410,9 +1412,30 @@ event tracer_advection(i++) {
             for(int p=0; p<npe(); p++) {
               bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
                 &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+              if (intersects_proc)
+                ncaps_for_proc[p]++;
+            }
+          }
+        }
+        proc_cap_offsets[0] = 0;
+        for(int p=0; p<npe(); p++)
+          proc_cap_offsets[p + 1] = proc_cap_offsets[p] + ncaps_for_proc[p];
+        int total_proc_cap_routes = proc_cap_offsets[npe()];
+        if (total_proc_cap_routes > proc_cap_ids_nm) {
+          proc_cap_ids_nm = total_proc_cap_routes;
+          proc_cap_ids = (int*)realloc(proc_cap_ids,
+            proc_cap_ids_nm*sizeof(int));
+        }
+        for(int p=0; p<npe(); p++)
+          ncaps_for_proc[p] = 0;
+        for(int cap=0; cap<NCAPS; cap++) {
+          if (CAPS(cap).isactive) {
+            for(int p=0; p<npe(); p++) {
+              bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                &CAPS(cap), all_proc_min[p], all_proc_max[p]);
               if (intersects_proc) {
-                int slot = ncaps_for_proc[p]++;
-                cap_ids_for_proc[p*NCAPS + slot] = cap;
+                int slot = proc_cap_offsets[p] + ncaps_for_proc[p]++;
+                proc_cap_ids[slot] = cap;
               }
             }
           }
@@ -1453,12 +1476,14 @@ event tracer_advection(i++) {
           }
           fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d npe %d\n", i, npe());
           for(int p=0; p<npe(); p++) {
-            fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d proc %d ncaps=%d cap_ids=",
-              i, p, ncaps_for_proc[p]);
+            fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d proc %d ncaps=%d offset=%d cap_ids=",
+              i, p, ncaps_for_proc[p], proc_cap_offsets[p]);
             for(int q=0; q<ncaps_for_proc[p]; q++)
-              fprintf(stderr, " %d", cap_ids_for_proc[p*NCAPS + q]);
+              fprintf(stderr, " %d", proc_cap_ids[proc_cap_offsets[p] + q]);
             fprintf(stderr, "\n");
           }
+          fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d total_routes=%d\n",
+            i, proc_cap_offsets[npe()]);
         }
       #endif
     }
@@ -1593,7 +1618,8 @@ event cleanup (t = end) {
     free(all_proc_min);
     free(all_proc_max);
     free(ncaps_for_proc);
-    free(cap_ids_for_proc);
+    free(proc_cap_offsets);
+    free(proc_cap_ids);
   #endif
   free_all_caps(&allCaps);
 }
