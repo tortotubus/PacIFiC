@@ -1348,6 +1348,8 @@ coord proc_min = {HUGE, HUGE, HUGE};
 #if _MPI
 coord* all_proc_max = NULL;
 coord* all_proc_min = NULL;
+int* ncaps_for_proc = NULL;
+int* cap_ids_for_proc = NULL;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1397,8 +1399,24 @@ event tracer_advection(i++) {
         if (all_proc_min == NULL) {
           all_proc_min = (coord*)malloc(npe()*sizeof(coord));
           all_proc_max = (coord*)malloc(npe()*sizeof(coord));
+          ncaps_for_proc = (int*)malloc(npe()*sizeof(int));
+          cap_ids_for_proc = (int*)malloc(npe()*NCAPS*sizeof(int));
         }
         gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+        for(int p=0; p<npe(); p++)
+          ncaps_for_proc[p] = 0;
+        for(int cap=0; cap<NCAPS; cap++) {
+          if (CAPS(cap).isactive) {
+            for(int p=0; p<npe(); p++) {
+              bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+              if (intersects_proc) {
+                int slot = ncaps_for_proc[p]++;
+                cap_ids_for_proc[p*NCAPS + slot] = cap;
+              }
+            }
+          }
+        }
       #endif
       fprintf(stderr,
         "DEBUG_AABB pid %d/%d iter %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
@@ -1414,6 +1432,33 @@ event tracer_advection(i++) {
               i, p,
               all_proc_min[p].x, all_proc_min[p].y, all_proc_min[p].z,
               all_proc_max[p].x, all_proc_max[p].y, all_proc_max[p].z);
+          for(int cap=0; cap<NCAPS; cap++) {
+            if (CAPS(cap).isactive) {
+              int nintersections = 0;
+              fprintf(stderr,
+                "DEBUG_CAP_PROC_TABLE iter %d cap %d centroid=(%g %g %g) circum_radius=%g intersecting_procs=",
+                i, cap,
+                CAPS(cap).centroid.x, CAPS(cap).centroid.y, CAPS(cap).centroid.z,
+                CAPS(cap).circum_radius);
+              for(int p=0; p<npe(); p++) {
+                bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                  &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+                if (intersects_proc) {
+                  fprintf(stderr, " %d", p);
+                  nintersections++;
+                }
+              }
+              fprintf(stderr, " nintersections=%d\n", nintersections);
+            }
+          }
+          fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d npe %d\n", i, npe());
+          for(int p=0; p<npe(); p++) {
+            fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d proc %d ncaps=%d cap_ids=",
+              i, p, ncaps_for_proc[p]);
+            for(int q=0; q<ncaps_for_proc[p]; q++)
+              fprintf(stderr, " %d", cap_ids_for_proc[p*NCAPS + q]);
+            fprintf(stderr, "\n");
+          }
         }
       #endif
     }
@@ -1547,6 +1592,8 @@ event cleanup (t = end) {
   #if _MPI
     free(all_proc_min);
     free(all_proc_max);
+    free(ncaps_for_proc);
+    free(cap_ids_for_proc);
   #endif
   free_all_caps(&allCaps);
 }
