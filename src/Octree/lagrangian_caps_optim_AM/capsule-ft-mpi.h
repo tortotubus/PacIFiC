@@ -221,6 +221,64 @@ void gather_all_proc_borders(coord local_min, coord local_max,
   free(recv_data);
 }
 
+coord wrap_periodic_point_in_domain(coord point)
+{
+  coord wrapped = point;
+  coord domain_min = {X0, Y0, Z0};
+  coord domain_length = {
+    L0*L0_ratio.x,
+    L0*L0_ratio.y,
+    L0*L0_ratio.z
+  };
+
+  foreach_dimension()
+  {
+    if (Period.x) {
+      while (wrapped.x < domain_min.x)
+        wrapped.x += domain_length.x;
+      while (wrapped.x >= domain_min.x + domain_length.x)
+        wrapped.x -= domain_length.x;
+    }
+  }
+
+  return wrapped;
+}
+
+bool point_in_box_half_open(coord point, coord box_min, coord box_max)
+{
+  foreach_dimension()
+  {
+    if (point.x < box_min.x || point.x >= box_max.x)
+      return false;
+  }
+  return true;
+}
+
+bool point_in_box_closed(coord point, coord box_min, coord box_max)
+{
+  foreach_dimension()
+  {
+    if (point.x < box_min.x || point.x > box_max.x)
+      return false;
+  }
+  return true;
+}
+
+int find_capsule_owner_proc(lagMesh* mesh, coord* all_proc_min, coord* all_proc_max)
+{
+  coord owner_point = wrap_periodic_point_in_domain(mesh->centroid);
+
+  for(int p=0; p<mpi_npe; p++)
+    if (point_in_box_half_open(owner_point, all_proc_min[p], all_proc_max[p]))
+      return p;
+
+  for(int p=0; p<mpi_npe; p++)
+    if (point_in_box_closed(owner_point, all_proc_min[p], all_proc_max[p]))
+      return p;
+
+  return -1;
+}
+
 bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)
 {
   double d2 = 0.;

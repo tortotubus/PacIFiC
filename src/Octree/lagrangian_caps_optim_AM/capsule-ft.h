@@ -1458,6 +1458,13 @@ event tracer_advection(i++) {
           for(int cap=0; cap<NCAPS; cap++) {
             if (CAPS(cap).isactive) {
               int nintersections = 0;
+              int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+                all_proc_min, all_proc_max);
+              fprintf(stderr,
+                "DEBUG_CAP_OWNER iter %d cap %d centroid=(%g %g %g) owner=%d\n",
+                i, cap,
+                CAPS(cap).centroid.x, CAPS(cap).centroid.y, CAPS(cap).centroid.z,
+                owner_proc);
               fprintf(stderr,
                 "DEBUG_CAP_PROC_TABLE iter %d cap %d centroid=(%g %g %g) circum_radius=%g intersecting_procs=",
                 i, cap,
