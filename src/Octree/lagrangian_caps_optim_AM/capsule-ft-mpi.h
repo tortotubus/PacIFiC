@@ -298,6 +298,50 @@ int estimate_owner_to_ghost_ndoubles(lagMesh* mesh)
   return ndoubles;
 }
 
+void pack_owner_to_ghost_capsule(lagMesh* mesh, int* int_data, int* int_pos,
+  double* double_data, int* double_pos)
+{
+  int_data[(*int_pos)++] = mesh->cap_id;
+  int_data[(*int_pos)++] = mesh->cap_type;
+  int_data[(*int_pos)++] = mesh->nln;
+  int_data[(*int_pos)++] = mesh->nle;
+  #if dimension > 2
+    int_data[(*int_pos)++] = mesh->nlt;
+  #endif
+
+  double_data[(*double_pos)++] = mesh->cap_es;
+  double_data[(*double_pos)++] = mesh->cap_radius;
+  double_data[(*double_pos)++] = mesh->circum_radius;
+  foreach_dimension()
+    double_data[(*double_pos)++] = mesh->centroid.x;
+  for(int i=0; i<mesh->nln; i++)
+    foreach_dimension()
+      double_data[(*double_pos)++] = mesh->nodes[i].pos.x;
+  for(int i=0; i<mesh->nln; i++)
+    foreach_dimension()
+      double_data[(*double_pos)++] = mesh->nodes[i].lagForce.x;
+}
+
+void unpack_owner_to_ghost_header(int* int_data, int* int_pos,
+  double* double_data, int* double_pos, int* cap_id, int* cap_type,
+  int* nln, int* nle, int* nlt, double* cap_es, double* cap_radius,
+  double* circum_radius)
+{
+  *cap_id = int_data[(*int_pos)++];
+  *cap_type = int_data[(*int_pos)++];
+  *nln = int_data[(*int_pos)++];
+  *nle = int_data[(*int_pos)++];
+  #if dimension > 2
+    *nlt = int_data[(*int_pos)++];
+  #else
+    *nlt = 0;
+  #endif
+
+  *cap_es = double_data[(*double_pos)++];
+  *cap_radius = double_data[(*double_pos)++];
+  *circum_radius = double_data[(*double_pos)++];
+}
+
 int estimate_ghost_to_owner_nints(lagMesh* mesh)
 {
   (void) mesh;
@@ -307,6 +351,17 @@ int estimate_ghost_to_owner_nints(lagMesh* mesh)
 int estimate_ghost_to_owner_ndoubles(lagMesh* mesh)
 {
   return mesh->nln*dimension; // node velocity contribution
+}
+
+void pack_ghost_to_owner_capsule(lagMesh* mesh, int* int_data, int* int_pos,
+  double* double_data, int* double_pos)
+{
+  int_data[(*int_pos)++] = mesh->cap_id;
+  int_data[(*int_pos)++] = mesh->nln;
+
+  for(int i=0; i<mesh->nln; i++)
+    foreach_dimension()
+      double_data[(*double_pos)++] = mesh->nodes[i].lagVel.x;
 }
 
 bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)

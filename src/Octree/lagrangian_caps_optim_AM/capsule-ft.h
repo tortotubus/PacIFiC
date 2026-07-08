@@ -1355,9 +1355,31 @@ int proc_cap_ids_nm = 0;
 int* owner_to_ghost_send_caps = NULL;
 int* owner_to_ghost_send_int_counts = NULL;
 int* owner_to_ghost_send_double_counts = NULL;
+int* owner_to_ghost_recv_caps = NULL;
+int* owner_to_ghost_recv_int_counts = NULL;
+int* owner_to_ghost_recv_double_counts = NULL;
+int* owner_to_ghost_send_int_offsets = NULL;
+int* owner_to_ghost_send_double_offsets = NULL;
+int* owner_to_ghost_recv_int_offsets = NULL;
+int* owner_to_ghost_recv_double_offsets = NULL;
+int* owner_to_ghost_send_int_buffer = NULL;
+double* owner_to_ghost_send_double_buffer = NULL;
+int* owner_to_ghost_recv_int_buffer = NULL;
+double* owner_to_ghost_recv_double_buffer = NULL;
 int* ghost_to_owner_send_caps = NULL;
 int* ghost_to_owner_send_int_counts = NULL;
 int* ghost_to_owner_send_double_counts = NULL;
+int* ghost_to_owner_recv_caps = NULL;
+int* ghost_to_owner_recv_int_counts = NULL;
+int* ghost_to_owner_recv_double_counts = NULL;
+int* ghost_to_owner_send_int_offsets = NULL;
+int* ghost_to_owner_send_double_offsets = NULL;
+int* ghost_to_owner_recv_int_offsets = NULL;
+int* ghost_to_owner_recv_double_offsets = NULL;
+int* ghost_to_owner_send_int_buffer = NULL;
+double* ghost_to_owner_send_double_buffer = NULL;
+int* ghost_to_owner_recv_int_buffer = NULL;
+double* ghost_to_owner_recv_double_buffer = NULL;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1412,9 +1434,23 @@ event tracer_advection(i++) {
           owner_to_ghost_send_caps = (int*)malloc(npe()*sizeof(int));
           owner_to_ghost_send_int_counts = (int*)malloc(npe()*sizeof(int));
           owner_to_ghost_send_double_counts = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_recv_caps = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_recv_int_counts = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_recv_double_counts = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_send_int_offsets = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_send_double_offsets = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_recv_int_offsets = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_recv_double_offsets = (int*)malloc(npe()*sizeof(int));
           ghost_to_owner_send_caps = (int*)malloc(npe()*sizeof(int));
           ghost_to_owner_send_int_counts = (int*)malloc(npe()*sizeof(int));
           ghost_to_owner_send_double_counts = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_recv_caps = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_recv_int_counts = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_recv_double_counts = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_send_int_offsets = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_send_double_offsets = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_recv_int_offsets = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_recv_double_offsets = (int*)malloc(npe()*sizeof(int));
         }
         gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
         for(int p=0; p<npe(); p++)
@@ -1456,9 +1492,15 @@ event tracer_advection(i++) {
           owner_to_ghost_send_caps[p] = 0;
           owner_to_ghost_send_int_counts[p] = 0;
           owner_to_ghost_send_double_counts[p] = 0;
+          owner_to_ghost_recv_caps[p] = 0;
+          owner_to_ghost_recv_int_counts[p] = 0;
+          owner_to_ghost_recv_double_counts[p] = 0;
           ghost_to_owner_send_caps[p] = 0;
           ghost_to_owner_send_int_counts[p] = 0;
           ghost_to_owner_send_double_counts[p] = 0;
+          ghost_to_owner_recv_caps[p] = 0;
+          ghost_to_owner_recv_int_counts[p] = 0;
+          ghost_to_owner_recv_double_counts[p] = 0;
         }
         for(int cap=0; cap<NCAPS; cap++) {
           if (CAPS(cap).isactive) {
@@ -1488,6 +1530,18 @@ event tracer_advection(i++) {
             }
           }
         }
+        MPI_Alltoall(owner_to_ghost_send_caps, 1, MPI_INT,
+          owner_to_ghost_recv_caps, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoall(owner_to_ghost_send_int_counts, 1, MPI_INT,
+          owner_to_ghost_recv_int_counts, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoall(owner_to_ghost_send_double_counts, 1, MPI_INT,
+          owner_to_ghost_recv_double_counts, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoall(ghost_to_owner_send_caps, 1, MPI_INT,
+          ghost_to_owner_recv_caps, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoall(ghost_to_owner_send_int_counts, 1, MPI_INT,
+          ghost_to_owner_recv_int_counts, 1, MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoall(ghost_to_owner_send_double_counts, 1, MPI_INT,
+          ghost_to_owner_recv_double_counts, 1, MPI_INT, MPI_COMM_WORLD);
       #endif
       fprintf(stderr,
         "DEBUG_AABB pid %d/%d iter %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
@@ -1501,13 +1555,455 @@ event tracer_advection(i++) {
         int total_ghost_to_owner_caps = 0;
         int total_ghost_to_owner_ints = 0;
         int total_ghost_to_owner_doubles = 0;
+        int total_owner_to_ghost_recv_caps = 0;
+        int total_owner_to_ghost_recv_ints = 0;
+        int total_owner_to_ghost_recv_doubles = 0;
+        int total_ghost_to_owner_recv_caps = 0;
+        int total_ghost_to_owner_recv_ints = 0;
+        int total_ghost_to_owner_recv_doubles = 0;
         for(int p=0; p<npe(); p++) {
+          owner_to_ghost_send_int_offsets[p] = total_owner_to_ghost_ints;
+          owner_to_ghost_send_double_offsets[p] = total_owner_to_ghost_doubles;
+          ghost_to_owner_send_int_offsets[p] = total_ghost_to_owner_ints;
+          ghost_to_owner_send_double_offsets[p] = total_ghost_to_owner_doubles;
+          owner_to_ghost_recv_int_offsets[p] = total_owner_to_ghost_recv_ints;
+          owner_to_ghost_recv_double_offsets[p] = total_owner_to_ghost_recv_doubles;
+          ghost_to_owner_recv_int_offsets[p] = total_ghost_to_owner_recv_ints;
+          ghost_to_owner_recv_double_offsets[p] = total_ghost_to_owner_recv_doubles;
           total_owner_to_ghost_caps += owner_to_ghost_send_caps[p];
           total_owner_to_ghost_ints += owner_to_ghost_send_int_counts[p];
           total_owner_to_ghost_doubles += owner_to_ghost_send_double_counts[p];
           total_ghost_to_owner_caps += ghost_to_owner_send_caps[p];
           total_ghost_to_owner_ints += ghost_to_owner_send_int_counts[p];
           total_ghost_to_owner_doubles += ghost_to_owner_send_double_counts[p];
+          total_owner_to_ghost_recv_caps += owner_to_ghost_recv_caps[p];
+          total_owner_to_ghost_recv_ints += owner_to_ghost_recv_int_counts[p];
+          total_owner_to_ghost_recv_doubles += owner_to_ghost_recv_double_counts[p];
+          total_ghost_to_owner_recv_caps += ghost_to_owner_recv_caps[p];
+          total_ghost_to_owner_recv_ints += ghost_to_owner_recv_int_counts[p];
+          total_ghost_to_owner_recv_doubles += ghost_to_owner_recv_double_counts[p];
+        }
+        if (total_owner_to_ghost_ints > 0)
+          owner_to_ghost_send_int_buffer = (int*)realloc(
+            owner_to_ghost_send_int_buffer,
+            total_owner_to_ghost_ints*sizeof(int));
+        else {
+          free(owner_to_ghost_send_int_buffer);
+          owner_to_ghost_send_int_buffer = NULL;
+        }
+        if (total_owner_to_ghost_doubles > 0)
+          owner_to_ghost_send_double_buffer = (double*)realloc(
+            owner_to_ghost_send_double_buffer,
+            total_owner_to_ghost_doubles*sizeof(double));
+        else {
+          free(owner_to_ghost_send_double_buffer);
+          owner_to_ghost_send_double_buffer = NULL;
+        }
+        if (total_owner_to_ghost_recv_ints > 0)
+          owner_to_ghost_recv_int_buffer = (int*)realloc(
+            owner_to_ghost_recv_int_buffer,
+            total_owner_to_ghost_recv_ints*sizeof(int));
+        else {
+          free(owner_to_ghost_recv_int_buffer);
+          owner_to_ghost_recv_int_buffer = NULL;
+        }
+        if (total_owner_to_ghost_recv_doubles > 0)
+          owner_to_ghost_recv_double_buffer = (double*)realloc(
+            owner_to_ghost_recv_double_buffer,
+            total_owner_to_ghost_recv_doubles*sizeof(double));
+        else {
+          free(owner_to_ghost_recv_double_buffer);
+          owner_to_ghost_recv_double_buffer = NULL;
+        }
+        if (total_ghost_to_owner_ints > 0)
+          ghost_to_owner_send_int_buffer = (int*)realloc(
+            ghost_to_owner_send_int_buffer,
+            total_ghost_to_owner_ints*sizeof(int));
+        else {
+          free(ghost_to_owner_send_int_buffer);
+          ghost_to_owner_send_int_buffer = NULL;
+        }
+        if (total_ghost_to_owner_doubles > 0)
+          ghost_to_owner_send_double_buffer = (double*)realloc(
+            ghost_to_owner_send_double_buffer,
+            total_ghost_to_owner_doubles*sizeof(double));
+        else {
+          free(ghost_to_owner_send_double_buffer);
+          ghost_to_owner_send_double_buffer = NULL;
+        }
+        if (total_ghost_to_owner_recv_ints > 0)
+          ghost_to_owner_recv_int_buffer = (int*)realloc(
+            ghost_to_owner_recv_int_buffer,
+            total_ghost_to_owner_recv_ints*sizeof(int));
+        else {
+          free(ghost_to_owner_recv_int_buffer);
+          ghost_to_owner_recv_int_buffer = NULL;
+        }
+        if (total_ghost_to_owner_recv_doubles > 0)
+          ghost_to_owner_recv_double_buffer = (double*)realloc(
+            ghost_to_owner_recv_double_buffer,
+            total_ghost_to_owner_recv_doubles*sizeof(double));
+        else {
+          free(ghost_to_owner_recv_double_buffer);
+          ghost_to_owner_recv_double_buffer = NULL;
+        }
+        int* owner_to_ghost_pack_int_pos = (int*)malloc(npe()*sizeof(int));
+        int* owner_to_ghost_pack_double_pos = (int*)malloc(npe()*sizeof(int));
+        for(int p=0; p<npe(); p++) {
+          owner_to_ghost_pack_int_pos[p] = owner_to_ghost_send_int_offsets[p];
+          owner_to_ghost_pack_double_pos[p] = owner_to_ghost_send_double_offsets[p];
+        }
+        if (total_owner_to_ghost_caps > 0) {
+          for(int cap=0; cap<NCAPS; cap++) {
+            if (CAPS(cap).isactive) {
+              int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+                all_proc_min, all_proc_max);
+              if (owner_proc == pid()) {
+                for(int p=0; p<npe(); p++) {
+                  bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                    &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+                  if (intersects_proc && p != owner_proc)
+                    pack_owner_to_ghost_capsule(&CAPS(cap),
+                      owner_to_ghost_send_int_buffer,
+                      &owner_to_ghost_pack_int_pos[p],
+                      owner_to_ghost_send_double_buffer,
+                      &owner_to_ghost_pack_double_pos[p]);
+                }
+              }
+            }
+          }
+          fprintf(stderr,
+            "DEBUG_OWNER_TO_GHOST_PACKED pid %d/%d iter %d dests=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++) {
+            int int_used = owner_to_ghost_pack_int_pos[p]
+              - owner_to_ghost_send_int_offsets[p];
+            int double_used = owner_to_ghost_pack_double_pos[p]
+              - owner_to_ghost_send_double_offsets[p];
+            if (owner_to_ghost_send_caps[p] > 0)
+              fprintf(stderr,
+                " %d:caps=%d,int_used=%d/%d,double_used=%d/%d",
+                p, owner_to_ghost_send_caps[p],
+                int_used, owner_to_ghost_send_int_counts[p],
+                double_used, owner_to_ghost_send_double_counts[p]);
+          }
+          fprintf(stderr, "\n");
+        }
+        int local_pack_row_len = 2*npe();
+        int* local_pack_row = (int*)calloc(local_pack_row_len, sizeof(int));
+        int* all_pack_rows = NULL;
+        for(int p=0; p<npe(); p++) {
+          local_pack_row[p] = owner_to_ghost_pack_int_pos[p]
+            - owner_to_ghost_send_int_offsets[p];
+          local_pack_row[npe() + p] = owner_to_ghost_pack_double_pos[p]
+            - owner_to_ghost_send_double_offsets[p];
+        }
+        if (pid() == 0)
+          all_pack_rows = (int*)malloc(npe()*local_pack_row_len*sizeof(int));
+        MPI_Gather(local_pack_row, local_pack_row_len, MPI_INT,
+          all_pack_rows, local_pack_row_len, MPI_INT, 0, MPI_COMM_WORLD);
+        if (pid() == 0) {
+          for(int rank=0; rank<npe(); rank++) {
+            int* row = all_pack_rows + rank*local_pack_row_len;
+            int packed_ints = 0, packed_doubles = 0;
+            for(int p=0; p<npe(); p++) {
+              packed_ints += row[p];
+              packed_doubles += row[npe() + p];
+            }
+            if (packed_ints > 0 || packed_doubles > 0) {
+              fprintf(stderr,
+                "DEBUG_ALL_OWNER_TO_GHOST_PACKED iter %d rank %d dests=",
+                i, rank);
+              for(int p=0; p<npe(); p++)
+                if (row[p] > 0 || row[npe() + p] > 0)
+                  fprintf(stderr, " %d:int_used=%d,double_used=%d",
+                    p, row[p], row[npe() + p]);
+              fprintf(stderr, " total_int_used=%d total_double_used=%d\n",
+                packed_ints, packed_doubles);
+            }
+          }
+        }
+        free(local_pack_row);
+        free(all_pack_rows);
+        free(owner_to_ghost_pack_int_pos);
+        free(owner_to_ghost_pack_double_pos);
+        int* ghost_to_owner_pack_int_pos = (int*)malloc(npe()*sizeof(int));
+        int* ghost_to_owner_pack_double_pos = (int*)malloc(npe()*sizeof(int));
+        for(int p=0; p<npe(); p++) {
+          ghost_to_owner_pack_int_pos[p] = ghost_to_owner_send_int_offsets[p];
+          ghost_to_owner_pack_double_pos[p] = ghost_to_owner_send_double_offsets[p];
+        }
+        if (total_ghost_to_owner_caps > 0) {
+          for(int cap=0; cap<NCAPS; cap++) {
+            if (CAPS(cap).isactive) {
+              int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+                all_proc_min, all_proc_max);
+              if (owner_proc >= 0 && owner_proc != pid()) {
+                bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                  &CAPS(cap), proc_min, proc_max);
+                if (intersects_proc)
+                  pack_ghost_to_owner_capsule(&CAPS(cap),
+                    ghost_to_owner_send_int_buffer,
+                    &ghost_to_owner_pack_int_pos[owner_proc],
+                    ghost_to_owner_send_double_buffer,
+                    &ghost_to_owner_pack_double_pos[owner_proc]);
+              }
+            }
+          }
+          fprintf(stderr,
+            "DEBUG_GHOST_TO_OWNER_PACKED pid %d/%d iter %d owners=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++) {
+            int int_used = ghost_to_owner_pack_int_pos[p]
+              - ghost_to_owner_send_int_offsets[p];
+            int double_used = ghost_to_owner_pack_double_pos[p]
+              - ghost_to_owner_send_double_offsets[p];
+            if (ghost_to_owner_send_caps[p] > 0)
+              fprintf(stderr,
+                " %d:caps=%d,int_used=%d/%d,double_used=%d/%d",
+                p, ghost_to_owner_send_caps[p],
+                int_used, ghost_to_owner_send_int_counts[p],
+                double_used, ghost_to_owner_send_double_counts[p]);
+          }
+          fprintf(stderr, "\n");
+        }
+        int local_ghost_pack_row_len = 2*npe();
+        int* local_ghost_pack_row = (int*)calloc(local_ghost_pack_row_len, sizeof(int));
+        int* all_ghost_pack_rows = NULL;
+        for(int p=0; p<npe(); p++) {
+          local_ghost_pack_row[p] = ghost_to_owner_pack_int_pos[p]
+            - ghost_to_owner_send_int_offsets[p];
+          local_ghost_pack_row[npe() + p] = ghost_to_owner_pack_double_pos[p]
+            - ghost_to_owner_send_double_offsets[p];
+        }
+        if (pid() == 0)
+          all_ghost_pack_rows = (int*)malloc(
+            npe()*local_ghost_pack_row_len*sizeof(int));
+        MPI_Gather(local_ghost_pack_row, local_ghost_pack_row_len, MPI_INT,
+          all_ghost_pack_rows, local_ghost_pack_row_len, MPI_INT, 0,
+          MPI_COMM_WORLD);
+        if (pid() == 0) {
+          for(int rank=0; rank<npe(); rank++) {
+            int* row = all_ghost_pack_rows + rank*local_ghost_pack_row_len;
+            int packed_ints = 0, packed_doubles = 0;
+            for(int p=0; p<npe(); p++) {
+              packed_ints += row[p];
+              packed_doubles += row[npe() + p];
+            }
+            if (packed_ints > 0 || packed_doubles > 0) {
+              fprintf(stderr,
+                "DEBUG_ALL_GHOST_TO_OWNER_PACKED iter %d rank %d owners=",
+                i, rank);
+              for(int p=0; p<npe(); p++)
+                if (row[p] > 0 || row[npe() + p] > 0)
+                  fprintf(stderr, " %d:int_used=%d,double_used=%d",
+                    p, row[p], row[npe() + p]);
+              fprintf(stderr, " total_int_used=%d total_double_used=%d\n",
+                packed_ints, packed_doubles);
+            }
+          }
+        }
+        free(local_ghost_pack_row);
+        free(all_ghost_pack_rows);
+        free(ghost_to_owner_pack_int_pos);
+        free(ghost_to_owner_pack_double_pos);
+        int dummy_int_buffer = 0;
+        double dummy_double_buffer = 0.;
+        int* owner_to_ghost_send_int_exchange =
+          owner_to_ghost_send_int_buffer ?
+          owner_to_ghost_send_int_buffer : &dummy_int_buffer;
+        double* owner_to_ghost_send_double_exchange =
+          owner_to_ghost_send_double_buffer ?
+          owner_to_ghost_send_double_buffer : &dummy_double_buffer;
+        int* owner_to_ghost_recv_int_exchange =
+          owner_to_ghost_recv_int_buffer ?
+          owner_to_ghost_recv_int_buffer : &dummy_int_buffer;
+        double* owner_to_ghost_recv_double_exchange =
+          owner_to_ghost_recv_double_buffer ?
+          owner_to_ghost_recv_double_buffer : &dummy_double_buffer;
+        int* ghost_to_owner_send_int_exchange =
+          ghost_to_owner_send_int_buffer ?
+          ghost_to_owner_send_int_buffer : &dummy_int_buffer;
+        double* ghost_to_owner_send_double_exchange =
+          ghost_to_owner_send_double_buffer ?
+          ghost_to_owner_send_double_buffer : &dummy_double_buffer;
+        int* ghost_to_owner_recv_int_exchange =
+          ghost_to_owner_recv_int_buffer ?
+          ghost_to_owner_recv_int_buffer : &dummy_int_buffer;
+        double* ghost_to_owner_recv_double_exchange =
+          ghost_to_owner_recv_double_buffer ?
+          ghost_to_owner_recv_double_buffer : &dummy_double_buffer;
+
+        MPI_Alltoallv(owner_to_ghost_send_int_exchange,
+          owner_to_ghost_send_int_counts, owner_to_ghost_send_int_offsets,
+          MPI_INT, owner_to_ghost_recv_int_exchange,
+          owner_to_ghost_recv_int_counts, owner_to_ghost_recv_int_offsets,
+          MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoallv(owner_to_ghost_send_double_exchange,
+          owner_to_ghost_send_double_counts, owner_to_ghost_send_double_offsets,
+          MPI_DOUBLE, owner_to_ghost_recv_double_exchange,
+          owner_to_ghost_recv_double_counts, owner_to_ghost_recv_double_offsets,
+          MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Alltoallv(ghost_to_owner_send_int_exchange,
+          ghost_to_owner_send_int_counts, ghost_to_owner_send_int_offsets,
+          MPI_INT, ghost_to_owner_recv_int_exchange,
+          ghost_to_owner_recv_int_counts, ghost_to_owner_recv_int_offsets,
+          MPI_INT, MPI_COMM_WORLD);
+        MPI_Alltoallv(ghost_to_owner_send_double_exchange,
+          ghost_to_owner_send_double_counts, ghost_to_owner_send_double_offsets,
+          MPI_DOUBLE, ghost_to_owner_recv_double_exchange,
+          ghost_to_owner_recv_double_counts, ghost_to_owner_recv_double_offsets,
+          MPI_DOUBLE, MPI_COMM_WORLD);
+
+        if (total_owner_to_ghost_recv_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_RECV_GHOST_CAP_HEADERS pid %d/%d iter %d caps=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++) {
+            int int_pos = owner_to_ghost_recv_int_offsets[p];
+            int double_pos = owner_to_ghost_recv_double_offsets[p];
+            for(int q=0; q<owner_to_ghost_recv_caps[p]; q++) {
+              int cap_id, cap_type, nln, nle, nlt;
+              double cap_es, cap_radius, circum_radius;
+              unpack_owner_to_ghost_header(owner_to_ghost_recv_int_buffer,
+                &int_pos, owner_to_ghost_recv_double_buffer, &double_pos,
+                &cap_id, &cap_type, &nln, &nle, &nlt, &cap_es, &cap_radius,
+                &circum_radius);
+              fprintf(stderr,
+                " from=%d,cap=%d,type=%d,nln=%d,nle=%d",
+                p, cap_id, cap_type, nln, nle);
+              #if dimension > 2
+                fprintf(stderr, ",nlt=%d", nlt);
+              #endif
+              fprintf(stderr,
+                ",cap_es=%g,cap_radius=%g,circum_radius=%g",
+                cap_es, cap_radius, circum_radius);
+              double_pos += dimension; // centroid
+              double_pos += nln*dimension; // node positions
+              double_pos += nln*dimension; // node forces
+            }
+          }
+          fprintf(stderr, "\n");
+        }
+
+        if (total_owner_to_ghost_recv_caps > 0 ||
+          total_ghost_to_owner_recv_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_MPI_PAYLOAD_EXCHANGE pid %d/%d iter %d owner_to_ghost_recv=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++) {
+            if (owner_to_ghost_recv_caps[p] > 0) {
+              int int_offset = owner_to_ghost_recv_int_offsets[p];
+              int double_offset = owner_to_ghost_recv_double_offsets[p];
+              fprintf(stderr,
+                " %d:caps=%d,first_cap=%d,first_type=%d,nln=%d,nle=%d",
+                p, owner_to_ghost_recv_caps[p],
+                owner_to_ghost_recv_int_buffer[int_offset],
+                owner_to_ghost_recv_int_buffer[int_offset + 1],
+                owner_to_ghost_recv_int_buffer[int_offset + 2],
+                owner_to_ghost_recv_int_buffer[int_offset + 3]);
+              #if dimension > 2
+                fprintf(stderr, ",nlt=%d",
+                  owner_to_ghost_recv_int_buffer[int_offset + 4]);
+              #endif
+              fprintf(stderr, ",cap_es=%g,cap_radius=%g,circum_radius=%g",
+                owner_to_ghost_recv_double_buffer[double_offset],
+                owner_to_ghost_recv_double_buffer[double_offset + 1],
+                owner_to_ghost_recv_double_buffer[double_offset + 2]);
+            }
+          }
+          fprintf(stderr, " ghost_to_owner_recv=");
+          for(int p=0; p<npe(); p++) {
+            if (ghost_to_owner_recv_caps[p] > 0) {
+              int int_offset = ghost_to_owner_recv_int_offsets[p];
+              int double_offset = ghost_to_owner_recv_double_offsets[p];
+              fprintf(stderr,
+                " %d:caps=%d,first_cap=%d,nln=%d,first_lagVel=%g",
+                p, ghost_to_owner_recv_caps[p],
+                ghost_to_owner_recv_int_buffer[int_offset],
+                ghost_to_owner_recv_int_buffer[int_offset + 1],
+                ghost_to_owner_recv_double_buffer[double_offset]);
+            }
+          }
+          fprintf(stderr, "\n");
+        }
+        int local_exchange_row_len = 4*npe();
+        int* local_exchange_row = (int*)malloc(local_exchange_row_len*sizeof(int));
+        int* all_exchange_rows = NULL;
+        for(int p=0; p<npe(); p++) {
+          local_exchange_row[p] = owner_to_ghost_recv_caps[p];
+          local_exchange_row[npe() + p] = ghost_to_owner_recv_caps[p];
+          local_exchange_row[2*npe() + p] = -1;
+          local_exchange_row[3*npe() + p] = -1;
+          if (owner_to_ghost_recv_caps[p] > 0)
+            local_exchange_row[2*npe() + p] =
+              owner_to_ghost_recv_int_buffer[owner_to_ghost_recv_int_offsets[p]];
+          if (ghost_to_owner_recv_caps[p] > 0)
+            local_exchange_row[3*npe() + p] =
+              ghost_to_owner_recv_int_buffer[ghost_to_owner_recv_int_offsets[p]];
+        }
+        if (pid() == 0)
+          all_exchange_rows = (int*)malloc(
+            npe()*local_exchange_row_len*sizeof(int));
+        MPI_Gather(local_exchange_row, local_exchange_row_len, MPI_INT,
+          all_exchange_rows, local_exchange_row_len, MPI_INT, 0,
+          MPI_COMM_WORLD);
+        if (pid() == 0) {
+          for(int rank=0; rank<npe(); rank++) {
+            int* row = all_exchange_rows + rank*local_exchange_row_len;
+            int owner_to_ghost_recv_total = 0;
+            int ghost_to_owner_recv_total = 0;
+            for(int p=0; p<npe(); p++) {
+              owner_to_ghost_recv_total += row[p];
+              ghost_to_owner_recv_total += row[npe() + p];
+            }
+            if (owner_to_ghost_recv_total > 0 ||
+              ghost_to_owner_recv_total > 0) {
+              fprintf(stderr,
+                "DEBUG_ALL_MPI_PAYLOAD_EXCHANGE iter %d rank %d owner_to_ghost_recv=",
+                i, rank);
+              for(int p=0; p<npe(); p++)
+                if (row[p] > 0)
+                  fprintf(stderr, " %d:caps=%d,first_cap=%d",
+                    p, row[p], row[2*npe() + p]);
+              fprintf(stderr, " ghost_to_owner_recv=");
+              for(int p=0; p<npe(); p++)
+                if (row[npe() + p] > 0)
+                  fprintf(stderr, " %d:caps=%d,first_cap=%d",
+                    p, row[npe() + p], row[3*npe() + p]);
+              fprintf(stderr,
+                " total_owner_to_ghost_recv=%d total_ghost_to_owner_recv=%d\n",
+                owner_to_ghost_recv_total, ghost_to_owner_recv_total);
+            }
+          }
+        }
+        free(local_exchange_row);
+        free(all_exchange_rows);
+        if (total_owner_to_ghost_caps > 0 || total_ghost_to_owner_caps > 0 ||
+          total_owner_to_ghost_recv_caps > 0 || total_ghost_to_owner_recv_caps > 0) {
+          size_t owner_to_ghost_send_bytes =
+            total_owner_to_ghost_ints*sizeof(int)
+            + total_owner_to_ghost_doubles*sizeof(double);
+          size_t owner_to_ghost_recv_bytes =
+            total_owner_to_ghost_recv_ints*sizeof(int)
+            + total_owner_to_ghost_recv_doubles*sizeof(double);
+          size_t ghost_to_owner_send_bytes =
+            total_ghost_to_owner_ints*sizeof(int)
+            + total_ghost_to_owner_doubles*sizeof(double);
+          size_t ghost_to_owner_recv_bytes =
+            total_ghost_to_owner_recv_ints*sizeof(int)
+            + total_ghost_to_owner_recv_doubles*sizeof(double);
+          fprintf(stderr,
+            "DEBUG_LOCAL_PAYLOAD_BUFFERS pid %d/%d iter %d owner_to_ghost_send=(caps=%d,int=%d,double=%d,bytes=%zu) owner_to_ghost_recv=(caps=%d,int=%d,double=%d,bytes=%zu) ghost_to_owner_send=(caps=%d,int=%d,double=%d,bytes=%zu) ghost_to_owner_recv=(caps=%d,int=%d,double=%d,bytes=%zu)\n",
+            pid(), npe(), i,
+            total_owner_to_ghost_caps, total_owner_to_ghost_ints,
+            total_owner_to_ghost_doubles, owner_to_ghost_send_bytes,
+            total_owner_to_ghost_recv_caps, total_owner_to_ghost_recv_ints,
+            total_owner_to_ghost_recv_doubles, owner_to_ghost_recv_bytes,
+            total_ghost_to_owner_caps, total_ghost_to_owner_ints,
+            total_ghost_to_owner_doubles, ghost_to_owner_send_bytes,
+            total_ghost_to_owner_recv_caps, total_ghost_to_owner_recv_ints,
+            total_ghost_to_owner_recv_doubles, ghost_to_owner_recv_bytes);
         }
         if (total_owner_to_ghost_caps > 0) {
           fprintf(stderr,
@@ -1536,6 +2032,34 @@ event tracer_advection(i++) {
           fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
             total_ghost_to_owner_caps, total_ghost_to_owner_ints,
             total_ghost_to_owner_doubles);
+        }
+        if (total_owner_to_ghost_recv_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_LOCAL_OWNER_TO_GHOST_RECV_COUNTS pid %d/%d iter %d recvs=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++)
+            if (owner_to_ghost_recv_caps[p] > 0)
+              fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                p, owner_to_ghost_recv_caps[p],
+                owner_to_ghost_recv_int_counts[p],
+                owner_to_ghost_recv_double_counts[p]);
+          fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+            total_owner_to_ghost_recv_caps, total_owner_to_ghost_recv_ints,
+            total_owner_to_ghost_recv_doubles);
+        }
+        if (total_ghost_to_owner_recv_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_LOCAL_GHOST_TO_OWNER_RECV_COUNTS pid %d/%d iter %d recvs=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++)
+            if (ghost_to_owner_recv_caps[p] > 0)
+              fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                p, ghost_to_owner_recv_caps[p],
+                ghost_to_owner_recv_int_counts[p],
+                ghost_to_owner_recv_double_counts[p]);
+          fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+            total_ghost_to_owner_recv_caps, total_ghost_to_owner_recv_ints,
+            total_ghost_to_owner_recv_doubles);
         }
         int local_count_row_len = 6*npe();
         int* local_count_row = (int*)calloc(local_count_row_len, sizeof(int));
@@ -1897,9 +2421,31 @@ event cleanup (t = end) {
     free(owner_to_ghost_send_caps);
     free(owner_to_ghost_send_int_counts);
     free(owner_to_ghost_send_double_counts);
+    free(owner_to_ghost_recv_caps);
+    free(owner_to_ghost_recv_int_counts);
+    free(owner_to_ghost_recv_double_counts);
+    free(owner_to_ghost_send_int_offsets);
+    free(owner_to_ghost_send_double_offsets);
+    free(owner_to_ghost_recv_int_offsets);
+    free(owner_to_ghost_recv_double_offsets);
+    free(owner_to_ghost_send_int_buffer);
+    free(owner_to_ghost_send_double_buffer);
+    free(owner_to_ghost_recv_int_buffer);
+    free(owner_to_ghost_recv_double_buffer);
     free(ghost_to_owner_send_caps);
     free(ghost_to_owner_send_int_counts);
     free(ghost_to_owner_send_double_counts);
+    free(ghost_to_owner_recv_caps);
+    free(ghost_to_owner_recv_int_counts);
+    free(ghost_to_owner_recv_double_counts);
+    free(ghost_to_owner_send_int_offsets);
+    free(ghost_to_owner_send_double_offsets);
+    free(ghost_to_owner_recv_int_offsets);
+    free(ghost_to_owner_recv_double_offsets);
+    free(ghost_to_owner_send_int_buffer);
+    free(ghost_to_owner_send_double_buffer);
+    free(ghost_to_owner_recv_int_buffer);
+    free(ghost_to_owner_recv_double_buffer);
   #endif
   free_all_caps(&allCaps);
 }
