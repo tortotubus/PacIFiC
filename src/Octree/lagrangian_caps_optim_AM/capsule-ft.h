@@ -1392,6 +1392,251 @@ int* debug_pre_advect_pos_nln = NULL;
 #ifndef DEBUG_AABB_FREQ
   #define DEBUG_AABB_FREQ 1
 #endif
+#ifndef DEBUG_APPLY_SPARSE_OWNER_LAGVEL
+  #define DEBUG_APPLY_SPARSE_OWNER_LAGVEL 0
+#endif
+
+#if _MPI
+void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
+  int total_ghost_to_owner_recv_caps)
+{
+  if (total_ghost_to_owner_recv_caps > 0) {
+    fprintf(stderr,
+      "DEBUG_OWNER_LAGVEL_ACCUM_DRYRUN pid %d/%d iter %d caps=",
+      pid(), npe(), iter);
+    for(int cap=0; cap<NCAPS; cap++) {
+      if (!CAPS(cap).isactive)
+        continue;
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc != pid())
+        continue;
+
+      coord* lagvel_sum = (coord*)calloc(CAPS(cap).nln, sizeof(coord));
+      assert(lagvel_sum);
+      coord* base_lagVel =
+        debug_pre_reduce_lagVel &&
+        debug_pre_reduce_lagVel_nln[cap] == CAPS(cap).nln ?
+        debug_pre_reduce_lagVel[cap] : NULL;
+      double base_lagvel_abs_sum = 0.;
+      for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+        foreach_dimension() {
+          lagvel_sum[node_id].x = base_lagVel ?
+            base_lagVel[node_id].x : CAPS(cap).nodes[node_id].lagVel.x;
+          base_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
+        }
+
+      int recv_caps_added = 0;
+      int recv_sources_added = 0;
+      for(int p=0; p<npe(); p++) {
+        int int_pos = ghost_to_owner_recv_int_offsets[p];
+        int double_pos = ghost_to_owner_recv_double_offsets[p];
+        for(int q=0; q<ghost_to_owner_recv_caps[p]; q++) {
+          int recv_cap_id = ghost_to_owner_recv_int_buffer[int_pos++];
+          int recv_nln = ghost_to_owner_recv_int_buffer[int_pos++];
+          int add_payload = recv_cap_id == CAPS(cap).cap_id &&
+            recv_nln == CAPS(cap).nln;
+          if (add_payload) {
+            recv_caps_added++;
+            recv_sources_added += p != pid();
+          }
+          for(int node_id=0; node_id<recv_nln; node_id++)
+            foreach_dimension() {
+              double vel_comp =
+                ghost_to_owner_recv_double_buffer[double_pos++];
+              if (add_payload)
+                lagvel_sum[node_id].x += vel_comp;
+            }
+        }
+      }
+
+      coord accum_vel_min = {HUGE, HUGE, HUGE};
+      coord accum_vel_max = {-HUGE, -HUGE, -HUGE};
+      double accum_lagvel_abs_sum = 0.;
+      double reduced_lagvel_abs_sum = 0.;
+      double reduced_vs_accum_max_abs_diff = 0.;
+      double owner_euler_move_max_abs_diff = 0.;
+      coord* pre_advect_pos =
+        debug_pre_advect_pos &&
+        debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
+        debug_pre_advect_pos[cap] : NULL;
+      for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+        foreach_dimension() {
+          accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
+          accum_vel_max.x = max(accum_vel_max.x, lagvel_sum[node_id].x);
+          accum_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
+          reduced_lagvel_abs_sum += fabs(CAPS(cap).nodes[node_id].lagVel.x);
+          reduced_vs_accum_max_abs_diff = max(
+            reduced_vs_accum_max_abs_diff,
+            fabs(CAPS(cap).nodes[node_id].lagVel.x - lagvel_sum[node_id].x));
+          if (pre_advect_pos) {
+            double predicted_pos =
+              pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
+            owner_euler_move_max_abs_diff = max(
+              owner_euler_move_max_abs_diff,
+              fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
+          }
+        }
+
+      int applied_sparse_owner_lagVel = false;
+      #if DEBUG_APPLY_SPARSE_OWNER_LAGVEL
+        for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+          CAPS(cap).nodes[node_id].lagVel = lagvel_sum[node_id];
+        applied_sparse_owner_lagVel = true;
+      #endif
+      fprintf(stderr,
+        " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g,applied_sparse_owner_lagVel=%d",
+        CAPS(cap).cap_id, owner_proc, CAPS(cap).nln,
+        base_lagvel_abs_sum, recv_caps_added, recv_sources_added,
+        accum_vel_min.x, accum_vel_min.y, accum_vel_min.z,
+        accum_vel_max.x, accum_vel_max.y, accum_vel_max.z,
+        accum_lagvel_abs_sum, reduced_lagvel_abs_sum,
+        reduced_vs_accum_max_abs_diff, owner_euler_move_max_abs_diff,
+        applied_sparse_owner_lagVel);
+      free(lagvel_sum);
+    }
+    fprintf(stderr, "\n");
+  }
+
+  int local_owner_accum_ints[6] = {-1, -1, 0, 0, 0,
+    DEBUG_APPLY_SPARSE_OWNER_LAGVEL};
+  double local_owner_accum_doubles[11] =
+    {0., HUGE, HUGE, HUGE, -HUGE, -HUGE, -HUGE, 0., 0., 0., 0.};
+  if (total_ghost_to_owner_recv_caps > 0) {
+    for(int cap=0; cap<NCAPS; cap++) {
+      if (!CAPS(cap).isactive)
+        continue;
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc != pid())
+        continue;
+
+      coord* lagvel_sum = (coord*)calloc(CAPS(cap).nln, sizeof(coord));
+      assert(lagvel_sum);
+      coord* base_lagVel =
+        debug_pre_reduce_lagVel &&
+        debug_pre_reduce_lagVel_nln[cap] == CAPS(cap).nln ?
+        debug_pre_reduce_lagVel[cap] : NULL;
+      double base_lagvel_abs_sum = 0.;
+      for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+        foreach_dimension() {
+          lagvel_sum[node_id].x = base_lagVel ?
+            base_lagVel[node_id].x : CAPS(cap).nodes[node_id].lagVel.x;
+          base_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
+        }
+
+      int recv_caps_added = 0;
+      int recv_sources_added = 0;
+      for(int p=0; p<npe(); p++) {
+        int int_pos = ghost_to_owner_recv_int_offsets[p];
+        int double_pos = ghost_to_owner_recv_double_offsets[p];
+        for(int q=0; q<ghost_to_owner_recv_caps[p]; q++) {
+          int recv_cap_id = ghost_to_owner_recv_int_buffer[int_pos++];
+          int recv_nln = ghost_to_owner_recv_int_buffer[int_pos++];
+          int add_payload = recv_cap_id == CAPS(cap).cap_id &&
+            recv_nln == CAPS(cap).nln;
+          if (add_payload) {
+            recv_caps_added++;
+            recv_sources_added += p != pid();
+          }
+          for(int node_id=0; node_id<recv_nln; node_id++)
+            foreach_dimension() {
+              double vel_comp =
+                ghost_to_owner_recv_double_buffer[double_pos++];
+              if (add_payload)
+                lagvel_sum[node_id].x += vel_comp;
+            }
+        }
+      }
+
+      coord accum_vel_min = {HUGE, HUGE, HUGE};
+      coord accum_vel_max = {-HUGE, -HUGE, -HUGE};
+      double accum_lagvel_abs_sum = 0.;
+      double reduced_lagvel_abs_sum = 0.;
+      double reduced_vs_accum_max_abs_diff = 0.;
+      double owner_euler_move_max_abs_diff = 0.;
+      coord* pre_advect_pos =
+        debug_pre_advect_pos &&
+        debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
+        debug_pre_advect_pos[cap] : NULL;
+      for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+        foreach_dimension() {
+          accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
+          accum_vel_max.x = max(accum_vel_max.x, lagvel_sum[node_id].x);
+          accum_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
+          reduced_lagvel_abs_sum += fabs(CAPS(cap).nodes[node_id].lagVel.x);
+          reduced_vs_accum_max_abs_diff = max(
+            reduced_vs_accum_max_abs_diff,
+            fabs(CAPS(cap).nodes[node_id].lagVel.x - lagvel_sum[node_id].x));
+          if (pre_advect_pos) {
+            double predicted_pos =
+              pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
+            owner_euler_move_max_abs_diff = max(
+              owner_euler_move_max_abs_diff,
+              fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
+          }
+        }
+
+      local_owner_accum_ints[0] = CAPS(cap).cap_id;
+      local_owner_accum_ints[1] = owner_proc;
+      local_owner_accum_ints[2] = CAPS(cap).nln;
+      local_owner_accum_ints[3] = recv_caps_added;
+      local_owner_accum_ints[4] = recv_sources_added;
+      local_owner_accum_ints[5] = DEBUG_APPLY_SPARSE_OWNER_LAGVEL;
+      local_owner_accum_doubles[0] = base_lagvel_abs_sum;
+      local_owner_accum_doubles[1] = accum_vel_min.x;
+      local_owner_accum_doubles[2] = accum_vel_min.y;
+      local_owner_accum_doubles[3] = accum_vel_min.z;
+      local_owner_accum_doubles[4] = accum_vel_max.x;
+      local_owner_accum_doubles[5] = accum_vel_max.y;
+      local_owner_accum_doubles[6] = accum_vel_max.z;
+      local_owner_accum_doubles[7] = accum_lagvel_abs_sum;
+      local_owner_accum_doubles[8] = reduced_lagvel_abs_sum;
+      local_owner_accum_doubles[9] = reduced_vs_accum_max_abs_diff;
+      local_owner_accum_doubles[10] = owner_euler_move_max_abs_diff;
+      free(lagvel_sum);
+      break;
+    }
+  }
+
+  int* all_owner_accum_ints = NULL;
+  double* all_owner_accum_doubles = NULL;
+  if (pid() == 0) {
+    all_owner_accum_ints = (int*)malloc(npe()*6*sizeof(int));
+    all_owner_accum_doubles = (double*)malloc(npe()*11*sizeof(double));
+    assert(all_owner_accum_ints);
+    assert(all_owner_accum_doubles);
+  }
+  MPI_Gather(local_owner_accum_ints, 6, MPI_INT,
+    all_owner_accum_ints, 6, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Gather(local_owner_accum_doubles, 11, MPI_DOUBLE,
+    all_owner_accum_doubles, 11, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if (pid() == 0) {
+    int printed_owner_accum = false;
+    for(int rank=0; rank<npe(); rank++) {
+      int* row_i = all_owner_accum_ints + rank*6;
+      double* row_d = all_owner_accum_doubles + rank*11;
+      if (row_i[0] < 0)
+        continue;
+      if (!printed_owner_accum) {
+        fprintf(stderr,
+          "DEBUG_ALL_OWNER_LAGVEL_ACCUM_DRYRUN iter %d", iter);
+        printed_owner_accum = true;
+      }
+      fprintf(stderr,
+        " rank=%d,cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g,applied_sparse_owner_lagVel=%d",
+        rank, row_i[0], row_i[1], row_i[2], row_d[0],
+        row_i[3], row_i[4], row_d[1], row_d[2], row_d[3],
+        row_d[4], row_d[5], row_d[6], row_d[7], row_d[8],
+        row_d[9], row_d[10], row_i[5]);
+    }
+    if (printed_owner_accum)
+      fprintf(stderr, "\n");
+  }
+  free(all_owner_accum_ints);
+  free(all_owner_accum_doubles);
+}
+#endif
 
 event tracer_advection(i++) {  
 
@@ -2127,235 +2372,8 @@ event tracer_advection(i++) {
         free(all_lagvel_payload_ints);
         free(all_lagvel_payload_doubles);
 
-        if (total_ghost_to_owner_recv_caps > 0) {
-          fprintf(stderr,
-            "DEBUG_OWNER_LAGVEL_ACCUM_DRYRUN pid %d/%d iter %d caps=",
-            pid(), npe(), i);
-          for(int cap=0; cap<NCAPS; cap++) {
-            if (!CAPS(cap).isactive)
-              continue;
-            int owner_proc = find_capsule_owner_proc(&CAPS(cap),
-              all_proc_min, all_proc_max);
-            if (owner_proc != pid())
-              continue;
-
-            coord* lagvel_sum = (coord*)calloc(CAPS(cap).nln, sizeof(coord));
-            assert(lagvel_sum);
-            coord accum_vel_min = {HUGE, HUGE, HUGE};
-            coord accum_vel_max = {-HUGE, -HUGE, -HUGE};
-            double base_lagvel_abs_sum = 0.;
-            coord* base_lagVel =
-              debug_pre_reduce_lagVel &&
-              debug_pre_reduce_lagVel_nln[cap] == CAPS(cap).nln ?
-              debug_pre_reduce_lagVel[cap] : NULL;
-            for(int node_id=0; node_id<CAPS(cap).nln; node_id++) {
-              foreach_dimension() {
-                lagvel_sum[node_id].x = base_lagVel ?
-                  base_lagVel[node_id].x : CAPS(cap).nodes[node_id].lagVel.x;
-                base_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
-              }
-            }
-
-            int recv_caps_added = 0;
-            int recv_sources_added = 0;
-            for(int p=0; p<npe(); p++) {
-              int int_pos = ghost_to_owner_recv_int_offsets[p];
-              int double_pos = ghost_to_owner_recv_double_offsets[p];
-              for(int q=0; q<ghost_to_owner_recv_caps[p]; q++) {
-                int recv_cap_id = ghost_to_owner_recv_int_buffer[int_pos++];
-                int recv_nln = ghost_to_owner_recv_int_buffer[int_pos++];
-                bool add_payload = recv_cap_id == CAPS(cap).cap_id &&
-                  recv_nln == CAPS(cap).nln;
-                if (add_payload) {
-                  recv_caps_added++;
-                  recv_sources_added += p != pid();
-                }
-                for(int node_id=0; node_id<recv_nln; node_id++) {
-                  foreach_dimension() {
-                    double vel_comp =
-                      ghost_to_owner_recv_double_buffer[double_pos++];
-                    if (add_payload)
-                      lagvel_sum[node_id].x += vel_comp;
-                  }
-                }
-              }
-            }
-
-            double accum_lagvel_abs_sum = 0.;
-            double reduced_lagvel_abs_sum = 0.;
-            double reduced_vs_accum_max_abs_diff = 0.;
-            double owner_euler_move_max_abs_diff = 0.;
-            coord* pre_advect_pos =
-              debug_pre_advect_pos &&
-              debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
-              debug_pre_advect_pos[cap] : NULL;
-            for(int node_id=0; node_id<CAPS(cap).nln; node_id++) {
-              foreach_dimension() {
-                accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
-                accum_vel_max.x = max(accum_vel_max.x, lagvel_sum[node_id].x);
-                accum_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
-                reduced_lagvel_abs_sum +=
-                  fabs(CAPS(cap).nodes[node_id].lagVel.x);
-                reduced_vs_accum_max_abs_diff = max(
-                  reduced_vs_accum_max_abs_diff,
-                  fabs(CAPS(cap).nodes[node_id].lagVel.x -
-                    lagvel_sum[node_id].x));
-                if (pre_advect_pos) {
-                  double predicted_pos =
-                    pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
-                  owner_euler_move_max_abs_diff = max(
-                    owner_euler_move_max_abs_diff,
-                    fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
-                }
-              }
-            }
-            fprintf(stderr,
-              " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g",
-              CAPS(cap).cap_id, owner_proc, CAPS(cap).nln,
-              base_lagvel_abs_sum, recv_caps_added, recv_sources_added,
-              accum_vel_min.x, accum_vel_min.y, accum_vel_min.z,
-              accum_vel_max.x, accum_vel_max.y, accum_vel_max.z,
-              accum_lagvel_abs_sum, reduced_lagvel_abs_sum,
-              reduced_vs_accum_max_abs_diff,
-              owner_euler_move_max_abs_diff);
-            free(lagvel_sum);
-          }
-          fprintf(stderr, "\n");
-        }
-
-        int local_owner_accum_ints[5] = {-1, -1, 0, 0, 0};
-        double local_owner_accum_doubles[11] =
-          {0., HUGE, HUGE, HUGE, -HUGE, -HUGE, -HUGE, 0., 0., 0., 0.};
-        if (total_ghost_to_owner_recv_caps > 0) {
-          for(int cap=0; cap<NCAPS; cap++) {
-            if (!CAPS(cap).isactive)
-              continue;
-            int owner_proc = find_capsule_owner_proc(&CAPS(cap),
-              all_proc_min, all_proc_max);
-            if (owner_proc != pid())
-              continue;
-
-            coord* lagvel_sum = (coord*)calloc(CAPS(cap).nln, sizeof(coord));
-            assert(lagvel_sum);
-            double base_lagvel_abs_sum = 0.;
-            coord* base_lagVel =
-              debug_pre_reduce_lagVel &&
-              debug_pre_reduce_lagVel_nln[cap] == CAPS(cap).nln ?
-              debug_pre_reduce_lagVel[cap] : NULL;
-            for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
-              foreach_dimension() {
-                lagvel_sum[node_id].x = base_lagVel ?
-                  base_lagVel[node_id].x : CAPS(cap).nodes[node_id].lagVel.x;
-                base_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
-              }
-            int recv_caps_added = 0;
-            int recv_sources_added = 0;
-            for(int p=0; p<npe(); p++) {
-              int int_pos = ghost_to_owner_recv_int_offsets[p];
-              int double_pos = ghost_to_owner_recv_double_offsets[p];
-              for(int q=0; q<ghost_to_owner_recv_caps[p]; q++) {
-                int recv_cap_id = ghost_to_owner_recv_int_buffer[int_pos++];
-                int recv_nln = ghost_to_owner_recv_int_buffer[int_pos++];
-                bool add_payload = recv_cap_id == CAPS(cap).cap_id &&
-                  recv_nln == CAPS(cap).nln;
-                if (add_payload) {
-                  recv_caps_added++;
-                  recv_sources_added += p != pid();
-                }
-                for(int node_id=0; node_id<recv_nln; node_id++)
-                  foreach_dimension() {
-                    double vel_comp =
-                      ghost_to_owner_recv_double_buffer[double_pos++];
-                    if (add_payload)
-                      lagvel_sum[node_id].x += vel_comp;
-                  }
-              }
-            }
-            coord accum_vel_min = {HUGE, HUGE, HUGE};
-            coord accum_vel_max = {-HUGE, -HUGE, -HUGE};
-            double accum_lagvel_abs_sum = 0.;
-            double reduced_lagvel_abs_sum = 0.;
-            double reduced_vs_accum_max_abs_diff = 0.;
-            double owner_euler_move_max_abs_diff = 0.;
-            coord* pre_advect_pos =
-              debug_pre_advect_pos &&
-              debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
-              debug_pre_advect_pos[cap] : NULL;
-            for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
-              foreach_dimension() {
-                accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
-                accum_vel_max.x = max(accum_vel_max.x, lagvel_sum[node_id].x);
-                accum_lagvel_abs_sum += fabs(lagvel_sum[node_id].x);
-                reduced_lagvel_abs_sum +=
-                  fabs(CAPS(cap).nodes[node_id].lagVel.x);
-                reduced_vs_accum_max_abs_diff = max(
-                  reduced_vs_accum_max_abs_diff,
-                  fabs(CAPS(cap).nodes[node_id].lagVel.x -
-                    lagvel_sum[node_id].x));
-                if (pre_advect_pos) {
-                  double predicted_pos =
-                    pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
-                  owner_euler_move_max_abs_diff = max(
-                    owner_euler_move_max_abs_diff,
-                    fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
-                }
-              }
-            local_owner_accum_ints[0] = CAPS(cap).cap_id;
-            local_owner_accum_ints[1] = owner_proc;
-            local_owner_accum_ints[2] = CAPS(cap).nln;
-            local_owner_accum_ints[3] = recv_caps_added;
-            local_owner_accum_ints[4] = recv_sources_added;
-            local_owner_accum_doubles[0] = base_lagvel_abs_sum;
-            local_owner_accum_doubles[1] = accum_vel_min.x;
-            local_owner_accum_doubles[2] = accum_vel_min.y;
-            local_owner_accum_doubles[3] = accum_vel_min.z;
-            local_owner_accum_doubles[4] = accum_vel_max.x;
-            local_owner_accum_doubles[5] = accum_vel_max.y;
-            local_owner_accum_doubles[6] = accum_vel_max.z;
-            local_owner_accum_doubles[7] = accum_lagvel_abs_sum;
-            local_owner_accum_doubles[8] = reduced_lagvel_abs_sum;
-            local_owner_accum_doubles[9] = reduced_vs_accum_max_abs_diff;
-            local_owner_accum_doubles[10] = owner_euler_move_max_abs_diff;
-            free(lagvel_sum);
-            break;
-          }
-        }
-        int* all_owner_accum_ints = NULL;
-        double* all_owner_accum_doubles = NULL;
-        if (pid() == 0) {
-          all_owner_accum_ints = (int*)malloc(npe()*5*sizeof(int));
-          all_owner_accum_doubles = (double*)malloc(npe()*11*sizeof(double));
-          assert(all_owner_accum_ints);
-          assert(all_owner_accum_doubles);
-        }
-        MPI_Gather(local_owner_accum_ints, 5, MPI_INT,
-          all_owner_accum_ints, 5, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(local_owner_accum_doubles, 11, MPI_DOUBLE,
-          all_owner_accum_doubles, 11, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (pid() == 0) {
-          int printed_owner_accum = false;
-          for(int rank=0; rank<npe(); rank++) {
-            int* row_i = all_owner_accum_ints + rank*5;
-            double* row_d = all_owner_accum_doubles + rank*11;
-            if (row_i[0] < 0)
-              continue;
-            if (!printed_owner_accum) {
-              fprintf(stderr,
-                "DEBUG_ALL_OWNER_LAGVEL_ACCUM_DRYRUN iter %d", i);
-              printed_owner_accum = true;
-            }
-            fprintf(stderr,
-              " rank=%d,cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g",
-              rank, row_i[0], row_i[1], row_i[2], row_d[0],
-              row_i[3], row_i[4], row_d[1], row_d[2], row_d[3],
-              row_d[4], row_d[5], row_d[6], row_d[7], row_d[8],
-              row_d[9], row_d[10]);
-          }
-          if (printed_owner_accum)
-            fprintf(stderr, "\n");
-        }
-        free(all_owner_accum_ints);
-        free(all_owner_accum_doubles);
+        debug_sparse_owner_lagVel_from_recv_payloads(i,
+          total_ghost_to_owner_recv_caps);
 
         free(received_ghost_cap_ids);
         free(received_ghost_owner_procs);
