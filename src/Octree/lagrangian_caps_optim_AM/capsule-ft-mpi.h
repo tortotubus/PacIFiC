@@ -353,15 +353,23 @@ int estimate_ghost_to_owner_ndoubles(lagMesh* mesh)
   return mesh->nln*dimension; // node velocity contribution
 }
 
-void pack_ghost_to_owner_capsule(lagMesh* mesh, int* int_data, int* int_pos,
-  double* double_data, int* double_pos)
+void pack_ghost_to_owner_capsule_lagVel(lagMesh* mesh, coord* lagVel,
+  int* int_data, int* int_pos, double* double_data, int* double_pos)
 {
   int_data[(*int_pos)++] = mesh->cap_id;
   int_data[(*int_pos)++] = mesh->nln;
 
   for(int i=0; i<mesh->nln; i++)
     foreach_dimension()
-      double_data[(*double_pos)++] = mesh->nodes[i].lagVel.x;
+      double_data[(*double_pos)++] = lagVel ? lagVel[i].x :
+        mesh->nodes[i].lagVel.x;
+}
+
+void pack_ghost_to_owner_capsule(lagMesh* mesh, int* int_data, int* int_pos,
+  double* double_data, int* double_pos)
+{
+  pack_ghost_to_owner_capsule_lagVel(mesh, NULL, int_data, int_pos,
+    double_data, double_pos);
 }
 
 bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)
