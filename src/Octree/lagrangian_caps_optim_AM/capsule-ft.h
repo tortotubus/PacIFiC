@@ -1352,6 +1352,12 @@ int* ncaps_for_proc = NULL;
 int* proc_cap_offsets = NULL;
 int* proc_cap_ids = NULL;
 int proc_cap_ids_nm = 0;
+int* owner_to_ghost_send_caps = NULL;
+int* owner_to_ghost_send_int_counts = NULL;
+int* owner_to_ghost_send_double_counts = NULL;
+int* ghost_to_owner_send_caps = NULL;
+int* ghost_to_owner_send_int_counts = NULL;
+int* ghost_to_owner_send_double_counts = NULL;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1403,6 +1409,12 @@ event tracer_advection(i++) {
           all_proc_max = (coord*)malloc(npe()*sizeof(coord));
           ncaps_for_proc = (int*)malloc(npe()*sizeof(int));
           proc_cap_offsets = (int*)malloc((npe() + 1)*sizeof(int));
+          owner_to_ghost_send_caps = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_send_int_counts = (int*)malloc(npe()*sizeof(int));
+          owner_to_ghost_send_double_counts = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_send_caps = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_send_int_counts = (int*)malloc(npe()*sizeof(int));
+          ghost_to_owner_send_double_counts = (int*)malloc(npe()*sizeof(int));
         }
         gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
         for(int p=0; p<npe(); p++)
@@ -1440,6 +1452,42 @@ event tracer_advection(i++) {
             }
           }
         }
+        for(int p=0; p<npe(); p++) {
+          owner_to_ghost_send_caps[p] = 0;
+          owner_to_ghost_send_int_counts[p] = 0;
+          owner_to_ghost_send_double_counts[p] = 0;
+          ghost_to_owner_send_caps[p] = 0;
+          ghost_to_owner_send_int_counts[p] = 0;
+          ghost_to_owner_send_double_counts[p] = 0;
+        }
+        for(int cap=0; cap<NCAPS; cap++) {
+          if (CAPS(cap).isactive) {
+            int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+              all_proc_min, all_proc_max);
+            if (owner_proc >= 0) {
+              int owner_to_ghost_nints = estimate_owner_to_ghost_nints(&CAPS(cap));
+              int owner_to_ghost_ndoubles = estimate_owner_to_ghost_ndoubles(&CAPS(cap));
+              int ghost_to_owner_nints = estimate_ghost_to_owner_nints(&CAPS(cap));
+              int ghost_to_owner_ndoubles = estimate_ghost_to_owner_ndoubles(&CAPS(cap));
+              for(int p=0; p<npe(); p++) {
+                bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                  &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+                if (intersects_proc && p != owner_proc) {
+                  if (owner_proc == pid()) {
+                    owner_to_ghost_send_caps[p]++;
+                    owner_to_ghost_send_int_counts[p] += owner_to_ghost_nints;
+                    owner_to_ghost_send_double_counts[p] += owner_to_ghost_ndoubles;
+                  }
+                  if (p == pid()) {
+                    ghost_to_owner_send_caps[owner_proc]++;
+                    ghost_to_owner_send_int_counts[owner_proc] += ghost_to_owner_nints;
+                    ghost_to_owner_send_double_counts[owner_proc] += ghost_to_owner_ndoubles;
+                  }
+                }
+              }
+            }
+          }
+        }
       #endif
       fprintf(stderr,
         "DEBUG_AABB pid %d/%d iter %d proc_min=(%g %g %g) proc_max=(%g %g %g)\n",
@@ -1447,6 +1495,105 @@ event tracer_advection(i++) {
         proc_min.x, proc_min.y, proc_min.z,
         proc_max.x, proc_max.y, proc_max.z);
       #if _MPI
+        int total_owner_to_ghost_caps = 0;
+        int total_owner_to_ghost_ints = 0;
+        int total_owner_to_ghost_doubles = 0;
+        int total_ghost_to_owner_caps = 0;
+        int total_ghost_to_owner_ints = 0;
+        int total_ghost_to_owner_doubles = 0;
+        for(int p=0; p<npe(); p++) {
+          total_owner_to_ghost_caps += owner_to_ghost_send_caps[p];
+          total_owner_to_ghost_ints += owner_to_ghost_send_int_counts[p];
+          total_owner_to_ghost_doubles += owner_to_ghost_send_double_counts[p];
+          total_ghost_to_owner_caps += ghost_to_owner_send_caps[p];
+          total_ghost_to_owner_ints += ghost_to_owner_send_int_counts[p];
+          total_ghost_to_owner_doubles += ghost_to_owner_send_double_counts[p];
+        }
+        if (total_owner_to_ghost_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_LOCAL_OWNER_TO_GHOST_SEND_COUNTS pid %d/%d iter %d sends=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++)
+            if (owner_to_ghost_send_caps[p] > 0)
+              fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                p, owner_to_ghost_send_caps[p],
+                owner_to_ghost_send_int_counts[p],
+                owner_to_ghost_send_double_counts[p]);
+          fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+            total_owner_to_ghost_caps, total_owner_to_ghost_ints,
+            total_owner_to_ghost_doubles);
+        }
+        if (total_ghost_to_owner_caps > 0) {
+          fprintf(stderr,
+            "DEBUG_LOCAL_GHOST_TO_OWNER_SEND_COUNTS pid %d/%d iter %d sends=",
+            pid(), npe(), i);
+          for(int p=0; p<npe(); p++)
+            if (ghost_to_owner_send_caps[p] > 0)
+              fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                p, ghost_to_owner_send_caps[p],
+                ghost_to_owner_send_int_counts[p],
+                ghost_to_owner_send_double_counts[p]);
+          fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+            total_ghost_to_owner_caps, total_ghost_to_owner_ints,
+            total_ghost_to_owner_doubles);
+        }
+        int local_count_row_len = 6*npe();
+        int* local_count_row = (int*)calloc(local_count_row_len, sizeof(int));
+        int* all_local_count_rows = NULL;
+        for(int p=0; p<npe(); p++) {
+          local_count_row[p] = owner_to_ghost_send_caps[p];
+          local_count_row[npe() + p] = owner_to_ghost_send_int_counts[p];
+          local_count_row[2*npe() + p] = owner_to_ghost_send_double_counts[p];
+          local_count_row[3*npe() + p] = ghost_to_owner_send_caps[p];
+          local_count_row[4*npe() + p] = ghost_to_owner_send_int_counts[p];
+          local_count_row[5*npe() + p] = ghost_to_owner_send_double_counts[p];
+        }
+        if (pid() == 0)
+          all_local_count_rows = (int*)malloc(npe()*local_count_row_len*sizeof(int));
+        MPI_Gather(local_count_row, local_count_row_len, MPI_INT,
+          all_local_count_rows, local_count_row_len, MPI_INT, 0, MPI_COMM_WORLD);
+        if (pid() == 0) {
+          fprintf(stderr, "DEBUG_ALL_LOCAL_SEND_COUNTS iter %d npe %d\n",
+            i, npe());
+          for(int rank=0; rank<npe(); rank++) {
+            int* row = all_local_count_rows + rank*local_count_row_len;
+            int owner_caps = 0, owner_ints = 0, owner_doubles = 0;
+            int ghost_caps = 0, ghost_ints = 0, ghost_doubles = 0;
+            for(int p=0; p<npe(); p++) {
+              owner_caps += row[p];
+              owner_ints += row[npe() + p];
+              owner_doubles += row[2*npe() + p];
+              ghost_caps += row[3*npe() + p];
+              ghost_ints += row[4*npe() + p];
+              ghost_doubles += row[5*npe() + p];
+            }
+            if (owner_caps > 0) {
+              fprintf(stderr,
+                "DEBUG_ALL_LOCAL_OWNER_TO_GHOST_SEND_COUNTS iter %d rank %d sends=",
+                i, rank);
+              for(int p=0; p<npe(); p++)
+                if (row[p] > 0)
+                  fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                    p, row[p], row[npe() + p], row[2*npe() + p]);
+              fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+                owner_caps, owner_ints, owner_doubles);
+            }
+            if (ghost_caps > 0) {
+              fprintf(stderr,
+                "DEBUG_ALL_LOCAL_GHOST_TO_OWNER_SEND_COUNTS iter %d rank %d sends=",
+                i, rank);
+              for(int p=0; p<npe(); p++)
+                if (row[3*npe() + p] > 0)
+                  fprintf(stderr, " %d:caps=%d,int=%d,double=%d",
+                    p, row[3*npe() + p],
+                    row[4*npe() + p], row[5*npe() + p]);
+              fprintf(stderr, " total_caps=%d total_int=%d total_double=%d\n",
+                ghost_caps, ghost_ints, ghost_doubles);
+            }
+          }
+        }
+        free(local_count_row);
+        free(all_local_count_rows);
         if (pid() == 0) {
           fprintf(stderr, "DEBUG_AABB_TABLE iter %d npe %d\n", i, npe());
           for(int p=0; p<npe(); p++)
@@ -1747,6 +1894,12 @@ event cleanup (t = end) {
     free(ncaps_for_proc);
     free(proc_cap_offsets);
     free(proc_cap_ids);
+    free(owner_to_ghost_send_caps);
+    free(owner_to_ghost_send_int_counts);
+    free(owner_to_ghost_send_double_counts);
+    free(ghost_to_owner_send_caps);
+    free(ghost_to_owner_send_int_counts);
+    free(ghost_to_owner_send_double_counts);
   #endif
   free_all_caps(&allCaps);
 }
