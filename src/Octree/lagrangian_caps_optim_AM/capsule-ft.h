@@ -1382,6 +1382,8 @@ int* ghost_to_owner_recv_int_buffer = NULL;
 double* ghost_to_owner_recv_double_buffer = NULL;
 coord** debug_pre_reduce_lagVel = NULL;
 int* debug_pre_reduce_lagVel_nln = NULL;
+coord** debug_pre_advect_pos = NULL;
+int* debug_pre_advect_pos_nln = NULL;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1437,6 +1439,30 @@ event tracer_advection(i++) {
   */
   reduce_alllagVel();
 
+  #if _MPI && DEBUG_AABB
+    if (i % DEBUG_AABB_FREQ == 0) {
+      if (debug_pre_advect_pos == NULL) {
+        debug_pre_advect_pos = (coord**)calloc(NCAPS, sizeof(coord*));
+        debug_pre_advect_pos_nln = (int*)calloc(NCAPS, sizeof(int));
+        assert(debug_pre_advect_pos);
+        assert(debug_pre_advect_pos_nln);
+      }
+      for(int cap=0; cap<NCAPS; cap++) {
+        if (CAPS(cap).isactive) {
+          if (debug_pre_advect_pos_nln[cap] != CAPS(cap).nln) {
+            debug_pre_advect_pos[cap] =
+              (coord*)realloc(debug_pre_advect_pos[cap],
+                CAPS(cap).nln*sizeof(coord));
+            assert(debug_pre_advect_pos[cap]);
+            debug_pre_advect_pos_nln[cap] = CAPS(cap).nln;
+          }
+          for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
+            debug_pre_advect_pos[cap][node_id] =
+              CAPS(cap).nodes[node_id].pos;
+        }
+      }
+    }
+  #endif
 
   /* Advection of the lagNode */
   for(int i=0; i<NCAPS; i++) {
@@ -2158,6 +2184,11 @@ event tracer_advection(i++) {
             double accum_lagvel_abs_sum = 0.;
             double reduced_lagvel_abs_sum = 0.;
             double reduced_vs_accum_max_abs_diff = 0.;
+            double owner_euler_move_max_abs_diff = 0.;
+            coord* pre_advect_pos =
+              debug_pre_advect_pos &&
+              debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
+              debug_pre_advect_pos[cap] : NULL;
             for(int node_id=0; node_id<CAPS(cap).nln; node_id++) {
               foreach_dimension() {
                 accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
@@ -2169,24 +2200,32 @@ event tracer_advection(i++) {
                   reduced_vs_accum_max_abs_diff,
                   fabs(CAPS(cap).nodes[node_id].lagVel.x -
                     lagvel_sum[node_id].x));
+                if (pre_advect_pos) {
+                  double predicted_pos =
+                    pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
+                  owner_euler_move_max_abs_diff = max(
+                    owner_euler_move_max_abs_diff,
+                    fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
+                }
               }
             }
             fprintf(stderr,
-              " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g",
+              " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g",
               CAPS(cap).cap_id, owner_proc, CAPS(cap).nln,
               base_lagvel_abs_sum, recv_caps_added, recv_sources_added,
               accum_vel_min.x, accum_vel_min.y, accum_vel_min.z,
               accum_vel_max.x, accum_vel_max.y, accum_vel_max.z,
               accum_lagvel_abs_sum, reduced_lagvel_abs_sum,
-              reduced_vs_accum_max_abs_diff);
+              reduced_vs_accum_max_abs_diff,
+              owner_euler_move_max_abs_diff);
             free(lagvel_sum);
           }
           fprintf(stderr, "\n");
         }
 
         int local_owner_accum_ints[5] = {-1, -1, 0, 0, 0};
-        double local_owner_accum_doubles[10] =
-          {0., HUGE, HUGE, HUGE, -HUGE, -HUGE, -HUGE, 0., 0., 0.};
+        double local_owner_accum_doubles[11] =
+          {0., HUGE, HUGE, HUGE, -HUGE, -HUGE, -HUGE, 0., 0., 0., 0.};
         if (total_ghost_to_owner_recv_caps > 0) {
           for(int cap=0; cap<NCAPS; cap++) {
             if (!CAPS(cap).isactive)
@@ -2237,6 +2276,11 @@ event tracer_advection(i++) {
             double accum_lagvel_abs_sum = 0.;
             double reduced_lagvel_abs_sum = 0.;
             double reduced_vs_accum_max_abs_diff = 0.;
+            double owner_euler_move_max_abs_diff = 0.;
+            coord* pre_advect_pos =
+              debug_pre_advect_pos &&
+              debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
+              debug_pre_advect_pos[cap] : NULL;
             for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
               foreach_dimension() {
                 accum_vel_min.x = min(accum_vel_min.x, lagvel_sum[node_id].x);
@@ -2248,6 +2292,13 @@ event tracer_advection(i++) {
                   reduced_vs_accum_max_abs_diff,
                   fabs(CAPS(cap).nodes[node_id].lagVel.x -
                     lagvel_sum[node_id].x));
+                if (pre_advect_pos) {
+                  double predicted_pos =
+                    pre_advect_pos[node_id].x + dt*lagvel_sum[node_id].x;
+                  owner_euler_move_max_abs_diff = max(
+                    owner_euler_move_max_abs_diff,
+                    fabs(CAPS(cap).nodes[node_id].pos.x - predicted_pos));
+                }
               }
             local_owner_accum_ints[0] = CAPS(cap).cap_id;
             local_owner_accum_ints[1] = owner_proc;
@@ -2264,6 +2315,7 @@ event tracer_advection(i++) {
             local_owner_accum_doubles[7] = accum_lagvel_abs_sum;
             local_owner_accum_doubles[8] = reduced_lagvel_abs_sum;
             local_owner_accum_doubles[9] = reduced_vs_accum_max_abs_diff;
+            local_owner_accum_doubles[10] = owner_euler_move_max_abs_diff;
             free(lagvel_sum);
             break;
           }
@@ -2272,19 +2324,19 @@ event tracer_advection(i++) {
         double* all_owner_accum_doubles = NULL;
         if (pid() == 0) {
           all_owner_accum_ints = (int*)malloc(npe()*5*sizeof(int));
-          all_owner_accum_doubles = (double*)malloc(npe()*10*sizeof(double));
+          all_owner_accum_doubles = (double*)malloc(npe()*11*sizeof(double));
           assert(all_owner_accum_ints);
           assert(all_owner_accum_doubles);
         }
         MPI_Gather(local_owner_accum_ints, 5, MPI_INT,
           all_owner_accum_ints, 5, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gather(local_owner_accum_doubles, 10, MPI_DOUBLE,
-          all_owner_accum_doubles, 10, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        MPI_Gather(local_owner_accum_doubles, 11, MPI_DOUBLE,
+          all_owner_accum_doubles, 11, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         if (pid() == 0) {
           int printed_owner_accum = false;
           for(int rank=0; rank<npe(); rank++) {
             int* row_i = all_owner_accum_ints + rank*5;
-            double* row_d = all_owner_accum_doubles + rank*10;
+            double* row_d = all_owner_accum_doubles + rank*11;
             if (row_i[0] < 0)
               continue;
             if (!printed_owner_accum) {
@@ -2293,11 +2345,11 @@ event tracer_advection(i++) {
               printed_owner_accum = true;
             }
             fprintf(stderr,
-              " rank=%d,cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g",
+              " rank=%d,cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g",
               rank, row_i[0], row_i[1], row_i[2], row_d[0],
               row_i[3], row_i[4], row_d[1], row_d[2], row_d[3],
               row_d[4], row_d[5], row_d[6], row_d[7], row_d[8],
-              row_d[9]);
+              row_d[9], row_d[10]);
           }
           if (printed_owner_accum)
             fprintf(stderr, "\n");
@@ -2874,6 +2926,12 @@ event cleanup (t = end) {
     }
     free(debug_pre_reduce_lagVel);
     free(debug_pre_reduce_lagVel_nln);
+    if (debug_pre_advect_pos) {
+      for(int cap=0; cap<NCAPS; cap++)
+        free(debug_pre_advect_pos[cap]);
+    }
+    free(debug_pre_advect_pos);
+    free(debug_pre_advect_pos_nln);
   #endif
   free_all_caps(&allCaps);
 }
