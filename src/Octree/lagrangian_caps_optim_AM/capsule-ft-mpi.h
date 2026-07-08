@@ -279,6 +279,36 @@ int find_capsule_owner_proc(lagMesh* mesh, coord* all_proc_min, coord* all_proc_
   return -1;
 }
 
+int estimate_owner_to_ghost_nints(lagMesh* mesh)
+{
+  (void) mesh;
+  int nints = 4; // cap_id, cap_type, nln, nle
+  #if dimension > 2
+    nints++; // nlt
+  #endif
+  return nints;
+}
+
+int estimate_owner_to_ghost_ndoubles(lagMesh* mesh)
+{
+  int ndoubles = 3; // cap_es, cap_radius, circum_radius
+  ndoubles += dimension; // centroid
+  ndoubles += mesh->nln*dimension; // node positions
+  ndoubles += mesh->nln*dimension; // node forces
+  return ndoubles;
+}
+
+int estimate_ghost_to_owner_nints(lagMesh* mesh)
+{
+  (void) mesh;
+  return 2; // cap_id, nln
+}
+
+int estimate_ghost_to_owner_ndoubles(lagMesh* mesh)
+{
+  return mesh->nln*dimension; // node velocity contribution
+}
+
 bool sphere_intersects_box(coord center, double radius, coord box_min, coord box_max)
 {
   double d2 = 0.;

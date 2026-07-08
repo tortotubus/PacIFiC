@@ -1479,8 +1479,128 @@ event tracer_advection(i++) {
                 }
               }
               fprintf(stderr, " nintersections=%d\n", nintersections);
+              int nsends = 0;
+              fprintf(stderr,
+                "DEBUG_CAP_SEND_PLAN iter %d cap %d owner=%d send_to=",
+                i, cap, owner_proc);
+              if (owner_proc >= 0) {
+                for(int p=0; p<npe(); p++) {
+                  bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                    &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+                  if (intersects_proc && p != owner_proc) {
+                    fprintf(stderr, " %d", p);
+                    nsends++;
+                  }
+                }
+              }
+              fprintf(stderr, " nsends=%d\n", nsends);
             }
           }
+          int* owner_send_counts = (int*)calloc(npe()*npe(), sizeof(int));
+          int* owner_to_ghost_int_counts = (int*)calloc(npe()*npe(), sizeof(int));
+          int* owner_to_ghost_double_counts = (int*)calloc(npe()*npe(), sizeof(int));
+          int* ghost_to_owner_int_counts = (int*)calloc(npe()*npe(), sizeof(int));
+          int* ghost_to_owner_double_counts = (int*)calloc(npe()*npe(), sizeof(int));
+          for(int cap=0; cap<NCAPS; cap++) {
+            if (CAPS(cap).isactive) {
+              int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+                all_proc_min, all_proc_max);
+              if (owner_proc >= 0) {
+                int owner_to_ghost_nints = estimate_owner_to_ghost_nints(&CAPS(cap));
+                int owner_to_ghost_ndoubles = estimate_owner_to_ghost_ndoubles(&CAPS(cap));
+                int ghost_to_owner_nints = estimate_ghost_to_owner_nints(&CAPS(cap));
+                int ghost_to_owner_ndoubles = estimate_ghost_to_owner_ndoubles(&CAPS(cap));
+                for(int p=0; p<npe(); p++) {
+                  bool intersects_proc = lagmesh_bounding_sphere_intersects_box(
+                    &CAPS(cap), all_proc_min[p], all_proc_max[p]);
+                  if (intersects_proc && p != owner_proc) {
+                    owner_send_counts[owner_proc*npe() + p]++;
+                    owner_to_ghost_int_counts[owner_proc*npe() + p] += owner_to_ghost_nints;
+                    owner_to_ghost_double_counts[owner_proc*npe() + p] += owner_to_ghost_ndoubles;
+                    ghost_to_owner_int_counts[p*npe() + owner_proc] += ghost_to_owner_nints;
+                    ghost_to_owner_double_counts[p*npe() + owner_proc] += ghost_to_owner_ndoubles;
+                  }
+                }
+              }
+            }
+          }
+          fprintf(stderr, "DEBUG_OWNER_SEND_COUNTS iter %d npe %d\n", i, npe());
+          for(int owner=0; owner<npe(); owner++) {
+            int total_owner_sends = 0;
+            for(int dest=0; dest<npe(); dest++)
+              total_owner_sends += owner_send_counts[owner*npe() + dest];
+            if (total_owner_sends > 0) {
+              fprintf(stderr,
+                "DEBUG_OWNER_SEND_COUNTS iter %d owner %d send_counts=",
+                i, owner);
+              for(int dest=0; dest<npe(); dest++)
+                if (owner_send_counts[owner*npe() + dest] > 0)
+                  fprintf(stderr, " %d:%d", dest,
+                    owner_send_counts[owner*npe() + dest]);
+              fprintf(stderr, " total=%d\n", total_owner_sends);
+            }
+          }
+          fprintf(stderr, "DEBUG_OWNER_TO_GHOST_BUFFER_EST iter %d npe %d\n",
+            i, npe());
+          for(int owner=0; owner<npe(); owner++) {
+            int total_ints = 0;
+            int total_doubles = 0;
+            for(int dest=0; dest<npe(); dest++) {
+              total_ints += owner_to_ghost_int_counts[owner*npe() + dest];
+              total_doubles += owner_to_ghost_double_counts[owner*npe() + dest];
+            }
+            if (total_ints > 0 || total_doubles > 0) {
+              size_t total_bytes = total_ints*sizeof(int)
+                + total_doubles*sizeof(double);
+              fprintf(stderr,
+                "DEBUG_OWNER_TO_GHOST_BUFFER_EST iter %d owner %d payloads=",
+                i, owner);
+              for(int dest=0; dest<npe(); dest++) {
+                int nints = owner_to_ghost_int_counts[owner*npe() + dest];
+                int ndoubles = owner_to_ghost_double_counts[owner*npe() + dest];
+                if (nints > 0 || ndoubles > 0) {
+                  size_t bytes = nints*sizeof(int) + ndoubles*sizeof(double);
+                  fprintf(stderr, " %d:int=%d,double=%d,bytes=%zu",
+                    dest, nints, ndoubles, bytes);
+                }
+              }
+              fprintf(stderr, " total_int=%d total_double=%d total_bytes=%zu\n",
+                total_ints, total_doubles, total_bytes);
+            }
+          }
+          fprintf(stderr, "DEBUG_GHOST_TO_OWNER_BUFFER_EST iter %d npe %d\n",
+            i, npe());
+          for(int ghost=0; ghost<npe(); ghost++) {
+            int total_ints = 0;
+            int total_doubles = 0;
+            for(int owner=0; owner<npe(); owner++) {
+              total_ints += ghost_to_owner_int_counts[ghost*npe() + owner];
+              total_doubles += ghost_to_owner_double_counts[ghost*npe() + owner];
+            }
+            if (total_ints > 0 || total_doubles > 0) {
+              size_t total_bytes = total_ints*sizeof(int)
+                + total_doubles*sizeof(double);
+              fprintf(stderr,
+                "DEBUG_GHOST_TO_OWNER_BUFFER_EST iter %d ghost %d payloads=",
+                i, ghost);
+              for(int owner=0; owner<npe(); owner++) {
+                int nints = ghost_to_owner_int_counts[ghost*npe() + owner];
+                int ndoubles = ghost_to_owner_double_counts[ghost*npe() + owner];
+                if (nints > 0 || ndoubles > 0) {
+                  size_t bytes = nints*sizeof(int) + ndoubles*sizeof(double);
+                  fprintf(stderr, " %d:int=%d,double=%d,bytes=%zu",
+                    owner, nints, ndoubles, bytes);
+                }
+              }
+              fprintf(stderr, " total_int=%d total_double=%d total_bytes=%zu\n",
+                total_ints, total_doubles, total_bytes);
+            }
+          }
+          free(owner_send_counts);
+          free(owner_to_ghost_int_counts);
+          free(owner_to_ghost_double_counts);
+          free(ghost_to_owner_int_counts);
+          free(ghost_to_owner_double_counts);
           fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d npe %d\n", i, npe());
           for(int p=0; p<npe(); p++) {
             fprintf(stderr, "DEBUG_PROC_CAP_LIST iter %d proc %d ncaps=%d offset=%d cap_ids=",
