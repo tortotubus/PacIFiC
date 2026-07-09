@@ -1401,6 +1401,15 @@ int* debug_pre_advect_pos_nln = NULL;
 #ifndef DEBUG_OWNER_GEOM_TO_ALL_RANKS
   #define DEBUG_OWNER_GEOM_TO_ALL_RANKS 1
 #endif
+#ifndef DEBUG_CAPSULE_LIFECYCLE_DRYRUN
+  #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 1
+#endif
+#ifndef DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
+  #define DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE 0
+#endif
+#ifndef DEBUG_DRAW_SOFT_INACTIVE_CAPS
+  #define DEBUG_DRAW_SOFT_INACTIVE_CAPS 1
+#endif
 
 #if _MPI
 void debug_ensure_mpi_routing_arrays()
@@ -1873,8 +1882,105 @@ void debug_owner_advection_dryrun(int iter)
   fprintf(stderr, " nowned=%d\n", nowned);
 }
 
+void debug_capsule_lifecycle_dryrun(int iter)
+{
+  #if DEBUG_CAPSULE_LIFECYCLE_DRYRUN
+    if (iter % DEBUG_AABB_FREQ != 0)
+      return;
+
+    compute_proc_borders(&proc_max, &proc_min);
+    debug_ensure_mpi_routing_arrays();
+    gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+    int nkeep_owner = 0;
+    int nkeep_ghost = 0;
+    int ncreate_ghost = 0;
+    int ndestroy = 0;
+
+    fprintf(stderr,
+      "DEBUG_CAPSULE_LIFECYCLE_DRYRUN pid %d/%d iter %d actions=",
+      pid(), npe(), iter);
+    for(int cap=0; cap<NCAPS; cap++) {
+      int local_exists = CAPS(cap).isactive;
+      int owner_proc = -1;
+      int intersects_local = false;
+      int should_exist = false;
+
+      if (local_exists) {
+        owner_proc = find_capsule_owner_proc(&CAPS(cap),
+          all_proc_min, all_proc_max);
+        intersects_local = lagmesh_bounding_sphere_intersects_box(
+          &CAPS(cap), proc_min, proc_max);
+        should_exist = owner_proc == pid() || intersects_local;
+      }
+
+      const char* action = "inactive";
+      if (local_exists && owner_proc == pid()) {
+        action = "keep_owner";
+        nkeep_owner++;
+      }
+      else if (local_exists && should_exist) {
+        action = "keep_ghost";
+        nkeep_ghost++;
+      }
+      else if (local_exists) {
+        action = "destroy_local_copy";
+        ndestroy++;
+      }
+      else if (should_exist) {
+        action = "create_ghost";
+        ncreate_ghost++;
+      }
+
+      fprintf(stderr,
+        " cap=%d,owner=%d,intersects=%d,local_exists=%d,action=%s",
+        local_exists ? CAPS(cap).cap_id : cap, owner_proc,
+        intersects_local, local_exists, action);
+    }
+    fprintf(stderr,
+      " totals=(owner=%d ghost=%d create=%d destroy=%d)\n",
+      nkeep_owner, nkeep_ghost, ncreate_ghost, ndestroy);
+  #endif
+}
+
+void debug_apply_soft_capsule_lifecycle(int iter)
+{
+  #if DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
+    compute_proc_borders(&proc_max, &proc_min);
+    debug_ensure_mpi_routing_arrays();
+    gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+    int ndeactivated = 0;
+    int print_debug = iter % DEBUG_AABB_FREQ == 0;
+    if (print_debug)
+      fprintf(stderr,
+        "DEBUG_SOFT_CAPSULE_LIFECYCLE_APPLY pid %d/%d iter %d deactivate=",
+        pid(), npe(), iter);
+    for(int cap=0; cap<NCAPS; cap++) {
+      if (!CAPS(cap).isactive)
+        continue;
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      int intersects_local = lagmesh_bounding_sphere_intersects_box(
+        &CAPS(cap), proc_min, proc_max);
+      if (owner_proc >= 0 && owner_proc != pid() && !intersects_local) {
+        if (print_debug)
+          fprintf(stderr, " cap=%d,owner=%d,local_index=%d",
+            CAPS(cap).cap_id, owner_proc, cap);
+        CAPS(cap).isactive = false;
+        ndeactivated++;
+      }
+    }
+    if (print_debug) {
+      if (ndeactivated == 0)
+        fprintf(stderr, " none");
+      fprintf(stderr, " ndeactivated=%d\n", ndeactivated);
+    }
+  #endif
+}
+
 void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
-  double* double_data, int* double_pos)
+  double* double_data, int* double_pos, int iter)
 {
   int cap_id, cap_type, nln, nle, nlt;
   double cap_es, cap_radius, circum_radius;
@@ -1884,7 +1990,7 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
 
   int local_cap = -1;
   for(int cap=0; cap<NCAPS; cap++)
-    if (CAPS(cap).isactive && CAPS(cap).cap_id == cap_id) {
+    if (CAPS(cap).cap_id == cap_id) {
       local_cap = cap;
       break;
     }
@@ -1913,6 +2019,8 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
     }
 
   if (can_update) {
+    int was_active = CAPS(local_cap).isactive;
+    CAPS(local_cap).isactive = true;
     CAPS(local_cap).cap_type = cap_type;
     CAPS(local_cap).cap_es = cap_es;
     CAPS(local_cap).cap_radius = cap_radius;
@@ -1922,6 +2030,12 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
     CAPS(local_cap).updated_normals = false;
     CAPS(local_cap).updated_curvatures = false;
     comp_capsule_geodynamics(&CAPS(local_cap));
+    #if DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
+      if (!was_active && iter % DEBUG_AABB_FREQ == 0)
+        fprintf(stderr,
+          "DEBUG_SOFT_CAPSULE_LIFECYCLE_REACTIVATE pid %d/%d cap=%d local_index=%d\n",
+          pid(), npe(), cap_id, local_cap);
+    #endif
   }
 }
 
@@ -2076,7 +2190,7 @@ void debug_owner_to_ghost_geometry_exchange_after_advection(int iter)
     for(int q=0; q<owner_to_ghost_recv_caps[p]; q++)
       debug_update_local_capsule_from_owner_payload(
         owner_to_ghost_recv_int_buffer, &int_pos,
-        owner_to_ghost_recv_double_buffer, &double_pos);
+        owner_to_ghost_recv_double_buffer, &double_pos, iter);
   }
 
   if (iter % DEBUG_AABB_FREQ == 0) {
@@ -2131,10 +2245,10 @@ event tracer_advection(i++) {
   In case of parallel simulations, we communicate the Lagrangian velocity
   so that all processes have the same Lagrangian velocities.
   */
-  reduce_alllagVel();
-
   #if _MPI && DEBUG_AABB && DEBUG_APPLY_SPARSE_OWNER_LAGVEL
     debug_sparse_owner_lagVel_exchange_before_advection(i);
+  #else
+    reduce_alllagVel();
   #endif
 
   #if _MPI && DEBUG_AABB
@@ -2190,6 +2304,8 @@ event tracer_advection(i++) {
 
   #if _MPI && DEBUG_AABB && DEBUG_OWNER_ONLY_ADVECTION
     debug_owner_to_ghost_geometry_exchange_after_advection(i);
+    debug_capsule_lifecycle_dryrun(i);
+    debug_apply_soft_capsule_lifecycle(i);
   #endif
 
   /* Compute borders of the curren proc */

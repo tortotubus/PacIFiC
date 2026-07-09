@@ -167,12 +167,19 @@ same as the `draw_lag` function.
 
 void draw_lags (_draw_lag p)
 {
-  for (int k = 0; k < NCAPS; k++)
-    if (CAPS(k).isactive)
+  for (int k = 0; k < NCAPS; k++) {
+    int draw_capsule = CAPS(k).isactive;
+    #if _MPI && DEBUG_OWNER_GEOM_TO_ALL_RANKS && \
+      DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE && DEBUG_DRAW_SOFT_INACTIVE_CAPS
+      if (pid() == 0 && CAPS(k).nodes != NULL && CAPS(k).nln > 0)
+        draw_capsule = true;
+    #endif
+    if (draw_capsule)
       draw_lag ((_draw_lag){.mesh=&CAPS(k), .nodes = p.nodes, .edges = p.edges,
 		.facets = p.facets,
 		.fc = {p.fc[0], p.fc[1], p.fc[2]},
 		.lc = {p.lc[0], p.lc[1], p.lc[2]},
 		.nc = {p.nc[0], p.nc[1], p.nc[2]},
 		.lw = p.lw, .ns = p.ns});
+  }
 }
