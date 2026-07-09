@@ -1398,12 +1398,14 @@ int* debug_pre_advect_pos_nln = NULL;
 
 #if _MPI
 void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
-  int total_ghost_to_owner_recv_caps)
+  int total_ghost_to_owner_recv_caps, int compare_euler_move,
+  int print_debug)
 {
   if (total_ghost_to_owner_recv_caps > 0) {
-    fprintf(stderr,
-      "DEBUG_OWNER_LAGVEL_ACCUM_DRYRUN pid %d/%d iter %d caps=",
-      pid(), npe(), iter);
+    if (print_debug)
+      fprintf(stderr,
+        "DEBUG_OWNER_LAGVEL_ACCUM_DRYRUN pid %d/%d iter %d caps=",
+        pid(), npe(), iter);
     for(int cap=0; cap<NCAPS; cap++) {
       if (!CAPS(cap).isactive)
         continue;
@@ -1457,7 +1459,7 @@ void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
       double reduced_vs_accum_max_abs_diff = 0.;
       double owner_euler_move_max_abs_diff = 0.;
       coord* pre_advect_pos =
-        debug_pre_advect_pos &&
+        compare_euler_move && debug_pre_advect_pos &&
         debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
         debug_pre_advect_pos[cap] : NULL;
       for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
@@ -1484,19 +1486,24 @@ void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
           CAPS(cap).nodes[node_id].lagVel = lagvel_sum[node_id];
         applied_sparse_owner_lagVel = true;
       #endif
-      fprintf(stderr,
-        " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g,applied_sparse_owner_lagVel=%d",
-        CAPS(cap).cap_id, owner_proc, CAPS(cap).nln,
-        base_lagvel_abs_sum, recv_caps_added, recv_sources_added,
-        accum_vel_min.x, accum_vel_min.y, accum_vel_min.z,
-        accum_vel_max.x, accum_vel_max.y, accum_vel_max.z,
-        accum_lagvel_abs_sum, reduced_lagvel_abs_sum,
-        reduced_vs_accum_max_abs_diff, owner_euler_move_max_abs_diff,
-        applied_sparse_owner_lagVel);
+      if (print_debug)
+        fprintf(stderr,
+          " cap=%d,owner=%d,nln=%d,base_abs_sum=%g,recv_caps_added=%d,recv_sources_added=%d,accum_vel_min=(%g %g %g),accum_vel_max=(%g %g %g),accum_abs_sum=%g,reduced_abs_sum=%g,reduced_vs_accum_max_abs_diff=%g,owner_euler_move_max_abs_diff=%g,applied_sparse_owner_lagVel=%d",
+          CAPS(cap).cap_id, owner_proc, CAPS(cap).nln,
+          base_lagvel_abs_sum, recv_caps_added, recv_sources_added,
+          accum_vel_min.x, accum_vel_min.y, accum_vel_min.z,
+          accum_vel_max.x, accum_vel_max.y, accum_vel_max.z,
+          accum_lagvel_abs_sum, reduced_lagvel_abs_sum,
+          reduced_vs_accum_max_abs_diff, owner_euler_move_max_abs_diff,
+          applied_sparse_owner_lagVel);
       free(lagvel_sum);
     }
-    fprintf(stderr, "\n");
+    if (print_debug)
+      fprintf(stderr, "\n");
   }
+
+  if (!print_debug)
+    return;
 
   int local_owner_accum_ints[6] = {-1, -1, 0, 0, 0,
     DEBUG_APPLY_SPARSE_OWNER_LAGVEL};
@@ -1556,7 +1563,7 @@ void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
       double reduced_vs_accum_max_abs_diff = 0.;
       double owner_euler_move_max_abs_diff = 0.;
       coord* pre_advect_pos =
-        debug_pre_advect_pos &&
+        compare_euler_move && debug_pre_advect_pos &&
         debug_pre_advect_pos_nln[cap] == CAPS(cap).nln ?
         debug_pre_advect_pos[cap] : NULL;
       for(int node_id=0; node_id<CAPS(cap).nln; node_id++)
@@ -1636,6 +1643,185 @@ void debug_sparse_owner_lagVel_from_recv_payloads(int iter,
   free(all_owner_accum_ints);
   free(all_owner_accum_doubles);
 }
+
+void debug_sparse_owner_lagVel_exchange_before_advection(int iter)
+{
+  compute_proc_borders(&proc_max, &proc_min);
+  if (all_proc_min == NULL) {
+    all_proc_min = (coord*)malloc(npe()*sizeof(coord));
+    all_proc_max = (coord*)malloc(npe()*sizeof(coord));
+    ncaps_for_proc = (int*)malloc(npe()*sizeof(int));
+    proc_cap_offsets = (int*)malloc((npe() + 1)*sizeof(int));
+    owner_to_ghost_send_caps = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_send_int_counts = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_send_double_counts = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_recv_caps = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_recv_int_counts = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_recv_double_counts = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_send_int_offsets = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_send_double_offsets = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_recv_int_offsets = (int*)malloc(npe()*sizeof(int));
+    owner_to_ghost_recv_double_offsets = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_send_caps = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_send_int_counts = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_send_double_counts = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_recv_caps = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_recv_int_counts = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_recv_double_counts = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_send_int_offsets = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_send_double_offsets = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_recv_int_offsets = (int*)malloc(npe()*sizeof(int));
+    ghost_to_owner_recv_double_offsets = (int*)malloc(npe()*sizeof(int));
+  }
+
+  gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+  for(int p=0; p<npe(); p++) {
+    ghost_to_owner_send_caps[p] = 0;
+    ghost_to_owner_send_int_counts[p] = 0;
+    ghost_to_owner_send_double_counts[p] = 0;
+    ghost_to_owner_recv_caps[p] = 0;
+    ghost_to_owner_recv_int_counts[p] = 0;
+    ghost_to_owner_recv_double_counts[p] = 0;
+  }
+
+  for(int cap=0; cap<NCAPS; cap++) {
+    if (CAPS(cap).isactive) {
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc >= 0 && owner_proc != pid()) {
+        int intersects_proc = lagmesh_bounding_sphere_intersects_box(
+          &CAPS(cap), proc_min, proc_max);
+        if (intersects_proc) {
+          ghost_to_owner_send_caps[owner_proc]++;
+          ghost_to_owner_send_int_counts[owner_proc] +=
+            estimate_ghost_to_owner_nints(&CAPS(cap));
+          ghost_to_owner_send_double_counts[owner_proc] +=
+            estimate_ghost_to_owner_ndoubles(&CAPS(cap));
+        }
+      }
+    }
+  }
+
+  MPI_Alltoall(ghost_to_owner_send_caps, 1, MPI_INT,
+    ghost_to_owner_recv_caps, 1, MPI_INT, MPI_COMM_WORLD);
+  MPI_Alltoall(ghost_to_owner_send_int_counts, 1, MPI_INT,
+    ghost_to_owner_recv_int_counts, 1, MPI_INT, MPI_COMM_WORLD);
+  MPI_Alltoall(ghost_to_owner_send_double_counts, 1, MPI_INT,
+    ghost_to_owner_recv_double_counts, 1, MPI_INT, MPI_COMM_WORLD);
+
+  int total_ghost_to_owner_ints = 0;
+  int total_ghost_to_owner_doubles = 0;
+  int total_ghost_to_owner_recv_caps = 0;
+  int total_ghost_to_owner_recv_ints = 0;
+  int total_ghost_to_owner_recv_doubles = 0;
+  for(int p=0; p<npe(); p++) {
+    ghost_to_owner_send_int_offsets[p] = total_ghost_to_owner_ints;
+    ghost_to_owner_send_double_offsets[p] = total_ghost_to_owner_doubles;
+    ghost_to_owner_recv_int_offsets[p] = total_ghost_to_owner_recv_ints;
+    ghost_to_owner_recv_double_offsets[p] = total_ghost_to_owner_recv_doubles;
+    total_ghost_to_owner_ints += ghost_to_owner_send_int_counts[p];
+    total_ghost_to_owner_doubles += ghost_to_owner_send_double_counts[p];
+    total_ghost_to_owner_recv_caps += ghost_to_owner_recv_caps[p];
+    total_ghost_to_owner_recv_ints += ghost_to_owner_recv_int_counts[p];
+    total_ghost_to_owner_recv_doubles += ghost_to_owner_recv_double_counts[p];
+  }
+
+  if (total_ghost_to_owner_ints > 0)
+    ghost_to_owner_send_int_buffer = (int*)realloc(
+      ghost_to_owner_send_int_buffer,
+      total_ghost_to_owner_ints*sizeof(int));
+  else {
+    free(ghost_to_owner_send_int_buffer);
+    ghost_to_owner_send_int_buffer = NULL;
+  }
+  if (total_ghost_to_owner_doubles > 0)
+    ghost_to_owner_send_double_buffer = (double*)realloc(
+      ghost_to_owner_send_double_buffer,
+      total_ghost_to_owner_doubles*sizeof(double));
+  else {
+    free(ghost_to_owner_send_double_buffer);
+    ghost_to_owner_send_double_buffer = NULL;
+  }
+  if (total_ghost_to_owner_recv_ints > 0)
+    ghost_to_owner_recv_int_buffer = (int*)realloc(
+      ghost_to_owner_recv_int_buffer,
+      total_ghost_to_owner_recv_ints*sizeof(int));
+  else {
+    free(ghost_to_owner_recv_int_buffer);
+    ghost_to_owner_recv_int_buffer = NULL;
+  }
+  if (total_ghost_to_owner_recv_doubles > 0)
+    ghost_to_owner_recv_double_buffer = (double*)realloc(
+      ghost_to_owner_recv_double_buffer,
+      total_ghost_to_owner_recv_doubles*sizeof(double));
+  else {
+    free(ghost_to_owner_recv_double_buffer);
+    ghost_to_owner_recv_double_buffer = NULL;
+  }
+
+  int* ghost_to_owner_pack_int_pos = (int*)malloc(npe()*sizeof(int));
+  int* ghost_to_owner_pack_double_pos = (int*)malloc(npe()*sizeof(int));
+  assert(ghost_to_owner_pack_int_pos);
+  assert(ghost_to_owner_pack_double_pos);
+  for(int p=0; p<npe(); p++) {
+    ghost_to_owner_pack_int_pos[p] = ghost_to_owner_send_int_offsets[p];
+    ghost_to_owner_pack_double_pos[p] = ghost_to_owner_send_double_offsets[p];
+  }
+
+  for(int cap=0; cap<NCAPS; cap++) {
+    if (CAPS(cap).isactive) {
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc >= 0 && owner_proc != pid()) {
+        int intersects_proc = lagmesh_bounding_sphere_intersects_box(
+          &CAPS(cap), proc_min, proc_max);
+        if (intersects_proc) {
+          coord* pre_reduce_lagVel =
+            debug_pre_reduce_lagVel &&
+            debug_pre_reduce_lagVel_nln[cap] == CAPS(cap).nln ?
+            debug_pre_reduce_lagVel[cap] : NULL;
+          pack_ghost_to_owner_capsule_lagVel(&CAPS(cap), pre_reduce_lagVel,
+            ghost_to_owner_send_int_buffer,
+            &ghost_to_owner_pack_int_pos[owner_proc],
+            ghost_to_owner_send_double_buffer,
+            &ghost_to_owner_pack_double_pos[owner_proc]);
+        }
+      }
+    }
+  }
+  free(ghost_to_owner_pack_int_pos);
+  free(ghost_to_owner_pack_double_pos);
+
+  int dummy_int_buffer = 0;
+  double dummy_double_buffer = 0.;
+  int* ghost_to_owner_send_int_exchange =
+    ghost_to_owner_send_int_buffer ?
+    ghost_to_owner_send_int_buffer : &dummy_int_buffer;
+  double* ghost_to_owner_send_double_exchange =
+    ghost_to_owner_send_double_buffer ?
+    ghost_to_owner_send_double_buffer : &dummy_double_buffer;
+  int* ghost_to_owner_recv_int_exchange =
+    ghost_to_owner_recv_int_buffer ?
+    ghost_to_owner_recv_int_buffer : &dummy_int_buffer;
+  double* ghost_to_owner_recv_double_exchange =
+    ghost_to_owner_recv_double_buffer ?
+    ghost_to_owner_recv_double_buffer : &dummy_double_buffer;
+
+  MPI_Alltoallv(ghost_to_owner_send_int_exchange,
+    ghost_to_owner_send_int_counts, ghost_to_owner_send_int_offsets,
+    MPI_INT, ghost_to_owner_recv_int_exchange,
+    ghost_to_owner_recv_int_counts, ghost_to_owner_recv_int_offsets,
+    MPI_INT, MPI_COMM_WORLD);
+  MPI_Alltoallv(ghost_to_owner_send_double_exchange,
+    ghost_to_owner_send_double_counts, ghost_to_owner_send_double_offsets,
+    MPI_DOUBLE, ghost_to_owner_recv_double_exchange,
+    ghost_to_owner_recv_double_counts, ghost_to_owner_recv_double_offsets,
+    MPI_DOUBLE, MPI_COMM_WORLD);
+
+  debug_sparse_owner_lagVel_from_recv_payloads(iter,
+    total_ghost_to_owner_recv_caps, false,
+    iter % DEBUG_AABB_FREQ == 0);
+}
 #endif
 
 event tracer_advection(i++) {  
@@ -1655,7 +1841,7 @@ event tracer_advection(i++) {
   repulsive_vel();
 #endif 
   #if _MPI && DEBUG_AABB
-    if (i % DEBUG_AABB_FREQ == 0) {
+    if (i % DEBUG_AABB_FREQ == 0 || DEBUG_APPLY_SPARSE_OWNER_LAGVEL) {
       if (debug_pre_reduce_lagVel == NULL) {
         debug_pre_reduce_lagVel = (coord**)calloc(NCAPS, sizeof(coord*));
         debug_pre_reduce_lagVel_nln = (int*)calloc(NCAPS, sizeof(int));
@@ -1683,6 +1869,10 @@ event tracer_advection(i++) {
   so that all processes have the same Lagrangian velocities.
   */
   reduce_alllagVel();
+
+  #if _MPI && DEBUG_AABB && DEBUG_APPLY_SPARSE_OWNER_LAGVEL
+    debug_sparse_owner_lagVel_exchange_before_advection(i);
+  #endif
 
   #if _MPI && DEBUG_AABB
     if (i % DEBUG_AABB_FREQ == 0) {
@@ -2372,8 +2562,10 @@ event tracer_advection(i++) {
         free(all_lagvel_payload_ints);
         free(all_lagvel_payload_doubles);
 
-        debug_sparse_owner_lagVel_from_recv_payloads(i,
-          total_ghost_to_owner_recv_caps);
+        #if !DEBUG_APPLY_SPARSE_OWNER_LAGVEL
+          debug_sparse_owner_lagVel_from_recv_payloads(i,
+            total_ghost_to_owner_recv_caps, true, true);
+        #endif
 
         free(received_ghost_cap_ids);
         free(received_ghost_owner_procs);
