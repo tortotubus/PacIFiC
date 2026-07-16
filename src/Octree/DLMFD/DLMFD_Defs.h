@@ -168,6 +168,9 @@
 # endif
 
 # define BGHOSTS 2
+# ifdef BSIZE
+#   undef BSIZE
+# endif
 # define BSIZE 128
 
 # ifndef TRANSLATION
@@ -321,7 +324,8 @@ enum RigidBodyShape {
   CONE,
   TRUNCATEDCONE,
   ELLIPSOID,
-  HEXAGONALPRISM
+  HEXAGONALPRISM,
+  SIXBRANCHSTAR
 };
 
 
@@ -393,6 +397,12 @@ typedef struct {
 } EllipsoidGeomParameter;
 
 
+/** Additional geometric parameters for 6-branch stars */
+typedef struct { 
+  double armWidth, armLength, depth;
+} SixBranchStarGeomParameter;
+
+
 /** Rigid body geometric parameters */
 typedef struct {
   coord center;
@@ -404,7 +414,8 @@ typedef struct {
   PolyGeomParameter* pgp;
   CylGeomParameter* cgp; 
   TruncConeGeomParameter* tcgp;
-  EllipsoidGeomParameter* elgp;  
+  EllipsoidGeomParameter* elgp;
+  SixBranchStarGeomParameter* sbsgp;  
 } GeomParameter;
 
 
@@ -574,6 +585,7 @@ FILE* cellvstime = NULL;
 dynUIarray deactivatedBPindices;
 dynPDBarray deactivatedIndexFieldValues;
 AABB local_domain;
+coord FULL_DOMAIN;
 
 
 
