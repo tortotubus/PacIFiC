@@ -1219,8 +1219,8 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
   local_offset_v[dim] = 0;
   global_dims_v[dim] = dim;
   chunk_dims_v[dim] = dim;
-  max_dims_v[dim] = dim; 
-  
+  max_dims_v[dim] = dim;
+
   std::vector<double> x_coords((*gc)[0].size());
   for (size_t i = 0; i < x_coords.size(); ++i)
     x_coords[i] = (*gc)[0](i);
@@ -1233,7 +1233,7 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
   if (dim == 3) {
     for (size_t i = 0; i < z_coords.size(); ++i)
       z_coords[i] = (*gc)[2](i);
-  } 
+  }
 
   /*
    * vtkHDF object creation
@@ -1274,7 +1274,7 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
     vtk_HDF_write_type_attribute("RectilinearGrid", vtk_hdf.grp_vtkhdf_id,
                                  &vtk_hdf);
   }
- 
+
   /*
    * Attribute: /VTKHDF/Version
    * Datatype: H5T_NATIVE_INT64 / int64_t
@@ -1309,10 +1309,10 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
     const hsize_t global_dims[1] = {ncoords};
     const hsize_t chunk_dims[1] = {ncoords};
     const hsize_t max_dims[1] = {ncoords};
-    
+
     const hsize_t local_size[1] = {ncoords};
     const hsize_t local_offset[1] = {0};
-    
+
     if (is_parallel) {
 
       vtk_HDF_collective_write_compressed_dataset(
@@ -1358,10 +1358,10 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
     const hsize_t global_dims[1] = {ncoords};
     const hsize_t chunk_dims[1] = {ncoords};
     const hsize_t max_dims[1] = {ncoords};
-    
+
     const hsize_t local_size[1] = {ncoords};
     const hsize_t local_offset[1] = {0};
-    
+
     if (is_parallel) {
 
       vtk_HDF_collective_write_compressed_dataset(
@@ -1407,10 +1407,10 @@ void FV_ParaviewPostProcessingWriterVTKHDF::write_imagedata_vtkhdf(
     const hsize_t global_dims[1] = {ncoords};
     const hsize_t chunk_dims[1] = {ncoords};
     const hsize_t max_dims[1] = {ncoords};
-    
+
     const hsize_t local_size[1] = {ncoords};
     const hsize_t local_offset[1] = {0};
-    
+
     if (is_parallel) {
 
       vtk_HDF_collective_write_compressed_dataset(
