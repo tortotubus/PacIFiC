@@ -1,15 +1,22 @@
+
 #
 # CC/CXX
 #
 
 export PACIFIC_CC_DISTRIB="GNU"
 
+export OMPI_CC=gcc-16
+export OMPI_CXX=g++-16
+export OMPI_FC=gfortran-16
+
 if [ $PACIFIC_CC_DISTRIB = "GNU" ]
 then
-export PACIFIC_CC=$(which gcc)
-export PACIFIC_CC_VER="$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion)"
-export PACIFIC_CXX=$(which g++)
-export PACIFIC_CXX_VER="$(g++ -dumpfullversion 2>/dev/null || g++ -dumpversion)"
+export PACIFIC_CC="gcc-16"
+export PACIFIC_CXX="g++-16 -std=c++17"
+#export PACIFIC_CC=$(which gcc)
+#export PACIFIC_CC_VER="$(gcc -dumpfullversion 2>/dev/null || gcc -dumpversion)"
+#export PACIFIC_CXX=$(which g++)
+#export PACIFIC_CXX_VER="$(g++ -dumpfullversion 2>/dev/null || g++ -dumpversion)"
 fi 
 
 #
@@ -35,8 +42,9 @@ export PACIFIC_MPICXX_VER=$(pkg-config --modversion ompi-cxx)
 # Pacific Directories
 #
 
-PACIFIC_ENV_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-export PACIFIC_ROOT_ABS="$(cd -- "$PACIFIC_ENV_DIR/.." && pwd -P)"
+#PACIFIC_ENV_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+#export PACIFIC_ROOT_ABS="$(cd -- "$PACIFIC_ENV_DIR/.." && pwd -P)"
+export PACIFIC_ROOT_ABS="/Users/noahmarquie/Coding/pacific"
 
 export PACIFIC_ARCH="${PACIFIC_CC_DISTRIB}-${PACIFIC_CC_VER}-${PACIFIC_MPI_DISTRIB}-${PACIFIC_MPICC_VER}"
 export PACIFIC_BUILDDIR="build/PacIFiC-${PACIFIC_ARCH}"
@@ -136,7 +144,7 @@ fi
 # PETSc
 #
 
-export PACIFIC_PETSC_USE_THIRDPARTY=1
+export PACIFIC_PETSC_USE_THIRDPARTY=0
 
 if [ $PACIFIC_PETSC_USE_THIRDPARTY = 0 ]
 then

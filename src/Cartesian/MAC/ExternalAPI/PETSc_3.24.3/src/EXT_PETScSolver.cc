@@ -559,10 +559,10 @@ EXT_PETScSolver:: build_ksp( KSP &ksp, MAC_ModuleExplorer const* A_EXP )
 //       	KSPMonitorDefault, vf, 
 // 	(PetscErrorCode (*)(void**))PetscViewerAndFormatDestroy ) ) ;
 //for a more extensive monitoring
-      PETSc_do( KSPMonitorSet( ksp, 
+      PETSc_do( KSPMonitorSet( ksp,
       (PetscErrorCode (*)(KSP,PetscInt,PetscReal,void*))
-      	EXT_PETScKSPMonitorTrueResidualCompat, vf, 
-	(PetscErrorCode (*)(void**))PetscViewerAndFormatDestroy ) ) ;
+      	EXT_PETScKSPMonitorTrueResidualCompat, vf,
+	(PetscErrorCode (*)(void*))PetscViewerAndFormatDestroy ) ) ;
 //
    }   
    if( has_opt ) PETSc_do( KSPSetFromOptions( ksp ) ) ;
