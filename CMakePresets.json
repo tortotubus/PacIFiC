@@ -13,6 +13,7 @@
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++-16",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
         "BUILD_THIRD_PARTY_HDF5": "OFF",
