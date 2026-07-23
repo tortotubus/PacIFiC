@@ -18,7 +18,7 @@
         "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "OFF",
         "BUILD_THIRD_PARTY_ZLIB": "OFF",
-        "BUILD_THIRD_PARTY_PETSC": "ON",
+        "BUILD_THIRD_PARTY_PETSC": "OFF",
         "PACIFIC_DEV_ENV": "ON"
       }
     },
@@ -37,7 +37,7 @@
         "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "OFF",
         "BUILD_THIRD_PARTY_ZLIB": "OFF",
-        "BUILD_THIRD_PARTY_PETSC": "ON",
+        "BUILD_THIRD_PARTY_PETSC": "OFF",
         "PACIFIC_DEV_ENV": "ON"
       }
     },
