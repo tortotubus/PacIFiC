@@ -1,0 +1,72 @@
+name: CMake
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y \
+              build-essential \
+              cmake \
+              pkg-config \
+              openmpi-bin \
+              libopenmpi-dev \
+              libxerces-c-dev \
+              zlib1g-dev \
+              libhdf5-openmpi-dev \
+              petsc-dev
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            brew update
+            brew install \
+              cmake \
+              pkg-config \
+              open-mpi \
+              xerces-c \
+              zlib \
+              hdf5-mpi \
+              petsc
+          fi
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/ci \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install/ci \
+            -DUSE_SUBMODULES=ON \
+            -DOCTREE_BASILISK_PROVIDER=VENDORED \
+            -DBUILD_THIRD_PARTY_HDF5=OFF \
+            -DBUILD_THIRD_PARTY_XERCESC=OFF \
+            -DBUILD_THIRD_PARTY_ZLIB=OFF \
+            -DPACIFIC_DEV_ENV=ON
+
+      - name: Build
+        run: cmake --build build/ci --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/ci --output-on-failure
