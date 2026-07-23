@@ -14,8 +14,10 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_CXX_COMPILER": "g++-16",
+	"CMAKE_C_COMPILER": "gcc-16",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/release",
+        "CMAKE_INSTALL_RPATH": "${sourceDir}/install/release/lib",
         "BUILD_THIRD_PARTY_HDF5": "OFF",
         "BUILD_THIRD_PARTY_XERCESC": "OFF",
         "BUILD_THIRD_PARTY_ZLIB": "OFF",
