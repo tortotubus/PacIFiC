@@ -12,9 +12,6 @@
 #include <iterator>
 #include <algorithm>
 
-bool Dendrite::m_minParaview = false;
-bool Dendrite::m_hasOuterArms = false;
-
 
 // ----------------------------------------------------------------------------
 // Constructor with autonumbering as input parameter
@@ -26,7 +23,6 @@ Dendrite::Dendrite( bool const& autonumbering )
   m_armLength = 0;
   m_depth = 0;
 }
-
 
 
 
@@ -59,15 +55,16 @@ Dendrite::Dendrite( DOMNode* root, int const& pc )
   // Height (of the cylinder only), radius, mass, weight and crust thickness
   DOMNode* nGeometry = ReaderXML::getNode( root, "Geometry" );
 
-  m_armWidth = ReaderXML::getNodeAttr_Double( nGeometry, "ArmWidth" ); 
-  m_armLength = ReaderXML::getNodeAttr_Double( nGeometry, "ArmLength" ); 
+  m_armWidth = ReaderXML::getNodeAttr_Double( nGeometry, "ArmWidth" );
+  m_armLength = ReaderXML::getNodeAttr_Double( nGeometry, "ArmLength" );
   m_depth = ReaderXML::getNodeAttr_Double( nGeometry, "Depth" );
 
-  m_mass = m_density * ((6 * m_armWidth * m_armLength * m_depth) + 1.5*(m_armWidth * m_armWidth * m_depth));	
+  m_mass = m_density * ( ( 6. * m_armWidth * m_armLength * m_depth ) 
+  	+ 1.5 * ( m_armWidth * m_armWidth * m_depth ) );
   computeWeight();
-  double crust_thickness = 
+  double crust_thickness =
   	ReaderXML::getNodeAttr_Double( nGeometry, "CrustThickness" );
-  m_geoRBWC->setCrustThickness( crust_thickness ); 
+  m_geoRBWC->setCrustThickness( crust_thickness );
 
   // Material
   DOMNode* nmaterial = ReaderXML::getNode( root, "Material" );
@@ -76,21 +73,31 @@ Dendrite::Dendrite( DOMNode* root, int const& pc )
     m_materialName = ReaderXML::getNodeValue_String( nmaterial );
     ContactBuilderFactory::defineMaterial( m_materialName, false );
   }
-  
-  // Paraview
-  DOMNode* npar = ReaderXML::getNode( root, "Paraview" );
-  if ( npar )
-  {
-    string spar = ReaderXML::getNodeAttr_String( npar, "Minimize" );
-    if ( spar == "True" ) m_minParaview = true;
-  }  
 
   // Angular position of the composite particle
   m_geoRBWC->getTransform()->load( root );
 
+  // Moment of inertia tensor of the Dendrite
+  double global_ixx = 0., global_iyy = 0., global_izz = 0.;
+  vector<double> hex_inertia = Dendrite::hex_moment( m_armWidth, m_depth );
+  vector<double> straight_arm_inertia = Dendrite::straight_arm_moment(
+  	m_armWidth, m_armLength, m_depth );
+  vector<double> angled_arm_inertia = Dendrite::angled_arm_moment( m_armWidth, 
+  	m_armLength, m_depth );
+  global_ixx += hex_inertia[0] + 2. * straight_arm_inertia[0] + 
+  	4. * angled_arm_inertia[0];
+  global_iyy += hex_inertia[1] + 2. * straight_arm_inertia[1] + 
+  	4. * angled_arm_inertia[1];
+  global_izz += hex_inertia[2] + 2. * straight_arm_inertia[2] + 
+  	4. * angled_arm_inertia[2];
+  m_inertia[1] = m_inertia[2] = m_inertia[4] = 0.;
+  m_inertia[0] = global_ixx;
+  m_inertia[3] = global_iyy;
+  m_inertia[5] = global_izz;
+  BuildInertia();
+
   // Number of elementary particles
   m_nbElemPart = 3;
-  BuildInertia();
 
   // Allocate containers that scale with the number of elementary particles
   Particle* ppp = NULL;
@@ -106,44 +113,55 @@ Dendrite::Dendrite( DOMNode* root, int const& pc )
   }
 
   // Create the 3 rectangular spines
-  double spine_length = 2*m_armLength + 2*m_armWidth*sin(M_PI / 3);
-  double ang[] = {PI / 6, PI / 2, 5*PI / 6};  
+  double spine_length = 2. * m_armLength + 2. * m_armWidth*sin( M_PI / 3. );
+  double ang[] = { PI / 6., PI / 2., 5. * PI / 6. };
 
-  Box* spine_1 = new Box(m_armWidth, spine_length, m_depth);
-  Box* spine_2 = new Box(m_armWidth, spine_length, m_depth);
-  Box* spine_3 = new Box(m_armWidth, spine_length, m_depth);
+  Box* spine_1 = new Box( m_armWidth, spine_length, m_depth );
+  Box* spine_2 = new Box( m_armWidth, spine_length, m_depth );
+  Box* spine_3 = new Box( m_armWidth, spine_length, m_depth );
 
-  RigidBodyWithCrust* geoRBWC_box1 = new RigidBodyWithCrust( spine_1, Transform(), false, crust_thickness );
-  m_elementaryParticles[0] = new Particle( geoRBWC_box1, m_density, m_materialName, pc );
-  RigidBodyWithCrust* geoRBWC_box2 = new RigidBodyWithCrust( spine_2, Transform(), false, crust_thickness );
-  m_elementaryParticles[1] = new Particle( geoRBWC_box2, m_density, m_materialName, pc );
-  RigidBodyWithCrust* geoRBWC_box3 = new RigidBodyWithCrust( spine_3, Transform(), false, crust_thickness );
-  m_elementaryParticles[2] = new Particle( geoRBWC_box3, m_density, m_materialName, pc );
+  RigidBodyWithCrust* geoRBWC_box1 = new RigidBodyWithCrust( spine_1, 
+  	Transform(), false, crust_thickness );
+  m_elementaryParticles[0] = new Particle( geoRBWC_box1, m_density, 
+  	m_materialName, pc );
+  RigidBodyWithCrust* geoRBWC_box2 = new RigidBodyWithCrust( spine_2, 
+  	Transform(), false, crust_thickness );
+  m_elementaryParticles[1] = new Particle( geoRBWC_box2, m_density,
+  	 m_materialName, pc );
+  RigidBodyWithCrust* geoRBWC_box3 = new RigidBodyWithCrust( spine_3, 
+  	Transform(), false, crust_thickness );
+  m_elementaryParticles[2] = new Particle( geoRBWC_box3, m_density, 
+  	m_materialName, pc );
 
-  for (size_t m=0; m<m_nbElemPart;++m) {
+  for (size_t m=0; m<m_nbElemPart;++m) 
+  {
     m_InitialRelativePositions[m][X] = 0.;
-    m_InitialRelativePositions[m][Y] = 0.;  
-    m_InitialRelativePositions[m][Z] = 0.;   
-    m_elementaryParticles[m]->setPosition( m_InitialRelativePositions[m] );  
+    m_InitialRelativePositions[m][Y] = 0.;
+    m_InitialRelativePositions[m][Z] = 0.;
+    m_elementaryParticles[m]->setPosition( m_InitialRelativePositions[m] );
     m_elementaryParticles[m]->setMasterParticle( this );
 
-    m_InitialRotationMatrices[m].setValue( 
+    m_InitialRotationMatrices[m].setValue(
         cos(ang[m]), -sin(ang[m]), 0,
         sin(ang[m]), cos(ang[m]), 0,
-        0, 0, 1 );  
-    m_elementaryParticles[m]->getRigidBody()->getTransform()->setBasis( m_InitialRotationMatrices[m] );
-    m_elementaryParticles[m]->getRigidBody()->composeLeftByTransform( *(m_geoRBWC->getTransform()) );
+        0, 0, 1 );
+    m_elementaryParticles[m]->getRigidBody()->getTransform()->setBasis( 
+    	m_InitialRotationMatrices[m] );
+    m_elementaryParticles[m]->getRigidBody()->composeLeftByTransform( 
+    	*(m_geoRBWC->getTransform()) );
   }
 
   // Set the the circumscribed radius
   CompositeParticle::setCircumscribedRadius();
-  
+
   // Compute and set the non-spherical bounding volume
-  if ( GrainsExec::m_colDetBoundingVolume ) createBoundingVolume();  
+  if ( GrainsExec::m_colDetBoundingVolume ) createBoundingVolume();
 
   // In case part of the particle acceleration computed explicity
   if ( Particle::m_splitExplicitAcceleration ) createVelocityInfosNm1();
 }
+
+
 
 
 // ----------------------------------------------------------------------------
@@ -160,16 +178,15 @@ Dendrite::Dendrite( int const& id_,
 	int const& coordination_number_ )
   : CompositeParticle( id_, ParticleRef,
 	vx, vy, vz, qrotationx, qrotationy, qrotationz, qrotations,
-	rx, ry, rz, m, activ, tag_, coordination_number_ )	
+	rx, ry, rz, m, activ, tag_, coordination_number_ )
 {
   m_specific_composite_shape = "Dendrite";
   Dendrite const* DendriteRef =
   	dynamic_cast<Dendrite const*>(ParticleRef);
-  m_armWidth = DendriteRef->m_armWidth; 
-  m_armLength = DendriteRef->m_armLength;    
+  m_armWidth = DendriteRef->m_armWidth;
+  m_armLength = DendriteRef->m_armLength;
   m_depth = DendriteRef->m_depth;
 }
-
 
 
 
@@ -191,8 +208,8 @@ Dendrite::Dendrite( int const& id_,
   m_specific_composite_shape = "Dendrite";
   Dendrite const* DendriteRef =
   	dynamic_cast<Dendrite const*>(ParticleRef);
-  m_armWidth = DendriteRef->m_armWidth; 
-  m_armLength = DendriteRef->m_armLength;    
+  m_armWidth = DendriteRef->m_armWidth;
+  m_armLength = DendriteRef->m_armLength;
   m_depth = DendriteRef->m_depth;
 }
 
@@ -209,7 +226,7 @@ Dendrite::~Dendrite()
 
 // ----------------------------------------------------------------------------
 // Copy constructor (the torsor is initialized to 0)
-Dendrite::Dendrite( Dendrite const& other, 
+Dendrite::Dendrite( Dendrite const& other,
     	bool const& autonumbering )
   : CompositeParticle( other, autonumbering )
 {
@@ -218,118 +235,6 @@ Dendrite::Dendrite( Dendrite const& other,
   m_depth = other.m_depth;
 }
 
-
-
-
-
-// ----------------------------------------------------------------------------
-// Custom point generation
-int Dendrite::numberOfPoints_PARAVIEW() const {
-  return 8;
-}
-
-
-void Dendrite::write_polygonsPts_PARAVIEW( ostream& f, Vector3 const* translation ) const {
-  f << "0 0 0" << endl;
-  f << "0 0 1" << endl;
-  f << "0 1 0" << endl;
-  f << "0 1 1" << endl;
-
-  f << "1 0 0" << endl;
-  f << "1 0 1" << endl;
-  f << "1 1 0" << endl;
-  f << "1 1 1" << endl;
-  cout << "hi" << endl;
-}
-
-
-
-
-
-// ----------------------------------------------------------------------------
-// Inertia helpers and main function
-
-vector<double> hex_moment(double sideLength, double depth) {
-  double ixx = (2./3.) * pow(sideLength, 2) * sin(M_PI / 3.) * depth * (1./4. * pow(depth, 2) + pow(sideLength, 2) * pow(sin(M_PI / 3.), 2));
-  ixx += 8./12. * depth * sin(M_PI/3.) * (1./4.*pow(sin(M_PI/3.), 2) * pow(sideLength, 4) + 1./8. * pow(depth, 2) * pow(sideLength, 2));
-
-  double iyy = 2 * depth * pow(sideLength, 2) * sin(M_PI/3.) * cos(M_PI/3.) * ((2./3.) * pow(sideLength * cos(M_PI/3.), 2) + (1./6.)*pow(depth,2));
-  iyy += 8 * depth * sin(M_PI/3.) * ((7./24.-15./64.) * pow(sideLength, 4) + pow(sideLength*depth, 2) * (1./24.-1./32.));
-
-  double izz = ixx + iyy - sin(M_PI/3.)*cos(M_PI/3.)*pow(sideLength,2)*pow(depth,3);
-
-  return {ixx, iyy, izz};
-}
-
-
-vector<double> straight_arm_moment(double width, double height, double depth) {
-  double mass_branch = (width * height * depth); // not including density for 'dimensionless' inertia calculations
-  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center of mass
-
-  double local_ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
-  double local_iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
-  double local_izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
-
-  double ixx = local_ixx;
-  double iyy = local_iyy;
-  double izz = local_izz;
-
-  ixx += mass_branch * pow(dist_com, 2);
-  izz += mass_branch * pow(dist_com, 2);
-
-  return {ixx, iyy, izz};
-}
-
-
-vector<double> angled_arm_moment(double width, double height, double depth) {
-  double mass_branch = (width * height * depth); // not including density for 'dimensionless' inertia calculations
-  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center of mass
-
-  double ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
-  double iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
-  double izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
-
-  double ang = M_PI / 3.;
-  double dist_x = dist_com * cos(ang);
-  double dist_y = dist_com * sin(ang);
-
-  ixx += mass_branch * pow(dist_com, 2);
-  izz += mass_branch * pow(dist_com, 2);
-
-  // return inertia tensor with applied change of basis
-  return {iyy * pow(sin(ang), 2) + ixx * pow(cos(ang), 2), ixx * pow(sin(ang), 2) + iyy * pow(cos(ang), 2), izz};
-}
-
-
-void Dendrite::BuildInertia() {
-  double sideLength = m_armWidth;
-  double armLength = m_armLength;
-  double depth = m_depth;
-
-  double global_ixx = 0;
-  double global_iyy = 0;
-  double global_izz = 0;
-
-  vector<double> hex_inertia = hex_moment(sideLength, depth);
-  vector<double> straight_arm_inertia = straight_arm_moment(sideLength, armLength, depth);
-  vector<double> angled_arm_inertia = angled_arm_moment(sideLength, armLength, depth);
-
-  global_ixx += hex_inertia[0] + straight_arm_inertia[0]*2 + angled_arm_inertia[0]*4;
-  global_iyy += hex_inertia[1] + straight_arm_inertia[1]*2 + angled_arm_inertia[1]*4;
-  global_izz += hex_inertia[2] + straight_arm_inertia[2]*2 + angled_arm_inertia[2]*4;
-
-  cout << "Ixx: " << global_ixx << endl;
-  cout << "Iyy: " << global_iyy << endl;
-  cout << "Izz: " << global_izz << endl;
-
-  // Moment of inertia tensor of the Dendrite
-  m_inertia[1] = m_inertia[2] = m_inertia[4] = 0.;
-  m_inertia[0] = global_ixx;
-  m_inertia[3] = global_iyy;
-  m_inertia[5] = global_izz;
-
-  CompositeParticle::BuildInertia();
-}
 
 
 
@@ -376,7 +281,7 @@ Particle* Dendrite::createCloneCopy( int const& id_,
 // Returns a code describing the rigid body shape
 int Dendrite::getShapeCode() const
 {
-  return ( 1000042 );
+  return ( 1000003 );
 }
 
 
@@ -385,14 +290,13 @@ int Dendrite::getShapeCode() const
 // ----------------------------------------------------------------------------
 // Outputs information to be transferred to the fluid
 // Same format data as a regular cylinder: center of bottom circular
-// face of the elementary cylinder, an arbitrary point on the lateral surface 
+// face of the elementary cylinder, an arbitrary point on the lateral surface
 // of the elementary cylinder and center of top circular face of the elementary
-// cylinder    
+// cylinder
 void Dendrite::writePositionInFluid( ostream& fluid )
 {
-  // TO DO
+  fluid << " " << m_armWidth << " " << m_armLength << " " << m_depth << endl;
 }
-
 
 
 
@@ -443,12 +347,13 @@ void Dendrite::read2014_binary( istream& fileIn,
 
 
 
-
 // ----------------------------------------------------------------------------
 // Saves additional features of a (in practice reference) composite particle
 // for reload
 void Dendrite::writeAdditionalFeatures( ostream& fileSave ) const
 {
+  fileSave << endl << "*ArmLengthWidthLengthDepth " << m_armWidth << " " << 
+  	m_armLength << " " << m_depth;  
   CompositeParticle::writeAdditionalFeatures( fileSave );
 }
 
@@ -460,5 +365,74 @@ void Dendrite::writeAdditionalFeatures( ostream& fileSave ) const
 // data from a stream
 void Dendrite::readAdditionalFeatures( istream& fileIn )
 {
+  string buffer;
+  fileIn >> buffer >> m_armWidth >> m_armLength >> m_depth;
   CompositeParticle::readAdditionalFeatures( fileIn );
+}
+
+
+
+
+// ----------------------------------------------------------------------------
+// Inertia helper functions
+vector<double> Dendrite::hex_moment( double sideLength, double depth ) 
+{
+  double ixx = (2./3.) * pow(sideLength, 2) * sin(M_PI / 3.) * depth 
+  	* (1./4. * pow(depth, 2) + pow(sideLength, 2) * pow(sin(M_PI / 3.), 2));
+  ixx += 8./12. * depth * sin(M_PI/3.) * (1./4.*pow(sin(M_PI/3.), 2) 
+  	* pow(sideLength, 4) + 1./8. * pow(depth, 2) * pow(sideLength, 2));
+
+  double iyy = 2 * depth * pow(sideLength, 2) * sin(M_PI/3.) * cos(M_PI/3.) 
+  	* ((2./3.) * pow(sideLength * cos(M_PI/3.), 2) + (1./6.)*pow(depth,2));
+  iyy += 8 * depth * sin(M_PI/3.) * ((7./24.-15./64.) * pow(sideLength, 4) 
+  	+ pow(sideLength*depth, 2) * (1./24.-1./32.));
+
+  double izz = ixx + iyy - sin(M_PI/3.)*cos(M_PI/3.) * pow(sideLength,2) 
+  	* pow(depth,3);
+
+  return {ixx, iyy, izz};
+}
+
+vector<double> Dendrite::straight_arm_moment( double width, double height, 
+	double depth ) 
+{
+  double mass_branch = (width * height * depth); // not including density 
+  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center 
+  	// of mass
+
+  double local_ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
+  double local_iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
+  double local_izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
+
+  double ixx = local_ixx;
+  double iyy = local_iyy;
+  double izz = local_izz;
+
+  ixx += mass_branch * pow(dist_com, 2);
+  izz += mass_branch * pow(dist_com, 2);
+
+  return {ixx, iyy, izz};
+}
+
+vector<double> Dendrite::angled_arm_moment( double width, double height, 
+	double depth ) 
+{
+  double mass_branch = (width * height * depth); // not including density 
+  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center 
+  	// of mass
+
+  double ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
+  double iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
+  double izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
+
+  double ang = M_PI / 3.;
+  double dist_x = dist_com * cos(ang);
+  double dist_y = dist_com * sin(ang);
+
+  ixx += mass_branch * pow(dist_com, 2);
+  izz += mass_branch * pow(dist_com, 2);
+
+  // return inertia tensor with applied change of basis
+  return {iyy * pow(sin(ang), 2) + ixx * pow(cos(ang), 2), 
+  	ixx * pow(sin(ang), 2) + iyy * pow(cos(ang), 2), izz};
 }

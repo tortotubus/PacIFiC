@@ -513,6 +513,7 @@ void compute_local_domain_AABB( AABB* A )
 # include "DLMFD_Cone.h"
 # include "DLMFD_Ellipsoid.h"
 # include "DLMFD_HexagonalPrism.h"
+# include "DLMFD_Star.h"
 
 
 /** Frees the rigid body data that were dynamically allocated */
@@ -603,8 +604,12 @@ void free_rigidbodies( RigidBody* allrbs, const size_t nrb, bool full_free )
 	  	  	  	  	  	
         case HEXAGONALPRISM:
           free_Polyhedron( &(allrbs[k].g) );
-	  break;	  
-		  
+	  break;
+	  	  
+        case SIXBRANCHSTAR:
+          free_Star( &(allrbs[k].g) );
+	  break;
+	  		  
         default:
           fprintf( stderr,"free_rigidbodies: Unknown Rigid Body shape !!\n" );
       }
@@ -678,7 +683,11 @@ void print_rigidbody( RigidBody const* p, char const* poshift )
 	  
       case HEXAGONALPRISM:
         printf( "HEXAGONALPRISM" );
-	break;	      	  
+	break;
+	
+      case SIXBRANCHSTAR:
+        printf( "SIXBRANCHSTAR" );
+	break;		      	  
 	  
       default:
         fprintf( stderr,"print_rigidbody: Unknown Rigid Body shape !!\n" );
@@ -853,6 +862,10 @@ void print_referencerigidbody( RigidBody const* p, char const* poshift )
       case HEXAGONALPRISM:
         printf( "HEXAGONALPRISM" );
 	break;
+
+      case SIXBRANCHSTAR:
+        printf( "SIXBRANCHSTAR" );
+	break;	
 			  
       default:
         fprintf( stderr,"print_referencerigidbody: Unknown Rigid Body "	
@@ -1015,7 +1028,11 @@ bool is_in_rigidbody( RigidBody const* p, double x, double y, double z )
       
     case HEXAGONALPRISM:
       is_in = is_in_Polyhedron( x, y, z, gcp );  
-      break;	                              
+      break;
+      
+    case SIXBRANCHSTAR:
+      is_in = is_in_Star( x, y, z, p );
+      break;      	                              
 	  
     default:
       fprintf( stderr,"is_in_rigidbody: %d unknown Rigid Body shape !!\n",
@@ -1039,6 +1056,7 @@ void fill_FlagMesh( scalar Flag, vector const Index, RigidBody const* allrbs,
 
   foreach() Flag[] = 0; 
 
+// Bug in multigrid with Dirichlet on all velocity components: 
 //   foreach()
 //     if ( (int)Index.x[] > -1 ) 
 //       printf("KKK = %d %d\n",(int)Index.x[],(int)Index.y[]);
@@ -1146,14 +1164,14 @@ void deactivate_critical_boundary_points( RigidBody* allrbs, const size_t nrb,
 	deactivate = false;
 	if ( !Period.x )
           if ( allrbs[indexp].s.bp[indexbp].x 
-	  		> L0 - critical_distance + X0 
+	  		> FULL_DOMAIN.x - critical_distance + X0 
 		|| allrbs[indexp].s.bp[indexbp].x  
 	  		< critical_distance + X0 )
 	    deactivate = true;
 	    	    	    
         if ( !Period.y )
           if ( allrbs[indexp].s.bp[indexbp].y 
-	  		> L0 - critical_distance + Y0 
+	  		> FULL_DOMAIN.y - critical_distance + Y0 
 		|| allrbs[indexp].s.bp[indexbp].y 
 			< critical_distance + Y0 )
 	    deactivate = true;
@@ -1161,7 +1179,7 @@ void deactivate_critical_boundary_points( RigidBody* allrbs, const size_t nrb,
 #       if dimension == 3
           if ( !Period.z )
             if ( allrbs[indexp].s.bp[indexbp].z 
-	    		> L0 - critical_distance + Z0 
+	    		> FULL_DOMAIN.z - critical_distance + Z0 
 		|| allrbs[indexp].s.bp[indexbp].z 
 			< critical_distance + Z0 )
 	      deactivate = true;
@@ -1348,11 +1366,11 @@ void reverse_fill_DLM_Flag( RigidBody* allrbs, const size_t nrb,
       shifted for each periodic clone. Therefore we may have a case where 
       the cell and the position of the Lagrange multiplier are on opposite 
       side of the domain. The solution is to subtract/add the periodic 
-      domain length L0 when this happens */
+      domain length when this happens */
       foreach_dimension()
       {
-        if ( rel.x > L0/2. ) rel.x = rel.x - L0;
-        else if ( rel.x < -L0/2. ) rel.x = rel.x + L0;
+        if ( rel.x > FULL_DOMAIN.x/2. ) rel.x = rel.x - FULL_DOMAIN.x;
+        else if ( rel.x < -FULL_DOMAIN.x/2. ) rel.x = rel.x + FULL_DOMAIN.x;
       }
       
       /* Reset dial integers */
@@ -1466,15 +1484,15 @@ void create_boundary_points( RigidBody* p, RigidBody const* refrb,
       shift.x = 0.;      
       if ( Period.x )
       {
-	if ( pos.x > L0 + ori.x )
+	if ( pos.x > FULL_DOMAIN.x + ori.x )
 	{  
-	  pos.x -= L0;
-	  shift.x = - L0;
+	  pos.x -= FULL_DOMAIN.x;
+	  shift.x = - FULL_DOMAIN.x;
 	}
         else if ( pos.x < 0. + ori.x )
 	{
-	  pos.x += L0;
-	  shift.x = L0;
+	  pos.x += FULL_DOMAIN.x;
+	  shift.x = FULL_DOMAIN.x;
 	}
       }
     }
@@ -1508,7 +1526,7 @@ void create_referencerigidbody_boundary_geomfeatures( RigidBody* p )
 {  
   GeomParameter gci = p->g;
   int m = 0;
-  int lN = 0, lH = 0;
+  int lN = 0, lH = 0, lL = 0, lB = 0;
     
   switch( p->shape )
   {
@@ -1597,7 +1615,14 @@ void create_referencerigidbody_boundary_geomfeatures( RigidBody* p )
       allocate_RigidBodyBoundary( &(p->s), m );
       create_referenceRB_boundary_geomfeatures_HexagonalPrism( &gci, &(p->s), m,
       	lN, lH ); 
-      break;	                             	
+      break;
+      
+    case SIXBRANCHSTAR:    
+      compute_nboundary_Star( &gci, &m, &lN, &lH, &lL, &lB );	
+      allocate_RigidBodyBoundary( &(p->s), m );
+      create_referenceRB_boundary_geomfeatures_Star( &gci, &(p->s), m,
+	lN, lH, lL, lB ); 
+      break;      	                             	
 	  
     default:
       fprintf( stderr, "create_referencerigidbody_boundary_geomfeatures"
@@ -2748,7 +2773,11 @@ void flag_rigidbodies_with_boundarylayers( RigidBody const* allrbs,
 	  	  	  	  	  	
       case HEXAGONALPRISM:
         flag_boundarylayer_Polyhedron( flag_maxlevel, dcoef, &(allrbs[k]), ld );
-	break;	  
+	break;
+	
+      case SIXBRANCHSTAR:
+        flag_boundarylayer_Star( flag_maxlevel, dcoef, &(allrbs[k]), ld );
+	break;		  
 		  
       default:
         fprintf( stderr,"flag_rigidbodies_with_boundarylayers: "

@@ -20,6 +20,7 @@
 #undef UNDERFLOW
 #endif
 
+
 class MAC_Communicator ;
 class MAC_ModuleExplorer ;
 class MAC_ObjectRegister ;

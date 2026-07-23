@@ -1,14 +1,14 @@
-#ifndef _Dendrite_HH_
-#define _Dendrite_HH_
+#ifndef _DENDRITE_HH_
+#define _DENDRITE_HH_
 
 #include "CompositeParticle.hh"
 
 
 /** @brief The class Dendrite.
 
-    A freely moving trilobe cylinder.
+    A freely moving 6-arm dendrite starlike snowflake.
 
-    @author A.WACHS - 2023 - Creation */
+    @author N.MARQUIE - 2026 - Creation */
 // ============================================================================
 class Dendrite : public CompositeParticle
 {
@@ -63,7 +63,7 @@ class Dendrite : public CompositeParticle
     @param vrot angular velocity
     @param qrot rotation quaternion
     @param config particle transformation
-    @param activ particle activity 
+    @param activ particle activity
     @param contactMap contact map */
     Dendrite( int const& id_, Particle const* ParticleRef,
 	Vector3 const& vtrans,
@@ -75,9 +75,9 @@ class Dendrite : public CompositeParticle
      	std::tuple<bool, Vector3, Vector3, Vector3> > const* contactMap );
 
     /** @brief Copy constructor (the torsor is initialized to 0)
-    @param other copied Dendrite object 
+    @param other copied Dendrite object
     @param autonumbering whether to increment the component indexing */
-    Dendrite( Dendrite const& other, 
+    Dendrite( Dendrite const& other,
     	bool const& autonumbering );
 
     /** @brief Destructor */
@@ -105,14 +105,14 @@ class Dendrite : public CompositeParticle
     @param vrot angular velocity
     @param qrot rotation quaternion
     @param config particle transformation
-    @param activ particle activity 
+    @param activ particle activity
     @param contactMap contact map */
     Particle* createCloneCopy( int const& id_,
     	Particle const* ParticleRef, Vector3 const& vtrans,
 	Quaternion const& qrot,	Vector3 const& vrot,
 	Transform const& config, ParticleActivity const& activ,
 	map< std::tuple<int,int,int>,
-     	std::tuple<bool, Vector3, Vector3, Vector3> > const* contactMap ) const ;
+     	std::tuple<bool, Vector3, Vector3, Vector3> > const* contactMap ) const;
     //@}
 
 
@@ -127,10 +127,10 @@ class Dendrite : public CompositeParticle
     /**@name Accessors */
     //@{
     /** @brief Returns a code describing the rigid body shape */
-    int getShapeCode() const;   
+    int getShapeCode() const;
     //@}
-    
-    
+
+
     /**@name I/O methods */
     //@{
     /** @brief Reads composite particle data from a stream. Usage: for standard
@@ -148,11 +148,7 @@ class Dendrite : public CompositeParticle
     particles */
     void read2014_binary( istream& fileIn, vector<Particle*> const*
   	referenceParticles );
-    //@}    
-
-    // Custom point mapping
-    int numberOfPoints_PARAVIEW() const override;
-    void write_polygonsPts_PARAVIEW( ostream& f, Vector3 const* translation = NULL ) const override;
+    //@}
 
 
   protected:
@@ -168,17 +164,14 @@ class Dendrite : public CompositeParticle
     @param fileIn input stream */
     void readAdditionalFeatures( istream& fileIn );
     //@}
-    void BuildInertia();
-    
+
 
   private:
     /** @name Parameters */
     //@{
-    double m_armWidth;
-    double m_armLength;
-    double m_depth;
-    static bool m_hasOuterArms;
-    static bool m_minParaview;
+    double m_armWidth; /** arm width */
+    double m_armLength; /** arm length */
+    double m_depth; /** dendrite depth */
     //@}
 
     /**@name Constructors */
@@ -186,6 +179,16 @@ class Dendrite : public CompositeParticle
     /** @brief Default constructor */
     Dendrite();
     //@}
+    
+    /**@name Methods */
+    //@{
+    /** Moment of inertia helper functions */
+    vector<double> hex_moment( double sideLength, double depth );
+    vector<double> straight_arm_moment( double width, double height, 
+    	double depth );
+    vector<double> angled_arm_moment( double width, double height, 
+    	double depth ); 	
+    //@}    
 };
 
 #endif

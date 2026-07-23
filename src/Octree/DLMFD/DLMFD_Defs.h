@@ -304,16 +304,6 @@ than the fluid or neutrally buoyant */
 #   define B_SPLIT_EXPLICIT_ACCELERATION 0
 # endif
 
-# if ADAPTIVE 
-#   define LX L0
-#   define LY L0
-#   define LZ L0
-# else
-#   define LX L0
-#   define LY (L0 * (double)Dimensions.y / (double)Dimensions.x)
-#   define LZ (L0 * (double)Dimensions.z / (double)Dimensions.x)
-# endif
-
 
 
 
@@ -334,7 +324,8 @@ enum RigidBodyShape {
   CONE,
   TRUNCATEDCONE,
   ELLIPSOID,
-  HEXAGONALPRISM
+  HEXAGONALPRISM,
+  SIXBRANCHSTAR
 };
 
 
@@ -406,6 +397,12 @@ typedef struct {
 } EllipsoidGeomParameter;
 
 
+/** Additional geometric parameters for 6-branch stars */
+typedef struct { 
+  double armWidth, armLength, depth;
+} SixBranchStarGeomParameter;
+
+
 /** Rigid body geometric parameters */
 typedef struct {
   coord center;
@@ -417,7 +414,8 @@ typedef struct {
   PolyGeomParameter* pgp;
   CylGeomParameter* cgp; 
   TruncConeGeomParameter* tcgp;
-  EllipsoidGeomParameter* elgp;  
+  EllipsoidGeomParameter* elgp;
+  SixBranchStarGeomParameter* sbsgp;  
 } GeomParameter;
 
 
@@ -587,6 +585,7 @@ FILE* cellvstime = NULL;
 dynUIarray deactivatedBPindices;
 dynPDBarray deactivatedIndexFieldValues;
 AABB local_domain;
+coord FULL_DOMAIN;
 
 
 

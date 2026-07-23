@@ -17,12 +17,16 @@
 #include <MAC_Root.hh>
 #include <MAC_String.hh>
 #include <MAC_assertions.hh>
+#include <MAC_Utility.hh>
+
 #include <FV_TimeIterator.hh>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <filesystem>
 #include <cstdlib>
+#include <system_error>
 #include <zlib.h>
 #include <cmath>
 using std::cout ; 
@@ -162,6 +166,15 @@ FV_ParaviewPostProcessingWriter:: FV_ParaviewPostProcessingWriter(
    if ( exp->has_entry( "files_rootname" ) )
      BASE_FILENAME = exp->string_data( "files_rootname" );         
    PVD_FILENAME = RES_DIRECTORY + "/" + BASE_FILENAME + ".pvd" ;
+
+   std::error_code ec;
+   std::filesystem::create_directories(std::filesystem::path(RES_DIRECTORY), ec);
+   if( ec )
+   {
+      MAC_Error::object()->raise_plain(
+         "unable to create results directory : " + RES_DIRECTORY + ": " +
+         ec.message() ) ;
+   }
 }
 
 
@@ -730,11 +743,12 @@ FV_ParaviewPostProcessingWriter:: clearResultFiles( void )
      FV::out() << "   CLEAR PARAVIEW RESULTS FILES IN DIRECTORY " << 
      	RES_DIRECTORY << endl;
 
-     char* path = getenv("MAC_HOME");
-     string exe(path);
-     exe = exe+"/tools/ShellScripts/FVParaview_clear_exec "+RES_DIRECTORY;
-     int sys_res = system( exe.c_str() ) ;
-     if( sys_res != 0 )
+   //   char* path = getenv("MAC_HOME");
+   //   string exe(path);
+   //   exe = exe+"/tools/ShellScripts/FVParaview_clear_exec "+RES_DIRECTORY;
+   //   int sys_res = system( exe.c_str() ) ;
+
+     if( FVParaview_clear_exec(RES_DIRECTORY) != 0 )
      {
         ostringstream mesg ;
         mesg << "Unable to clear Paraview result files in directory "

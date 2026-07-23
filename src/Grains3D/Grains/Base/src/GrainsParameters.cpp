@@ -160,6 +160,8 @@ void GrainsParameters::Construction( DOMElement* rootElement )
 	  particleRef = new Dendrite( nCompParticle, nbPC+int(i) );
 	else if ( sshape == "QuadrilobeCylinder" )
 	  particleRef = new QuadrilobeCylinder( nCompParticle, nbPC+int(i) );
+	else if ( sshape == "Dendrite" )
+	  particleRef = new Dendrite( nCompParticle, nbPC+int(i) );
 	else 	
 	  particleRef = new CompositeParticle( nCompParticle, nbPC+int(i) );
         m_allcomponents.AddReferenceParticle( particleRef, nb );
