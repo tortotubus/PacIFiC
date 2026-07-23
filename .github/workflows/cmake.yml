@@ -2,7 +2,7 @@ name: CMake
 
 on:
   push:
-    branches: [master, main, macos]
+    branches: [master, macos]
   pull_request:
   workflow_dispatch:
 
@@ -11,14 +11,17 @@ permissions:
 
 jobs:
   build:
-    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    name: ${{ matrix.os }} / ${{ matrix.preset }}
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        build_type: [Debug, Release]
+        include:
+          - os: ubuntu-latest
+            preset: Default 
+          - os: macos-latest
+            preset: Mac OS X (ARM)
 
     steps:
       - name: Checkout
@@ -54,19 +57,10 @@ jobs:
           fi
 
       - name: Configure
-        run: |
-          cmake -S . -B build/ci \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install/ci \
-            -DUSE_SUBMODULES=ON \
-            -DOCTREE_BASILISK_PROVIDER=VENDORED \
-            -DBUILD_THIRD_PARTY_HDF5=OFF \
-            -DBUILD_THIRD_PARTY_XERCESC=OFF \
-            -DBUILD_THIRD_PARTY_ZLIB=OFF \
-            -DPACIFIC_DEV_ENV=ON
+        run: cmake --preset "${{ matrix.preset }}"
 
       - name: Build
-        run: cmake --build build/ci --parallel 2
+        run: cmake --build --preset "${{ matrix.preset }}" --parallel 2
 
       - name: Test
-        run: ctest --test-dir build/ci --output-on-failure
+        run: ctest --preset "${{ matrix.preset }}"
