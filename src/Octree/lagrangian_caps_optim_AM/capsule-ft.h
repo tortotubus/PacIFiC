@@ -1043,6 +1043,24 @@ void free_one_caps(lagMesh* mesh) {
   #endif
 }
 
+void free_lagMesh_current_storage_keep_slot(lagMesh* mesh) {
+  if (mesh->nodes) {
+    for(int i=0; i<mesh->nln; i++) {
+      free(mesh->nodes[i].stencil.p);
+      free(mesh->nodes[i].eulcell.p);
+    }
+  }
+  free(mesh->nodes);
+  free(mesh->edges);
+  #if dimension > 2
+    free(mesh->triangles);
+    mesh->triangles = NULL;
+  #endif
+  mesh->nodes = NULL;
+  mesh->edges = NULL;
+  mesh->isactive = false;
+}
+
 void free_all_caps(Capsules* caps) {
   for(int i=0; i<caps->nbcaps; i++)
     if (CAPS(i).isactive)
@@ -1077,6 +1095,49 @@ void initialize_capsule_stencils(lagMesh* mesh) {
     mesh->nodes[j].eulcell.p = (Index*) malloc(sizeof(Index));
   }
   
+}
+
+void ensure_lagMesh_current_storage(lagMesh* mesh, int nln, int nle, int nlt) {
+  int needs_storage = mesh->nodes == NULL || mesh->edges == NULL ||
+    mesh->nln != nln || mesh->nle != nle;
+  #if dimension > 2
+    needs_storage = needs_storage || mesh->triangles == NULL ||
+      mesh->nlt != nlt;
+  #else
+    (void) nlt;
+  #endif
+
+  if (!needs_storage)
+    return;
+
+  if (mesh->nodes) {
+    for(int i=0; i<mesh->nln; i++) {
+      free(mesh->nodes[i].stencil.p);
+      free(mesh->nodes[i].eulcell.p);
+    }
+  }
+  free(mesh->nodes);
+  free(mesh->edges);
+  #if dimension > 2
+    free(mesh->triangles);
+  #endif
+
+  mesh->nln = nln;
+  mesh->nle = nle;
+  #if dimension > 2
+    mesh->nlt = nlt;
+  #endif
+  mesh->nodes = (lagNode*)calloc(nln, sizeof(lagNode));
+  mesh->edges = (Edge*)calloc(nle, sizeof(Edge));
+  #if dimension > 2
+    mesh->triangles = (Triangle*)calloc(nlt, sizeof(Triangle));
+  #endif
+  assert(mesh->nodes || nln == 0);
+  assert(mesh->edges || nle == 0);
+  #if dimension > 2
+    assert(mesh->triangles || nlt == 0);
+  #endif
+  initialize_capsule_stencils(mesh);
 }
 
 void initialize_all_capsules_stencils() {
@@ -1399,13 +1460,16 @@ int* debug_pre_advect_pos_nln = NULL;
   #define DEBUG_OWNER_ONLY_ADVECTION 0
 #endif
 #ifndef DEBUG_OWNER_GEOM_TO_ALL_RANKS
-  #define DEBUG_OWNER_GEOM_TO_ALL_RANKS 1
+  #define DEBUG_OWNER_GEOM_TO_ALL_RANKS 0
 #endif
 #ifndef DEBUG_CAPSULE_LIFECYCLE_DRYRUN
   #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 1
 #endif
 #ifndef DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
   #define DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE 0
+#endif
+#ifndef DEBUG_FREE_INACTIVE_CAPSULE_STORAGE
+  #define DEBUG_FREE_INACTIVE_CAPSULE_STORAGE 0
 #endif
 #ifndef DEBUG_DRAW_SOFT_INACTIVE_CAPS
   #define DEBUG_DRAW_SOFT_INACTIVE_CAPS 1
@@ -1967,7 +2031,11 @@ void debug_apply_soft_capsule_lifecycle(int iter)
         if (print_debug)
           fprintf(stderr, " cap=%d,owner=%d,local_index=%d",
             CAPS(cap).cap_id, owner_proc, cap);
-        CAPS(cap).isactive = false;
+        #if DEBUG_FREE_INACTIVE_CAPSULE_STORAGE
+          free_lagMesh_current_storage_keep_slot(&CAPS(cap));
+        #else
+          CAPS(cap).isactive = false;
+        #endif
         ndeactivated++;
       }
     }
@@ -1975,6 +2043,68 @@ void debug_apply_soft_capsule_lifecycle(int iter)
       if (ndeactivated == 0)
         fprintf(stderr, " none");
       fprintf(stderr, " ndeactivated=%d\n", ndeactivated);
+    }
+  #endif
+}
+
+void debug_print_local_capsule_lifecycle_counts(int iter)
+{
+  #if DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
+    if (iter % DEBUG_AABB_FREQ != 0)
+      return;
+
+    compute_proc_borders(&proc_max, &proc_min);
+    debug_ensure_mpi_routing_arrays();
+    gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+    int nactive = 0;
+    int nowner = 0;
+    int nghost = 0;
+    int ninactive = 0;
+    int nfreed_storage = 0;
+    for(int cap=0; cap<NCAPS; cap++) {
+      if (!CAPS(cap).isactive) {
+        ninactive++;
+        if (CAPS(cap).nodes == NULL && CAPS(cap).edges == NULL)
+          nfreed_storage++;
+        continue;
+      }
+      nactive++;
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc == pid())
+        nowner++;
+      else
+        nghost++;
+    }
+
+    fprintf(stderr,
+      "DEBUG_SOFT_CAPSULE_COUNTS pid %d/%d iter %d active=%d owner=%d ghost=%d inactive=%d freed_storage=%d all_caps=%d\n",
+      pid(), npe(), iter, nactive, nowner, nghost, ninactive,
+      nfreed_storage, NCAPS);
+
+    int local_counts[5] = {
+      nactive, nowner, nghost, ninactive, nfreed_storage
+    };
+    int* all_counts = NULL;
+    if (pid() == 0) {
+      all_counts = (int*)malloc(npe()*5*sizeof(int));
+      assert(all_counts);
+    }
+    MPI_Gather(local_counts, 5, MPI_INT, all_counts, 5, MPI_INT,
+      0, MPI_COMM_WORLD);
+    if (pid() == 0) {
+      fprintf(stderr, "DEBUG_ALL_SOFT_CAPSULE_COUNTS iter %d npe %d\n",
+        iter, npe());
+      for(int p=0; p<npe(); p++) {
+        int off = 5*p;
+        fprintf(stderr,
+          "DEBUG_ALL_SOFT_CAPSULE_COUNTS iter %d rank %d active=%d owner=%d ghost=%d inactive=%d freed_storage=%d all_caps=%d\n",
+          iter, p, all_counts[off], all_counts[off + 1],
+          all_counts[off + 2], all_counts[off + 3],
+          all_counts[off + 4], NCAPS);
+      }
+      free(all_counts);
     }
   #endif
 }
@@ -1999,10 +2129,16 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
   foreach_dimension()
     recv_centroid.x = double_data[(*double_pos)++];
 
-  int can_update = local_cap >= 0 &&
-    CAPS(local_cap).nln == nln && CAPS(local_cap).nle == nle;
+  int can_update = local_cap >= 0;
+  if (can_update)
+    ensure_lagMesh_current_storage(&CAPS(local_cap), nln, nle, nlt);
+
+  can_update = can_update &&
+    CAPS(local_cap).nln == nln && CAPS(local_cap).nle == nle &&
+    CAPS(local_cap).nodes != NULL && CAPS(local_cap).edges != NULL;
   #if dimension > 2
-    can_update = can_update && CAPS(local_cap).nlt == nlt;
+    can_update = can_update && CAPS(local_cap).nlt == nlt &&
+      CAPS(local_cap).triangles != NULL;
   #endif
 
   for(int node_id=0; node_id<nln; node_id++)
@@ -2306,6 +2442,7 @@ event tracer_advection(i++) {
     debug_owner_to_ghost_geometry_exchange_after_advection(i);
     debug_capsule_lifecycle_dryrun(i);
     debug_apply_soft_capsule_lifecycle(i);
+    debug_print_local_capsule_lifecycle_counts(i);
   #endif
 
   /* Compute borders of the curren proc */

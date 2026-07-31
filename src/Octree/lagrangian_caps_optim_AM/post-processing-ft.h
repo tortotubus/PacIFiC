@@ -85,7 +85,8 @@ void pv_output_ascii(int pv_timestep) {
     int nbpts_tot = 0;
     int nbtri_tot = 0;
     for(int j=0; j<NCAPS; j++) {
-      if (CAPS(j).isactive) {
+      if (CAPS(j).isactive && CAPS(j).nodes != NULL &&
+        CAPS(j).triangles != NULL) {
         nbpts_tot += CAPS(j).nln;
         nbtri_tot += CAPS(j).nlt;
       }
@@ -94,6 +95,8 @@ void pv_output_ascii(int pv_timestep) {
     /* Populate the coordinates of all the Lagrangian nodes */
     fprintf(file, "POINTS %d double\n", nbpts_tot);
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).nodes == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nln; k++) {
         coord node_pos = correct_periodic_node_pos(
           CAPS(j).nodes[k].pos, CAPS(j).centroid);
@@ -106,6 +109,8 @@ void pv_output_ascii(int pv_timestep) {
     4*nbtri_tot);
     int node_offset = 0;
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++) {
       fprintf(file, "%d %d %d %d\n", 3,
         LAG_TRIANGLE_NODE_ID(&CAPS(j), k, 0) + node_offset,
@@ -118,6 +123,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS T1 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {  
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].tension[0]);
     }
@@ -125,6 +132,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS T2 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].tension[1]);
     }
@@ -132,6 +141,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Tmax double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", max(CAPS(j).triangles[k].tension[0], 
           CAPS(j).triangles[k].tension[1]));
@@ -140,6 +151,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Tavg double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", .5*(CAPS(j).triangles[k].tension[0] + 
           CAPS(j).triangles[k].tension[1]));
@@ -148,6 +161,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Lambda_1 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[0]);
     }
@@ -155,6 +170,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Lambda_2 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[1]);
     }
@@ -162,6 +179,8 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Radius double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
+      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+        continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).cap_radius);
     }
@@ -513,6 +532,8 @@ void output_caps_node_tri()
 //----------------------------------------------------------------------------
 {
     for(int k=0; k<NCAPS; k++) {
+      if (!CAPS(k).isactive || CAPS(k).nodes == NULL)
+        continue;
       char fposname[64];
       char ftriname[64];
       sprintf(fposname, "%s/mb_%d_pos.csv", result_dir, k);

@@ -153,16 +153,30 @@ void restore_triangle(FILE* fp, lagMesh* mesh, int i) {
 }
 
 void dump_lagmesh(FILE* fp, lagMesh* mesh) {
+  int has_storage = mesh->isactive && mesh->nodes != NULL &&
+    mesh->edges != NULL;
+  #if dimension > 2
+    has_storage = has_storage && mesh->triangles != NULL;
+  #endif
+  int dump_nln = has_storage ? mesh->nln : 0;
+  int dump_nle = has_storage ? mesh->nle : 0;
+  #if dimension > 2
+    int dump_nlt = has_storage ? mesh->nlt : 0;
+  #else
+    int dump_nlt = 0;
+  #endif
+  int dump_isactive = has_storage && mesh->isactive;
+
   fwrite(&(mesh->cap_id), sizeof(int), 1, fp);
   fwrite(&(mesh->cap_type), sizeof(int), 1, fp);
   fwrite(&(mesh->cap_es), sizeof(double), 1, fp);
   fwrite(&(mesh->cap_radius), sizeof(double), 1, fp);
-  fwrite(&(mesh->nln), sizeof(int), 1, fp);
-  for(int i=0; i<mesh->nln; i++) dump_lagnode(fp, mesh, i);
-  fwrite(&(mesh->nle), sizeof(int), 1, fp);
-  for(int i=0; i<mesh->nle; i++) dump_edge(fp, mesh, i);
-  fwrite(&(mesh->nlt), sizeof(int), 1, fp);
-  for(int i=0; i<mesh->nlt; i++) 
+  fwrite(&dump_nln, sizeof(int), 1, fp);
+  for(int i=0; i<dump_nln; i++) dump_lagnode(fp, mesh, i);
+  fwrite(&dump_nle, sizeof(int), 1, fp);
+  for(int i=0; i<dump_nle; i++) dump_edge(fp, mesh, i);
+  fwrite(&dump_nlt, sizeof(int), 1, fp);
+  for(int i=0; i<dump_nlt; i++)
     dump_triangle(fp, mesh, i);
   foreach_dimension() fwrite(&(mesh->centroid.x), sizeof(double), 1, fp);
   foreach_dimension() fwrite(&(mesh->ang_vel.x), sizeof(double), 1, fp);
@@ -175,7 +189,7 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   tmp = mesh->updated_stretches ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
   tmp = mesh->updated_normals ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
   tmp = mesh->updated_curvatures ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
-  tmp = mesh->isactive ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
+  tmp = dump_isactive ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);
 }
 
 void restore_lagmesh(FILE* fp, lagMesh* mesh) {
