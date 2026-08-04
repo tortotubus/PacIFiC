@@ -229,6 +229,10 @@ void comp_circum_radius(lagMesh* mesh, double radius_padding) {
   mesh->circum_radius = max_radius + radius_padding;
 }
 
+#ifndef LAG_BOUNDING_SPHERE_PADDING_DELTAS
+  #define LAG_BOUNDING_SPHERE_PADDING_DELTAS 2.
+#endif
+
 void comp_bounding_sphere(lagMesh* mesh) {
   #if MULT_GRID == 1
     double delta = (L0/(1 << grid->maxdepth)/Dimensions.x);
@@ -237,7 +241,7 @@ void comp_bounding_sphere(lagMesh* mesh) {
   #endif
 
   comp_centroid(mesh);
-  comp_circum_radius(mesh, 3*delta);
+  comp_circum_radius(mesh, LAG_BOUNDING_SPHERE_PADDING_DELTAS*delta);
 }
 
 trace

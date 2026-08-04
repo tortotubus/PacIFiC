@@ -1306,6 +1306,17 @@ event defaults (i = 0) {
   }
 }
 
+static inline bool local_capsule_node_is_available(int cap_id, int node_id)
+{
+  if (cap_id < 0 || cap_id >= NCAPS)
+    return false;
+  if (!CAPS(cap_id).isactive || CAPS(cap_id).nodes == NULL)
+    return false;
+  if (node_id < 0 || node_id >= CAPS(cap_id).nln)
+    return false;
+  return true;
+}
+
 
 
 /*Repulsive lubrication nodal force*/
@@ -1351,11 +1362,16 @@ void repulsive_vel()
                 if(point.level >-1)
                 {
                   if(((int)Index_lagnode[] > -1) && ((mesh->cap_id) != (int)Index_lagnode[])) 
-                  {        
+                  {
+                    int check_cap = (int)Index_lagnode[];
+                    int check_node = (int)Index_lag_id.x[];
+                    if (!local_capsule_node_is_available(check_cap, check_node))
+                      continue;
+
                     coord checkpt = {0};
-                    checkpt.x = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.x;
-                    checkpt.y = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.y;
-                    checkpt.z = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.z;
+                    checkpt.x = CAPS(check_cap).nodes[check_node].pos.x;
+                    checkpt.y = CAPS(check_cap).nodes[check_node].pos.y;
+                    checkpt.z = CAPS(check_cap).nodes[check_node].pos.z;
 
                     coord lub_dir = {0};
                     
@@ -1376,19 +1392,24 @@ void repulsive_vel()
             /*A special case where the two nodes from different caps lie in the same cell, we push the node of the other capsule as well */
             if(((int)Index_lagnode[] > -1) && ((int)Index_lag_id.y[] > -1) && ((mesh->cap_id) != (int)Index_lag_id.y[]))
             {
+              int check_cap = (int)Index_lag_id.y[];
+              int check_node = (int)Index_lag_id.z[];
+              if (!local_capsule_node_is_available(check_cap, check_node))
+                continue;
+
               coord checkpt = {0};
-              checkpt.x = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.x;
-              checkpt.y = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.y;
-              checkpt.z = CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].pos.z;
+              checkpt.x = CAPS(check_cap).nodes[check_node].pos.x;
+              checkpt.y = CAPS(check_cap).nodes[check_node].pos.y;
+              checkpt.z = CAPS(check_cap).nodes[check_node].pos.z;
 
               coord lub_dir = {0};
               double lub_norm = sqrt(GENERAL_SQNORM(lagpt, checkpt));
               foreach_dimension() lub_dir.x = GENERAL_1DIST(lagpt.x, checkpt.x, L0*L0_ratio.x)/lub_norm;
               if(lub_norm < 2.*delta)
               {                 
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.y -= 0.5*lub_dir.y * K_lub * (sq(2.*delta/lub_norm) - 1.);
-                CAPS((int)Index_lag_id.y[]).nodes[(int)Index_lag_id.z[]].lagVel.z -= 0.5*lub_dir.z * K_lub * (sq(2.*delta/lub_norm) - 1.);
+                CAPS(check_cap).nodes[check_node].lagVel.x -= 0.5*lub_dir.x * K_lub * (sq(2.*delta/lub_norm) - 1.);
+                CAPS(check_cap).nodes[check_node].lagVel.y -= 0.5*lub_dir.y * K_lub * (sq(2.*delta/lub_norm) - 1.);
+                CAPS(check_cap).nodes[check_node].lagVel.z -= 0.5*lub_dir.z * K_lub * (sq(2.*delta/lub_norm) - 1.);
               }
             }
             
@@ -1445,6 +1466,7 @@ coord** debug_pre_reduce_lagVel = NULL;
 int* debug_pre_reduce_lagVel_nln = NULL;
 coord** debug_pre_advect_pos = NULL;
 int* debug_pre_advect_pos_nln = NULL;
+int* debug_capsule_advected_on_this_rank = NULL;
 #endif
 
 #ifndef DEBUG_AABB
@@ -1503,6 +1525,8 @@ void debug_ensure_mpi_routing_arrays()
     ghost_to_owner_send_double_offsets = (int*)malloc(npe()*sizeof(int));
     ghost_to_owner_recv_int_offsets = (int*)malloc(npe()*sizeof(int));
     ghost_to_owner_recv_double_offsets = (int*)malloc(npe()*sizeof(int));
+    debug_capsule_advected_on_this_rank =
+      (int*)calloc(NCAPS, sizeof(int));
   }
 }
 
@@ -2194,15 +2218,17 @@ void debug_owner_to_ghost_geometry_exchange_after_advection(int iter)
     if (CAPS(cap).isactive) {
       int owner_proc = find_capsule_owner_proc(&CAPS(cap),
         all_proc_min, all_proc_max);
-      if (owner_proc == pid()) {
+      int sender_proc = debug_capsule_advected_on_this_rank != NULL &&
+        debug_capsule_advected_on_this_rank[cap];
+      if (sender_proc) {
         int nints = estimate_owner_to_ghost_nints(&CAPS(cap));
         int ndoubles = estimate_owner_to_ghost_ndoubles(&CAPS(cap));
         for(int p=0; p<npe(); p++) {
           int intersects_proc = lagmesh_bounding_sphere_intersects_box(
             &CAPS(cap), all_proc_min[p], all_proc_max[p]);
           int send_geometry = DEBUG_OWNER_GEOM_TO_ALL_RANKS ||
-            intersects_proc;
-          if (send_geometry && p != owner_proc) {
+            intersects_proc || p == owner_proc;
+          if (send_geometry && p != pid()) {
             owner_to_ghost_send_caps[p]++;
             owner_to_ghost_send_int_counts[p] += nints;
             owner_to_ghost_send_double_counts[p] += ndoubles;
@@ -2281,13 +2307,15 @@ void debug_owner_to_ghost_geometry_exchange_after_advection(int iter)
     if (CAPS(cap).isactive) {
       int owner_proc = find_capsule_owner_proc(&CAPS(cap),
         all_proc_min, all_proc_max);
-      if (owner_proc == pid()) {
+      int sender_proc = debug_capsule_advected_on_this_rank != NULL &&
+        debug_capsule_advected_on_this_rank[cap];
+      if (sender_proc) {
         for(int p=0; p<npe(); p++) {
           int intersects_proc = lagmesh_bounding_sphere_intersects_box(
             &CAPS(cap), all_proc_min[p], all_proc_max[p]);
           int send_geometry = DEBUG_OWNER_GEOM_TO_ALL_RANKS ||
-            intersects_proc;
-          if (send_geometry && p != owner_proc)
+            intersects_proc || p == owner_proc;
+          if (send_geometry && p != pid())
             pack_owner_to_ghost_capsule(&CAPS(cap),
               owner_to_ghost_send_int_buffer, &pack_int_pos[p],
               owner_to_ghost_send_double_buffer, &pack_double_pos[p]);
@@ -2420,6 +2448,8 @@ event tracer_advection(i++) {
     compute_proc_borders(&proc_max, &proc_min);
     debug_ensure_mpi_routing_arrays();
     gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+    for(int cap=0; cap<NCAPS; cap++)
+      debug_capsule_advected_on_this_rank[cap] = false;
   #endif
 
   /* Advection of the lagNode */
@@ -2431,8 +2461,12 @@ event tracer_advection(i++) {
           all_proc_min, all_proc_max);
         advect_this_capsule = owner_proc == pid();
       #endif
-      if (advect_this_capsule)
+      if (advect_this_capsule) {
         advect_lagMesh(&CAPS(i));
+        #if _MPI && DEBUG_AABB && DEBUG_OWNER_ONLY_ADVECTION
+          debug_capsule_advected_on_this_rank[i] = true;
+        #endif
+      }
       for(int j=0; j<CAPS(i).nln; j++)
         foreach_dimension() CAPS(i).nodes[j].lagForce.x = 0.;
     }
@@ -3555,11 +3589,16 @@ void lubrication_force()
                 if(point.level >-1)
                 {
                   if(((int)Index_lagnode[] > -1) && ((mesh->cap_id) != (int)Index_lagnode[])) 
-                  {        
+                  {
+                    int check_cap = (int)Index_lagnode[];
+                    int check_node = (int)Index_lag_id.x[];
+                    if (!local_capsule_node_is_available(check_cap, check_node))
+                      continue;
+
                     coord checkpt = {0};
-                    checkpt.x = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.x;
-                    checkpt.y = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.y;
-                    checkpt.z = CAPS((int)Index_lagnode[]).nodes[(int)Index_lag_id.x[]].pos.z;
+                    checkpt.x = CAPS(check_cap).nodes[check_node].pos.x;
+                    checkpt.y = CAPS(check_cap).nodes[check_node].pos.y;
+                    checkpt.z = CAPS(check_cap).nodes[check_node].pos.z;
 
                     coord lub_dir = {0};
                     
@@ -3654,6 +3693,7 @@ event cleanup (t = end) {
     }
     free(debug_pre_advect_pos);
     free(debug_pre_advect_pos_nln);
+    free(debug_capsule_advected_on_this_rank);
   #endif
   free_all_caps(&allCaps);
 }
