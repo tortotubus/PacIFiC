@@ -19,6 +19,162 @@
 #   define figs_dir "Figs"
 # endif
 
+#ifndef LAG_OWNER_POSTPROC_NINTS
+  #define LAG_OWNER_POSTPROC_NINTS 4
+#endif
+#ifndef LAG_OWNER_POSTPROC_NDOUBLES
+  #define LAG_OWNER_POSTPROC_NDOUBLES 15
+#endif
+#ifndef LAG_OWNER_POSTPROC_DEBUG
+  #ifdef DEBUG_OWNER_POSTPROC
+    #define LAG_OWNER_POSTPROC_DEBUG DEBUG_OWNER_POSTPROC
+  #else
+    #define LAG_OWNER_POSTPROC_DEBUG 0
+  #endif
+#endif
+#ifndef LAG_OWNER_POSTPROC_DEBUG_FREQ
+  #ifdef DEBUG_OWNER_POSTPROC_FREQ
+    #define LAG_OWNER_POSTPROC_DEBUG_FREQ DEBUG_OWNER_POSTPROC_FREQ
+  #elif defined(OUTPUT_FREQ)
+    #define LAG_OWNER_POSTPROC_DEBUG_FREQ OUTPUT_FREQ
+  #else
+    #define LAG_OWNER_POSTPROC_DEBUG_FREQ 1
+  #endif
+#endif
+
+#ifndef DEBUG_OWNER_POSTPROC_NINTS
+  #define DEBUG_OWNER_POSTPROC_NINTS LAG_OWNER_POSTPROC_NINTS
+#endif
+#ifndef DEBUG_OWNER_POSTPROC_NDOUBLES
+  #define DEBUG_OWNER_POSTPROC_NDOUBLES LAG_OWNER_POSTPROC_NDOUBLES
+#endif
+
+#if _MPI
+void lag_gather_owner_postproc(int iter, int* recv_ints,
+  double* recv_doubles)
+{
+  compute_proc_borders(&proc_max, &proc_min);
+  debug_ensure_mpi_routing_arrays();
+  gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+  int* send_ints =
+    (int*)malloc(NCAPS*LAG_OWNER_POSTPROC_NINTS*sizeof(int));
+  double* send_doubles =
+    (double*)calloc(NCAPS*LAG_OWNER_POSTPROC_NDOUBLES, sizeof(double));
+  assert(send_ints);
+  assert(send_doubles);
+
+  for(int k=0; k<NCAPS; k++) {
+    send_ints[k*LAG_OWNER_POSTPROC_NINTS] = -1;
+    send_ints[k*LAG_OWNER_POSTPROC_NINTS + 1] = -1;
+    send_ints[k*LAG_OWNER_POSTPROC_NINTS + 2] = 0;
+    send_ints[k*LAG_OWNER_POSTPROC_NINTS + 3] = 0;
+  }
+
+  for(int k=0; k<NCAPS; k++) {
+    if (!CAPS(k).isactive)
+      continue;
+
+    int owner_proc = find_capsule_owner_proc(&CAPS(k),
+      all_proc_min, all_proc_max);
+    if (owner_proc != pid())
+      continue;
+
+    double area_norm = 0.;
+    for(int tri=0; tri<CAPS(k).nlt; tri++)
+      area_norm += CAPS(k).triangles[tri].area/
+        (4.*pi*sq(CAPS(k).cap_radius));
+
+    double volume_norm = CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
+    double taylor_deform = 0.;
+    double inclin_angle = 0.;
+    double TDmaxmin = 0.;
+    double TDang = 0.;
+    coord rs = {0., 0., 0.};
+    int valid_taylor = false;
+    if (iter > 0) {
+      compute_taylor_factor(&CAPS(k), &taylor_deform, &inclin_angle,
+        &rs, &TDmaxmin, &TDang);
+      foreach_dimension()
+        rs.x /= CAPS(k).cap_radius;
+
+      valid_taylor = isfinite(taylor_deform) && isfinite(inclin_angle) &&
+        isfinite(TDmaxmin) && isfinite(TDang) &&
+        isfinite(rs.x) && isfinite(rs.y) && isfinite(rs.z);
+    }
+    if (!valid_taylor) {
+      taylor_deform = 0.;
+      inclin_angle = 0.;
+      TDmaxmin = 0.;
+      TDang = 0.;
+      foreach_dimension()
+        rs.x = 1.;
+    }
+
+    int ioff = k*LAG_OWNER_POSTPROC_NINTS;
+    int doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+    send_ints[ioff] = owner_proc;
+    send_ints[ioff + 1] = CAPS(k).cap_type;
+    send_ints[ioff + 2] = 1;
+    send_ints[ioff + 3] = valid_taylor;
+    send_doubles[doff] = CAPS(k).centroid.x;
+    send_doubles[doff + 1] = CAPS(k).centroid.y;
+    send_doubles[doff + 2] = CAPS(k).centroid.z;
+    send_doubles[doff + 3] = area_norm;
+    send_doubles[doff + 4] = volume_norm;
+    send_doubles[doff + 5] = taylor_deform;
+    send_doubles[doff + 6] = inclin_angle;
+    send_doubles[doff + 7] = TDmaxmin;
+    send_doubles[doff + 8] = TDang;
+    send_doubles[doff + 9] = rs.x;
+    send_doubles[doff + 10] = rs.y;
+    send_doubles[doff + 11] = rs.z;
+    send_doubles[doff + 12] = CAPS(k).ang_vel.x;
+    send_doubles[doff + 13] = CAPS(k).ang_vel.y;
+    send_doubles[doff + 14] = CAPS(k).ang_vel.z;
+  }
+
+  MPI_Reduce(send_ints, recv_ints, NCAPS*LAG_OWNER_POSTPROC_NINTS,
+    MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(send_doubles, recv_doubles,
+    NCAPS*LAG_OWNER_POSTPROC_NDOUBLES,
+    MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  #if LAG_OWNER_POSTPROC_DEBUG
+    if (pid() == 0) {
+      if (iter % LAG_OWNER_POSTPROC_DEBUG_FREQ == 0) {
+        fprintf(stderr, "LAG_OWNER_POSTPROC iter %d", iter);
+        for(int k=0; k<NCAPS; k++) {
+          int ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+          fprintf(stderr,
+            " cap=%d,valid=%d,valid_taylor=%d,owner=%d,type=%d,centroid=(%g %g %g),area=%g,volume=%g,taylor=%g,inclin=%g,TDmaxmin=%g,TDang=%g,rs=(%g %g %g),ang_vel=(%g %g %g)",
+            k, recv_ints[ioff + 2], recv_ints[ioff + 3],
+            recv_ints[ioff], recv_ints[ioff + 1],
+            recv_doubles[doff], recv_doubles[doff + 1],
+            recv_doubles[doff + 2], recv_doubles[doff + 3],
+            recv_doubles[doff + 4], recv_doubles[doff + 5],
+            recv_doubles[doff + 6], recv_doubles[doff + 7],
+            recv_doubles[doff + 8], recv_doubles[doff + 9],
+            recv_doubles[doff + 10], recv_doubles[doff + 11],
+            recv_doubles[doff + 12], recv_doubles[doff + 13],
+            recv_doubles[doff + 14]);
+        }
+        fprintf(stderr, "\n");
+      }
+    }
+  #endif
+
+  free(send_ints);
+  free(send_doubles);
+}
+
+void gather_owner_postproc(int iter, int* recv_ints, double* recv_doubles)
+{
+  lag_gather_owner_postproc(iter, recv_ints, recv_doubles);
+}
+#endif
+
 /** ## Output membrane position in plain text for external post-processing */
 void dump_plain_nodes_pos(lagMesh* mesh, char* filename) {
   if (pid() == 0) {

@@ -126,7 +126,7 @@ Navier-Stokes solver
   #define STOKES true
 #endif
 #define JACOBI 1
-#define PARAVIEW_CAPSULE 0
+#define PARAVIEW_CAPSULE 1
 #define PARAVIEW_FLOW_FIELD 0
 #define OUTPUT_CAPS_NODE_TRI_INFO 0
 
@@ -141,17 +141,17 @@ Navier-Stokes solver
 #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 0
 #define LAG_DISTRIBUTED_SOFT_LIFECYCLE 1
 #define LAG_DISTRIBUTED_FREE_INACTIVE 1
-#ifndef DEBUG_OWNER_POSTPROC
-  #define DEBUG_OWNER_POSTPROC 0
+#ifndef LAG_OWNER_POSTPROC_DEBUG
+  #define LAG_OWNER_POSTPROC_DEBUG 0
 #endif
-#ifndef DEBUG_OWNER_POSTPROC_FREQ
-  #define DEBUG_OWNER_POSTPROC_FREQ OUTPUT_FREQ
+#ifndef LAG_OWNER_POSTPROC_DEBUG_FREQ
+  #define LAG_OWNER_POSTPROC_DEBUG_FREQ OUTPUT_FREQ
 #endif
 #ifndef DEBUG_DISTRIBUTED_CAPSULE_INIT
   #define DEBUG_DISTRIBUTED_CAPSULE_INIT 0
 #endif
 #ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 0
+  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 1
 #endif
 
 
@@ -223,129 +223,6 @@ bool should_initialize_capsule_on_this_rank(coord centroid, double radius)
     return true;
   #endif
 }
-
-#if _MPI
-#define DEBUG_OWNER_POSTPROC_NINTS 4
-#define DEBUG_OWNER_POSTPROC_NDOUBLES 15
-void gather_owner_postproc(int iter, int* recv_ints, double* recv_doubles)
-{
-  compute_proc_borders(&proc_max, &proc_min);
-  debug_ensure_mpi_routing_arrays();
-  gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
-
-  int* send_ints =
-    (int*)malloc(NCAPS*DEBUG_OWNER_POSTPROC_NINTS*sizeof(int));
-  double* send_doubles =
-    (double*)calloc(NCAPS*DEBUG_OWNER_POSTPROC_NDOUBLES, sizeof(double));
-  assert(send_ints);
-  assert(send_doubles);
-
-  for(int k=0; k<NCAPS; k++) {
-    send_ints[k*DEBUG_OWNER_POSTPROC_NINTS] = -1;
-    send_ints[k*DEBUG_OWNER_POSTPROC_NINTS + 1] = -1;
-    send_ints[k*DEBUG_OWNER_POSTPROC_NINTS + 2] = 0;
-    send_ints[k*DEBUG_OWNER_POSTPROC_NINTS + 3] = 0;
-  }
-
-  for(int k=0; k<NCAPS; k++) {
-    if (!CAPS(k).isactive)
-      continue;
-
-    int owner_proc = find_capsule_owner_proc(&CAPS(k),
-      all_proc_min, all_proc_max);
-    if (owner_proc != pid())
-      continue;
-
-    double area_norm = 0.;
-    for(int tri=0; tri<CAPS(k).nlt; tri++)
-      area_norm += CAPS(k).triangles[tri].area/
-        (4.*pi*sq(CAPS(k).cap_radius));
-
-    double volume_norm = CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
-    double taylor_deform = 0.;
-    double inclin_angle = 0.;
-    double TDmaxmin = 0.;
-    double TDang = 0.;
-    coord rs = {0., 0., 0.};
-    int valid_taylor = false;
-    if (iter > 0) {
-      compute_taylor_factor(&CAPS(k), &taylor_deform, &inclin_angle,
-        &rs, &TDmaxmin, &TDang);
-      foreach_dimension()
-        rs.x /= CAPS(k).cap_radius;
-
-      valid_taylor = isfinite(taylor_deform) && isfinite(inclin_angle) &&
-        isfinite(TDmaxmin) && isfinite(TDang) &&
-        isfinite(rs.x) && isfinite(rs.y) && isfinite(rs.z);
-    }
-    if (!valid_taylor) {
-      taylor_deform = 0.;
-      inclin_angle = 0.;
-      TDmaxmin = 0.;
-      TDang = 0.;
-      foreach_dimension()
-        rs.x = 1.;
-    }
-
-    int ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-    int doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
-    send_ints[ioff] = owner_proc;
-    send_ints[ioff + 1] = CAPS(k).cap_type;
-    send_ints[ioff + 2] = 1;
-    send_ints[ioff + 3] = valid_taylor;
-    send_doubles[doff] = CAPS(k).centroid.x;
-    send_doubles[doff + 1] = CAPS(k).centroid.y;
-    send_doubles[doff + 2] = CAPS(k).centroid.z;
-    send_doubles[doff + 3] = area_norm;
-    send_doubles[doff + 4] = volume_norm;
-    send_doubles[doff + 5] = taylor_deform;
-    send_doubles[doff + 6] = inclin_angle;
-    send_doubles[doff + 7] = TDmaxmin;
-    send_doubles[doff + 8] = TDang;
-    send_doubles[doff + 9] = rs.x;
-    send_doubles[doff + 10] = rs.y;
-    send_doubles[doff + 11] = rs.z;
-    send_doubles[doff + 12] = CAPS(k).ang_vel.x;
-    send_doubles[doff + 13] = CAPS(k).ang_vel.y;
-    send_doubles[doff + 14] = CAPS(k).ang_vel.z;
-  }
-
-  MPI_Reduce(send_ints, recv_ints, NCAPS*DEBUG_OWNER_POSTPROC_NINTS,
-    MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(send_doubles, recv_doubles,
-    NCAPS*DEBUG_OWNER_POSTPROC_NDOUBLES,
-    MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
-  #if DEBUG_OWNER_POSTPROC
-    if (pid() == 0) {
-      if (iter % DEBUG_OWNER_POSTPROC_FREQ == 0) {
-        fprintf(stderr, "DEBUG_OWNER_POSTPROC iter %d", iter);
-        for(int k=0; k<NCAPS; k++) {
-          int ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-          int doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
-          fprintf(stderr,
-            " cap=%d,valid=%d,valid_taylor=%d,owner=%d,type=%d,centroid=(%g %g %g),area=%g,volume=%g,taylor=%g,inclin=%g,TDmaxmin=%g,TDang=%g,rs=(%g %g %g),ang_vel=(%g %g %g)",
-            k, recv_ints[ioff + 2], recv_ints[ioff + 3],
-            recv_ints[ioff], recv_ints[ioff + 1],
-            recv_doubles[doff], recv_doubles[doff + 1],
-            recv_doubles[doff + 2], recv_doubles[doff + 3],
-            recv_doubles[doff + 4], recv_doubles[doff + 5],
-            recv_doubles[doff + 6], recv_doubles[doff + 7],
-            recv_doubles[doff + 8], recv_doubles[doff + 9],
-            recv_doubles[doff + 10], recv_doubles[doff + 11],
-            recv_doubles[doff + 12], recv_doubles[doff + 13],
-            recv_doubles[doff + 14]);
-        }
-        fprintf(stderr, "\n");
-      }
-    }
-  #endif
-
-  free(send_ints);
-  free(send_doubles);
-}
-#endif
-
 
 int main(int argc, char* argv[]) {
   /* Set the origin*/
@@ -445,7 +322,11 @@ event init (i = 0) {
     #endif
 
     int ninit_local_caps = 0;
-    int nfreed_initial_caps = 0;
+    int nskipped_initial_caps = 0;
+    lagMesh inactive_templates[2];
+    int inactive_template_ready[2] = {false, false};
+    for(int ctype=0; ctype<2; ctype++)
+      initialize_empty_capsule(&inactive_templates[ctype]);
 
     for (size_t k = 0; k < NCAPS; k++) {
         // printf("Capsule %zu: type=%d, x=%.2f, y=%.2f, z=%.2f\n",
@@ -462,51 +343,60 @@ event init (i = 0) {
       int initialize_here =
         should_initialize_capsule_on_this_rank(initial_centroid, route_radius);
 
-      if(cap_read[k].type == 0)
-      {
-        //activate the cap mesh
-        activate_spherical_capsule((_initialize_circular_capsule){.mesh=&CAPS(k), .cap_es = cap_es, .cap_radius = cap_radius, .level = cap_level, .cap_id = k, .cap_type = cap_read[k].type});
-        //activate_spherical_capsule(&CAPS(k), cap_es = E_S_L, cap_radius = RADIUS_L, level = LAG_LEVEL_L, cap_id = k, cap_type = cap_read[k].type);
-        
-        CAPS(k).centroid = initial_centroid;
-        for(int i=0; i<CAPS(k).nln; i++)
-          foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
-      }
-      else if (cap_read[k].type == 1)
-      {
-        //activate the cap mesh
-        //activate_spherical_capsule(&CAPS(k), cap_es = E_S_S, cap_radius = RADIUS_S, level = LAG_LEVEL_S, cap_id = k, cap_type = cap_read[k].type);
-        activate_spherical_capsule((_initialize_circular_capsule){.mesh=&CAPS(k), .cap_es = cap_es, .cap_radius = cap_radius, .level = cap_level, .cap_id = k, .cap_type = cap_read[k].type});
-
-        CAPS(k).centroid = initial_centroid;
-        for(int i=0; i<CAPS(k).nln; i++)
-          foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
-      }
-      else
-      {
+      if(cap_read[k].type != 0 && cap_read[k].type != 1) {
         fprintf(stderr,"Unknow capsule type!! Simulation terminated!\n");
         exit(0); 
       }
 
+      CAPS(k).cap_id = k;
+      CAPS(k).cap_type = cap_read[k].type;
+      CAPS(k).cap_es = cap_es;
+      CAPS(k).cap_radius = cap_radius;
+      CAPS(k).centroid = initial_centroid;
       CAPS(k).circum_radius = route_radius;
-      if (initialize_here)
-        ninit_local_caps++;
-      else {
-        free_lagMesh_current_storage_keep_slot(&CAPS(k));
-        CAPS(k).cap_id = k;
-        CAPS(k).cap_type = cap_read[k].type;
-        CAPS(k).cap_es = cap_es;
-        CAPS(k).cap_radius = cap_radius;
+
+      if (initialize_here) {
+        activate_spherical_capsule((_initialize_circular_capsule){
+          .mesh=&CAPS(k), .cap_es = cap_es, .cap_radius = cap_radius,
+          .level = cap_level, .cap_id = k, .cap_type = cap_read[k].type
+        });
+
         CAPS(k).centroid = initial_centroid;
+        for(int i=0; i<CAPS(k).nln; i++)
+          foreach_dimension() CAPS(k).nodes[i].pos.x += CAPS(k).centroid.x;
         CAPS(k).circum_radius = route_radius;
-        nfreed_initial_caps++;
+        ninit_local_caps++;
+      }
+      else {
+        int ctype = cap_read[k].type;
+        if (!inactive_template_ready[ctype]) {
+          activate_spherical_capsule((_initialize_circular_capsule){
+            .mesh=&inactive_templates[ctype], .cap_es = cap_es,
+            .cap_radius = cap_radius, .level = cap_level, .cap_id = -1,
+            .cap_type = ctype
+          });
+          free_lagMesh_current_storage_keep_slot(&inactive_templates[ctype]);
+          inactive_template_ready[ctype] = true;
+        }
+        CAPS(k).topology = inactive_templates[ctype].topology;
+        CAPS(k).ref_geometry = inactive_templates[ctype].ref_geometry;
+        CAPS(k).nln = inactive_templates[ctype].nln;
+        CAPS(k).nle = inactive_templates[ctype].nle;
+        #if dimension > 2
+          CAPS(k).nlt = inactive_templates[ctype].nlt;
+        #endif
+        #if !LAG_REF_GEOMETRY
+          CAPS(k).initial_volume = inactive_templates[ctype].initial_volume;
+        #endif
+        CAPS(k).isactive = false;
+        nskipped_initial_caps++;
       }
     }
 
     #if DEBUG_DISTRIBUTED_CAPSULE_INIT
       fprintf(stderr,
-        "DEBUG_DISTRIBUTED_CAPSULE_INIT pid %d/%d active_initial=%d freed_initial=%d all_caps=%d\n",
-        pid(), npe(), ninit_local_caps, nfreed_initial_caps, NCAPS);
+        "DEBUG_DISTRIBUTED_CAPSULE_INIT pid %d/%d active_initial=%d skipped_initial=%d all_caps=%d\n",
+        pid(), npe(), ninit_local_caps, nskipped_initial_caps, NCAPS);
     #endif
 
 
@@ -632,12 +522,12 @@ event logfile (i += 10) {
 
   #if _MPI
     int* owner_postproc_ints =
-      (int*)malloc(NCAPS*DEBUG_OWNER_POSTPROC_NINTS*sizeof(int));
+      (int*)malloc(NCAPS*LAG_OWNER_POSTPROC_NINTS*sizeof(int));
     double* owner_postproc_doubles =
-      (double*)calloc(NCAPS*DEBUG_OWNER_POSTPROC_NDOUBLES, sizeof(double));
+      (double*)calloc(NCAPS*LAG_OWNER_POSTPROC_NDOUBLES, sizeof(double));
     assert(owner_postproc_ints);
     assert(owner_postproc_doubles);
-    gather_owner_postproc(i, owner_postproc_ints, owner_postproc_doubles);
+    lag_gather_owner_postproc(i, owner_postproc_ints, owner_postproc_doubles);
   #endif
 
 
@@ -821,7 +711,7 @@ if (pid() == 0)
     for (int j = 0; j < N_pops; j++)
     { 
       #if _MPI
-        int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
+        int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
         int cap_valid = owner_postproc_ints[owner_ioff + 2];
         int cap_type = owner_postproc_ints[owner_ioff + 1];
       #else
@@ -842,11 +732,11 @@ if (pid() == 0)
 
    if (tot_count != NCAPS) {
      fprintf(stderr,
-       "DEBUG_OWNER_POSTPROC_POP_COUNT_MISMATCH iter %d tot_count=%d NCAPS=%d missing_caps=",
+       "LAG_OWNER_POSTPROC_POP_COUNT_MISMATCH iter %d tot_count=%d NCAPS=%d missing_caps=",
        i, tot_count, NCAPS);
      #if _MPI
        for(int k = 0; k < NCAPS; k++) {
-         int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
+         int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
          if (!owner_postproc_ints[owner_ioff + 2])
            fprintf(stderr, " %d(owner=%d,type=%d,valid=%d)",
              k, owner_postproc_ints[owner_ioff],
@@ -880,8 +770,8 @@ free(recv_stress_pack);
       double avg_ncaps_volume = 0;
       for(int k = 0; k < NCAPS; k++) {
         #if _MPI
-          int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-          int owner_doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
           if(owner_postproc_ints[owner_ioff + 2] &&
             owner_postproc_ints[owner_ioff + 1] == pop_type) {
             avg_ncaps_volume += owner_postproc_doubles[owner_doff + 4];
@@ -913,8 +803,8 @@ free(recv_stress_pack);
       coord rs = {0., 0., 0.};
       for(int k=0; k<NCAPS; k++) {
         #if _MPI
-          int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-          int owner_doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
           if(owner_postproc_ints[owner_ioff + 2] &&
             owner_postproc_ints[owner_ioff + 1] == pop_type) {
             avg_taylor_deform += owner_postproc_doubles[owner_doff + 5];
@@ -979,8 +869,8 @@ free(recv_stress_pack);
       double avg_ncaps_volume = 0;
       for(int k = 0; k < NCAPS; k++) {
         #if _MPI
-          int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-          int owner_doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
           if(owner_postproc_ints[owner_ioff + 2]) {
             avg_ncaps_volume += owner_postproc_doubles[owner_doff + 4];
             avg_ncaps_area += owner_postproc_doubles[owner_doff + 3];
@@ -1008,8 +898,8 @@ free(recv_stress_pack);
       coord rs = {0., 0., 0.};
       for(int k=0; k<NCAPS; k++) {
         #if _MPI
-          int owner_ioff = k*DEBUG_OWNER_POSTPROC_NINTS;
-          int owner_doff = k*DEBUG_OWNER_POSTPROC_NDOUBLES;
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
           if(owner_postproc_ints[owner_ioff + 2]) {
             avg_taylor_deform += owner_postproc_doubles[owner_doff + 5];
             avg_inclin_angle += owner_postproc_doubles[owner_doff + 6];
