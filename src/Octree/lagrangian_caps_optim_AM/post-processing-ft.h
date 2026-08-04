@@ -55,6 +55,11 @@ struct _pv_output_ascii {
   FILE* fp;
 };
 
+bool pv_capsule_is_output_owner(int cap)
+{
+  return CAPS(cap).isactive && CAPS(cap).nodes != NULL;
+}
+
 // int pv_timestep = 0;
 // void pv_output_ascii(struct _pv_output_ascii p) {
 void pv_output_ascii(int pv_timestep) {
@@ -85,8 +90,7 @@ void pv_output_ascii(int pv_timestep) {
     int nbpts_tot = 0;
     int nbtri_tot = 0;
     for(int j=0; j<NCAPS; j++) {
-      if (CAPS(j).isactive && CAPS(j).nodes != NULL &&
-        CAPS(j).triangles != NULL) {
+      if (pv_capsule_is_output_owner(j) && CAPS(j).triangles != NULL) {
         nbpts_tot += CAPS(j).nln;
         nbtri_tot += CAPS(j).nlt;
       }
@@ -95,7 +99,7 @@ void pv_output_ascii(int pv_timestep) {
     /* Populate the coordinates of all the Lagrangian nodes */
     fprintf(file, "POINTS %d double\n", nbpts_tot);
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).nodes == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nln; k++) {
         coord node_pos = correct_periodic_node_pos(
@@ -109,7 +113,7 @@ void pv_output_ascii(int pv_timestep) {
     4*nbtri_tot);
     int node_offset = 0;
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++) {
       fprintf(file, "%d %d %d %d\n", 3,
@@ -123,7 +127,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS T1 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {  
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].tension[0]);
@@ -132,7 +136,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS T2 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].tension[1]);
@@ -141,7 +145,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Tmax double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", max(CAPS(j).triangles[k].tension[0], 
@@ -151,7 +155,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Tavg double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", .5*(CAPS(j).triangles[k].tension[0] + 
@@ -161,7 +165,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Lambda_1 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[0]);
@@ -170,7 +174,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Lambda_2 double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).triangles[k].stretch[1]);
@@ -179,7 +183,7 @@ void pv_output_ascii(int pv_timestep) {
     fprintf(file, "SCALARS Radius double 1 \n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive || CAPS(j).triangles == NULL)
+      if (!pv_capsule_is_output_owner(j) || CAPS(j).triangles == NULL)
         continue;
       for(int k=0; k<CAPS(j).nlt; k++)
         fprintf(file, "%g ", CAPS(j).cap_radius);
@@ -230,7 +234,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
 
     int nspheres = 0;
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive)
+      if (!pv_capsule_is_output_owner(j))
         continue;
 
       coord c = CAPS(j).centroid;
@@ -259,7 +263,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
     fprintf(file, "POINTS %d double\n", nspheres*points_per_sphere);
     double pi_sphere = acos(-1.);
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive)
+      if (!pv_capsule_is_output_owner(j))
         continue;
 
       coord base_center = CAPS(j).centroid;
@@ -309,7 +313,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
       nspheres*cells_per_sphere, nspheres*cell_size_per_sphere);
     int sphere_id = 0;
     for(int j=0; j<NCAPS; j++) {
-      if (!CAPS(j).isactive)
+      if (!pv_capsule_is_output_owner(j))
         continue;
 
       coord base_center = CAPS(j).centroid;
@@ -369,7 +373,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
     fprintf(file, "SCALARS cap_id int 1\n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (CAPS(j).isactive) {
+      if (pv_capsule_is_output_owner(j)) {
         coord base_center = CAPS(j).centroid;
         double r = CAPS(j).circum_radius;
         int nx = 1, ny = 1, nz = 1;
@@ -394,7 +398,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
     fprintf(file, "SCALARS circum_radius double 1\n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (CAPS(j).isactive) {
+      if (pv_capsule_is_output_owner(j)) {
         coord base_center = CAPS(j).centroid;
         double r = CAPS(j).circum_radius;
         int nx = 1, ny = 1, nz = 1;
@@ -419,7 +423,7 @@ void pv_output_bounding_spheres_ascii(int pv_timestep) {
     fprintf(file, "SCALARS periodic_image int 1\n");
     fprintf(file, "LOOKUP_TABLE default\n");
     for(int j=0; j<NCAPS; j++) {
-      if (CAPS(j).isactive) {
+      if (pv_capsule_is_output_owner(j)) {
         coord base_center = CAPS(j).centroid;
         double r = CAPS(j).circum_radius;
         int nx = 1, ny = 1, nz = 1;
