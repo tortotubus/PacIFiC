@@ -185,6 +185,12 @@ int distributed_capsule_is_owned_here(lagMesh* mesh)
   return owner_proc == pid();
 }
 
+int distributed_capsule_has_local_fluid_support(lagMesh* mesh)
+{
+  compute_proc_borders(&proc_max, &proc_min);
+  return lagmesh_bounding_sphere_intersects_box(mesh, proc_min, proc_max);
+}
+
 void distributed_mark_capsule_advected(int cap)
 {
   debug_capsule_advected_on_this_rank[cap] = true;

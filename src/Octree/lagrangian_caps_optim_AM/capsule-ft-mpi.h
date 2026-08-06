@@ -244,6 +244,32 @@ coord wrap_periodic_point_in_domain(coord point)
   return wrapped;
 }
 
+coord clamp_nonperiodic_point_to_domain(coord point)
+{
+  coord clamped = point;
+  coord domain_min = {X0, Y0, Z0};
+  coord domain_length = {
+    L0*L0_ratio.x,
+    L0*L0_ratio.y,
+    L0*L0_ratio.z
+  };
+
+  foreach_dimension()
+  {
+    if (!Period.x) {
+      double lo = domain_min.x;
+      double hi = domain_min.x + domain_length.x;
+      double eps = 1.e-12*domain_length.x;
+      if (clamped.x < lo)
+        clamped.x = lo;
+      if (clamped.x >= hi)
+        clamped.x = hi - eps;
+    }
+  }
+
+  return clamped;
+}
+
 bool point_in_box_half_open(coord point, coord box_min, coord box_max)
 {
   foreach_dimension()
@@ -267,6 +293,7 @@ bool point_in_box_closed(coord point, coord box_min, coord box_max)
 int find_capsule_owner_proc(lagMesh* mesh, coord* all_proc_min, coord* all_proc_max)
 {
   coord owner_point = wrap_periodic_point_in_domain(mesh->centroid);
+  owner_point = clamp_nonperiodic_point_to_domain(owner_point);
 
   for(int p=0; p<mpi_npe; p++)
     if (point_in_box_half_open(owner_point, all_proc_min[p], all_proc_max[p]))

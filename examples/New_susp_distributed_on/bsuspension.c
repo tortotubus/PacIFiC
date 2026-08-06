@@ -137,6 +137,7 @@ Navier-Stokes solver
 #define DEBUG_AABB_FREQ 10000
 
 #define LAG_DISTRIBUTED_CAPSULES 1
+#define LAG_DISTRIBUTED_INITIAL_PLACEMENT 1
 #define LAG_DISTRIBUTED_OWNER_ADVECTION 1
 #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 0
 #define LAG_DISTRIBUTED_SOFT_LIFECYCLE 1
@@ -267,7 +268,7 @@ double initial_capsule_route_radius(double cap_radius)
 
 bool should_initialize_capsule_on_this_rank(coord centroid, double radius)
 {
-  #if _MPI
+  #if _MPI && LAG_DISTRIBUTED_INITIAL_PLACEMENT
     lagMesh route_mesh;
     initialize_empty_capsule(&route_mesh);
     route_mesh.centroid = centroid;

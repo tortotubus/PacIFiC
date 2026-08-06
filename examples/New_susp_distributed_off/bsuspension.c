@@ -136,11 +136,12 @@ Navier-Stokes solver
 #define DEBUG_AABB 0
 #define DEBUG_AABB_FREQ 10000
 
-#define LAG_DISTRIBUTED_CAPSULES 1
-#define LAG_DISTRIBUTED_OWNER_ADVECTION 1
+#define LAG_DISTRIBUTED_CAPSULES 0
+#define LAG_DISTRIBUTED_INITIAL_PLACEMENT 0
+#define LAG_DISTRIBUTED_OWNER_ADVECTION 0
 #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 0
-#define LAG_DISTRIBUTED_SOFT_LIFECYCLE 1
-#define LAG_DISTRIBUTED_FREE_INACTIVE 1
+#define LAG_DISTRIBUTED_SOFT_LIFECYCLE 0
+#define LAG_DISTRIBUTED_FREE_INACTIVE 0
 #ifndef LAG_OWNER_POSTPROC_DEBUG
   #define LAG_OWNER_POSTPROC_DEBUG 0
 #endif
@@ -151,7 +152,7 @@ Navier-Stokes solver
   #define DEBUG_DISTRIBUTED_CAPSULE_INIT 0
 #endif
 #ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 1
+  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 0
 #endif
 
 typedef struct lagMesh lagMesh;
@@ -267,7 +268,7 @@ double initial_capsule_route_radius(double cap_radius)
 
 bool should_initialize_capsule_on_this_rank(coord centroid, double radius)
 {
-  #if _MPI
+  #if _MPI && LAG_DISTRIBUTED_INITIAL_PLACEMENT
     lagMesh route_mesh;
     initialize_empty_capsule(&route_mesh);
     route_mesh.centroid = centroid;

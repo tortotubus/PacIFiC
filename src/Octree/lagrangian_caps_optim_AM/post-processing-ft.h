@@ -140,6 +140,49 @@ void lag_gather_owner_postproc(int iter, int* recv_ints,
     NCAPS*LAG_OWNER_POSTPROC_NDOUBLES,
     MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
+  int local_active_postproc = 0;
+  int local_owner_postproc = 0;
+  for(int k=0; k<NCAPS; k++) {
+    if (!CAPS(k).isactive)
+      continue;
+    local_active_postproc++;
+    int owner_proc = find_capsule_owner_proc(&CAPS(k),
+      all_proc_min, all_proc_max);
+    if (owner_proc == pid())
+      local_owner_postproc++;
+  }
+
+  int total_valid_postproc = 0;
+  if (pid() == 0) {
+    for(int k=0; k<NCAPS; k++)
+      total_valid_postproc +=
+        recv_ints[k*LAG_OWNER_POSTPROC_NINTS + 2] ? 1 : 0;
+  }
+
+  int* all_active_postproc = NULL;
+  int* all_owner_postproc = NULL;
+  if (pid() == 0) {
+    all_active_postproc = (int*)malloc(npe()*sizeof(int));
+    all_owner_postproc = (int*)malloc(npe()*sizeof(int));
+    assert(all_active_postproc);
+    assert(all_owner_postproc);
+  }
+  MPI_Gather(&local_active_postproc, 1, MPI_INT, all_active_postproc, 1,
+    MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Gather(&local_owner_postproc, 1, MPI_INT, all_owner_postproc, 1,
+    MPI_INT, 0, MPI_COMM_WORLD);
+  if (pid() == 0 && total_valid_postproc == 0) {
+    fprintf(stderr, "LAG_OWNER_POSTPROC_ZERO_VALID iter %d", iter);
+    for(int p=0; p<npe(); p++)
+      fprintf(stderr, " rank=%d(active=%d owner=%d)", p,
+        all_active_postproc[p], all_owner_postproc[p]);
+    fprintf(stderr, "\n");
+  }
+  if (pid() == 0) {
+    free(all_active_postproc);
+    free(all_owner_postproc);
+  }
+
   #if LAG_OWNER_POSTPROC_DEBUG
     if (pid() == 0) {
       if (iter % LAG_OWNER_POSTPROC_DEBUG_FREQ == 0) {

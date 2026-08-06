@@ -1317,6 +1317,10 @@ static inline bool local_capsule_node_is_available(int cap_id, int node_id)
   return true;
 }
 
+#if _MPI
+int distributed_capsule_has_local_fluid_support(lagMesh* mesh);
+#endif
+
 
 
 /*Repulsive lubrication nodal force*/
@@ -1336,6 +1340,10 @@ void repulsive_vel()
   for(int i = 0; i < NCAPS; i++) {
     if (CAPS(i).isactive) 
     {
+      #if _MPI && LAG_DISTRIBUTED_CAPSULES
+        if (!distributed_capsule_has_local_fluid_support(&CAPS(i)))
+          continue;
+      #endif
       lagMesh* mesh = &(CAPS(i));
 
       for(int j=0; j<mesh->nln; j++) 
@@ -1432,7 +1440,13 @@ event tracer_advection(i++) {
   /* Distribute velocity to the lagNodes */
   for(int i=0; i<NCAPS; i++) 
   {
-      if (CAPS(i).isactive) 
+      int has_local_fluid_support = true;
+      #if _MPI && LAG_DISTRIBUTED_CAPSULES
+        if (CAPS(i).isactive)
+          has_local_fluid_support =
+            distributed_capsule_has_local_fluid_support(&CAPS(i));
+      #endif
+      if (CAPS(i).isactive && has_local_fluid_support)
         eul2lag(&CAPS(i));
   }   
 
@@ -1535,6 +1549,10 @@ void lubrication_force()
   for(int i = 0; i < NCAPS; i++) {
     if (CAPS(i).isactive) 
     {
+      #if _MPI && LAG_DISTRIBUTED_CAPSULES
+        if (!distributed_capsule_has_local_fluid_support(&CAPS(i)))
+          continue;
+      #endif
       lagMesh* mesh = &(CAPS(i));
 
       for(int j=0; j<mesh->nln; j++) 
@@ -1611,7 +1629,14 @@ event acceleration (i++) {
   foreach()
     if (cm[] > 1.e-20) foreach_dimension() forcing.x[] = 0.;
   for(int i=0; i<NCAPS; i++) {
-    if (CAPS(i).isactive) lag2eul(forcing, &CAPS(i));
+    int has_local_fluid_support = true;
+    #if _MPI && LAG_DISTRIBUTED_CAPSULES
+      if (CAPS(i).isactive)
+        has_local_fluid_support =
+          distributed_capsule_has_local_fluid_support(&CAPS(i));
+    #endif
+    if (CAPS(i).isactive && has_local_fluid_support)
+      lag2eul(forcing, &CAPS(i));
   }
   foreach_face()
     if (fm.x[] > 1.e-20) ae.x[] += .5*alpha.x[]*(forcing.x[] + forcing.x[-1]);
