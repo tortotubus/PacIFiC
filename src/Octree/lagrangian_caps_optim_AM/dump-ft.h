@@ -183,7 +183,13 @@ void dump_lagmesh(FILE* fp, lagMesh* mesh) {
   fwrite(&(mesh->volume), sizeof(double), 1, fp);
   fwrite(&(mesh->circum_radius), sizeof(double), 1, fp);
   fwrite(&(mesh->taylor_deform), sizeof(double), 1, fp);
-  double initial_volume = LAG_INITIAL_VOLUME(mesh);
+  double initial_volume = 0.;
+  #if LAG_REF_GEOMETRY
+    if (mesh->ref_geometry != NULL)
+      initial_volume = LAG_INITIAL_VOLUME(mesh);
+  #else
+    initial_volume = LAG_INITIAL_VOLUME(mesh);
+  #endif
   fwrite(&initial_volume, sizeof(double), 1, fp);
   int tmp;
   tmp = mesh->updated_stretches ? 1 : 0; fwrite(&(tmp), sizeof(int), 1, fp);

@@ -28,13 +28,13 @@ viscous forces over elastic forces: $Ca = \frac{\mu a \dot{\gamma}}{E_S}$
 
 
 
-#define NCAPS 30
-#define NCAPS_L 30
+#define NCAPS 1
+#define NCAPS_L 1
 #define NCAPS_S 0
-#define VOLUME_FRACTION_L 0.1 //corresponding to radius 0.1
+#define VOLUME_FRACTION_L 0.00001 //corresponding to radius 0.1
 #define VOLUME_FRACTION_S 0.0 //corresponding to radius 0.05, R_a=a_L/a_s=2
 #define VOLUME_FRACTION (VOLUME_FRACTION_L + VOLUME_FRACTION_S)
-#define RADIUS_L (pow(NCAPS_L*3.1415926535*4/(3*VOLUME_FRACTION_L), -1./3))
+#define RADIUS_L (pow(NCAPS_L*3.1415926535*4/(3*VOLUME_FRACTION_L*6), -1./3))
 #define RADIUS_S (0)
 #define RADIUS ((pow(RADIUS_L*2., 3)*NCAPS_L + pow(RADIUS_S*2., 3)*NCAPS_S)/(pow(RADIUS_L*2., 2)*NCAPS_L + pow(RADIUS_S*2., 2)*NCAPS_S)/2.) //Sauter-Mean diameter
 
@@ -96,16 +96,16 @@ Navier-Stokes solver
   #define TEND (100./SHEAR_RATE)
 #endif
 #ifndef MINLEVEL
-  #define MINLEVEL 5
+  #define MINLEVEL 4
 #endif
 #ifndef MAXLEVEL
-  #define MAXLEVEL 5
+  #define MAXLEVEL 4
 #endif
 #ifndef LAG_LEVEL_L
-  #define LAG_LEVEL_L 3
+  #define LAG_LEVEL_L 2
 #endif
 #ifndef LAG_LEVEL_S
-  #define LAG_LEVEL_S 3
+  #define LAG_LEVEL_S 2
 #endif
 #ifndef DT_MAX
   #define DT_MAX 1.e-3
@@ -126,7 +126,7 @@ Navier-Stokes solver
   #define STOKES true
 #endif
 #define JACOBI 1
-#define PARAVIEW_CAPSULE 1
+#define PARAVIEW_CAPSULE 0
 #define PARAVIEW_FLOW_FIELD 0
 #define OUTPUT_CAPS_NODE_TRI_INFO 0
 
@@ -147,12 +147,14 @@ Navier-Stokes solver
 #ifndef LAG_OWNER_POSTPROC_DEBUG_FREQ
   #define LAG_OWNER_POSTPROC_DEBUG_FREQ OUTPUT_FREQ
 #endif
+#ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
+  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 0
+#endif
 #ifndef DEBUG_DISTRIBUTED_CAPSULE_INIT
   #define DEBUG_DISTRIBUTED_CAPSULE_INIT 0
 #endif
-#ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 1
-#endif
+#define DEBUG_DISTRIBUTED_MEMORY_AUDIT 1
+#define DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ 10000
 
 typedef struct lagMesh lagMesh;
 void ensure_distributed_spherical_capsule_template(lagMesh* mesh, int cap_id,
@@ -437,7 +439,6 @@ event init (i = 0) {
         "DEBUG_DISTRIBUTED_CAPSULE_INIT pid %d/%d active_initial=%d skipped_initial=%d all_caps=%d\n",
         pid(), npe(), ninit_local_caps, nskipped_initial_caps, NCAPS);
     #endif
-
 
 // generate the stencils around the capsules
   for(int k=0; k<NCAPS; k++)
@@ -769,27 +770,6 @@ if (pid() == 0)
     }
    }
 
-   if (tot_count != NCAPS) {
-     fprintf(stderr,
-       "LAG_OWNER_POSTPROC_POP_COUNT_MISMATCH iter %d tot_count=%d NCAPS=%d missing_caps=",
-       i, tot_count, NCAPS);
-     #if _MPI
-       for(int k = 0; k < NCAPS; k++) {
-         int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
-         if (!owner_postproc_ints[owner_ioff + 2])
-           fprintf(stderr, " %d(owner=%d,type=%d,valid=%d)",
-             k, owner_postproc_ints[owner_ioff],
-             owner_postproc_ints[owner_ioff + 1],
-             owner_postproc_ints[owner_ioff + 2]);
-       }
-     #else
-       for(int k = 0; k < NCAPS; k++)
-         if (!CAPS(k).isactive)
-           fprintf(stderr, " %d", k);
-     #endif
-     fprintf(stderr, "\n");
-     fflush(stderr);
-   }
    assert(tot_count == NCAPS && "Error pop count is different from NCAPS!\n");
  
 }
@@ -1016,26 +996,26 @@ event profiling (i += 20)
 
  /** We also output a movie frame every OUTPUT_FREQ iteration */
  // int nb_pic = 0;
- event pictures (i+=OUTPUT_FREQ) {
-   char fname[32];
-   #if _MPI && LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-     debug_owner_geometry_exchange_to_rank0_for_output(i);
-   #endif
-   view(fov = 20, bg = {1,1,1}, camera = "front");
-   clear();
-   // cells(n = {0,0,1}, alpha = -.49*L0);
-   cells(n = {0,0,1});
-   //squares("I", n = {0,0,1}, min=-.5, max=1.5);
-   //squares("mu.x", n = {0,0,1}, min=1., max=5.);
-   // squares("u.x", n = {0,0,1}, alpha = -.49*L0, map = cool_warm);
-   draw_lags((_draw_lag){.lw = .5, .edges = true, .facets = true});
-   sprintf(fname, "ux_%d.png", nb_pic);
-   save(fname);
-   #if _MPI && LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-     debug_apply_soft_capsule_lifecycle(i);
-   #endif
-   nb_pic++;
- }
+//  event pictures (i+=OUTPUT_FREQ) {
+//    char fname[32];
+//    #if _MPI && LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
+//      debug_owner_geometry_exchange_to_rank0_for_output(i);
+//    #endif
+//    view(fov = 20, bg = {1,1,1}, camera = "front");
+//    clear();
+//    // cells(n = {0,0,1}, alpha = -.49*L0);
+//    cells(n = {0,0,1});
+//    //squares("I", n = {0,0,1}, min=-.5, max=1.5);
+//    //squares("mu.x", n = {0,0,1}, min=1., max=5.);
+//    // squares("u.x", n = {0,0,1}, alpha = -.49*L0, map = cool_warm);
+//    draw_lags((_draw_lag){.lw = .5, .edges = true, .facets = true});
+//    sprintf(fname, "ux_%d.png", nb_pic);
+//    save(fname);
+//    #if _MPI && LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
+//      debug_apply_soft_capsule_lifecycle(i);
+//    #endif
+//    nb_pic++;
+//  }
 
 event end (t = TEND) {
   fclose(foutput);

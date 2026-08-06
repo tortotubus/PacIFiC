@@ -83,6 +83,12 @@ int* debug_capsule_advected_on_this_rank = NULL;
 #ifndef DEBUG_DRAW_SOFT_INACTIVE_CAPS
   #define DEBUG_DRAW_SOFT_INACTIVE_CAPS 1
 #endif
+#ifndef DEBUG_DISTRIBUTED_MEMORY_AUDIT
+  #define DEBUG_DISTRIBUTED_MEMORY_AUDIT 0
+#endif
+#ifndef DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ
+  #define DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ DEBUG_AABB_FREQ
+#endif
 
 #ifndef LAG_DISTRIBUTED_CAPSULES
   #define LAG_DISTRIBUTED_CAPSULES DEBUG_APPLY_SPARSE_OWNER_LAGVEL
@@ -98,6 +104,10 @@ int* debug_capsule_advected_on_this_rank = NULL;
 #endif
 #ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
   #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 DEBUG_OUTPUT_OWNER_GEOM_TO_RANK0
+#endif
+#ifndef LAG_DISTRIBUTED_ENSURE_RECEIVED_CAPSULE_TEMPLATE
+  #define LAG_DISTRIBUTED_ENSURE_RECEIVED_CAPSULE_TEMPLATE(mesh, cap_id, \
+    cap_type, nln, nle, nlt, cap_es, cap_radius) ((void) 0)
 #endif
 
 #if _MPI
@@ -179,6 +189,198 @@ void distributed_mark_capsule_advected(int cap)
 {
   debug_capsule_advected_on_this_rank[cap] = true;
 }
+
+#if DEBUG_DISTRIBUTED_MEMORY_AUDIT
+size_t debug_lagmesh_current_storage_bytes(lagMesh* mesh)
+{
+  if (!mesh->isactive || mesh->nodes == NULL)
+    return 0;
+
+  size_t bytes = sizeof(lagMesh);
+  bytes += mesh->nln*sizeof(lagNode);
+  bytes += mesh->nle*sizeof(Edge);
+  #if dimension > 2
+    bytes += mesh->nlt*sizeof(Triangle);
+  #endif
+  bytes += mesh->nln*STENCIL_SIZE*sizeof(Index);
+  bytes += mesh->nln*sizeof(Index);
+  return bytes;
+}
+
+size_t debug_lag_topology_storage_bytes(lagTopology* topology)
+{
+  if (!topology)
+    return 0;
+
+  size_t bytes = sizeof(lagTopology);
+  bytes += topology->nle*sizeof(int[2]);
+  #if dimension < 3
+    bytes += topology->nln*sizeof(int[2]);
+  #else
+    bytes += topology->nln*sizeof(int);
+    bytes += topology->nln*sizeof(int[6]);
+    bytes += topology->nln*sizeof(int[6]);
+    bytes += topology->nln*sizeof(int);
+    bytes += topology->nln*sizeof(int[6]);
+    bytes += topology->nle*sizeof(int[2]);
+    bytes += topology->nlt*sizeof(int[3]);
+    bytes += topology->nlt*sizeof(int[3]);
+  #endif
+  return bytes;
+}
+
+size_t debug_lag_ref_geometry_storage_bytes(lagReferenceGeometry* ref)
+{
+  if (!ref)
+    return 0;
+
+  size_t bytes = sizeof(lagReferenceGeometry);
+  bytes += ref->nle*sizeof(double);
+  #if dimension > 2
+    bytes += ref->nlt*sizeof(coord[2]);
+    bytes += ref->nlt*sizeof(double[3][2]);
+  #endif
+  return bytes;
+}
+
+size_t debug_distributed_mpi_buffer_bytes()
+{
+  size_t bytes = 0;
+  if (all_proc_min) {
+    bytes += 2*npe()*sizeof(coord);
+    bytes += npe()*sizeof(int);
+    bytes += (npe() + 1)*sizeof(int);
+    bytes += 24*npe()*sizeof(int);
+    bytes += NCAPS*sizeof(int);
+  }
+  if (proc_cap_ids)
+    bytes += proc_cap_ids_nm*sizeof(int);
+
+  int owner_to_ghost_ints = 0, owner_to_ghost_doubles = 0;
+  int owner_to_ghost_recv_ints = 0, owner_to_ghost_recv_doubles = 0;
+  int ghost_to_owner_ints = 0, ghost_to_owner_doubles = 0;
+  int ghost_to_owner_recv_ints = 0, ghost_to_owner_recv_doubles = 0;
+  if (owner_to_ghost_send_int_counts)
+    for(int p=0; p<npe(); p++) {
+      owner_to_ghost_ints += owner_to_ghost_send_int_counts[p];
+      owner_to_ghost_doubles += owner_to_ghost_send_double_counts[p];
+      owner_to_ghost_recv_ints += owner_to_ghost_recv_int_counts[p];
+      owner_to_ghost_recv_doubles += owner_to_ghost_recv_double_counts[p];
+      ghost_to_owner_ints += ghost_to_owner_send_int_counts[p];
+      ghost_to_owner_doubles += ghost_to_owner_send_double_counts[p];
+      ghost_to_owner_recv_ints += ghost_to_owner_recv_int_counts[p];
+      ghost_to_owner_recv_doubles += ghost_to_owner_recv_double_counts[p];
+    }
+
+  bytes += (owner_to_ghost_ints + owner_to_ghost_recv_ints +
+    ghost_to_owner_ints + ghost_to_owner_recv_ints)*sizeof(int);
+  bytes += (owner_to_ghost_doubles + owner_to_ghost_recv_doubles +
+    ghost_to_owner_doubles + ghost_to_owner_recv_doubles)*sizeof(double);
+  return bytes;
+}
+
+void debug_print_distributed_memory_audit(int iter)
+{
+  if (iter % DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ != 0)
+    return;
+
+  compute_proc_borders(&proc_max, &proc_min);
+  debug_ensure_mpi_routing_arrays();
+  gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+  int nactive = 0, nowner = 0, nghost = 0, ninactive = 0;
+  int nfreed_storage = 0;
+  size_t current_bytes = 0;
+  size_t snapshot_bytes = 0;
+
+  for(int cap=0; cap<NCAPS; cap++) {
+    if (!CAPS(cap).isactive) {
+      ninactive++;
+      if (CAPS(cap).nodes == NULL && CAPS(cap).edges == NULL)
+        nfreed_storage++;
+      continue;
+    }
+    nactive++;
+    int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+      all_proc_min, all_proc_max);
+    if (owner_proc == pid())
+      nowner++;
+    else
+      nghost++;
+    current_bytes += debug_lagmesh_current_storage_bytes(&CAPS(cap));
+  }
+
+  if (debug_pre_reduce_lagVel) {
+    snapshot_bytes += NCAPS*(sizeof(coord*) + sizeof(int));
+    for(int cap=0; cap<NCAPS; cap++)
+      snapshot_bytes += debug_pre_reduce_lagVel_nln[cap]*sizeof(coord);
+  }
+  if (debug_pre_advect_pos) {
+    snapshot_bytes += NCAPS*(sizeof(coord*) + sizeof(int));
+    for(int cap=0; cap<NCAPS; cap++)
+      snapshot_bytes += debug_pre_advect_pos_nln[cap]*sizeof(coord);
+  }
+
+  size_t topology_bytes = 0;
+  for(int i=0; i<lag_topologies.n; i++)
+    topology_bytes += debug_lag_topology_storage_bytes(lag_topologies.items[i]);
+
+  size_t ref_bytes = 0;
+  for(int i=0; i<lag_ref_geometries.n; i++)
+    ref_bytes += debug_lag_ref_geometry_storage_bytes(lag_ref_geometries.items[i]);
+
+  size_t mpi_bytes = debug_distributed_mpi_buffer_bytes();
+
+  unsigned long long local[12] = {
+    (unsigned long long)nactive,
+    (unsigned long long)nowner,
+    (unsigned long long)nghost,
+    (unsigned long long)ninactive,
+    (unsigned long long)nfreed_storage,
+    (unsigned long long)current_bytes,
+    (unsigned long long)topology_bytes,
+    (unsigned long long)ref_bytes,
+    (unsigned long long)snapshot_bytes,
+    (unsigned long long)mpi_bytes,
+    (unsigned long long)lag_topologies.n,
+    (unsigned long long)lag_ref_geometries.n
+  };
+
+  unsigned long long* all = NULL;
+  if (pid() == 0) {
+    all = (unsigned long long*)malloc(npe()*12*sizeof(unsigned long long));
+    assert(all);
+  }
+  MPI_Gather(local, 12, MPI_UNSIGNED_LONG_LONG, all, 12,
+    MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
+
+  if (pid() == 0) {
+    unsigned long long totals[12] = {0};
+    fprintf(stderr, "DEBUG_DISTRIBUTED_MEMORY_AUDIT iter %d npe %d\n",
+      iter, npe());
+    for(int p=0; p<npe(); p++) {
+      unsigned long long* row = &all[12*p];
+      for(int j=0; j<12; j++)
+        totals[j] += row[j];
+      fprintf(stderr,
+        "DEBUG_DISTRIBUTED_MEMORY_AUDIT iter %d rank %d active=%llu owner=%llu ghost=%llu inactive=%llu freed_storage=%llu current_bytes=%llu topology_bytes=%llu ref_bytes=%llu snapshot_bytes=%llu mpi_bytes=%llu ntopologies=%llu nrefs=%llu\n",
+        iter, p, row[0], row[1], row[2], row[3], row[4], row[5],
+        row[6], row[7], row[8], row[9], row[10], row[11]);
+    }
+    fprintf(stderr,
+      "DEBUG_DISTRIBUTED_MEMORY_AUDIT_TOTAL iter %d active=%llu owner=%llu ghost=%llu inactive=%llu freed_storage=%llu current_bytes=%llu topology_bytes=%llu ref_bytes=%llu snapshot_bytes=%llu mpi_bytes=%llu ntopologies=%llu nrefs=%llu\n",
+      iter, totals[0], totals[1], totals[2], totals[3], totals[4],
+      totals[5], totals[6], totals[7], totals[8], totals[9],
+      totals[10], totals[11]);
+    free(all);
+  }
+}
+#else
+void debug_print_distributed_memory_audit(int iter)
+{
+  (void) iter;
+}
+#endif
 
 void debug_store_pre_advect_pos(int iter)
 {
@@ -831,8 +1033,11 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
     recv_centroid.x = double_data[(*double_pos)++];
 
   int can_update = local_cap >= 0;
-  if (can_update)
+  if (can_update) {
+    LAG_DISTRIBUTED_ENSURE_RECEIVED_CAPSULE_TEMPLATE(&CAPS(local_cap),
+      cap_id, cap_type, nln, nle, nlt, cap_es, cap_radius);
     ensure_lagMesh_current_storage(&CAPS(local_cap), nln, nle, nlt);
+  }
 
   can_update = can_update &&
     CAPS(local_cap).nln == nln && CAPS(local_cap).nle == nle &&
@@ -1240,6 +1445,7 @@ void distributed_lifecycle_after_advection(int iter)
   debug_capsule_lifecycle_dryrun(iter);
   debug_apply_soft_capsule_lifecycle(iter);
   debug_print_local_capsule_lifecycle_counts(iter);
+  debug_print_distributed_memory_audit(iter);
 }
 #endif
 
