@@ -57,7 +57,7 @@ int* debug_capsule_advected_on_this_rank = NULL;
   #define DEBUG_AABB 0
 #endif
 #ifndef DEBUG_AABB_FREQ
-  #define DEBUG_AABB_FREQ 1
+  #define DEBUG_AABB_FREQ 10000
 #endif
 #ifndef DEBUG_APPLY_SPARSE_OWNER_LAGVEL
   #define DEBUG_APPLY_SPARSE_OWNER_LAGVEL 0
@@ -72,13 +72,19 @@ int* debug_capsule_advected_on_this_rank = NULL;
   #define DEBUG_OUTPUT_OWNER_GEOM_TO_RANK0 0
 #endif
 #ifndef DEBUG_CAPSULE_LIFECYCLE_DRYRUN
-  #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 1
+  #define DEBUG_CAPSULE_LIFECYCLE_DRYRUN 0
 #endif
 #ifndef DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
   #define DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE 0
 #endif
 #ifndef DEBUG_FREE_INACTIVE_CAPSULE_STORAGE
   #define DEBUG_FREE_INACTIVE_CAPSULE_STORAGE 0
+#endif
+#ifndef DEBUG_SOFT_CAPSULE_LIFECYCLE
+  #define DEBUG_SOFT_CAPSULE_LIFECYCLE 0
+#endif
+#ifndef DEBUG_DISTRIBUTED_GEOMETRY_EXCHANGE
+  #define DEBUG_DISTRIBUTED_GEOMETRY_EXCHANGE 0
 #endif
 #ifndef DEBUG_DRAW_SOFT_INACTIVE_CAPS
   #define DEBUG_DRAW_SOFT_INACTIVE_CAPS 1
@@ -95,21 +101,27 @@ int* debug_capsule_advected_on_this_rank = NULL;
 #ifndef DEBUG_LUBRICATION_PAIR_ROUTING_FREQ
   #define DEBUG_LUBRICATION_PAIR_ROUTING_FREQ DEBUG_AABB_FREQ
 #endif
+#ifndef DEBUG_SPARSE_OWNER_LAGVEL_ACCUM
+  #define DEBUG_SPARSE_OWNER_LAGVEL_ACCUM 0
+#endif
 
 #ifndef LAG_DISTRIBUTED_CAPSULES
   #define LAG_DISTRIBUTED_CAPSULES DEBUG_APPLY_SPARSE_OWNER_LAGVEL
 #endif
+#ifndef LAG_DISTRIBUTED_INITIAL_PLACEMENT
+  #define LAG_DISTRIBUTED_INITIAL_PLACEMENT LAG_DISTRIBUTED_CAPSULES
+#endif
 #ifndef LAG_DISTRIBUTED_OWNER_ADVECTION
-  #define LAG_DISTRIBUTED_OWNER_ADVECTION DEBUG_OWNER_ONLY_ADVECTION
+  #define LAG_DISTRIBUTED_OWNER_ADVECTION LAG_DISTRIBUTED_CAPSULES
 #endif
 #ifndef LAG_DISTRIBUTED_SOFT_LIFECYCLE
-  #define LAG_DISTRIBUTED_SOFT_LIFECYCLE DEBUG_APPLY_SOFT_CAPSULE_LIFECYCLE
+  #define LAG_DISTRIBUTED_SOFT_LIFECYCLE LAG_DISTRIBUTED_CAPSULES
 #endif
 #ifndef LAG_DISTRIBUTED_FREE_INACTIVE
-  #define LAG_DISTRIBUTED_FREE_INACTIVE DEBUG_FREE_INACTIVE_CAPSULE_STORAGE
+  #define LAG_DISTRIBUTED_FREE_INACTIVE LAG_DISTRIBUTED_CAPSULES
 #endif
 #ifndef LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
-  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 DEBUG_OUTPUT_OWNER_GEOM_TO_RANK0
+  #define LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0 LAG_DISTRIBUTED_CAPSULES
 #endif
 #ifndef LAG_DISTRIBUTED_ENSURE_RECEIVED_CAPSULE_TEMPLATE
   #define LAG_DISTRIBUTED_ENSURE_RECEIVED_CAPSULE_TEMPLATE(mesh, cap_id, \
@@ -939,7 +951,7 @@ void debug_sparse_owner_lagVel_exchange_before_advection(int iter)
 
   debug_sparse_owner_lagVel_from_recv_payloads(iter,
     total_ghost_to_owner_recv_caps, false,
-    iter % DEBUG_AABB_FREQ == 0);
+    DEBUG_SPARSE_OWNER_LAGVEL_ACCUM && iter % DEBUG_AABB_FREQ == 0);
 }
 
 void debug_owner_advection_dryrun(int iter)
@@ -1051,7 +1063,8 @@ void debug_apply_soft_capsule_lifecycle(int iter)
     gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
 
     int ndeactivated = 0;
-    int print_debug = iter % DEBUG_AABB_FREQ == 0;
+    int print_debug = DEBUG_SOFT_CAPSULE_LIFECYCLE &&
+      iter % DEBUG_AABB_FREQ == 0;
     if (print_debug)
       fprintf(stderr,
         "DEBUG_SOFT_CAPSULE_LIFECYCLE_APPLY pid %d/%d iter %d deactivate=",
@@ -1086,6 +1099,8 @@ void debug_apply_soft_capsule_lifecycle(int iter)
 void debug_print_local_capsule_lifecycle_counts(int iter)
 {
   #if LAG_DISTRIBUTED_SOFT_LIFECYCLE
+    if (!DEBUG_SOFT_CAPSULE_LIFECYCLE)
+      return;
     if (iter % DEBUG_AABB_FREQ != 0)
       return;
 
@@ -1206,7 +1221,8 @@ void debug_update_local_capsule_from_owner_payload(int* int_data, int* int_pos,
     CAPS(local_cap).updated_curvatures = false;
     comp_capsule_geodynamics(&CAPS(local_cap));
     #if LAG_DISTRIBUTED_SOFT_LIFECYCLE
-      if (!was_active && iter % DEBUG_AABB_FREQ == 0)
+      if (DEBUG_SOFT_CAPSULE_LIFECYCLE && !was_active &&
+        iter % DEBUG_AABB_FREQ == 0)
         fprintf(stderr,
           "DEBUG_SOFT_CAPSULE_LIFECYCLE_REACTIVATE pid %d/%d cap=%d local_index=%d\n",
           pid(), npe(), cap_id, local_cap);
@@ -1372,7 +1388,8 @@ void debug_owner_to_ghost_geometry_exchange_after_advection(int iter)
         owner_to_ghost_recv_double_buffer, &double_pos, iter);
   }
 
-  if (iter % DEBUG_AABB_FREQ == 0) {
+  if (DEBUG_DISTRIBUTED_GEOMETRY_EXCHANGE &&
+    iter % DEBUG_AABB_FREQ == 0) {
     fprintf(stderr,
       "DEBUG_OWNER_TO_GHOST_GEOM_APPLY pid %d/%d iter %d recv_caps=%d\n",
       pid(), npe(), iter, total_owner_to_ghost_recv_caps);
@@ -1491,7 +1508,8 @@ void debug_owner_geometry_exchange_to_rank0_for_output(int iter)
           debug_update_local_capsule_from_owner_payload(recv_int_buffer,
             &int_pos, recv_double_buffer, &double_pos, iter);
       }
-      if (iter % DEBUG_AABB_FREQ == 0) {
+      if (DEBUG_DISTRIBUTED_GEOMETRY_EXCHANGE &&
+        iter % DEBUG_AABB_FREQ == 0) {
         int total_bytes = total_recv_ints*((int) sizeof(int)) +
           total_recv_doubles*((int) sizeof(double));
         fprintf(stderr,

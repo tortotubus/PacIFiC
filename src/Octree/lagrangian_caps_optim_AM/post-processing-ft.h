@@ -932,6 +932,16 @@ void output_bidispse_physics(int N_pops, int iter) {
 
   double fluid_visc_stress = (top_visc_stress + bottom_visc_stress) / 2.;
 
+  #if _MPI
+    int* owner_postproc_ints =
+      (int*)malloc(NCAPS*LAG_OWNER_POSTPROC_NINTS*sizeof(int));
+    double* owner_postproc_doubles =
+      (double*)calloc(NCAPS*LAG_OWNER_POSTPROC_NDOUBLES, sizeof(double));
+    assert(owner_postproc_ints);
+    assert(owner_postproc_doubles);
+    lag_gather_owner_postproc(iter, owner_postproc_ints,
+      owner_postproc_doubles);
+  #endif
 
 ////////////////////////////////////// Particle Stresslet
 
@@ -945,6 +955,17 @@ void output_bidispse_physics(int N_pops, int iter) {
 
   for(int k = 0; k < NCAPS; k++)
   {
+    #if _MPI
+      if (!CAPS(k).isactive)
+        continue;
+      int stress_owner_proc = find_capsule_owner_proc(&CAPS(k),
+        all_proc_min, all_proc_max);
+      if (stress_owner_proc != pid())
+        continue;
+    #else
+      if (!CAPS(k).isactive)
+        continue;
+    #endif
 
     double sigmaxy = 0.;
     double sigmaxx = 0.;
@@ -1001,7 +1022,13 @@ void output_bidispse_physics(int N_pops, int iter) {
   ppres = 0.;
  }
 
- MPI_Reduce(send_stress_pack, recv_stress_pack, 4*NCAPS, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+ #if _MPI
+   MPI_Reduce(send_stress_pack, recv_stress_pack, 4*NCAPS, MPI_DOUBLE,
+     MPI_SUM, 0, MPI_COMM_WORLD);
+ #else
+   for(int q=0; q<4*NCAPS; q++)
+     recv_stress_pack[q] = send_stress_pack[q];
+ #endif
 
 
 int* pop_count = (int*)calloc(N_pops, sizeof(int));
@@ -1023,7 +1050,15 @@ ppres = 0.;
    {
     for (int j = 0; j < N_pops; j++)
     { 
-      if(CAPS(k).cap_type == j)
+      #if _MPI
+        int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+        int cap_valid = owner_postproc_ints[owner_ioff + 2];
+        int cap_type = owner_postproc_ints[owner_ioff + 1];
+      #else
+        int cap_valid = CAPS(k).isactive;
+        int cap_type = CAPS(k).cap_type;
+      #endif
+      if(cap_valid && cap_type == j)
       {
         pN1_p[j] += recv_stress_pack[k*4];
         pN2_p[j] += recv_stress_pack[k*4 + 1];
@@ -1035,6 +1070,27 @@ ppres = 0.;
     }
    }
 
+   if (tot_count != NCAPS) {
+     fprintf(stderr,
+       "LAG_OWNER_POSTPROC_POP_COUNT_MISMATCH iter %d tot_count=%d NCAPS=%d missing_caps=",
+       iter, tot_count, NCAPS);
+     #if _MPI
+       for(int k = 0; k < NCAPS; k++) {
+         int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+         if (!owner_postproc_ints[owner_ioff + 2])
+           fprintf(stderr, " %d(owner=%d,type=%d,valid=%d)",
+             k, owner_postproc_ints[owner_ioff],
+             owner_postproc_ints[owner_ioff + 1],
+             owner_postproc_ints[owner_ioff + 2]);
+       }
+     #else
+       for(int k = 0; k < NCAPS; k++)
+         if (!CAPS(k).isactive)
+           fprintf(stderr, " %d", k);
+     #endif
+     fprintf(stderr, "\n");
+     fflush(stderr);
+   }
    assert(tot_count == NCAPS && "Error pop count is different from NCAPS!\n");
  
 }
@@ -1047,14 +1103,27 @@ free(recv_stress_pack);
   {
     if (pid() == 0) 
     {
+      if (pop_count[pop_type] == 0)
+        continue;
+
       double avg_ncaps_area = 0;
       double avg_ncaps_volume = 0;
       for(int k = 0; k < NCAPS; k++) {
-        if(CAPS(k).cap_type == pop_type)
-        {
-          avg_ncaps_volume += CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
-          for(int i=0; i<CAPS(k).nlt; i++) avg_ncaps_area += CAPS(k).triangles[i].area/(4*pi*sq(CAPS(k).cap_radius));
-        }
+        #if _MPI
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+          if(owner_postproc_ints[owner_ioff + 2] &&
+            owner_postproc_ints[owner_ioff + 1] == pop_type) {
+            avg_ncaps_volume += owner_postproc_doubles[owner_doff + 4];
+            avg_ncaps_area += owner_postproc_doubles[owner_doff + 3];
+          }
+        #else
+          if(CAPS(k).cap_type == pop_type)
+          {
+            avg_ncaps_volume += CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
+            for(int i=0; i<CAPS(k).nlt; i++) avg_ncaps_area += CAPS(k).triangles[i].area/(4*pi*sq(CAPS(k).cap_radius));
+          }
+        #endif
       }
       
       avg_ncaps_area /= pop_count[pop_type];
@@ -1063,26 +1132,44 @@ free(recv_stress_pack);
     /*Compute average Taylor deformation and angular velocity*/
       double avg_TDmaxmin = 0;
       double avg_TDang = 0;
-      double TDmaxmin = 0;
-      double TDang = 0;
       double avg_taylor_deform = 0;
       double avg_inclin_angle = 0;
-      double taylor_deform = 0;
-      double inclin_angle = 0;
       double avg_ang_vel = 0;
       coord avg_rs = {0., 0., 0.};
-      coord rs = {0., 0., 0.};
+      #if !_MPI
+        double TDmaxmin = 0;
+        double TDang = 0;
+        double taylor_deform = 0;
+        double inclin_angle = 0;
+        coord rs = {0., 0., 0.};
+      #endif
       for(int k=0; k<NCAPS; k++) {
-        if(CAPS(k).cap_type == pop_type)
-        {
-          compute_taylor_factor(&CAPS(k), &taylor_deform, &inclin_angle, &rs, &TDmaxmin, &TDang);
-          foreach_dimension() avg_rs.x += rs.x/CAPS(k).cap_radius; 
-          avg_TDmaxmin += TDmaxmin;
-          avg_TDang += TDang;
-          avg_taylor_deform += taylor_deform;
-          avg_inclin_angle += inclin_angle;
-          avg_ang_vel += CAPS(k).ang_vel.z;
-        }
+        #if _MPI
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+          if(owner_postproc_ints[owner_ioff + 2] &&
+            owner_postproc_ints[owner_ioff + 1] == pop_type) {
+            avg_taylor_deform += owner_postproc_doubles[owner_doff + 5];
+            avg_inclin_angle += owner_postproc_doubles[owner_doff + 6];
+            avg_TDmaxmin += owner_postproc_doubles[owner_doff + 7];
+            avg_TDang += owner_postproc_doubles[owner_doff + 8];
+            avg_rs.x += owner_postproc_doubles[owner_doff + 9];
+            avg_rs.y += owner_postproc_doubles[owner_doff + 10];
+            avg_rs.z += owner_postproc_doubles[owner_doff + 11];
+            avg_ang_vel += owner_postproc_doubles[owner_doff + 14];
+          }
+        #else
+          if(CAPS(k).cap_type == pop_type)
+          {
+            compute_taylor_factor(&CAPS(k), &taylor_deform, &inclin_angle, &rs, &TDmaxmin, &TDang);
+            foreach_dimension() avg_rs.x += rs.x/CAPS(k).cap_radius;
+            avg_TDmaxmin += TDmaxmin;
+            avg_TDang += TDang;
+            avg_taylor_deform += taylor_deform;
+            avg_inclin_angle += inclin_angle;
+            avg_ang_vel += CAPS(k).ang_vel.z;
+          }
+        #endif
       }
       
       foreach_dimension() avg_rs.x /= pop_count[pop_type]; 
@@ -1123,8 +1210,17 @@ free(recv_stress_pack);
       double avg_ncaps_area = 0;
       double avg_ncaps_volume = 0;
       for(int k = 0; k < NCAPS; k++) {
+        #if _MPI
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+          if(owner_postproc_ints[owner_ioff + 2]) {
+            avg_ncaps_volume += owner_postproc_doubles[owner_doff + 4];
+            avg_ncaps_area += owner_postproc_doubles[owner_doff + 3];
+          }
+        #else
           avg_ncaps_volume += CAPS(k).volume/LAG_INITIAL_VOLUME(&CAPS(k));
           for(int i=0; i<CAPS(k).nlt; i++) avg_ncaps_area += CAPS(k).triangles[i].area/(4*pi*sq(CAPS(k).cap_radius));
+        #endif
       }
       
       avg_ncaps_area /= NCAPS;
@@ -1133,16 +1229,32 @@ free(recv_stress_pack);
     /*Compute average Taylor deformation and angular velocity*/
       double avg_TDmaxmin = 0;
       double avg_TDang = 0;
-      double TDmaxmin = 0;
-      double TDang = 0;
       double avg_taylor_deform = 0;
       double avg_inclin_angle = 0;
-      double taylor_deform = 0;
-      double inclin_angle = 0;
       double avg_ang_vel = 0;
       coord avg_rs = {0., 0., 0.};
-      coord rs = {0., 0., 0.};
+      #if !_MPI
+        double TDmaxmin = 0;
+        double TDang = 0;
+        double taylor_deform = 0;
+        double inclin_angle = 0;
+        coord rs = {0., 0., 0.};
+      #endif
       for(int k=0; k<NCAPS; k++) {
+        #if _MPI
+          int owner_ioff = k*LAG_OWNER_POSTPROC_NINTS;
+          int owner_doff = k*LAG_OWNER_POSTPROC_NDOUBLES;
+          if(owner_postproc_ints[owner_ioff + 2]) {
+            avg_taylor_deform += owner_postproc_doubles[owner_doff + 5];
+            avg_inclin_angle += owner_postproc_doubles[owner_doff + 6];
+            avg_TDmaxmin += owner_postproc_doubles[owner_doff + 7];
+            avg_TDang += owner_postproc_doubles[owner_doff + 8];
+            avg_rs.x += owner_postproc_doubles[owner_doff + 9];
+            avg_rs.y += owner_postproc_doubles[owner_doff + 10];
+            avg_rs.z += owner_postproc_doubles[owner_doff + 11];
+            avg_ang_vel += owner_postproc_doubles[owner_doff + 14];
+          }
+        #else
           compute_taylor_factor(&CAPS(k), &taylor_deform, &inclin_angle, &rs, &TDmaxmin, &TDang);
           foreach_dimension() avg_rs.x += rs.x/CAPS(k).cap_radius; 
           avg_TDmaxmin += TDmaxmin;
@@ -1150,6 +1262,7 @@ free(recv_stress_pack);
           avg_taylor_deform += taylor_deform;
           avg_inclin_angle += inclin_angle;
           avg_ang_vel += CAPS(k).ang_vel.z;
+        #endif
       }
       
       foreach_dimension() avg_rs.x /= NCAPS; 
@@ -1183,6 +1296,10 @@ free(recv_stress_pack);
  
 
 
+#if _MPI
+free(owner_postproc_ints);
+free(owner_postproc_doubles);
+#endif
 free(pop_count);
 free(pN1_p);
 free(pN2_p);
