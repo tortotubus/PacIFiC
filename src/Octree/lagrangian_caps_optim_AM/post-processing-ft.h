@@ -666,6 +666,82 @@ bool file_exists(const char *filename)
     return is_exist;
 }
 
+void lag_truncate_text_file_after_first_int(const char* filename, int max_iter)
+{
+  if (pid() != 0 || max_iter < 0 || !file_exists(filename))
+    return;
+
+  char tmp_name[512];
+  snprintf(tmp_name, sizeof(tmp_name), "%s.restart_tmp", filename);
+  FILE* in = fopen(filename, "r");
+  FILE* out = fopen(tmp_name, "w");
+  assert(in);
+  assert(out);
+
+  char line[4096];
+  while (fgets(line, sizeof(line), in)) {
+    int iter;
+    if (sscanf(line, "%d", &iter) == 1) {
+      if (iter <= max_iter)
+        fputs(line, out);
+    }
+    else
+      fputs(line, out);
+  }
+
+  fclose(in);
+  fclose(out);
+  rename(tmp_name, filename);
+}
+
+void lag_truncate_text_file_after_first_double(const char* filename,
+  double max_time)
+{
+  if (pid() != 0 || max_time < 0. || !file_exists(filename))
+    return;
+
+  char tmp_name[512];
+  snprintf(tmp_name, sizeof(tmp_name), "%s.restart_tmp", filename);
+  FILE* in = fopen(filename, "r");
+  FILE* out = fopen(tmp_name, "w");
+  assert(in);
+  assert(out);
+
+  char line[4096];
+  while (fgets(line, sizeof(line), in)) {
+    double time_value;
+    if (sscanf(line, "%lf", &time_value) == 1) {
+      if (time_value <= max_time)
+        fputs(line, out);
+    }
+    else
+      fputs(line, out);
+  }
+
+  fclose(in);
+  fclose(out);
+  rename(tmp_name, filename);
+}
+
+void lag_truncate_suspension_outputs_after_restart(int restart_iter,
+  double restart_time, int n_pops)
+{
+  lag_truncate_text_file_after_first_int("output.txt", restart_iter);
+  lag_truncate_text_file_after_first_double("velocity.txt", restart_time);
+  lag_truncate_text_file_after_first_int("output_fluc.txt", restart_iter);
+
+  for(int pop_type=0; pop_type<n_pops; pop_type++) {
+    char name[512];
+    snprintf(name, sizeof(name), "%s/Individual_outputs_cap%d.txt",
+      result_dir, pop_type);
+    lag_truncate_text_file_after_first_int(name, restart_iter);
+  }
+
+  #if _MPI
+    MPI_Barrier(MPI_COMM_WORLD);
+  #endif
+}
+
 //----------------------------------------------------------------------------
 int reinitialize_restart( void )
 //----------------------------------------------------------------------------

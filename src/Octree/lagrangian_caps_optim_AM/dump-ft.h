@@ -250,6 +250,10 @@ struct _dump_capsules {
 };
 
 void dump_capsules(const char* fname, FILE* fp) {
+    #if _MPI && LAG_DISTRIBUTED_CAPSULES && LAG_DISTRIBUTED_OUTPUT_GATHER_RANK0
+      if (pid() != 0)
+        return;
+    #endif
     const char default_name[10] = "caps.dump\0";
     const char* name = fname ? fname : default_name;
     FILE* file = fp ? fp : fopen(name, "w");
