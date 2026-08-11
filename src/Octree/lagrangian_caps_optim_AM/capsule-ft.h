@@ -1375,6 +1375,9 @@ void repulsive_vel()
                     int check_node = (int)Index_lag_id.x[];
                     if (!local_capsule_node_is_available(check_cap, check_node))
                       continue;
+                    if (!lagmesh_bounding_spheres_intersect(mesh,
+                      &CAPS(check_cap)))
+                      continue;
 
                     coord checkpt = {0};
                     checkpt.x = CAPS(check_cap).nodes[check_node].pos.x;
@@ -1403,6 +1406,9 @@ void repulsive_vel()
               int check_cap = (int)Index_lag_id.y[];
               int check_node = (int)Index_lag_id.z[];
               if (!local_capsule_node_is_available(check_cap, check_node))
+                continue;
+              if (!lagmesh_bounding_spheres_intersect(mesh,
+                &CAPS(check_cap)))
                 continue;
 
               coord checkpt = {0};
@@ -1583,6 +1589,9 @@ void lubrication_force()
                     int check_cap = (int)Index_lagnode[];
                     int check_node = (int)Index_lag_id.x[];
                     if (!local_capsule_node_is_available(check_cap, check_node))
+                      continue;
+                    if (!lagmesh_bounding_spheres_intersect(mesh,
+                      &CAPS(check_cap)))
                       continue;
 
                     coord checkpt = {0};

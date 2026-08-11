@@ -467,6 +467,43 @@ bool lagmesh_bounding_sphere_intersects_box(lagMesh* mesh, coord box_min, coord 
     box_min, box_max);
 }
 
+double periodic_point_distance2(coord a, coord b)
+{
+  double d2 = 0.;
+  coord domain_length = {
+    L0*L0_ratio.x,
+    L0*L0_ratio.y,
+    L0*L0_ratio.z
+  };
+
+  foreach_dimension()
+  {
+    double d = a.x - b.x;
+    if (Period.x) {
+      if (d > 0.5*domain_length.x)
+        d -= domain_length.x;
+      else if (d < -0.5*domain_length.x)
+        d += domain_length.x;
+    }
+    d2 += sq(d);
+  }
+
+  return d2;
+}
+
+bool bounding_spheres_intersect(coord a_center, double a_radius,
+  coord b_center, double b_radius)
+{
+  return periodic_point_distance2(a_center, b_center) <=
+    sq(a_radius + b_radius);
+}
+
+bool lagmesh_bounding_spheres_intersect(lagMesh* a, lagMesh* b)
+{
+  return bounding_spheres_intersect(a->centroid, a->circum_radius,
+    b->centroid, b->circum_radius);
+}
+
 bool is_capsule_in_boundingbox(coord proc_max, coord proc_min, lagMesh* mesh) 
 {
   return lagmesh_bounding_sphere_intersects_box(mesh, proc_min, proc_max);
