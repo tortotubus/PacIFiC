@@ -89,6 +89,12 @@ int* debug_capsule_advected_on_this_rank = NULL;
 #ifndef DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ
   #define DEBUG_DISTRIBUTED_MEMORY_AUDIT_FREQ DEBUG_AABB_FREQ
 #endif
+#ifndef DEBUG_LUBRICATION_PAIR_ROUTING
+  #define DEBUG_LUBRICATION_PAIR_ROUTING 0
+#endif
+#ifndef DEBUG_LUBRICATION_PAIR_ROUTING_FREQ
+  #define DEBUG_LUBRICATION_PAIR_ROUTING_FREQ DEBUG_AABB_FREQ
+#endif
 
 #ifndef LAG_DISTRIBUTED_CAPSULES
   #define LAG_DISTRIBUTED_CAPSULES DEBUG_APPLY_SPARSE_OWNER_LAGVEL
@@ -194,6 +200,127 @@ int distributed_capsule_has_local_fluid_support(lagMesh* mesh)
 void distributed_mark_capsule_advected(int cap)
 {
   debug_capsule_advected_on_this_rank[cap] = true;
+}
+
+void debug_lubrication_pair_routing(int iter)
+{
+  #if DEBUG_LUBRICATION_PAIR_ROUTING && LUBR_VEL == 1
+    if (iter % DEBUG_LUBRICATION_PAIR_ROUTING_FREQ != 0)
+      return;
+
+    compute_proc_borders(&proc_max, &proc_min);
+    debug_ensure_mpi_routing_arrays();
+    gather_all_proc_borders(proc_min, proc_max, all_proc_min, all_proc_max);
+
+    int* local_owner_valid = (int*)calloc(NCAPS, sizeof(int));
+    int* all_owner_valid = (int*)calloc(NCAPS, sizeof(int));
+    int* local_owner_proc = (int*)malloc(NCAPS*sizeof(int));
+    int* all_owner_proc = (int*)malloc(NCAPS*sizeof(int));
+    double* local_meta = (double*)calloc(4*NCAPS, sizeof(double));
+    double* all_meta = (double*)calloc(4*NCAPS, sizeof(double));
+    int* local_pair_resident = (int*)calloc(NCAPS*NCAPS, sizeof(int));
+    int* all_pair_resident = (int*)calloc(NCAPS*NCAPS, sizeof(int));
+    assert(local_owner_valid);
+    assert(all_owner_valid);
+    assert(local_owner_proc);
+    assert(all_owner_proc);
+    assert(local_meta);
+    assert(all_meta);
+    assert(local_pair_resident);
+    assert(all_pair_resident);
+
+    for(int cap=0; cap<NCAPS; cap++)
+      local_owner_proc[cap] = -1;
+
+    int* local_lubr_available = (int*)calloc(NCAPS, sizeof(int));
+    assert(local_lubr_available);
+
+    for(int cap=0; cap<NCAPS; cap++) {
+      if (!CAPS(cap).isactive || CAPS(cap).nodes == NULL)
+        continue;
+
+      int owner_proc = find_capsule_owner_proc(&CAPS(cap),
+        all_proc_min, all_proc_max);
+      if (owner_proc == pid()) {
+        local_owner_valid[cap] = 1;
+        local_owner_proc[cap] = owner_proc;
+        local_meta[4*cap] = CAPS(cap).centroid.x;
+        local_meta[4*cap + 1] = CAPS(cap).centroid.y;
+        local_meta[4*cap + 2] = CAPS(cap).centroid.z;
+        local_meta[4*cap + 3] = CAPS(cap).circum_radius;
+      }
+
+      local_lubr_available[cap] =
+        lagmesh_bounding_sphere_intersects_box(&CAPS(cap),
+          proc_min, proc_max);
+    }
+
+    for(int a=0; a<NCAPS; a++)
+      if (local_lubr_available[a])
+        for(int b=a + 1; b<NCAPS; b++)
+          if (local_lubr_available[b])
+            local_pair_resident[a*NCAPS + b] = 1;
+
+    MPI_Reduce(local_owner_valid, all_owner_valid, NCAPS, MPI_INT, MPI_MAX,
+      0, MPI_COMM_WORLD);
+    MPI_Reduce(local_owner_proc, all_owner_proc, NCAPS, MPI_INT, MPI_MAX,
+      0, MPI_COMM_WORLD);
+    MPI_Reduce(local_meta, all_meta, 4*NCAPS, MPI_DOUBLE, MPI_SUM,
+      0, MPI_COMM_WORLD);
+    MPI_Reduce(local_pair_resident, all_pair_resident, NCAPS*NCAPS, MPI_INT,
+      MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (pid() == 0) {
+      int n_sphere_pairs = 0;
+      int n_missing_pairs = 0;
+      fprintf(stderr, "DEBUG_LUBRICATION_PAIR_ROUTING iter %d missing_pairs=",
+        iter);
+      for(int a=0; a<NCAPS; a++) {
+        if (!all_owner_valid[a])
+          continue;
+        coord ac = {
+          all_meta[4*a],
+          all_meta[4*a + 1],
+          all_meta[4*a + 2]
+        };
+        double ar = all_meta[4*a + 3];
+        for(int b=a + 1; b<NCAPS; b++) {
+          if (!all_owner_valid[b])
+            continue;
+          coord bc = {
+            all_meta[4*b],
+            all_meta[4*b + 1],
+            all_meta[4*b + 2]
+          };
+          double br = all_meta[4*b + 3];
+          if (bounding_spheres_intersect(ac, ar, bc, br)) {
+            n_sphere_pairs++;
+            if (!all_pair_resident[a*NCAPS + b]) {
+              fprintf(stderr, " (%d,%d owners=%d,%d)", a, b,
+                all_owner_proc[a], all_owner_proc[b]);
+              n_missing_pairs++;
+            }
+          }
+        }
+      }
+      if (n_missing_pairs == 0)
+        fprintf(stderr, " none");
+      fprintf(stderr, " n_sphere_pairs=%d n_missing_pairs=%d\n",
+        n_sphere_pairs, n_missing_pairs);
+    }
+
+    free(local_owner_valid);
+    free(all_owner_valid);
+    free(local_owner_proc);
+    free(all_owner_proc);
+    free(local_meta);
+    free(all_meta);
+    free(local_pair_resident);
+    free(all_pair_resident);
+    free(local_lubr_available);
+  #else
+    (void) iter;
+  #endif
 }
 
 #if DEBUG_DISTRIBUTED_MEMORY_AUDIT

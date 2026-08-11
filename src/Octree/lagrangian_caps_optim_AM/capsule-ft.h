@@ -1461,6 +1461,9 @@ event tracer_advection(i++) {
   
 #if (LUBR_VEL==1)
   synchronize({Index_lagnode, Index_lag_id}); 
+  #if _MPI && LAG_DISTRIBUTED_CAPSULES
+    debug_lubrication_pair_routing(i);
+  #endif
   repulsive_vel();
 #endif 
   #if _MPI && (DEBUG_AABB || LAG_DISTRIBUTED_CAPSULES)
