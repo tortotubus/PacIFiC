@@ -1,0 +1,103 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <Origin X="-0.50" Y="-0.50" Z="-0.50"/>
+    <MaxCoordinate X="0.50" Y="0.50" Z="0.90"/>
+    <Periodicity PX="0" PY="0" PZ="0"/>
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell"/>
+      <LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="200" SortingFrequency="0"/>
+      <BoundingVolume Type="OBC"/>
+      <NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true"/>
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true" Compaction="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP"/>
+        <Parameters kn="5.0e5" en="0.7" kt="5.0e5" etat="-1" muc="0.4" kr="0.0"/>
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0." End="2.5" dt="1e-6"/>
+      <TimeIntegration Type="SecondOrderLeapFrog"/>
+    </TemporalSetting>
+    <Particles>
+      <Particle Number="500" Density="2500" Material="matP">
+        <Convex CrustThickness="1e-4">
+          <Cylinder Radius="0.007" Height="0.020"/>
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-4">
+          <ConicalWall RadiusBottom="0.10" RadiusTop="0.40" Height="0.80" N="128"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0.45"/>
+          <AngularPosition Type="Angles" aX="90" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-4">
+          <Rectangle LX="0.30" LY="0.30" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0.05"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+        <ObstacleLoading>
+          <Interval tStart="0.3" tEnd="0.300001">
+            <LinearVelocity X="50000.0" Y="0.0" Z="0.0"/>
+          </Interval>
+        </ObstacleLoading>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-4">
+          <CylinderWall Radius="0.15" Height="0.40"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="-0.175"/>
+          <AngularPosition Type="Angles" aX="90" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-4">
+          <Rectangle LX="0.40" LY="0.40" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="-0.375"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81"/>
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="20000"/>
+    <Timings Enable="true"/>
+    <ParticleInsertion ForceInsertion="1">
+      <InitialPosition Type="Array">
+        <Origin X="0.0" Y="0.0" Z="0.070"/>
+        <ZDirection X="0.0" Y="0.0" Z="1.0"/>
+        <Spacing DR="0.025" DT="0.01" DH="0.028" DA="0.011"/>
+        <Count NR="4" NT="200" NH="28"/>
+      </InitialPosition>
+      <InitialOrientation Type="Random" Seed="UserDefined" Value="42">
+        <Windows>
+          <Window Type="Box">
+            <MinPoint X="0.0" Y="0.0" Z="0.0"/>
+            <MaxPoint X="6.28" Y="6.28" Z="6.28"/>
+          </Window>
+        </Windows>
+      </InitialOrientation>
+      <InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0"/>
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="0.01"/>
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="HopperDischarge"/>
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>

@@ -1,0 +1,135 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <Origin X="-0.9" Y="-0.55" Z="-0.2" />
+    <MaxCoordinate X="1.1" Y="0.55" Z="2.4" />
+    <Periodicity PX="0" PY="0" PZ="0" />
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell" />
+      <LinkedCell Type="Device_SortBased" CellSizeFactor="1.0" UpdatingFrequency="200" SortingFrequency="1" />
+      <BoundingVolume Type="OBB" />
+      <NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true" Compaction="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP" />
+        <Parameters kn="500000" en="0.73" kt="100000" etat="-1" muc="0.55" kr="0" />
+      </ContactForceModel>
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matW" materialB="matP" />
+        <Parameters kn="500000" en="0.73" kt="100000" etat="-1" muc="0.0" kr="0" />
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0." End="1.5" dt="1e-06" />
+      <TimeIntegration Type="SecondOrderLeapFrog" />
+    </TemporalSetting>
+    <Particles>
+      <Particle Number="10" Density="2200" Material="matP">
+        <Convex CrustThickness="5e-05">
+          <Box LX="0.003437166264" LY="0.003437166264" LZ="0.003437166264" />
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <!-- Inclined ramp -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2.4" LY="1.2" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0.1" Y="0" Z="0" />
+          <AngularPosition Type="Angles" aX="0." aY="18" aZ="0." />
+        </Transformation>
+      </Obstacle>
+
+      <!-- Upstream wall -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2.6" LY="1.1" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="-0.9" Y="0" Z="1.1" />
+          <AngularPosition Type="Angles" aX="0." aY="90." aZ="0." />
+        </Transformation>
+      </Obstacle>
+
+      <!-- Downstream wall -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2.6" LY="1.1" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="1.1" Y="0" Z="1.1" />
+          <AngularPosition Type="Angles" aX="0." aY="-90." aZ="0." />
+        </Transformation>
+      </Obstacle>
+
+      <!-- +Y side wall -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2" LY="2.6" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0.1" Y="0.55" Z="1.1" />
+          <AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+        </Transformation>
+      </Obstacle>
+
+      <!-- -Y side wall -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2" LY="2.6" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0.1" Y="-0.55" Z="1.1" />
+          <AngularPosition Type="Angles" aX="-90." aY="0." aZ="0." />
+        </Transformation>
+      </Obstacle>
+
+      <!-- Dam (removed at t=0.5 s) -->
+      <Obstacle Material="matW">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="2.2" LY="1.1" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="-0.22" Y="0" Z="1.1" />
+          <AngularPosition Type="Angles" aX="0." aY="-90." aZ="0." />
+        </Transformation>
+        <ObstacleLoading>
+          <Interval tStart="0.5" tEnd="0.5005">
+            <LinearVelocity X="0.0" Y="0.0" Z="400" />
+          </Interval>
+        </ObstacleLoading>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="1000" />
+    <Timings Enable="true" />
+    <ParticleInsertion ForceInsertion="0">
+      <InitialPosition Type="Array">
+        <Origin X="-0.7782470452" Y="-0.5482470452" Z="0.45" />
+        <Spacing DX="0.003505909589" DY="0.003505909589" DZ="0.003505909589" />
+        <Count NX="128" NY="256" NZ="62" />
+      </InitialPosition>
+      <InitialOrientation Type="Random" Seed="UserDefined" Value="1">
+        <Windows>
+          <Window Type="Box">
+            <MinPoint X="0" Y="0" Z="0" />
+            <MaxPoint X="6.28" Y="6.28" Z="6.28" />
+          </Window>
+        </Windows>
+      </InitialOrientation>
+      <InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0" />
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="0.025" />
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="AvalancheBoxes_N2M" />
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>

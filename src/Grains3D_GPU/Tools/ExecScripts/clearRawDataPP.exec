@@ -1,0 +1,40 @@
+#!/bin/bash
+
+textFiles_list=(
+  position_x.dat
+  position_y.dat
+  position_z.dat
+  translational_velocity_x.dat
+  translational_velocity_y.dat
+  translational_velocity_z.dat
+  angular_velocity_x.dat
+  angular_velocity_y.dat
+  angular_velocity_z.dat
+  coordinationNumber.dat
+  particleType.dat
+  totalForce_x.dat
+  totalForce_y.dat
+  totalForce_z.dat
+  cumulatedContactForce_x.dat
+  cumulatedContactForce_y.dat
+  cumulatedContactForce_z.dat
+  instantaneousContactForce_x.dat
+  instantaneousContactForce_y.dat
+  instantaneousContactForce_z.dat
+  hydroForce_x.dat
+  hydroForce_y.dat
+  hydroForce_z.dat
+  slipVelocity_x.dat
+  slipVelocity_y.dat
+  slipVelocity_z.dat
+  particleTemperature.dat
+  cumulatedLubriForce_x.dat
+  cumulatedLubriForce_y.dat
+  cumulatedLubriForce_z.dat
+)
+
+for textFile in "${textFiles_list[@]}" ; do
+  if [ -f $1_$textFile ] ; then
+    rm -f $1_$textFile
+  fi
+done

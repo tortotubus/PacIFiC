@@ -1,0 +1,75 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <!-- Domain bounding box: 1.2 m x 1.2 m x 0.701 m, floor at Z=0 -->
+    <Origin X="-0.60" Y="-0.60" Z="-0.001" />
+    <MaxCoordinate X="0.60" Y="0.60" Z="0.70" />
+    <Periodicity PX="0" PY="0" PZ="0" />
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell" />
+      <LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="200" SortingFrequency="0" />
+      <BoundingVolume Type="OBB" />
+      <NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP" />
+        <!-- kn: normal stiffness [N/m], en: normal restitution,
+             kt: tangential stiffness [N/m], etat=-1: viscous tangential damping,
+             muc: friction coefficient, kr: rolling resistance -->
+        <Parameters kn="5.0e5" en="0.7" kt="5.0e5" etat="-1" muc="0.3" kr="0.0" />
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0." End="1.0" dt="1e-8" />
+      <TimeIntegration Type="SecondOrderLeapFrog" />
+    </TemporalSetting>
+    <Particles>
+      <!-- 10x10x10 = 1000 cubic particles, side 0.02 m -->
+      <Particle Number="1000" Density="2000.0" Material="matP">
+        <Convex CrustThickness="5e-4">
+          <Box LX="0.02" LY="0.02" LZ="0.02" />
+        </Convex>
+      </Particle>
+      <!-- 1 prolate ellipsoid: equatorial a=b=0.05 m, polar c=0.15 m.
+           Rotated 90 deg around Y so c (long axis) points along +X: bullet shot along +X axis. -->
+      <Particle Number="1" Density="2000.0" Material="matP">
+        <Convex CrustThickness="1e-3">
+          <Superquadric a="0.05" b="0.05" c="0.15" n1="2.0" n2="2.0" />
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <!-- Flat floor: 1.0 m x 1.0 m (five times the packing footprint), centred at origin -->
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-4">
+          <Rectangle LX="1.0" LY="1.0" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0" />
+          <AngularPosition Type="Angles" aX="0." aY="0." aZ="0." />
+        </Transformation>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="50000" />
+    <Timings Enable="true" />
+    <ParticleInsertion ForceInsertion="1">
+      <!-- Positions: 1000 box centres on a 10x10x10 grid + 1 ellipsoid at (-0.35, 0, 0.10) -->
+      <InitialPosition Type="File" Name="./Grains/Init/positions.txt" />
+      <!-- Orientation: pitch=-pi/2 so ellipsoid long axis (c) aligns with world +X -->
+      <InitialOrientation Type="Constant" X="0.0" Y="-1.5708" Z="0.0" />
+      <!-- Velocities: 1000 zero vectors + 1 horizontal (+5 m/s along X) for the ellipsoid -->
+      <InitialVelocity Type="File" Name="./Grains/Init/velocities.txt" />
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="1e-3" />
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="EllipsoidOnBoxes" />
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>

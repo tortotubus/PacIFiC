@@ -1,0 +1,143 @@
+<Grains3D Type="GPU" Precision="Double">
+	<Construction>
+		<Origin X="-0.015" Y="-0.015" Z="0" />
+		<MaxCoordinate X="0.015" Y="0.015" Z="0.15" />
+		<Periodicity PX="0" PY="0" PZ="0" />
+		<CollisionDetection EnableTimings="true">
+			<NeighborList Type="LinkedCell" />
+			<LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="100" SortingFrequency="0" />
+			<BoundingVolume Type="OBC" />
+			<NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+		</CollisionDetection>
+		<ContactForceModels EnableTimings="true" Compaction="true">
+			<ContactForceModel Type="Hooke">
+				<Material materialA="matP" materialB="matP" />
+				<Parameters kn="7.e4" en="0.5" kt="1e5" etat="-1" muc="0.5" kr="0.0" />
+			</ContactForceModel>
+		</ContactForceModels>
+		<TemporalSetting>
+			<TimeInterval Start="0." End="1.0" dt="1e-7" />
+			<TimeIntegration Type="SecondOrderLeapFrog" />
+		</TemporalSetting>
+		<Particles>
+			<Particle Type="Composite" Number="1008" Density="3500" Material="matP">
+				<SubBody>
+					<Convex CrustThickness="1.e-5">
+						<Cylinder Radius="0.0004" Height="0.0022"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0" Y="0" Z="0.0012"/>
+						<AngularPosition Type="Angles" aX="90" aY="0" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-5">
+						<Cylinder Radius="0.0004" Height="0.0022"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.00113137" Y="0" Z="-0.0004"/>
+						<AngularPosition Type="Angles" aX="-90" aY="70.5288" aZ="180"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-5">
+						<Cylinder Radius="0.0004" Height="0.0022"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.00056569" Y="0.00097980" Z="-0.0004"/>
+						<AngularPosition Type="Angles" aX="-90" aY="70.5288" aZ="-60"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-5">
+						<Cylinder Radius="0.0004" Height="0.0022"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.00056569" Y="-0.00097980" Z="-0.0004"/>
+						<AngularPosition Type="Angles" aX="-90" aY="70.5288" aZ="60"/>
+					</LocalTransformation>
+				</SubBody>
+			</Particle>
+		</Particles>
+		<Obstacles>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-5">
+					<Rectangle LX="0.03" LY="0.03" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="0" Z="0" />
+					<AngularPosition Type="Angles" aX="0." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.15" LY="0.03" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0.015" Y="0" Z="0.075" />
+					<AngularPosition Type="Angles" aX="0." aY="-90." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.15" LY="0.03" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="-0.015" Y="0" Z="0.075" />
+					<AngularPosition Type="Angles" aX="0." aY="90." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.03" LY="0.15" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="0.015" Z="0.075" />
+					<AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.03" LY="0.15" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="-0.015" Z="0.075" />
+					<AngularPosition Type="Angles" aX="-90." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+		</Obstacles>
+	</Construction>
+	<Forces>
+		<Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+	</Forces>
+	<Simulation>
+		<Verbosity Frequency="10000" />
+		<Timings Enable="true" />
+		<ParticleInsertion ForceInsertion="0">
+			<InitialPosition Type="Array">
+				<Origin X="-0.0125" Y="-0.0125" Z="0.005" />
+				<Spacing DX="0.005" DY="0.005" DZ="0.005" />
+				<Count NX="6" NY="6" NZ="28" />
+			</InitialPosition>
+			<InitialOrientation Type="Random" Seed="UserDefined" Value="1">
+				<Windows>
+					<Window Type="Box">
+						<MinPoint X="0" Y="0" Z="0" />
+						<MaxPoint X="6.28" Y="6.28" Z="6.28" />
+					</Window>
+				</Windows>
+			</InitialOrientation>
+			<InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0" />
+		</ParticleInsertion>
+		<PostProcessing>
+			<TimeSave dt="0.001" />
+			<Writers>
+				<Lightweight Directory="./Grains/Init" RootName="quadrilobes_2000" />
+			</Writers>
+		</PostProcessing>
+		<ContactForceEstimates>
+			<DropHeight value="0.2" />
+			<!-- <CollisionalRelativeVelocity value="1.4" /> -->
+		</ContactForceEstimates>
+	</Simulation>
+</Grains3D>

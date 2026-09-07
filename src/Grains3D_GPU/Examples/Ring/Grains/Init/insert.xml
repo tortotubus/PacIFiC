@@ -1,0 +1,319 @@
+<Grains3D Type="GPU" Precision="Double">
+	<Construction>
+		<Origin X="-0.25" Y="-0.25" Z="0" />
+		<MaxCoordinate X="0.25" Y="0.25" Z="0.85" />
+		<Periodicity PX="0" PY="0" PZ="0" />
+		<CollisionDetection EnableTimings="true">
+			<NeighborList Type="LinkedCell" />
+			<LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="1000" SortingFrequency="0" />
+			<BoundingVolume Type="OBC" />
+			<NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+		</CollisionDetection>
+		<ContactForceModels EnableTimings="true" Compaction="true">
+			<ContactForceModel Type="Hooke">
+				<Material materialA="matP" materialB="matP" />
+				<Parameters kn="1e5" en="0.85" kt="1.2e6" etat="-1" muc="0.5" kr="0.0" />
+			</ContactForceModel>
+		</ContactForceModels>
+		<TemporalSetting>
+			<TimeInterval Start="0." End="1.0" dt="1e-6" />
+			<TimeIntegration Type="SecondOrderLeapFrog" />
+		</TemporalSetting>
+		<Particles>
+			<Particle Type="Composite" Number="2057" Density="3500" Material="matP">
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.0" Y="0.0" Z="0.015"/>
+						<AngularPosition Type="Angles" aX="0" aY="90" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.00388228567654" Y="0.0" Z="0.014488887394300001"/>
+						<AngularPosition Type="Angles" aX="0" aY="105" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.0075" Y="0.0" Z="0.012990381056800001"/>
+						<AngularPosition Type="Angles" aX="0" aY="120" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.010606601717799998" Y="0.0" Z="0.010606601717799998"/>
+						<AngularPosition Type="Angles" aX="0" aY="135" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.012990381056800001" Y="0.0" Z="0.0075"/>
+						<AngularPosition Type="Angles" aX="0" aY="150" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.014488887394300001" Y="0.0" Z="0.00388228567654"/>
+						<AngularPosition Type="Angles" aX="0" aY="165" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.015" Y="0.0" Z="9.18485099361e-19"/>
+						<AngularPosition Type="Angles" aX="0" aY="180" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.014488887394300001" Y="0.0" Z="-0.00388228567654"/>
+						<AngularPosition Type="Angles" aX="0" aY="195" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.012990381056800001" Y="0.0" Z="-0.0075"/>
+						<AngularPosition Type="Angles" aX="0" aY="210" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.010606601717799998" Y="0.0" Z="-0.010606601717799998"/>
+						<AngularPosition Type="Angles" aX="0" aY="225" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.0075" Y="0.0" Z="-0.012990381056800001"/>
+						<AngularPosition Type="Angles" aX="0" aY="240" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="0.00388228567654" Y="0.0" Z="-0.014488887394300001"/>
+						<AngularPosition Type="Angles" aX="0" aY="255" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="1.83697019872e-18" Y="0.0" Z="-0.015"/>
+						<AngularPosition Type="Angles" aX="0" aY="270" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.00388228567654" Y="0.0" Z="-0.014488887394300001"/>
+						<AngularPosition Type="Angles" aX="0" aY="285" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.0075" Y="0.0" Z="-0.012990381056800001"/>
+						<AngularPosition Type="Angles" aX="0" aY="300" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.010606601717799998" Y="0.0" Z="-0.010606601717799998"/>
+						<AngularPosition Type="Angles" aX="0" aY="315" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.012990381056800001" Y="0.0" Z="-0.0075"/>
+						<AngularPosition Type="Angles" aX="0" aY="330" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.014488887394300001" Y="0.0" Z="-0.00388228567654"/>
+						<AngularPosition Type="Angles" aX="0" aY="345" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.015" Y="0.0" Z="-2.7554552980799998e-18"/>
+						<AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.014488887394300001" Y="0.0" Z="0.00388228567654"/>
+						<AngularPosition Type="Angles" aX="0" aY="15" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.012990381056800001" Y="0.0" Z="0.0075"/>
+						<AngularPosition Type="Angles" aX="0" aY="30" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.010606601717799998" Y="0.0" Z="0.010606601717799998"/>
+						<AngularPosition Type="Angles" aX="0" aY="45" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.0075" Y="0.0" Z="0.012990381056800001"/>
+						<AngularPosition Type="Angles" aX="0" aY="60" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+				<SubBody>
+					<Convex CrustThickness="1.e-4">
+						<Superquadric a="0.005" b="0.005" c="0.0030" n1="16" n2="3"/>
+					</Convex>
+					<LocalTransformation>
+						<Centre X="-0.00388228567654" Y="0.0" Z="0.014488887394300001"/>
+						<AngularPosition Type="Angles" aX="0" aY="75" aZ="0"/>
+					</LocalTransformation>
+				</SubBody>
+			</Particle>
+		</Particles>
+		<Obstacles>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.5" LY="0.5" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="0" Z="0" />
+					<AngularPosition Type="Angles" aX="0." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.85" LY="0.5" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0.25" Y="0" Z="0.425" />
+					<AngularPosition Type="Angles" aX="0." aY="-90." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.85" LY="0.5" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="-0.25" Y="0" Z="0.425" />
+					<AngularPosition Type="Angles" aX="0." aY="90." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.5" LY="0.85" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="0.25" Z="0.425" />
+					<AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+			<Obstacle Material="matP">
+				<Convex CrustThickness="1.e-4">
+					<Rectangle LX="0.5" LY="0.85" LZ="0.001" />
+				</Convex>
+				<Transformation>
+					<Centre X="0" Y="-0.25" Z="0.425" />
+					<AngularPosition Type="Angles" aX="-90." aY="0." aZ="0." />
+				</Transformation>
+			</Obstacle>
+		</Obstacles>
+	</Construction>
+	<Forces>
+		<Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+	</Forces>
+	<Simulation>
+		<Verbosity Frequency="10000" />
+		<Timings Enable="true" />
+		<ParticleInsertion ForceInsertion="0">
+			<InitialPosition Type="Array">
+				<Origin X="-0.2" Y="-0.2" Z="0.05" />
+				<Spacing DX="0.04" DY="0.04" DZ="0.04" />
+				<Count NX="11" NY="11" NZ="17" />
+			</InitialPosition>
+			<InitialOrientation Type="Random" Seed="UserDefined" Value="1">
+				<Windows>
+					<Window Type="Box">
+						<MinPoint X="0" Y="0" Z="0" />
+						<MaxPoint X="6.28" Y="6.28" Z="6.28" />
+					</Window>
+				</Windows>
+			</InitialOrientation>
+			<InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0" />
+		</ParticleInsertion>
+		<PostProcessing>
+			<TimeSave dt="0.025" />
+			<Writers>
+				<Lightweight Directory="./Grains/Init" RootName="rings_2000" />
+			</Writers>
+		</PostProcessing>
+	</Simulation>
+</Grains3D>

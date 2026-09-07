@@ -1,0 +1,1360 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <Origin X="-0.12" Y="-0.015" Z="0.0"/>
+    <MaxCoordinate X="0.12" Y="0.015" Z="0.75"/>
+    <Periodicity PX="0" PY="0" PZ="0"/>
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell"/>
+      <LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="250" SortingFrequency="0"/>
+      <BoundingVolume Type="OFF"/>
+      <NarrowPhase Type="Sphere" Acceleration="false" PrebuiltShapes="true"/>
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true" Compaction="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP"/>
+        <Parameters kn="1.0e5" en="0.7" kt="3.0e5" etat="-1" muc="0.45" kr="0.0"/>
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0." End="20.0" dt="2e-6"/>
+      <TimeIntegration Type="SecondOrderLeapFrog"/>
+    </TemporalSetting>
+    <Particles>
+      <Particle Number="10000" Density="2200" Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Sphere Radius="0.002"/>
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.24" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.75" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.12" Y="0" Z="0.375"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.75" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.12" Y="0" Z="0.375"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.24" LY="0.75" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="-0.015" Z="0.375"/>
+          <AngularPosition Type="Angles" aX="-90" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.24" LY="0.75" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0.015" Z="0.375"/>
+          <AngularPosition Type="Angles" aX="-90" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.120" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.063" Y="0" Z="0.435"/>
+          <AngularPosition Type="Angles" aX="0" aY="20" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.120" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.063" Y="0" Z="0.435"/>
+          <AngularPosition Type="Angles" aX="0" aY="-20" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.395"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.380"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.365"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.350"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.335"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.320"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.305"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.290"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.275"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.260"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.109091" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.087273" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.065455" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.043636" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.021818" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.000000" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.021818" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.043636" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.065455" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.087273" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.109091" Y="0" Z="0.245"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Cylinder Radius="0.0055" Height="0.028"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.230"/>
+          <AngularPosition Type="Angles" aX="0" aY="0" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.098182" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.076364" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.054545" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.032727" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="-0.010909" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.010909" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.032727" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.054545" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.076364" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-5">
+          <Rectangle LX="0.22" LY="0.03" LZ="0.001"/>
+        </Convex>
+        <Transformation>
+          <Centre X="0.098182" Y="0" Z="0.110"/>
+          <AngularPosition Type="Angles" aX="0" aY="-90" aZ="0"/>
+        </Transformation>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81"/>
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="5000"/>
+    <Timings Enable="true"/>
+    <ParticleInsertion ForceInsertion="0">
+      <InitialPosition Type="Array">
+        <Origin X="-0.10725" Y="-0.011" Z="0.454"/>
+        <Spacing DX="0.0055" DY="0.0055" DZ="0.0055"/>
+        <Count NX="40" NY="5" NZ="50"/>
+      </InitialPosition>
+      <InitialOrientation Type="Random" Seed="UserDefined" Value="3">
+        <Windows>
+          <Window Type="Box">
+            <MinPoint X="0" Y="0" Z="0"/>
+            <MaxPoint X="6.28" Y="6.28" Z="6.28"/>
+          </Window>
+        </Windows>
+      </InitialOrientation>
+      <InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0"/>
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="0.01"/>
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="galton_board"/>
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>

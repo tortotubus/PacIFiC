@@ -1,0 +1,105 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <Origin X="-0.055" Y="-0.045" Z="-0.055" />
+    <MaxCoordinate X="0.055" Y="0.045" Z="0.055" />
+    <Periodicity PX="0" PY="0" PZ="0" />
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell" />
+      <LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" NoRelinkObstacles="true" UpdatingFrequency="200" SortingFrequency="0"/>
+      <BoundingVolume Type="OBB" />
+      <NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true" Compaction="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP" />
+        <Parameters kn="500000" en="0.73" kt="100000" etat="-1" muc="0.55" kr="0" />
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0" End="10" dt="1e-06" />
+      <TimeIntegration Type="SecondOrderLeapFrog" />
+    </TemporalSetting>
+    <Particles>
+      <Particle Number="10000" Density="2200" Material="matP">
+        <Convex CrustThickness="5e-05">
+          <Dodecahedron Radius="0.001718583132" />
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <!-- Drum cylinder wall -->
+      <Obstacle Material="matP">
+        <Convex CrustThickness="5e-05">
+          <CylinderWall Radius="0.05" Height="0.08" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0" />
+          <AngularPosition Type="Angles" aX="0." aY="0." aZ="0" />
+        </Transformation>
+        <ObstacleLoading>
+          <Interval tStart="0.5" tEnd="10">
+            <AngularVelocity X="0.0" Y="6.806784083" Z="0.0" />
+          </Interval>
+        </ObstacleLoading>
+      </Obstacle>
+
+      <!-- Drum end-cap +Y -->
+      <Obstacle Material="matP">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="0.11" LY="0.11" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0.04" Z="0" />
+          <AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+        </Transformation>
+        <ObstacleLoading>
+          <Interval tStart="0.5" tEnd="10">
+            <AngularVelocity X="0.0" Y="6.806784083" Z="0.0" />
+          </Interval>
+        </ObstacleLoading>
+      </Obstacle>
+
+      <!-- Drum end-cap -Y -->
+      <Obstacle Material="matP">
+        <Convex CrustThickness="5e-05">
+          <Rectangle LX="0.11" LY="0.11" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="-0.04" Z="0" />
+          <AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+        </Transformation>
+        <ObstacleLoading>
+          <Interval tStart="0.5" tEnd="10">
+            <AngularVelocity X="0.0" Y="6.806784083" Z="0.0" />
+          </Interval>
+        </ObstacleLoading>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="10000" />
+    <Timings Enable="true" />
+    <ParticleInsertion ForceInsertion="1">
+      <InitialPosition Type="File" Name="./Grains/Init/positions.txt" />
+      <InitialOrientation Type="Random" Seed="UserDefined" Value="1">
+        <Windows>
+          <Window Type="Box">
+            <MinPoint X="0" Y="0" Z="0" />
+            <MaxPoint X="6.28" Y="6.28" Z="6.28" />
+          </Window>
+        </Windows>
+      </InitialOrientation>
+      <InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0" />
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="0.01" />
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="Dodecahedron_65rpm" />
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>
+  

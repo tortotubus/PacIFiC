@@ -1,0 +1,107 @@
+<Grains3D Type="GPU" Precision="Double">
+  <Construction>
+    <Origin X="-0.1869655653" Y="-0.1869655653" Z="0" />
+    <MaxCoordinate X="0.1869655653" Y="0.1869655653" Z="0.7483995059" />
+    <Periodicity PX="0" PY="0" PZ="0" />
+    <CollisionDetection EnableTimings="true">
+      <NeighborList Type="LinkedCell" />
+      <LinkedCell Type="Device_Atomic" CellSizeFactor="1.0" UpdatingFrequency="200" SortingFrequency="10" />
+      <BoundingVolume Type="OBB" />
+      <NarrowPhase Type="GJK" Acceleration="false" PrebuiltShapes="true" />
+    </CollisionDetection>
+    <ContactForceModels EnableTimings="true" Compaction="true">
+      <ContactForceModel Type="Hooke">
+        <Material materialA="matP" materialB="matP" />
+        <Parameters kn="4.0e5" en="0.55" kt="1.2e6" etat="-1" muc="0.5" kr="0.0" />
+      </ContactForceModel>
+    </ContactForceModels>
+    <TemporalSetting>
+      <TimeInterval Start="0." End="1.0" dt="1e-6" />
+      <TimeIntegration Type="SecondOrderLeapFrog" />
+    </TemporalSetting>
+    <Particles>
+      <Particle Number="65536" Density="1163.66" Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Box LX="0.006434506466" LY="0.006434506466" LZ="0.006434506466" />
+        </Convex>
+      </Particle>
+    </Particles>
+    <Obstacles>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Rectangle LX="0.3739311307" LY="0.3739311307" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0" Z="0" />
+          <AngularPosition Type="Angles" aX="0." aY="0." aZ="0" />
+        </Transformation>
+      </Obstacle>
+      <!-- walls -->
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Rectangle LX="0.7483995059" LY="0.3739311307" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0.1869655653" Y="0" Z="0.374199753" />
+          <AngularPosition Type="Angles" aX="0." aY="-90." aZ="0." />
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Rectangle LX="0.7483995059" LY="0.3739311307" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="-0.1869655653" Y="0" Z="0.374199753" />
+          <AngularPosition Type="Angles" aX="0." aY="90." aZ="0." />
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Rectangle LX="0.3739311307" LY="0.7483995059" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="0.1869655653" Z="0.374199753" />
+          <AngularPosition Type="Angles" aX="90." aY="0." aZ="0." />
+        </Transformation>
+      </Obstacle>
+      <Obstacle Material="matP">
+        <Convex CrustThickness="1e-05">
+          <Rectangle LX="0.3739311307" LY="0.7483995059" LZ="0.001" />
+        </Convex>
+        <Transformation>
+          <Centre X="0" Y="-0.1869655653" Z="0.374199753" />
+          <AngularPosition Type="Angles" aX="-90." aY="0." aZ="0." />
+        </Transformation>
+      </Obstacle>
+    </Obstacles>
+  </Construction>
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="-9.81" />
+  </Forces>
+  <Simulation>
+    <Verbosity Frequency="10000" />
+    <Timings Enable="true" />
+    <ParticleInsertion ForceInsertion="0">
+      <InitialPosition Type="Array">
+        <Origin X="-0.1813831193" Y="-0.1813831193" Z="0.005582446061" />
+        <Spacing DX="0.01170213673" DY="0.01170213673" DZ="0.01170213673" />
+        <Count NX="32" NY="32" NZ="64" />
+      </InitialPosition>
+      <InitialOrientation Type="Random" Seed="UserDefined" Value="1">
+        <Windows>
+          <Window Type="Box">
+            <MinPoint X="0" Y="0" Z="0" />
+            <MaxPoint X="6.28" Y="6.28" Z="6.28" />
+          </Window>
+        </Windows>
+      </InitialOrientation>
+      <InitialVelocity Type="Constant" X="0.0" Y="0.0" Z="0.0" />
+    </ParticleInsertion>
+    <PostProcessing>
+      <TimeSave dt="0.1" />
+      <Writers>
+        <Lightweight Directory="./Grains/Init" RootName="B1_65536" />
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>
