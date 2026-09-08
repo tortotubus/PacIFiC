@@ -1,5 +1,3 @@
-
-#include "Data.hh"
 #include "GrainsFactory.hh"
 #include "Grains.hh"
 #include "GrainsCPU.hh"
@@ -13,7 +11,9 @@
 template <typename T>
 string GrainsFactory<T>::init(string const& filename)
 {
-
+    // Get the GRAINS_HOME from the shell
+    char*  grainshome = getenv("GRAINS_HOME");
+    string str_grainshome(grainshome);
 
     // Creates the copy file
     string tline, buffer, header1 = "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>",
@@ -21,12 +21,7 @@ string GrainsFactory<T>::init(string const& filename)
     list<string> inputFile_linelist;
     int          dimension = 0;
 
-    // Get the GRAINS_HOME from the shell
-    // char*  grainshome = getenv("GRAINS_HOME");
-    // string str_grainshome(grainshome);    // header2 += str_grainshome + "/Main/dtd/";
-
-    header2 += get_dtd_dir().string() + "/";
-
+    header2 += str_grainshome + "/Main/dtd/";
 
     ifstream fileIN(filename.c_str(), ios::in);
     ofstream fileOUT((filename + ".tmp").c_str(), ios::out);

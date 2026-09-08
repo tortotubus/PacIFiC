@@ -44,7 +44,10 @@ __GLOBAL__ void computeMortonCodes_Kernel(Cells<T, CellOrdering::MORTON>** cells
     if(tID >= numParticles)
         return;
 
-    mortonCodes[tID] = (*cells)->computeCellHash(positions[tID]);
+    const uint denseIndex = (*cells)->computeDenseIndex(positions[tID], false);
+    mortonCodes[tID]      = (denseIndex == UINT_MAX)
+                                ? ~uint64_t(0)
+                                : static_cast<uint64_t>((*cells)->mortonKeyFromLinearIndex(denseIndex));
 }
 
 // -------------------------------------------------------------------------------------------------

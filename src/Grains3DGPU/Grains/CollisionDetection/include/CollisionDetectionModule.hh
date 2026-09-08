@@ -25,10 +25,8 @@
 
     Encapsulates the full collision detection pipeline:
       1. Neighbor list update (broad phase)
-      2. Relative transformation computation
-      3. Optional bounding volume pre-filter (Sphere/OBB/OBC)
-      4. Narrow phase GJK (closestPointsRigidBodies)
-      5. Contact information world-frame transform
+      2. Optional bounding volume pre-filter (Sphere/OBB/OBC)
+      3. Narrow phase GJK (closestPointsRigidBodies)
 
     ComponentManager owns a CollisionDetectionModule by unique_ptr and delegates all detection
     work to it by passing raw non-owning pointers to the particle data arrays.  No particle data
@@ -48,16 +46,11 @@ private:
     /** \brief Pre-built BVData array for vtable-free bounding-volume queries.
         ShapeId-indexed (one entry per unique shape, size = nUniqueShapes). */
     GrainsMemBuffer<BVData<T>, M> m_bvData;
-    /** \brief Particle sorter for Morton code-based reordering of particle arrays */
-    ParticleSorter<T, M> m_particleSorter;
+    /** \brief Particle sorter for Morton code-based reordering of particle arrays.
+        Allocated only when sorting is configured and not known to be disabled. */
+    std::unique_ptr<ParticleSorter<T, M>> m_particleSorter;
     /** \brief Neighbor list (broad phase) */
     std::unique_ptr<NeighborList<T, M>> m_neighborList;
-    /** \brief Per-pair relative position of B in A-local frame */
-    GrainsMemBuffer<Vector3<T>, M> m_relPosition;
-    /** \brief Per-pair relative quaternion of B in A-local frame */
-    GrainsMemBuffer<Quaternion<T>, M> m_relQuaternion;
-    /** \brief Per-pair contact information in A-local frame (output of GJK) */
-    GrainsMemBuffer<ContactInfo<T>, M> m_contactInfoLocal;
     /** \brief Per-pair BV pass/fail flags written by filterPairsBV_Kernel */
     GrainsMemBuffer<uint8_t, M> m_bvPassFlags;
     /** \brief Compacted list of original pair indices that passed the BV filter */
@@ -71,6 +64,9 @@ private:
     size_t m_cubTempStorageBytes = 0;
     /** \brief Number of unique shapes (= max shapeId+1 from bodyTags). */
     uint m_nUniqueShapes = 0;
+    /** \brief Initial pair buffer capacity (estimatedPairs at construction time).
+        Stored explicitly so getPairBufferSize() remains stable across NL updates. */
+    size_t m_pairBufferSize = 0;
     //@}
 
 public:
@@ -132,11 +128,9 @@ public:
     /** @brief Runs the complete collision detection pipeline.
         Pipeline: 1. sortParticles
                   2. updateNeighborList
-                  3. computeRelativeTransformations
-                  4. filterPairsBV (DEVICE: BV-ON always; BV-OFF only when composites > 0)
-                  5. detectCollisionsComponents
-                  6. transformContactInfo
-        @param rigidBodies   Raw pointer array of RigidBody*
+                  3. filterPairsBV (DEVICE: BV-ON always; BV-OFF only when composites > 0)
+                  4. detectCollisionsComponents
+        @param rigidBody     Per-component rigid body buffer (reordered in-place by sorter)
         @param positions     Position buffer (modified in-place by sorter)
         @param orientations  Quaternion buffer (modified in-place by sorter)
         @param velocities    Kinematics buffer (modified in-place by sorter)
@@ -150,7 +144,7 @@ public:
         @param contactInfo   ContactInfo world-frame buffer (owned by ComponentManager)
         @param pairList      Pair list buffer (owned by ComponentManager)
         @param counts        Component counts */
-    void run(const RigidBody<T>* const*          rigidBodies,
+    void run(GrainsMemBuffer<RigidBody<T>*, M>&  rigidBody,
              GrainsMemBuffer<Vector3<T>, M>&     positions,
              GrainsMemBuffer<Quaternion<T>, M>&  orientations,
              GrainsMemBuffer<Kinematics<T>, M>&  velocities,
@@ -186,62 +180,20 @@ private:
                             GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
                             ComponentCounts&                    counts);
 
-    /** @brief Computes per-pair relative position/quaternion (B expressed in A-local frame).
-        @param positions    World position buffer
-        @param orientations World quaternion buffer
-        @param pairList     Pair list buffer */
-    void computeRelativeTransformations(const GrainsMemBuffer<Vector3<T>, M>&    positions,
-                                        const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                                        const GrainsMemBuffer<uint2, M>&         pairList);
-
-    /** @brief Runs the BV pre-filter.
-        Also used as the composite-only filter when BV is OFF but composites exist.
-        Writes per-pair pass/fail flags, writes no-contact sentinels for rejected pairs, then
-        uses CUB DeviceSelect::Flagged to compact the passing pair indices into m_bvPassPairIndices
-        and writes the result count into m_bvPassPairCountMapped.
-        @param rigidBodies      Raw pointer array of RigidBody*
-        @param pairList         Pair list buffer
-        @param contactInfoLocal Per-pair local ContactInfo buffer
-        @param bodyTags         Raw device pointer to per-component body tags
-        @param numComposites    Number of composites (0 = skip composite check) */
-    void filterPairsBV(const RigidBody<T>* const*          rigidBodies,
-                       const GrainsMemBuffer<uint2, M>&    pairList,
-                       GrainsMemBuffer<ContactInfo<T>, M>& contactInfoLocal,
-                       const uint*                         bodyTags,
-                       uint                                numComposites);
-
-    /** @brief BV pre-filter using world-frame positions/quaternions directly, bypassing the
-        computeRelativeTransformations pre-pass. Used when UseRelativeTransformations=false with
-        BV enabled.
+    /** @brief BV pre-filter using world-frame positions/quaternions directly, bypassing any
+        relative-transform pre-pass.
         @param rigidBodies      Raw pointer array of RigidBody*
         @param positions        World position buffer
         @param orientations     World quaternion buffer
-        @param pairList         Pair list buffer
-        @param contactInfoLocal Per-pair local ContactInfo buffer
         @param bodyTags         Raw device pointer to per-component body tags
         @param numComposites    Number of composites (0 = skip composite check) */
-    void filterPairsBV_global(const RigidBody<T>* const*               rigidBodies,
-                              const GrainsMemBuffer<Vector3<T>, M>&    positions,
-                              const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                              const GrainsMemBuffer<uint2, M>&         pairList,
-                              GrainsMemBuffer<ContactInfo<T>, M>&      contactInfoLocal,
-                              const uint*                              bodyTags,
-                              uint                                     numComposites);
+    void filterPairsBV(const RigidBody<T>* const*               rigidBodies,
+                       const GrainsMemBuffer<Vector3<T>, M>&    positions,
+                       const GrainsMemBuffer<Quaternion<T>, M>& orientations,
+                       const uint*                              bodyTags,
+                       uint                                     numComposites);
 
-    /** @brief Runs narrow-phase GJK and writes ContactInfo in A-local frame.
-        On DEVICE with BV-ON or composites, uses the compacted m_bvPassPairIndices index list.
-        On HOST, skips intra-composite pairs inline.
-        @param rigidBodies Raw pointer array of RigidBody*
-        @param pairList    Pair list buffer
-        @param bodyTags    Per-component body tag buffer
-        @param counts      Component counts */
-    void detectCollisionsComponents(const RigidBody<T>* const*       rigidBodies,
-                                    const GrainsMemBuffer<uint2, M>& pairList,
-                                    const GrainsMemBuffer<uint, M>&  bodyTags,
-                                    const ComponentCounts&           counts);
-
-    /** @brief Runs narrow-phase GJK using world-frame positions/quaternions directly, skipping the
-        relative-transformation pre-pass.
+    /** @brief Runs narrow-phase GJK using world-frame positions/quaternions directly.
         On DEVICE with BV-ON or composites, uses the compacted m_bvPassPairIndices index list.
         On HOST, skips intra-composite pairs inline.
         @param rigidBodies  Raw pointer array of RigidBody*
@@ -251,25 +203,17 @@ private:
         @param contactInfo  ComponentManager's world-frame ContactInfo buffer
         @param bodyTags     Per-component body tag buffer
         @param counts       Component counts */
-    void detectCollisionsComponentsGlobal(const RigidBody<T>* const*               rigidBodies,
-                                          const GrainsMemBuffer<Vector3<T>, M>&    positions,
-                                          const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                                          const GrainsMemBuffer<uint2, M>&         pairList,
-                                          GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo,
-                                          const GrainsMemBuffer<uint, M>&          bodyTags,
-                                          const ComponentCounts&                   counts);
-
-    /** @brief Transforms per-pair ContactInfo from A-local frame to world frame.
-        @param positions    World position buffer
-        @param orientations World quaternion buffer
-        @param pairList     Pair list buffer
-        @param contactInfo  ComponentManager's world-frame ContactInfo buffer */
-    void transformContactInfo(const GrainsMemBuffer<Vector3<T>, M>&    positions,
-                              const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                              const GrainsMemBuffer<uint2, M>&         pairList,
-                              GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo);
+    void detectCollisionsComponents(const RigidBody<T>* const*               rigidBodies,
+                                    const GrainsMemBuffer<Vector3<T>, M>&    positions,
+                                    const GrainsMemBuffer<Quaternion<T>, M>& orientations,
+                                    const GrainsMemBuffer<uint2, M>&         pairList,
+                                    GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo,
+                                    GrainsMemBuffer<uint2, M>&               cmPairList,
+                                    const GrainsMemBuffer<uint, M>&          bodyTags,
+                                    ComponentCounts&                         counts);
 
     /** @brief Sorts particles by Morton codes for improved cache efficiency.
+        @param rigidBody    RigidBody pointer buffer (reordered in-place)
         @param positions    Position buffer (reordered in-place)
         @param orientations Quaternion buffer (reordered in-place)
         @param velocities   Kinematics buffer (reordered in-place)
@@ -279,7 +223,8 @@ private:
         @param localQuat    LocalQuat buffer (reordered in-place)
         @param masterSlot   Master slot buffer (reordered in-place)
         @param counts       Component counts */
-    void sortParticles(GrainsMemBuffer<Vector3<T>, M>&    positions,
+    void sortParticles(GrainsMemBuffer<RigidBody<T>*, M>& rigidBody,
+                       GrainsMemBuffer<Vector3<T>, M>&    positions,
                        GrainsMemBuffer<Quaternion<T>, M>& orientations,
                        GrainsMemBuffer<Kinematics<T>, M>& velocities,
                        GrainsMemBuffer<Torce<T>, M>&      torces,

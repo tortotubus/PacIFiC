@@ -131,6 +131,14 @@ __HOSTDEVICE__ bool intersectOrientedBoundingCylinder(T                    r1,
     // Vector from center of A to center of B
     const Vector3<T> xPt = trB2W.getOrigin() - trA2W.getOrigin();
 
+    // Parallel-axes early exit
+    if(fabs(eZ * e2) > T(1) - LOWEPS<T>)
+    {
+        const T axialDist  = fabs(eZ * xPt);
+        const T radialDist = sqrt(fabs(norm2(xPt) - axialDist * axialDist));
+        return radialDist < r1 + r2 && axialDist < h1 + h2;
+    }
+
     // Local frame for A: eX is perpendicular to both axes, eY completes the frame
     const Vector3<T> eX = (e2 ^ eZ).normalized();
     const Vector3<T> eY = (eZ ^ eX).normalized();
@@ -274,6 +282,14 @@ __HOSTDEVICE__ bool intersectOrientedBoundingCylinder(T                    r1,
     // B's axis and center-to-center vector expressed in A's frame
     const Vector3<T> e2  = trB2A.getBasis() * ori2;
     const Vector3<T> xPt = trB2A.getOrigin();
+
+    // Parallel-axes early exit
+    if(fabs(eZ * e2) > T(1) - LOWEPS<T>)
+    {
+        const T axialDist  = fabs(eZ * xPt);
+        const T radialDist = sqrt(fabs(norm2(xPt) - axialDist * axialDist));
+        return radialDist < r1 + r2 && axialDist < h1 + h2;
+    }
 
     // Local frame for A: eX is perpendicular to both axes, eY completes the frame
     const Vector3<T> eX = (e2 ^ eZ).normalized();
@@ -425,6 +441,14 @@ __HOSTDEVICE__ bool intersectOrientedBoundingCylinder(T                    r1,
     // Vector from center of A to center of B
     const Vector3<T> xPt = v_b2w - v_a2w;
 
+    // Parallel-axes early exit
+    if(fabs(eZ * e2) > T(1) - LOWEPS<T>)
+    {
+        const T axialDist  = fabs(eZ * xPt);
+        const T radialDist = sqrt(fabs(norm2(xPt) - axialDist * axialDist));
+        return radialDist < r1 + r2 && axialDist < h1 + h2;
+    }
+
     // Local frame for A
     const Vector3<T> eX = (e2 ^ eZ).normalized();
     const Vector3<T> eY = (eZ ^ eX).normalized();
@@ -566,6 +590,14 @@ __HOSTDEVICE__ bool intersectOrientedBoundingCylinder(T                    r1,
     // B's axis in A's frame (direct quaternion rotation, no matrix construction)
     const Vector3<T> e2  = q_b2a >> ori2;
     const Vector3<T> xPt = v_b2a;
+
+    // Parallel-axes early exit
+    if(fabs(eZ * e2) > T(1) - LOWEPS<T>)
+    {
+        const T axialDist  = fabs(eZ * xPt);
+        const T radialDist = sqrt(fabs(norm2(xPt) - axialDist * axialDist));
+        return radialDist < r1 + r2 && axialDist < h1 + h2;
+    }
 
     // Local frame for A: eX is perpendicular to both axes, eY completes the frame
     const Vector3<T> eX = (e2 ^ eZ).normalized();

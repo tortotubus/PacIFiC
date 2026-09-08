@@ -1,6 +1,7 @@
 #ifndef _GRAINSMEMBUFFER_HH_
 #define _GRAINSMEMBUFFER_HH_
 
+#include <cmath>
 #include <type_traits>
 
 #include "GrainsParameters.hh"
@@ -389,6 +390,39 @@ public:
         // Need to grow capacity - preserve existing data
         reserve(new_size);
         m_size = new_size;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    /** @brief Grows the buffer to at least new_size elements without preserving existing data.
+        If new_size fits within current capacity, only updates the logical size (no allocation).
+        If new_size exceeds capacity, frees the old buffer and allocates a new one with
+        new_size * growthFactor capacity to amortize future grows.
+        @param new_size desired logical size
+        @param growthFactor capacity multiplier applied when a reallocation is needed.
+               Use 1.0f for exact sizing (e.g. buffers that jump to full size in one shot),
+               or >1.0f to add headroom and amortize repeated small grows (default 1.25). */
+    void grow(size_t new_size, float growthFactor = 1.25f)
+    {
+        if(new_size <= m_capacity)
+        {
+            m_size = new_size;
+            return;
+        }
+
+        GAssert(std::isfinite(growthFactor) && growthFactor > 0.0f,
+                "Growth factor must be positive and finite in grow()");
+
+        size_t new_capacity = new_size;
+        if(growthFactor > 1.0f)
+        {
+            const long double scaled
+                = static_cast<long double>(new_size) * static_cast<long double>(growthFactor);
+            new_capacity = static_cast<size_t>(std::ceil(scaled));
+            if(new_capacity < new_size)
+                new_capacity = new_size;
+        }
+
+        initialize(new_size, new_capacity);
     }
 
     // ---------------------------------------------------------------------------------------------

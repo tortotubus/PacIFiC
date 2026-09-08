@@ -84,7 +84,7 @@ __HOSTDEVICE__ void
                                                      Vector3<T>&       delM) const
 {
     // Notes:
-    // - contactVector is a unit vector pointing from B to A
+    // - contactVector is a unit vector pointing from A to B
     // - overlapDistance is negative when there is penetration
 
     // Normal linear elastic force
@@ -173,6 +173,67 @@ __HOSTDEVICE__ void HookeContactForceModel<T>::computeForces(const ContactInfo<T
         torceA.addTorque(delM);
         torceB.addTorque(-delM);
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+// Computes and prints contact parameter estimates for a head-on collision at velocity v0.
+template <typename T>
+__HOST__ void HookeContactForceModel<T>::computeEstimates(T             massA,
+                                                          T             massB,
+                                                          T             crustA,
+                                                          T             crustB,
+                                                          T             v0,
+                                                          T             dt,
+                                                          std::string   labelA,
+                                                          std::string   labelB,
+                                                          std::ostream& out) const
+{
+    // Reduced mass  m* = mA*mB / (mA+mB);  for particle-obstacle pairs massB = 1e20
+    T avmass = T(1) / (T(1) / massA + T(1) / massB);
+
+    // Normal damping coefficient eta_n
+    T eta_n = -T(2) * m_muen * sqrt(m_kn * avmass);
+
+    // Natural frequency, damped frequency, contact time
+    T omega0 = sqrt(m_kn / avmass);
+    T theta  = sqrt(omega0 * omega0 - eta_n * eta_n);
+    T Tc     = PI<T> / theta;
+
+    // Maximum penetration depth: Newton iteration on  d/dt[delta(t)] = 0
+    // delta(t) = (v0/theta) * exp(-eta_n * t) * sin(theta * t)
+    T t0 = (m_en > T(0.2)) ? (Tc / T(2)) : (Tc / T(100));
+    for(int iter = 0; iter < 1000; ++iter)
+    {
+        T et = exp(-eta_n * t0);
+        T st = sin(theta * t0);
+        T ct = cos(theta * t0);
+        T f  = (v0 / theta) * et * (-eta_n * st + theta * ct);
+        T df = (v0 / theta) * et
+               * (eta_n * eta_n * st - T(2) * eta_n * theta * ct - theta * theta * st);
+        T dt_ = f / df;
+        t0 -= dt_;
+        if(fabs(dt_) < T(1e-10) * fabs(t0) + T(1e-14))
+            break;
+    }
+    T delta_max = (v0 / theta) * exp(-eta_n * t0) * sin(theta * t0);
+
+    T crustAllowed = crustA + crustB;
+    T maxForce     = m_kn * delta_max;
+    T weight       = avmass * T(9.81);
+
+    out << "  Pair [" << labelA << " | " << labelB << "]  (kn=" << m_kn << ", en=" << m_en << ")\n";
+    out << "    Crust budget          : " << crustAllowed << " m\n";
+    out << "    v0                    : " << v0 << " m/s\n";
+    out << "    v0 * dt / crust       : " << v0 * dt / crustAllowed << "\n";
+    out << "    Contact time Tc       : " << Tc << " s  (" << Tc / dt << " time steps)\n";
+    out << "    Max penetration       : " << delta_max << " m\n";
+    out << "    eta_n                 : " << eta_n << "\n";
+    out << "    Max elastic force     : " << maxForce << " N\n";
+    out << "    Force / weight        : " << maxForce / weight << "\n";
+    if(delta_max > crustAllowed)
+        out << "    *** WARNING: delta_max (" << delta_max << ") exceeds crust budget ("
+            << crustAllowed << "). Increase kn or crust. ***\n";
+    out << "\n";
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -21,7 +21,7 @@
     @param line the line number
     @param abort whether to abort the program */
 __HOST__ static INLINE void
-    cudaAssert(cudaError_t code, const char* file, int line, bool abort = false)
+    cudaAssert(cudaError_t code, const char* file, int line, bool abort = true)
 {
     if(code != cudaSuccess)
     {
@@ -48,6 +48,23 @@ __HOST__ static INLINE size_t getAvailableDeviceMemory()
     size_t total_byte;
     cudaErrCheck(cudaMemGetInfo(&free_byte, &total_byte));
     return free_byte;
+}
+
+// -------------------------------------------------------------------------------------------------
+/** @brief Returns the resident set size (RSS) of the current process in kilobytes.
+    Reads VmRSS from /proc/self/status, which tracks actual physical pages mapped to the process. */
+__HOST__ static INLINE size_t getUsedProcessMemoryKB()
+{
+    std::ifstream status("/proc/self/status");
+    std::string   line;
+    while(std::getline(status, line))
+        if(line.rfind("VmRSS:", 0) == 0)
+        {
+            size_t kb = 0;
+            sscanf(line.c_str(), "VmRSS: %zu kB", &kb);
+            return kb;
+        }
+    return 0;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -259,7 +276,11 @@ __HOSTDEVICE__ static INLINE uint primeHash(uint2 k)
 {
     // Simple, fast hash using prime numbers for good distribution
     if(k.x > k.y)
-        swap(k.x, k.y);
+    {
+        uint tmp = k.x;
+        k.x      = k.y;
+        k.y      = tmp;
+    }
     uint h = k.x * 73856093u ^ k.y * 19349663u;
     return h;
 }

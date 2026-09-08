@@ -49,6 +49,10 @@ __HOST__ void
 {
     uint numContactPairs = GrainsParameters<T>::m_numContactPairs;
     CF.initialize(numContactPairs);
+    // std::malloc (used by GrainsMemBuffer::initialize) does not zero-initialize;
+    // explicitly null all slots so unregistered pair checks work correctly.
+    for(uint i = 0; i < numContactPairs; ++i)
+        CF[i] = nullptr;
     DOMNodeList* allContacts = ReaderXML::getNodes(root, "ContactForceModel");
     for(XMLSize_t i = 0; i < allContacts->getLength(); i++)
     {
@@ -73,6 +77,22 @@ __HOST__ void
         else
             GAbort("Unknown contact force model! Aborting Grains!");
     }
+
+    // Determine unified CF kernel dispatch type
+    bool seenHooke = false, seenHookeMemory = false;
+    for(uint i = 0; i < numContactPairs; ++i)
+    {
+        if(CF[i] == nullptr)
+            continue;
+        ContactForceModelType t = CF[i]->getContactForceModelType();
+        if(t == HOOKE)
+            seenHooke = true;
+        else if(t == HOOKEMEMORY)
+            seenHookeMemory = true;
+    }
+    GrainsParameters<T>::m_cfKernelType = (seenHooke && !seenHookeMemory)   ? HOOKE
+                                          : (!seenHooke && seenHookeMemory) ? HOOKEMEMORY
+                                                                            : CF_VIRTUAL;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -84,6 +104,8 @@ __HOST__ void ContactForceModelFactory<T>::copyHostToDevice(
 {
     // Allocate the device memory for the contact force models
     d_CF.initialize(h_CF.getSize());
+    // cudaMalloc does not zero-initialize; null all device slots so unset pairs are safe.
+    cudaErrCheck(cudaMemset(d_CF.getData(), 0, h_CF.getSize() * sizeof(ContactForceModel<T>*)));
     for(uint i = 0; i < h_CF.getSize(); ++i)
     {
         if(h_CF[i] == nullptr)

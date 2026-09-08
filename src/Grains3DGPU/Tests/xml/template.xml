@@ -5,7 +5,7 @@
     <MaxCoordinate X="{domain_size_X}" Y="{domain_size_Y}" Z="{domain_size_Z}"/>
     <Periodicity PX="0" PY="0" PZ="0"/>
 
-    <CollisionDetection EnableTimings="{cd_enable_timings}" UseRelativeTransformations="{cd_use_relative_transformations}">
+    <CollisionDetection EnableTimings="{cd_enable_timings}">
         <NeighborList Type="{neighbor_list_type}" UpdateFrequency="{update_frequency}"/>
         <LinkedCell Type="{linked_cell_type}" CellSizeFactor="{cell_size_factor}" UpdatingFrequency="{update_frequency}" SortingFrequency="{sorting_frequency}"/>
         <BoundingVolume Type="{bounding_volume_type}"/>

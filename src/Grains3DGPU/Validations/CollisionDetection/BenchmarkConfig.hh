@@ -1,46 +1,78 @@
-#ifndef _STEPTIMER_HH_
-#define _STEPTIMER_HH_
+#ifndef _BENCHMARKCONFIG_HH_
+#define _BENCHMARKCONFIG_HH_
 
-#include <chrono>
+#include "LinkedCell.hh"
+#include "Vector3.hh"
+
+enum class PrecisionType
+{
+    SINGLE = 0,  // float
+    DOUBLE = 1   // double
+};
+
+enum class ParticleShapeType
+{
+    SPHERE       = 0,
+    BOX          = 1,
+    SUPERQUADRIC = 2
+};
+
+enum class GJKRepresentationType
+{
+    TRANSFORM  = 0,
+    QUATERNION = 1
+};
+
+enum class GJKVariantType
+{
+    JOHNSON      = 0,
+    SIGNEDVOLUME = 1
+};
+
+enum class PLATFORM
+{
+    CPU  = 0,
+    GPU  = 1,
+    BOTH = 2
+};
 
 // =================================================================================================
-/** @brief Timer utility for measuring execution time */
-class StepTimer
+/** @brief Configuration for collision detection benchmarks */
+struct BenchmarkConfig
 {
-private:
-    std::chrono::high_resolution_clock::time_point m_start;
-    std::chrono::high_resolution_clock::time_point m_end;
-    bool                                           m_running;
+    // Precision
+    PrecisionType precision;
 
-public:
-    StepTimer()
-        : m_running(false)
-    {
-    }
+    // Platform parameters
+    PLATFORM platform;
 
-    void start()
-    {
-        m_start   = std::chrono::high_resolution_clock::now();
-        m_running = true;
-    }
+    // Particle parameters
+    uint              numParticles;
+    ParticleShapeType shapeType;
+    Vector3<double>   particleSize;
+    double            aspectRatio;
 
-    void stop()
-    {
-        m_end     = std::chrono::high_resolution_clock::now();
-        m_running = false;
-    }
+    // Domain parameters
+    Vector3<double> domainMin;
+    Vector3<double> domainMax;
 
-    double getElapsedMilliseconds() const
-    {
-        if(m_running)
-            return 0.0;
-        return std::chrono::duration<double, std::milli>(m_end - m_start).count();
-    }
+    // Test parameters
+    uint numTrials;
+    uint randomSeed;
+    bool validateContacts;
 
-    double getElapsedSeconds() const
-    {
-        return getElapsedMilliseconds() / 1000.0;
-    }
+    BenchmarkConfig()
+        : precision(PrecisionType::SINGLE)
+        , platform(PLATFORM::BOTH)
+        , numParticles(1000)
+        , shapeType(ParticleShapeType::BOX)
+        , particleSize(0.05)
+        , aspectRatio(1.0)
+        , domainMin(Vector3<double>(-1, -1, -1))
+        , domainMax(Vector3<double>(1, 1, 1))
+        , numTrials(5)
+        , randomSeed(42)
+        , validateContacts(false){};
 };
 
 #endif

@@ -119,6 +119,14 @@ __HOSTDEVICE__ Vector3<T> Sphere<T>::support(const Vector3<T>& v) const
 }
 
 // -------------------------------------------------------------------------------------------------
+// Eroded sphere support: evaluates support of sphere with radius shrunk by crust
+template <typename T>
+__HOSTDEVICE__ Vector3<T> Sphere<T>::support(const Vector3<T>& v, T crust) const
+{
+    return ((m_radius - crust) * v.normalized());
+}
+
+// -------------------------------------------------------------------------------------------------
 // Input operator
 template <typename T>
 __HOST__ void Sphere<T>::readConvex(std::istream& fileIn)
@@ -286,6 +294,70 @@ __HOST__ void Sphere<T>::writeConnection_PARAVIEW(std::list<uint>& connectivity,
     cellstype.push_back(10);
 
     firstpoint_globalnumber += 4 * visuNodeNbPerQar * (2 * visuNodeNbPerQar - 1) + 3;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Returns sphere shape parameters: [radius, 0, 0, 0, 0]
+template <typename T>
+__HOSTDEVICE__ void Sphere<T>::getShapeParameters(T (&params)[5]) const
+{
+    params[0] = m_radius;
+    params[1] = T(0);
+    params[2] = T(0);
+    params[3] = T(0);
+    params[4] = T(0);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Writes the sphere as a Wavefront OBJ mesh, mirroring reference write_convex_OBJ.
+// visuNodeNbPerQar = 8 => ppl=32 pts/ring, nRings=15.
+template <typename T>
+__HOST__ void Sphere<T>::writeOBJ(std::ostream& f, size_t& fp) const
+{
+    constexpr int N   = visuNodeNbPerQar;
+    constexpr int ppl = 4 * N;
+    constexpr int nR  = 2 * N - 1;
+    const T       ang = PI<T> / (T(2) * T(N));
+
+    for(int k = 0; k < nR; ++k)
+    {
+        const T angleZ = -PI<T> / T(2) + T(k + 1) * ang;
+        const T lr     = m_radius * cos(angleZ);
+        const T z      = m_radius * sin(angleZ);
+        for(int i = 0; i < ppl; ++i)
+            f << "v " << lr * cos(T(i) * ang) << " " << lr * sin(T(i) * ang) << " " << z << "\n";
+    }
+    f << "v " << T(0) << " " << T(0) << " " << -m_radius << "\n";  // bottom pole
+    f << "v " << T(0) << " " << T(0) << " " << +m_radius << "\n";  // top pole
+
+    const size_t Bot = fp + ppl * nR;
+    const size_t Top = fp + ppl * nR + 1;
+
+    for(int k = 0; k < nR - 1; ++k)
+    {
+        for(int i = 0; i < ppl - 1; ++i)
+            f << "f " << fp + k * ppl + i << " " << fp + k * ppl + i + 1 << " "
+              << fp + (k + 1) * ppl + i + 1 << " " << fp + (k + 1) * ppl + i << "\n";
+        f << "f " << fp + k * ppl + ppl - 1 << " " << fp + k * ppl << " " << fp + (k + 1) * ppl
+          << " " << fp + (k + 1) * ppl + ppl - 1 << "\n";
+    }
+    for(int i = 0; i < ppl - 1; ++i)
+        f << "f " << fp + i << " " << fp + i + 1 << " " << Bot << "\n";
+    f << "f " << fp + ppl - 1 << " " << fp << " " << Bot << "\n";
+    for(int i = 0; i < ppl - 1; ++i)
+        f << "f " << fp + (nR - 1) * ppl + i << " " << fp + (nR - 1) * ppl + i + 1 << " " << Top
+          << "\n";
+    f << "f " << fp + nR * ppl - 1 << " " << fp + (nR - 1) * ppl << " " << Top << "\n";
+
+    fp += ppl * nR + 2;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Returns the convex name
+template <typename T>
+__HOST__ std::string Sphere<T>::getConvexName() const
+{
+    return "Sphere";
 }
 
 // -------------------------------------------------------------------------------------------------

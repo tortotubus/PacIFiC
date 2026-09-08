@@ -3,31 +3,14 @@
 // -------------------------------------------------------------------------------------------------
 // CUDA kernel for mark-and-sweep cleanup
 template <typename T>
-__GLOBAL__ void markAndSweepKernel(ContactEntry*      table,
-                                   ContactHistory<T>* history,
-                                   uint               capacity,
-                                   uint               maxContacts)
+__GLOBAL__ void markAndSweepKernel(ContactEntry* table, uint capacity)
 {
     uint idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= capacity)
         return;
 
-    ContactEntry& entry = table[idx];
-
-    if(entry.m_valid == 1)
-    {
-        // Stale entry - remove it and reset history
-        if(entry.m_index < maxContacts)
-        {
-            history[entry.m_index] = ContactHistory<T>();
-        }
-        entry.m_valid = 0;
-    }
-    else if(entry.m_valid == 2)
-    {
-        // Active entry - demote to stale
-        entry.m_valid = 1;
-    }
+    if(table[idx].m_valid == ContactEntry::ACTIVE)
+        table[idx].m_valid = ContactEntry::TOMBSTONE;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -38,7 +21,6 @@ ContactHashTable<T, M>::ContactHashTable()
     , m_table()
     , m_capacity(0)
     , m_maxContacts(0)
-    , m_nextIndex(nullptr)
 {
 }
 
@@ -50,7 +32,6 @@ ContactHashTable<T, M>::ContactHashTable(uint hashCapacity, uint maxContacts)
     , m_table()
     , m_capacity(0)
     , m_maxContacts(0)
-    , m_nextIndex(nullptr)
 {
     allocate(hashCapacity, maxContacts);
 }
@@ -112,53 +93,24 @@ uint ContactHashTable<T, M>::getMaxContacts() const
 }
 
 // -------------------------------------------------------------------------------------------------
-// Gets the pointer to the next index counter
-template <typename T, MemType M>
-uint* ContactHashTable<T, M>::getNextIndexPointer()
-{
-    return m_nextIndex;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Gets the pointer to the next index counter (const)
-template <typename T, MemType M>
-const uint* ContactHashTable<T, M>::getNextIndexPointer() const
-{
-    return m_nextIndex;
-}
-
-// -------------------------------------------------------------------------------------------------
 // Gets a complete view for passing to kernels
 template <typename T, MemType M>
 ContactMemoryView<T> ContactHashTable<T, M>::getView()
 {
-    return ContactMemoryView<T>(m_historyData.getData(),
-                                m_table.getData(),
-                                m_capacity,
-                                m_nextIndex);
+    return ContactMemoryView<T>(m_historyData.getData(), m_table.getData(), m_capacity);
 }
 
 // -------------------------------------------------------------------------------------------------
-// Gets the current next index value
+// Counts the number of ACTIVE entries (host-side, O(capacity))
 template <typename T, MemType M>
-uint ContactHashTable<T, M>::getNextIndex() const
+uint ContactHashTable<T, M>::countActive() const
 {
-    if(m_nextIndex == nullptr)
-        return 0;
-
-    if constexpr(M == MemType::HOST)
-    {
-        return *m_nextIndex;
-    }
-    else if constexpr(M == MemType::DEVICE)
-    {
-        // Copy from device to host
-        uint hostValue;
-        cudaErrCheck(cudaMemcpy(&hostValue, m_nextIndex, sizeof(uint), cudaMemcpyDeviceToHost));
-        return hostValue;
-    }
-
-    return 0;
+    const ContactEntry* table = m_table.getData();
+    uint                count = 0;
+    for(uint i = 0; i < m_capacity; ++i)
+        if(table[i].m_valid == ContactEntry::ACTIVE)
+            ++count;
+    return count;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -167,10 +119,8 @@ template <typename T, MemType M>
 void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
 {
     // Deallocate existing memory if any
-    if(m_table.getSize() > 0 || m_historyData.getSize() > 0 || m_nextIndex != nullptr)
-    {
+    if(m_table.getSize() > 0 || m_historyData.getSize() > 0)
         deallocate();
-    }
 
     m_capacity    = hashCapacity;
     m_maxContacts = maxContacts;
@@ -183,13 +133,11 @@ void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
     }
     else if constexpr(M == MemType::DEVICE)
     {
-        // Initialize device memory to zero. ContactEntry is not a POD primitive,
-        // so use cudaMemset to avoid instantiating device-side constructors.
         cudaErrCheck(cudaMemset(m_table.getData(), 0, hashCapacity * sizeof(ContactEntry)));
     }
 
-    // Allocate and initialize the history data
-    m_historyData.initialize(maxContacts);
+    // Allocate and initialize the history data (one slot per hash-table slot)
+    m_historyData.initialize(hashCapacity);
     if constexpr(M == MemType::HOST)
     {
         m_historyData.fill(ContactHistory<T>());
@@ -197,19 +145,7 @@ void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
     else if constexpr(M == MemType::DEVICE)
     {
         cudaErrCheck(
-            cudaMemset(m_historyData.getData(), 0, maxContacts * sizeof(ContactHistory<T>)));
-    }
-
-    // Allocate the index counter
-    if constexpr(M == MemType::HOST)
-    {
-        m_nextIndex  = new uint;
-        *m_nextIndex = 0;
-    }
-    else if constexpr(M == MemType::DEVICE)
-    {
-        cudaErrCheck(cudaMalloc(&m_nextIndex, sizeof(uint)));
-        cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
+            cudaMemset(m_historyData.getData(), 0, hashCapacity * sizeof(ContactHistory<T>)));
     }
 }
 
@@ -222,19 +158,6 @@ void ContactHashTable<T, M>::deallocate()
     m_historyData.free();
     m_capacity    = 0;
     m_maxContacts = 0;
-
-    if(m_nextIndex != nullptr)
-    {
-        if constexpr(M == MemType::HOST)
-        {
-            delete m_nextIndex;
-        }
-        else if constexpr(M == MemType::DEVICE)
-        {
-            cudaFree(m_nextIndex);
-        }
-        m_nextIndex = nullptr;
-    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -263,39 +186,22 @@ void ContactHashTable<T, M>::clear()
         else if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(
-                cudaMemset(m_historyData.getData(), 0, m_maxContacts * sizeof(ContactHistory<T>)));
-        }
-    }
-
-    if(m_nextIndex != nullptr)
-    {
-        if constexpr(M == MemType::HOST)
-        {
-            *m_nextIndex = 0;
-        }
-        else if constexpr(M == MemType::DEVICE)
-        {
-            cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
+                cudaMemset(m_historyData.getData(), 0, m_capacity * sizeof(ContactHistory<T>)));
         }
     }
 }
 
 // -------------------------------------------------------------------------------------------------
-// Resets the index counter
+// Grows the contact table if newMaxContacts exceeds the current capacity.
+// Existing contact history is discarded (contacts restart as new).
 template <typename T, MemType M>
-void ContactHashTable<T, M>::resetIndexCounter()
+void ContactHashTable<T, M>::grow(uint newMaxContacts)
 {
-    if(m_nextIndex != nullptr)
-    {
-        if constexpr(M == MemType::HOST)
-        {
-            *m_nextIndex = 0;
-        }
-        else if constexpr(M == MemType::DEVICE)
-        {
-            cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
-        }
-    }
+    if(newMaxContacts <= m_maxContacts)
+        return;
+
+    uint newHashCapacity = static_cast<uint>(newMaxContacts / 0.7);
+    allocate(newHashCapacity, newMaxContacts);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -308,28 +214,11 @@ void ContactHashTable<T, M>::markAndSweep()
 
     if constexpr(M == MemType::HOST)
     {
-        // CPU version
-        ContactEntry*      table   = m_table.getData();
-        ContactHistory<T>* history = m_historyData.getData();
-
+        ContactEntry* table = m_table.getData();
         for(uint i = 0; i < m_capacity; ++i)
         {
-            ContactEntry& entry = table[i];
-
-            if(entry.m_valid == 1)
-            {
-                // Stale entry - remove it and reset history
-                if(entry.m_index < m_maxContacts)
-                {
-                    history[entry.m_index] = ContactHistory<T>();
-                }
-                entry.m_valid = 0;
-            }
-            else if(entry.m_valid == 2)
-            {
-                // Active entry - demote to stale
-                entry.m_valid = 1;
-            }
+            if(table[i].m_valid == ContactEntry::ACTIVE)
+                table[i].m_valid = ContactEntry::TOMBSTONE;
         }
     }
     else if constexpr(M == MemType::DEVICE)
@@ -339,10 +228,7 @@ void ContactHashTable<T, M>::markAndSweep()
                                        GrainsParameters<T>::m_GPU,
                                        numBlocks,
                                        numThreads);
-        markAndSweepKernel<T><<<numBlocks, numThreads>>>(m_table.getData(),
-                                                         m_historyData.getData(),
-                                                         m_capacity,
-                                                         m_maxContacts);
+        markAndSweepKernel<T><<<numBlocks, numThreads>>>(m_table.getData(), m_capacity);
         cudaErrCheck(cudaGetLastError());
     }
 }

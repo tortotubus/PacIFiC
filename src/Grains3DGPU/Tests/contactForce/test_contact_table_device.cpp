@@ -187,3 +187,65 @@ TEST_F(ContactTableDeviceTest, ConcurrentInsertions)
     cudaFree(d_indices);
     cudaFree(d_results);
 }
+
+TEST_F(ContactTableDeviceTest, CleanupReusesFreedHistorySlots)
+{
+    const int                                numPairs = 64;
+    ContactHashTable<float, MemType::DEVICE> localTable(128, numPairs);
+    ContactMemoryView<float>                 localView = localTable.getView();
+
+    uint2* h_pairs   = new uint2[numPairs];
+    uint*  h_indices = new uint[numPairs];
+    bool*  h_results = new bool[numPairs];
+    for(int i = 0; i < numPairs; ++i)
+        h_pairs[i] = make_uint2(i, i + 1000);
+
+    uint2* d_pairs;
+    uint*  d_indices;
+    bool*  d_results;
+    cudaMalloc(&d_pairs, numPairs * sizeof(uint2));
+    cudaMalloc(&d_indices, numPairs * sizeof(uint));
+    cudaMalloc(&d_results, numPairs * sizeof(bool));
+    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(uint2), cudaMemcpyHostToDevice);
+
+    const int blockSize = 256;
+    const int numBlocks = (numPairs + blockSize - 1) / blockSize;
+    testInsertionKernel<<<numBlocks, blockSize>>>(localView,
+                                                  d_pairs,
+                                                  d_indices,
+                                                  d_results,
+                                                  numPairs);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+
+    localTable.markAndSweep();
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    localTable.markAndSweep();
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+
+    for(int i = 0; i < numPairs; ++i)
+        h_pairs[i] = make_uint2(i + 5000, i + 7000);
+    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(uint2), cudaMemcpyHostToDevice);
+
+    testInsertionKernel<<<numBlocks, blockSize>>>(localView,
+                                                  d_pairs,
+                                                  d_indices,
+                                                  d_results,
+                                                  numPairs);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+
+    cudaMemcpy(h_indices, d_indices, numPairs * sizeof(uint), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_results, d_results, numPairs * sizeof(bool), cudaMemcpyDeviceToHost);
+
+    for(int i = 0; i < numPairs; ++i)
+    {
+        EXPECT_TRUE(h_results[i]);
+        EXPECT_LT(h_indices[i], static_cast<uint>(numPairs));
+    }
+
+    delete[] h_pairs;
+    delete[] h_indices;
+    delete[] h_results;
+    cudaFree(d_pairs);
+    cudaFree(d_indices);
+    cudaFree(d_results);
+}

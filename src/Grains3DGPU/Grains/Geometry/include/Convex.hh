@@ -2,17 +2,23 @@
 #define _CONVEX_HH_
 
 #include "Transform3.hh"
+#include <string>
 
 // Convex types
 enum ConvexType
 {
-    SPHERE,
-    BOX,
-    CYLINDER,
-    CONE,
-    SUPERQUADRIC,
-    POLYHEDRON,
-    RECTANGLE
+    SPHERE       = 0,
+    BOX          = 1,
+    OCTAHEDRON   = 2,
+    DODECAHEDRON = 3,
+    CYLINDER     = 4,
+    CONE         = 5,
+    SUPERQUADRIC = 6,
+    RECTANGLE    = 7,
+    POLYHEDRON   = 8,
+    TRAPEZOID    = 9,
+    TRIANGLE     = 10,
+    DRUM         = 11
 };
 
 // =================================================================================================
@@ -45,6 +51,10 @@ public:
     /** @brief Returns the convex type */
     __HOSTDEVICE__
     virtual ConvexType getConvexType() const = 0;
+
+    /** @brief Returns a human-readable name for the convex type (e.g. "Sphere", "Box") */
+    __HOST__
+    virtual std::string getConvexName() const = 0;
     //@}
 
     /** @name Methods */
@@ -84,12 +94,13 @@ public:
     virtual Vector3<T> support(const Vector3<T>& v) const = 0;
 
     /** @brief Eroded convex support function, returns the support point of the
-        shape shrunk inward by crust along v: support(v) - crust/norm(v) * v
+        shape shrunk inward by crust. The default implementation applies generic Minkowski erosion:
+        support(v) - crust/norm(v) * v. Built-in shape subclasses override this to evaluate the
+        support of the dimensionally-reduced shape directly, preserving the exact shape geometry.
         @param v direction vector
-        @param crust erosion thickness
-        @param invNorm precomputed 1/norm(v) to avoid redundant sqrt */
+        @param crust erosion thickness */
     __HOSTDEVICE__
-    Vector3<T> support(const Vector3<T>& v, T crust, T invNorm) const;
+    virtual Vector3<T> support(const Vector3<T>& v, T crust) const;
 
     /** @brief Returns whether point p lies in the convex shape
         @param p point */
@@ -148,6 +159,34 @@ public:
                                           uint&            firstpoint_globalnumber,
                                           uint&            last_offset) const
         = 0;
+
+    /** @brief Returns shape-specific geometric parameters.
+            Fills a fixed-size array with shape-specific parameters. Default implementation fills
+    zeros. Used by lightweight post-processing and ShapeData packing. Layout depends on
+    getConvexType():
+        Sphere:       [radius, 0, 0, 0, 0]
+        Box:          [Lx, Ly, Lz, 0, 0]
+        Octahedron:   [radius, 0, 0, 0, 0]
+        Dodecahedron: [radius, 0, 0, 0, 0]
+        Cylinder:     [radius, height, 0, 0, 0]
+        Cone:         [bottomRadius, height, 0, 0, 0]
+        Superquadric: [a, b, c, n1, n2]
+        Rectangle:    [Lx, Ly, 0, 0, 0]
+        Trapezoid:    [halfWidthBottom, halfWidthTop, halfHeight, 0, 0]
+        Triangle:     [halfBase, halfHeight, 0, 0, 0]
+        Drum:         [radius, halfHeight, 0, 0, 0]
+    @param params output array of 5 values */
+    __HOSTDEVICE__
+    virtual void getShapeParameters(T (&params)[5]) const;
+
+    /** @brief Writes the convex as a Wavefront OBJ mesh to a stream (surface-only, no GC).
+        OBJ vertex indices are 1-based. firstpoint_number must be 1 for a single-shape file and
+        is advanced by the number of vertices written, matching the reference write_convex_OBJ
+        convention so multiple shapes can share a single stream if needed.
+        @param f output stream
+        @param firstpoint_number 1-based index of the first vertex written; advanced on return */
+    __HOST__
+    virtual void writeOBJ(std::ostream& f, size_t& firstpoint_number) const = 0;
     //@}
 };
 

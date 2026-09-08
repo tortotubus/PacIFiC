@@ -1,11 +1,11 @@
-PYTHON=$PACIFIC_VENV_PY_ABS
-DATADIR="${PACIFIC_BUILDDIR_ABS}/Grains3DGPU/Validations/CollectionDetectionModule/data"
-EXECUTABLE="CDModuleBenchmark"
-CSV="${DATADIR}/benchmark_comprehensive.csv"
+
+#!/bin/bash
 
 # Simple Cartesian-product benchmark: vary N x shape x aspect ratio
 set -e
 
+BIN="./build/CDModuleBenchmark"
+CSV="data/benchmark_comprehensive.csv"
 SEED=42
 NPLATP="--platform both --precision both"
 
@@ -19,7 +19,7 @@ SQ4_X=$BOX4_X
 SQ4_Y=$BOX4_Y
 SQ4_Z=$BOX4_Z
 
-mkdir -p ${DATADIR}
+mkdir -p data
 rm -f "$CSV"
 
 N_LIST=(512 2048 8192 32768 131072)
@@ -56,7 +56,7 @@ run_benchmark() {
     local append_flag=""
     [ $current -gt 1 ] && append_flag="--append"
 
-    "$EXECUTABLE" \
+    "$BIN" \
         --particles "$particles" \
         --domain "$domain" \
         --shape "$shape" \

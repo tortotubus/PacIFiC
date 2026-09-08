@@ -4,20 +4,25 @@
 #include "Convex.hh"
 #include "ConvexFactory.hh"
 #include "Cylinder.hh"
+#include "Dodecahedron.hh"
+#include "Drum.hh"
 #include "GrainsParameters.hh"
 #include "Matrix3.hh"
+#include "Octahedron.hh"
 #include "QuaternionMath.hh"
 #include "Rectangle.hh"
 #include "RigidBody.hh"
 #include "Sphere.hh"
 #include "Superquadric.hh"
+#include "Trapezoid.hh"
+#include "Triangle.hh"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
 /* ============================================================================================== */
@@ -45,20 +50,30 @@ __GLOBAL__ void createRigidBodiesBatchKernel(RigidBody<T>** rb,
     {
         if(convexType == SPHERE)
             convex = new Sphere<T>(args...);
+        else if(convexType == OCTAHEDRON)
+            convex = new Octahedron<T>(args...);
+        else if(convexType == DODECAHEDRON)
+            convex = new Dodecahedron<T>(args...);
     }
     else if constexpr(sizeof...(args) == 2)
     {
         if(convexType == CYLINDER)
             convex = new Cylinder<T>(args...);
+        else if(convexType == DRUM)
+            convex = new Drum<T>(args...);
         else if(convexType == CONE)
             convex = new Cone<T>(args...);
         else if(convexType == RECTANGLE)
             convex = new Rectangle<T>(args...);
+        else if(convexType == TRIANGLE)
+            convex = new Triangle<T>(args...);
     }
     else if constexpr(sizeof...(args) == 3)
     {
         if(convexType == BOX)
             convex = new Box<T>(args...);
+        else if(convexType == TRAPEZOID)
+            convex = new Trapezoid<T>(args...);
     }
     else if constexpr(sizeof...(args) == 5)
     {
@@ -74,6 +89,21 @@ __GLOBAL__ void createRigidBodiesBatchKernel(RigidBody<T>** rb,
 }
 
 // -------------------------------------------------------------------------------------------------
+/** @brief Fills d_RB[indices[i]] = d_RB[canonicalIdx] for all i in [0, count).
+    Used to propagate a single shared device RigidBody pointer to all alias slots
+    of the same type, avoiding one device allocation per particle instance. */
+template <typename T>
+__GLOBAL__ void fillSharedPointersKernel(RigidBody<T>** d_RB,
+                                         const uint*    indices,
+                                         uint           canonicalIdx,
+                                         uint           count)
+{
+    uint i = blockIdx.x * blockDim.x + threadIdx.x;
+    if(i >= count)
+        return;
+    d_RB[indices[i]] = d_RB[canonicalIdx];
+}
+
 /** @brief Calls delete on every RigidBody pointer. */
 template <typename T>
 __GLOBAL__ void deleteRigidBodiesKernel(RigidBody<T>** d_RB, uint n)
@@ -103,35 +133,97 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
     DOMNodeList* allObstacles = obstacles ? ReaderXML::getNodes(obstacles) : nullptr;
     uint         numRawObs    = allObstacles ? allObstacles->getLength() : 0;
 
-    // First pass: count actual element nodes
-    uint numRefObs = 0;
+    // Helper: given an <Obstacle> XML node, detect if its <Convex> child is a <ConicalWall> or
+    // <CylinderWall> XML type (auto-expanded to N panels), and return N (default 32).
+    // Returns 0 for standard (non-expanded) obstacles.
+    auto getPanelCount = [](DOMNode* nObs, std::string& shapeType) -> uint {
+        DOMNode* shape = ReaderXML::getNode(nObs, "Convex");
+        if(!shape)
+            return 0;
+        DOMNode* shapeChild = ReaderXML::getNodeNext(shape);
+        if(!shapeChild)
+            return 0;
+        shapeType = ReaderXML::getNodeName(shapeChild);
+        if(shapeType == "ConicalWall" || shapeType == "CylinderWall")
+        {
+            if(ReaderXML::hasNodeAttr(shapeChild, "N"))
+                return (uint)ReaderXML::getNodeAttr_Int(shapeChild, "N");
+            return 32u;
+        }
+        return 0;
+    };
+
+    // Helper: lookup or register material, return material ID
+    auto getMaterialId = [](const std::string& matStr) -> uint {
+        if(GrainsParameters<T>::m_materialMap.count(matStr) == 0)
+        {
+            uint id = GrainsParameters<T>::m_materialMap.size();
+            GrainsParameters<T>::m_materialMap.emplace(matStr, id);
+        }
+        return GrainsParameters<T>::m_materialMap[matStr];
+    };
+
+    // First pass: count element nodes, total sub-body slots, and build per-template flat offsets.
+    // templateFlatOffset[obsIdx] = first flat component index for that template's panels.
+    uint              numRefObs  = 0;
+    uint              totalSlots = 0;
+    std::vector<uint> templateFlatOffset;
     for(uint i = 0; i < numRawObs; ++i)
-        if(allObstacles->item(i)->getNodeType() == 1)
-            ++numRefObs;
+    {
+        DOMNode* nObs = allObstacles->item(i);
+        if(nObs->getNodeType() != 1)
+            continue;
+        templateFlatOffset.push_back(totalSlots);
+        ++numRefObs;
+        std::string shapeType;
+        uint        N = getPanelCount(nObs, shapeType);
+        totalSlots += (N > 0) ? N : 1u;
+    }
 
     obstacleData.numTemplates = numRefObs;
     if(numRefObs > 0)
     {
-        obstacleData.refRB.initialize(numRefObs);
+        obstacleData.refRB.initialize(totalSlots);
         obstacleData.subBodiesPerTemplate.initialize(numRefObs);
         obstacleData.numEachRef.initialize(numRefObs);
         obstacleData.isComposite.initialize(numRefObs);
-        obstacleData.refLocalPos.initialize(numRefObs);
-        obstacleData.refLocalQuat.initialize(numRefObs);
+        obstacleData.refLocalPos.initialize(totalSlots);
+        obstacleData.refLocalQuat.initialize(totalSlots);
         obstacleData.refInitialPos.initialize(numRefObs);
         obstacleData.refInitialOri.initialize(numRefObs);
-        uint obsIdx = 0;
+        // Count total valid interval entries for buffer pre-allocation.
+        // Expanded walls (N panels) emit N events per loading interval — one per panel.
+        uint totalEvents = 0;
+        for(uint i = 0; i < numRawObs; ++i)
+        {
+            DOMNode* nObs2 = allObstacles->item(i);
+            if(nObs2->getNodeType() != 1)
+                continue;
+            std::string shapeType2;
+            uint        panelN = getPanelCount(nObs2, shapeType2);
+            uint        mult   = (panelN > 0) ? panelN : 1u;
+            DOMNode*    nOL2   = ReaderXML::getNode(nObs2, "ObstacleLoading");
+            if(nOL2)
+            {
+                DOMNodeList* ivs  = ReaderXML::getNodes(nOL2);
+                uint         nRaw = ivs ? ivs->getLength() : 0;
+                for(uint k = 0; k < nRaw; ++k)
+                    if(ivs->item(k)->getNodeType() == 1)
+                        totalEvents += mult;
+            }
+        }
+        obstacleData.refObstacleEvents.initialize(totalEvents);
+
+        uint obsIdx  = 0;  // per-template index
+        uint slotIdx = 0;  // per-sub-body (refRB) index
+        uint evIdx   = 0;
         for(uint i = 0; i < numRawObs; ++i)
         {
             DOMNode* nObs = allObstacles->item(i);
             if(nObs->getNodeType() != 1)
                 continue;
-            obstacleData.numEachRef[obsIdx]           = 1;
-            obstacleData.subBodiesPerTemplate[obsIdx] = 1;
-            obstacleData.isComposite[obsIdx]          = 0u;
-            obstacleData.refRB[obsIdx]                = new RigidBody<T>(nObs);
-            obstacleData.refLocalPos[obsIdx]          = Vector3<T>(T(0), T(0), T(0));
-            obstacleData.refLocalQuat[obsIdx]         = Quaternion<T>(T(0), T(0), T(0), T(1));
+
+            // Read world-frame transformation
             Vector3<T>    centre(T(0), T(0), T(0));
             Quaternion<T> rotation(T(0), T(0), T(0), T(1));
             DOMNode*      nTransform = ReaderXML::getNode(nObs, "Transformation");
@@ -146,7 +238,157 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
             }
             obstacleData.refInitialPos[obsIdx] = centre;
             obstacleData.refInitialOri[obsIdx] = rotation;
-            numObstacles += obstacleData.numEachRef[obsIdx];
+            obstacleData.numEachRef[obsIdx]    = 1;
+
+            // Check if this is an expanded wall obstacle
+            std::string shapeType;
+            uint        N = getPanelCount(nObs, shapeType);
+
+            if(N > 0)
+            {
+                // Expanded obstacle: create N panel sub-bodies
+                DOMNode*    shape      = ReaderXML::getNode(nObs, "Convex");
+                DOMNode*    shapeChild = ReaderXML::getNodeNext(shape);
+                T           ct         = T(ReaderXML::getNodeAttr_Double(shape, "CrustThickness"));
+                std::string matStr     = ReaderXML::getNodeAttr_String(nObs, "Material");
+                uint        matId      = getMaterialId(matStr);
+                const T     PI2_N      = T(2) * PI<T> / T(N);
+
+                obstacleData.subBodiesPerTemplate[obsIdx] = N;
+                obstacleData.isComposite[obsIdx]          = 1u;
+
+                if(shapeType == "ConicalWall")
+                {
+                    T rB     = T(ReaderXML::getNodeAttr_Double(shapeChild, "RadiusBottom"));
+                    T rT     = T(ReaderXML::getNodeAttr_Double(shapeChild, "RadiusTop"));
+                    T height = T(ReaderXML::getNodeAttr_Double(shapeChild, "Height"));
+                    // Panel half-widths: arc-chord = r * sin(π/N)
+                    T sinPN          = sin(PI<T> / T(N));
+                    T cosPN          = cos(PI<T> / T(N));
+                    T wb             = rB * sinPN;  // half-width at bottom
+                    T wt             = rT * sinPN;  // half-width at top
+                    T bottomInradius = rB * cosPN;
+                    T topInradius    = rT * cosPN;
+                    T deltaInradius  = topInradius - bottomInradius;
+                    T panelHeight    = sqrt(height * height + deltaInradius * deltaInradius);
+                    T invPanelHeight = T(1) / panelHeight;
+                    // Panel center radial distance is the average of the bottom/top chord centres.
+                    T rMid = (bottomInradius + topInradius) * T(0.5);
+
+                    for(uint k = 0; k < N; ++k)
+                    {
+                        T theta = PI2_N * T(k);
+                        T cosT  = cos(theta);
+                        T sinT  = sin(theta);
+
+                        // Panel center in obstacle body frame: (rMid*sin(θ), 0, rMid*cos(θ))
+                        // (Y is the cone axis; panel faces inward)
+                        Vector3<T> localCenter(rMid * sinT, T(0), rMid * cosT);
+
+                        // Panel orientation in obstacle body frame:
+                        // Local X = tangential direction.
+                        // Local Y = generator direction from the bottom chord centre to the top
+                        // one. Local Z = outward normal = X x Y. Matrix3 is row-major [row0; row1;
+                        // row2], columns = basis vectors.
+                        Matrix3<T>    rotMat(cosT,
+                                          deltaInradius * invPanelHeight * sinT,
+                                          height * invPanelHeight * sinT,
+                                          T(0),
+                                          height * invPanelHeight,
+                                          -deltaInradius * invPanelHeight,
+                                          -sinT,
+                                          deltaInradius * invPanelHeight * cosT,
+                                          height * invPanelHeight * cosT);
+                        Quaternion<T> localQuat(rotMat);
+
+                        // Trapezoid takes full widths and the slant height between bottom and top
+                        // rims.
+                        Convex<T>* convex = new Trapezoid<T>(T(2) * wb, T(2) * wt, panelHeight);
+                        obstacleData.refRB[slotIdx] = new RigidBody<T>(convex, ct, T(0), matId);
+                        obstacleData.refLocalPos[slotIdx]  = localCenter;
+                        obstacleData.refLocalQuat[slotIdx] = localQuat;
+                        ++slotIdx;
+                    }
+                }
+                else  // CylinderWall
+                {
+                    T radius   = T(ReaderXML::getNodeAttr_Double(shapeChild, "Radius"));
+                    T height   = T(ReaderXML::getNodeAttr_Double(shapeChild, "Height"));
+                    T sinPN    = sin(PI<T> / T(N));
+                    T cosPN    = cos(PI<T> / T(N));
+                    T panelW   = T(2) * radius * sinPN;  // full panel width
+                    T inradius = radius * cosPN;         // panel center distance from axis
+
+                    for(uint k = 0; k < N; ++k)
+                    {
+                        T theta = PI2_N * T(k);
+                        T cosT  = cos(theta);
+                        T sinT  = sin(theta);
+
+                        Vector3<T>    localCenter(inradius * sinT, T(0), inradius * cosT);
+                        Matrix3<T>    rotMat(cosT, T(0), sinT, T(0), T(1), T(0), -sinT, T(0), cosT);
+                        Quaternion<T> localQuat(rotMat);
+
+                        // Rectangle takes full dimensions: panelW, height
+                        Convex<T>* convex           = new Rectangle<T>(panelW, height);
+                        obstacleData.refRB[slotIdx] = new RigidBody<T>(convex, ct, T(0), matId);
+                        obstacleData.refLocalPos[slotIdx]  = localCenter;
+                        obstacleData.refLocalQuat[slotIdx] = localQuat;
+                        ++slotIdx;
+                    }
+                }
+            }
+            else
+            {
+                // Standard single-body obstacle
+                obstacleData.subBodiesPerTemplate[obsIdx] = 1;
+                obstacleData.isComposite[obsIdx]          = 0u;
+                obstacleData.refRB[slotIdx]               = new RigidBody<T>(nObs);
+                obstacleData.refLocalPos[slotIdx]         = Vector3<T>(T(0), T(0), T(0));
+                obstacleData.refLocalQuat[slotIdx]        = Quaternion<T>(T(0), T(0), T(0), T(1));
+                ++slotIdx;
+            }
+
+            // Parse optional prescribed motion.
+            // For expanded walls (N panels), each loading interval produces N events — one per
+            // panel — so that all panels receive the same velocity command simultaneously.
+            DOMNode* nObsLoading = ReaderXML::getNode(nObs, "ObstacleLoading");
+            if(nObsLoading)
+            {
+                uint         firstPanelId = templateFlatOffset[obsIdx];
+                uint         panelCount   = obstacleData.subBodiesPerTemplate[obsIdx];
+                DOMNodeList* allIntervals = ReaderXML::getNodes(nObsLoading);
+                uint         nRawIv       = allIntervals ? allIntervals->getLength() : 0;
+                for(uint k = 0; k < nRawIv; ++k)
+                {
+                    DOMNode* nIv = allIntervals->item(k);
+                    if(nIv->getNodeType() != 1)
+                        continue;
+                    T          tStart = T(ReaderXML::getNodeAttr_Double(nIv, "tStart"));
+                    T          tEnd   = T(ReaderXML::getNodeAttr_Double(nIv, "tEnd"));
+                    Vector3<T> linearVelocity(T(0), T(0), T(0));
+                    Vector3<T> angularVelocity(T(0), T(0), T(0));
+                    DOMNode*   nLinVel = ReaderXML::getNode(nIv, "LinearVelocity");
+                    if(nLinVel)
+                        linearVelocity = Vector3<T>(nLinVel);
+                    DOMNode* nAngVel = ReaderXML::getNode(nIv, "AngularVelocity");
+                    if(nAngVel)
+                        angularVelocity = Vector3<T>(nAngVel);
+                    // One event per panel
+                    for(uint p = 0; p < panelCount; ++p)
+                    {
+                        ObstacleMotionEvent<T> ev;
+                        ev.obstacleId                           = firstPanelId + p;
+                        ev.tStart                               = tStart;
+                        ev.tEnd                                 = tEnd;
+                        ev.linearVelocity                       = linearVelocity;
+                        ev.angularVelocity                      = angularVelocity;
+                        obstacleData.refObstacleEvents[evIdx++] = ev;
+                    }
+                }
+            }
+
+            numObstacles += obstacleData.subBodiesPerTemplate[obsIdx];
             ++obsIdx;
         }
     }
@@ -209,26 +451,20 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
             }
             else
             {
-                // Composite particle -- collect and sort sub-bodies by LocalIdx
-                DOMNodeList* allChildren = ReaderXML::getNodes(nParticle);
-                uint         numChildren = allChildren ? allChildren->getLength() : 0;
-                std::vector<std::pair<uint, DOMNode*>> sortedSubs;
+                // Composite particle -- collect sub-bodies
+                DOMNodeList*          allChildren = ReaderXML::getNodes(nParticle);
+                uint                  numChildren = allChildren ? allChildren->getLength() : 0;
+                std::vector<DOMNode*> subBodies;
                 for(uint k = 0; k < numChildren; ++k)
                 {
                     DOMNode*    child    = allChildren->item(k);
                     std::string nodeName = ReaderXML::getNodeName(child);
                     if(nodeName == "SubBody")
-                    {
-                        uint localIdx = ReaderXML::getNodeAttr_Int(child, "LocalIdx");
-                        sortedSubs.push_back({localIdx, child});
-                    }
+                        subBodies.push_back(child);
                 }
-                GAssert(!sortedSubs.empty(), "Composite particle has no SubBody children!");
-                std::sort(sortedSubs.begin(), sortedSubs.end(), [](const auto& a, const auto& b) {
-                    return a.first < b.first;
-                });
+                GAssert(!subBodies.empty(), "Composite particle has no SubBody children!");
 
-                uint S_i = sortedSubs.size();
+                uint S_i = subBodies.size();
                 subBodiesVec.push_back(S_i);
                 numEachVec.push_back(M_i);
                 isCompVec.push_back(1u);
@@ -247,7 +483,7 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
                         (uint)GrainsParameters<T>::m_materialMap.size());
                 uint matId = GrainsParameters<T>::m_materialMap[parentMat];
 
-                for(auto& [localIdx, nSub] : sortedSubs)
+                for(DOMNode* nSub : subBodies)
                 {
                     DOMNode*   nConvex = ReaderXML::getNode(nSub, "Convex");
                     T          ct     = T(ReaderXML::getNodeAttr_Double(nConvex, "CrustThickness"));
@@ -391,8 +627,6 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
 
                     // Compensate initial orientation: q_init_new = q_init_old * conj(q_p)
                     // so the composite's world placement is unchanged.
-                    // Use a const reference to select the value-returning conjugate() overload
-                    // (the non-const overload is in-place void and would cause a compile error).
                     const Quaternion<T>& cq_p = q_p;
                     initOriVec.back()         = initOriVec.back() * conjugate(cq_p);
                     T qni                     = norm(initOriVec.back());
@@ -471,7 +705,10 @@ __HOST__ void
 
         bool operator==(const RBProperties& other) const
         {
-            if(type != other.type || numParams != other.numParams)
+            if(type != other.type || material != other.material || numParams != other.numParams)
+                return false;
+            if(std::abs(density - other.density) > T(1e-9)
+               || std::abs(crustThickness - other.crustThickness) > T(1e-9))
                 return false;
             for(uint i = 0; i < numParams; ++i)
                 if(std::abs(params[i] - other.params[i]) > T(1e-9))
@@ -486,9 +723,14 @@ __HOST__ void
 
     for(uint i = 0; i < numRB; ++i)
     {
-        RBProperties prop;
+        RBProperties prop{};
         Convex<T>*   convex = h_RB[i]->getConvex();
         prop.type           = convex->getConvexType();
+
+        auto snapshot       = h_RB[i]->getPropertiesSnapshot();
+        prop.density        = snapshot.mass / snapshot.convex->computeVolume();
+        prop.crustThickness = snapshot.crustThickness;
+        prop.material       = snapshot.material;
 
         // Extract parameters based on type
         prop.numParams = 0;
@@ -497,6 +739,18 @@ __HOST__ void
             Sphere<T>* s   = dynamic_cast<Sphere<T>*>(convex);
             prop.params[0] = s->getRadius();
             prop.numParams = 1;
+        }
+        else if(prop.type == OCTAHEDRON)
+        {
+            Octahedron<T>* o = dynamic_cast<Octahedron<T>*>(convex);
+            prop.params[0]   = o->getRadius();
+            prop.numParams   = 1;
+        }
+        else if(prop.type == DODECAHEDRON)
+        {
+            Dodecahedron<T>* d = dynamic_cast<Dodecahedron<T>*>(convex);
+            prop.params[0]     = d->getRadius();
+            prop.numParams     = 1;
         }
         else if(prop.type == BOX)
         {
@@ -514,6 +768,13 @@ __HOST__ void
             prop.params[1] = c->getHeight();
             prop.numParams = 2;
         }
+        else if(prop.type == DRUM)
+        {
+            Drum<T>* d     = dynamic_cast<Drum<T>*>(convex);
+            prop.params[0] = d->getRadius();
+            prop.params[1] = d->getHeight();
+            prop.numParams = 2;
+        }
         else if(prop.type == CONE)
         {
             Cone<T>* c     = dynamic_cast<Cone<T>*>(convex);
@@ -528,6 +789,21 @@ __HOST__ void
             prop.params[0]  = T(2) * L[X];     // pass full extents; Rectangle ctor halves them
             prop.params[1]  = T(2) * L[Y];
             prop.numParams  = 2;
+        }
+        else if(prop.type == TRAPEZOID)
+        {
+            Trapezoid<T>* t = dynamic_cast<Trapezoid<T>*>(convex);
+            prop.params[0]  = T(2) * t->getHalfWidthBottom();
+            prop.params[1]  = T(2) * t->getHalfWidthTop();
+            prop.params[2]  = T(2) * t->getHalfHeight();
+            prop.numParams  = 3;
+        }
+        else if(prop.type == TRIANGLE)
+        {
+            Triangle<T>* t = dynamic_cast<Triangle<T>*>(convex);
+            prop.params[0] = T(2) * t->getHalfBase();
+            prop.params[1] = T(2) * t->getHalfHeight();
+            prop.numParams = 2;
         }
         else if(prop.type == SUPERQUADRIC)
         {
@@ -553,12 +829,6 @@ __HOST__ void
             }
         }
 
-        // Record unpacked properties for kernel launches
-        auto snapshot       = h_RB[i]->getPropertiesSnapshot();
-        prop.density        = snapshot.mass / snapshot.convex->computeVolume();
-        prop.crustThickness = snapshot.crustThickness;
-        prop.material       = snapshot.material;
-
         // Add to existing type or create new type
         if(typeIdx >= 0)
         {
@@ -571,8 +841,9 @@ __HOST__ void
         }
     }
 
-    // Set device heap size to accommodate all allocations
-    size_t requiredHeap = numRB * 1024;  // Conservative estimate: 1KB per object
+    // Set device heap size to accommodate UNIQUE types only (not one entry per particle).
+    // All particles of the same type share a single device RigidBody via pointer aliasing.
+    size_t requiredHeap = uniqueTypes.size() * 1024;  // 1KB per unique type
     size_t currentHeap;
     cudaDeviceGetLimit(&currentHeap, cudaLimitMallocHeapSize);
     if(requiredHeap > currentHeap)
@@ -580,52 +851,70 @@ __HOST__ void
         cudaDeviceSetLimit(cudaLimitMallocHeapSize, requiredHeap);
     }
 
-    // Step 2: Launch one kernel per unique type
+    // Step 2: For each unique type, create exactly ONE device RigidBody (at the canonical
+    // index = first occurrence), then propagate that pointer to all alias slots of the same
+    // type using fillSharedPointersKernel.  This replaces the old per-particle device-new
+    // loop and reduces kernel launches from O(N/2048) to O(numUniqueTypes).
     for(uint typeIdx = 0; typeIdx < uniqueTypes.size(); ++typeIdx)
     {
         const RBProperties&      prop    = uniqueTypes[typeIdx];
         const std::vector<uint>& indices = indicesPerType[typeIdx];
         uint                     count   = indices.size();
 
-        // Allocate device memory for indices
+        // Allocate device memory for all indices of this type
         uint* d_indices;
         cudaErrCheck(cudaMalloc(&d_indices, count * sizeof(uint)));
         cudaErrCheck(
             cudaMemcpy(d_indices, indices.data(), count * sizeof(uint), cudaMemcpyHostToDevice));
 
-        // Process in batches to avoid overwhelming device heap
-        const uint maxBatchSize = 2048;  // Process 2K objects at a time
-        uint       numBatches   = (count + maxBatchSize - 1) / maxBatchSize;
-
-        for(uint batch = 0; batch < numBatches; ++batch)
+        // Create ONE device RigidBody at the canonical slot (indices[0]) using a 1-thread kernel
         {
-            uint batchStart = batch * maxBatchSize;
-            uint batchSize  = std::min(maxBatchSize, count - batchStart);
-
-            uint numThreads = 256;
-            uint numBlocks  = (batchSize + numThreads - 1) / numThreads;
+            uint numThreads = 1;
+            uint numBlocks  = 1;
 
             // Launch kernel based on type
             if(prop.type == SPHERE)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         SPHERE,
-                                                                        batchSize,
+                                                                        1u,
+                                                                        prop.params[0]);
+            }
+            else if(prop.type == OCTAHEDRON)
+            {
+                createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
+                                                                        d_indices,
+                                                                        prop.crustThickness,
+                                                                        prop.density,
+                                                                        prop.material,
+                                                                        OCTAHEDRON,
+                                                                        1u,
+                                                                        prop.params[0]);
+            }
+            else if(prop.type == DODECAHEDRON)
+            {
+                createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
+                                                                        d_indices,
+                                                                        prop.crustThickness,
+                                                                        prop.density,
+                                                                        prop.material,
+                                                                        DODECAHEDRON,
+                                                                        1u,
                                                                         prop.params[0]);
             }
             else if(prop.type == BOX)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         BOX,
-                                                                        batchSize,
+                                                                        1u,
                                                                         prop.params[0],
                                                                         prop.params[1],
                                                                         prop.params[2]);
@@ -633,48 +922,85 @@ __HOST__ void
             else if(prop.type == CYLINDER)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         CYLINDER,
-                                                                        batchSize,
+                                                                        1u,
+                                                                        prop.params[0],
+                                                                        prop.params[1]);
+            }
+            else if(prop.type == DRUM)
+            {
+                createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
+                                                                        d_indices,
+                                                                        prop.crustThickness,
+                                                                        prop.density,
+                                                                        prop.material,
+                                                                        DRUM,
+                                                                        1u,
                                                                         prop.params[0],
                                                                         prop.params[1]);
             }
             else if(prop.type == CONE)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         CONE,
-                                                                        batchSize,
+                                                                        1u,
                                                                         prop.params[0],
                                                                         prop.params[1]);
             }
             else if(prop.type == RECTANGLE)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         RECTANGLE,
-                                                                        batchSize,
+                                                                        1u,
+                                                                        prop.params[0],
+                                                                        prop.params[1]);
+            }
+            else if(prop.type == TRAPEZOID)
+            {
+                createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
+                                                                        d_indices,
+                                                                        prop.crustThickness,
+                                                                        prop.density,
+                                                                        prop.material,
+                                                                        TRAPEZOID,
+                                                                        1u,
+                                                                        prop.params[0],
+                                                                        prop.params[1],
+                                                                        prop.params[2]);
+            }
+            else if(prop.type == TRIANGLE)
+            {
+                createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
+                                                                        d_indices,
+                                                                        prop.crustThickness,
+                                                                        prop.density,
+                                                                        prop.material,
+                                                                        TRIANGLE,
+                                                                        1u,
                                                                         prop.params[0],
                                                                         prop.params[1]);
             }
             else if(prop.type == SUPERQUADRIC)
             {
                 createRigidBodiesBatchKernel<<<numBlocks, numThreads>>>(d_RB.getData(),
-                                                                        d_indices + batchStart,
+                                                                        d_indices,
                                                                         prop.crustThickness,
                                                                         prop.density,
                                                                         prop.material,
                                                                         SUPERQUADRIC,
-                                                                        batchSize,
+                                                                        1u,
                                                                         prop.params[0],
                                                                         prop.params[1],
                                                                         prop.params[2],
@@ -687,16 +1013,28 @@ __HOST__ void
                 GAbort("Convex type is not implemented for GPU! Aborting Grains!");
             }
 
-            cudaDeviceSynchronize();
-            // Check for errors after each batch
-            cudaError_t err = cudaGetLastError();
-            if(err != cudaSuccess)
-            {
-                cudaFree(d_indices);
-                GAbort(("CUDA error in RigidBody batch creation: "
-                        + std::string(cudaGetErrorString(err)))
-                           .c_str());
-            }
+        }
+
+        cudaErrCheck(cudaDeviceSynchronize());
+        cudaError_t err = cudaGetLastError();
+        if(err != cudaSuccess)
+        {
+            cudaFree(d_indices);
+            GAbort(("CUDA error in RigidBody creation: "
+                    + std::string(cudaGetErrorString(err)))
+                       .c_str());
+        }
+
+        // Propagate the canonical pointer (d_RB[indices[0]]) to all alias slots
+        uint aliases = count - 1;
+        if(aliases > 0)
+        {
+            uint canonicalIdx = indices[0];
+            uint numThreads   = 256;
+            uint numBlocks    = (aliases + numThreads - 1) / numThreads;
+            fillSharedPointersKernel<<<numBlocks, numThreads>>>(
+                d_RB.getData(), d_indices + 1, canonicalIdx, aliases);
+            cudaErrCheck(cudaDeviceSynchronize());
         }
 
         cudaFree(d_indices);
@@ -712,10 +1050,36 @@ __HOST__ void RigidBodyFactory<T>::freeDevice(GrainsMemBuffer<RigidBody<T>*, Mem
     const uint n = static_cast<uint>(d_RB.getSize());
     if(n == 0)
         return;
+
+    // copyHostToDevice stores shared pointers: many slots in d_RB point to the SAME device
+    // object (one per unique particle type).  Copy all pointer values to the host, deduplicate,
+    // then delete only the canonical (unique) objects to avoid double-free.
+    std::vector<RigidBody<T>*> h_ptrs(n);
+    cudaErrCheck(cudaMemcpy(
+        h_ptrs.data(), d_RB.getData(), n * sizeof(RigidBody<T>*), cudaMemcpyDeviceToHost));
+
+    // Deduplicate: collect unique non-null pointers
+    std::unordered_set<RigidBody<T>*> seen;
+    std::vector<RigidBody<T>*>        unique_ptrs;
+    for(auto* p : h_ptrs)
+        if(p != nullptr && seen.insert(p).second)
+            unique_ptrs.push_back(p);
+
+    if(unique_ptrs.empty())
+        return;
+
+    // Upload the deduplicated list to device and run the delete kernel
+    const uint numUnique = static_cast<uint>(unique_ptrs.size());
+    RigidBody<T>** d_unique;
+    cudaErrCheck(cudaMalloc(&d_unique, numUnique * sizeof(RigidBody<T>*)));
+    cudaErrCheck(cudaMemcpy(
+        d_unique, unique_ptrs.data(), numUnique * sizeof(RigidBody<T>*), cudaMemcpyHostToDevice));
+
     const uint numThreads = 256;
-    const uint numBlocks  = (n + numThreads - 1) / numThreads;
-    deleteRigidBodiesKernel<<<numBlocks, numThreads>>>(d_RB.getData(), n);
+    const uint numBlocks  = (numUnique + numThreads - 1) / numThreads;
+    deleteRigidBodiesKernel<<<numBlocks, numThreads>>>(d_unique, numUnique);
     cudaErrCheck(cudaDeviceSynchronize());
+    cudaFree(d_unique);
 }
 
 // -------------------------------------------------------------------------------------------------

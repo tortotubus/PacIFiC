@@ -9,25 +9,30 @@
 // -------------------------------------------------------------------------------------------------
 template <typename T, MemType M>
 ComponentManager<T, M>::ComponentManager(
-    GrainsMemBuffer<RigidBody<T>*, M>*              rigidBody,
-    GrainsMemBuffer<uint, MemType::HOST>&&          bodyTags,
-    GrainsMemBuffer<Vector3<T>, MemType::HOST>&&    position,
-    GrainsMemBuffer<Quaternion<T>, MemType::HOST>&& orientation,
-    GrainsMemBuffer<Vector3<T>, MemType::HOST>&&    localPos,
-    GrainsMemBuffer<Quaternion<T>, MemType::HOST>&& localQuat,
-    uint                                            nObstacles,
-    uint                                            nParticles,
-    uint                                            nComposites,
-    uint                                            nSubBodies)
+    GrainsMemBuffer<RigidBody<T>*, M>*                            rigidBody,
+    GrainsMemBuffer<uint, MemType::HOST>&&                        bodyTags,
+    GrainsMemBuffer<Vector3<T>, MemType::HOST>&&                  position,
+    GrainsMemBuffer<Quaternion<T>, MemType::HOST>&&               orientation,
+    GrainsMemBuffer<Vector3<T>, MemType::HOST>&&                  localPos,
+    GrainsMemBuffer<Quaternion<T>, MemType::HOST>&&               localQuat,
+    const GrainsMemBuffer<ObstacleMotionEvent<T>, MemType::HOST>& obstacleEvents,
+    uint                                                          nObstacles,
+    uint                                                          nParticles,
+    uint                                                          nComposites,
+    uint                                                          nSubBodies)
     : m_rigidBody(rigidBody)
     , m_velocity(nParticles + nObstacles)
     , m_torce(nParticles + nObstacles)
     , m_masterSlot(nComposites + 1)
+    , m_compositeVelocity(nComposites + 1)
+    , m_compositeTorce(nComposites + 1)
     , m_counts{nObstacles, nParticles, 0u, nComposites, nSubBodies}
 {
     const uint nComp = nParticles + nObstacles;
     GAssert(rigidBody->getSize() == nComp, "Rigid body size mismatch");
     const uint* hbtPtr = bodyTags.getData();  // capture before potential move
+
+    GrainsParameters<T>::m_hasMovingObstacles = (obstacleEvents.getSize() > 0);
 
     if constexpr(M == MemType::HOST)
     {
@@ -46,7 +51,12 @@ ComponentManager<T, M>::ComponentManager(
                 m_masterSlot[getCompositeIdx(tag)] = i;
         }
 
-        // Derive sub-body world transforms from master positions
+        // Initialise composite frame state from master slot data
+        m_compositePosition.initialize(nComposites + 1);
+        m_compositeQuaternion.initialize(nComposites + 1);
+        initCompositeFrames();
+
+        // Derive sub-body world transforms and velocities from composite frame
         updateSubBodyPositions();
     }
     else
@@ -64,14 +74,39 @@ ComponentManager<T, M>::ComponentManager(
         m_localQuat.copyFrom(localQuat);
 
         // Build masterSlot on host (bodyTags still HOST-accessible; not moved), then upload
-        GrainsMemBuffer<uint, MemType::HOST> hMasterSlot(nComposites + 1);
+        GrainsMemBuffer<uint, MemType::HOST>          hMasterSlot(nComposites + 1);
+        GrainsMemBuffer<Vector3<T>, MemType::HOST>    hCompositePosition(nComposites + 1);
+        GrainsMemBuffer<Quaternion<T>, MemType::HOST> hCompositeQuaternion(nComposites + 1);
         for(uint i = 0; i < nComp; ++i)
         {
             const uint tag = bodyTags[i];
             if(isSubBody(tag) && getSubBodyLocalIdx(tag) == 0u)
-                hMasterSlot[getCompositeIdx(tag)] = i;
+            {
+                const uint cIdx            = getCompositeIdx(tag);
+                hMasterSlot[cIdx]          = i;
+                hCompositePosition[cIdx]   = position[i];     // position[mSlot] == CM at insertion
+                hCompositeQuaternion[cIdx] = orientation[i];  // matching CM quaternion
+            }
         }
         m_masterSlot.copyFrom(hMasterSlot);
+        m_compositePosition.initialize(nComposites + 1);
+        m_compositePosition.copyFrom(hCompositePosition);
+        m_compositeQuaternion.initialize(nComposites + 1);
+        m_compositeQuaternion.copyFrom(hCompositeQuaternion);
+
+        cudaErrCheck(cudaStreamCreateWithFlags(&m_obstacleMoveStream, cudaStreamNonBlocking));
+    }
+
+    // Upload the flat event buffer
+    if(obstacleEvents.getSize() > 0)
+    {
+        m_obstacleEvents.initialize(obstacleEvents.getSize());
+        m_obstacleEvents.copyFrom(obstacleEvents);
+        if constexpr(M == MemType::DEVICE)
+        {
+            m_obstaclesMovedFlag.initialize(1);
+            *m_obstaclesMovedFlag.getData() = 0;
+        }
     }
 
     // Create CollisionDetectionModule
@@ -93,6 +128,17 @@ ComponentManager<T, M>::ComponentManager(
     // Create ForceModule
     m_forceModule = std::make_unique<ForceModule<T, M>>(pairCapacity,
                                                         GrainsParameters<T>::m_isContactWithMemory);
+}
+
+// -------------------------------------------------------------------------------------------------
+template <typename T, MemType M>
+ComponentManager<T, M>::~ComponentManager()
+{
+    if constexpr(M == MemType::DEVICE)
+    {
+        if(m_obstacleMoveStream != nullptr)
+            cudaErrCheck(cudaStreamDestroy(m_obstacleMoveStream));
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -188,12 +234,45 @@ uint ComponentManager<T, M>::getNumberOfSubBodies() const
 
 // -------------------------------------------------------------------------------------------------
 template <typename T, MemType M>
+uint ComponentManager<T, M>::getNumberOfPairs() const
+{
+    return m_counts.numPairs;
+}
+
+// -------------------------------------------------------------------------------------------------
+template <typename T, MemType M>
 void ComponentManager<T, M>::copyTo_PostProcessing(
     const std::unique_ptr<ComponentManager<T, MemType::HOST>>& other)
 {
     other->setPosition(m_position);
     other->setQuaternion(m_quaternion);
     other->setVelocity(m_velocity);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Snapshots compositePosition, compositeQuaternion, and compositeVelocity from the master
+// slot's current position, quaternion, and velocity for every composite.
+// Call once after construction/insertion (HOST only).
+template <typename T, MemType M>
+void ComponentManager<T, M>::initCompositeFrames()
+{
+    if constexpr(M == MemType::HOST)
+    {
+        if(m_counts.numComposites == 0)
+            return;
+        const uint nComp = m_counts.numObstacles + m_counts.numParticles;
+        for(uint i = 0; i < nComp; ++i)
+        {
+            const uint tag = m_bodyTag[i];
+            if(isSubBody(tag) && getSubBodyLocalIdx(tag) == 0u)
+            {
+                const uint cIdx             = getCompositeIdx(tag);
+                m_compositePosition[cIdx]   = m_position[i];
+                m_compositeQuaternion[cIdx] = m_quaternion[i];
+                m_compositeVelocity[cIdx]   = m_velocity[i];
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -214,6 +293,11 @@ void ComponentManager<T, M>::insertParticles(const std::unique_ptr<Insertion<T>>
                                 m_bodyTag,
                                 m_localPos,
                                 m_localQuat);
+        // Re-read composite frame origins: after array / force-insertion, position[masterSlot]
+        // holds the inserted composite-center (CM) positions; we snapshot them here so the
+        // subsequent updateSubBodyPositions() call can derive every sub-body world transform
+        // correctly.
+        initCompositeFrames();
     }
 }
 
@@ -221,7 +305,7 @@ void ComponentManager<T, M>::insertParticles(const std::unique_ptr<Insertion<T>>
 template <typename T, MemType M>
 void ComponentManager<T, M>::detectCollisions()
 {
-    m_collisionDetectionModule->run(m_rigidBody->getData(),
+    m_collisionDetectionModule->run(*m_rigidBody,
                                     m_position,
                                     m_quaternion,
                                     m_velocity,
@@ -233,6 +317,9 @@ void ComponentManager<T, M>::detectCollisions()
                                     m_contactInfo,
                                     m_pairList,
                                     m_counts);
+    // Keep ForceModule GPU compaction buffers (m_activeIndex, m_cubSelectTempStorage)
+    // in sync with the pair buffer that the CDModule may have just grown.
+    m_forceModule->resizeBuffers(m_pairList.getSize());
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -243,23 +330,51 @@ void ComponentManager<T, M>::computeContactForces(
     m_forceModule->run(CF,
                        m_rigidBody,
                        m_position,
+                       m_compositePosition,
                        m_velocity,
                        m_pairList,
                        m_contactInfo,
                        m_torce,
+                       m_compositeTorce,
                        m_bodyTag,
-                       m_masterSlot,
                        m_counts);
 }
-
-// -------------------------------------------------------------------------------------------------
-// Updates the position and quaternion of master particles (non-masters are updated by
-// updateSubBodyPositions after this call).
+// --------------------------------------------------------------------------------------------------
+// Advances all moving components (particles + obstacles) by one time step.
 template <typename T, MemType M>
-void ComponentManager<T, M>::moveParticles(const GrainsMemBuffer<TimeIntegrator<T>*, M>& TI)
+void ComponentManager<T, M>::moveComponents(const GrainsMemBuffer<TimeIntegrator<T>*, M>& TI)
 {
+    using GP = GrainsParameters<T>;
+
+    const T cellSize = GP::m_collisionDetection.linkedCellParameters.minCellSize
+                       * GP::m_collisionDetection.linkedCellParameters.cellSizeFactor;
+    const T    maxDisplacementSq = cellSize * cellSize;
+    const T    dt                = GP::m_dt;
+    const T    currentTime       = GP::m_simulationState.time - dt;
+    const bool noRelinkObstacles = GP::m_collisionDetection.linkedCellParameters.noRelinkObstacles;
+    GP::m_simulationState.obstaclesMoved = false;
+
     if constexpr(M == MemType::HOST)
     {
+        // Obstacles
+        if(GP::m_hasMovingObstacles)
+        {
+            for(uint obstacleId = 0; obstacleId < m_counts.numObstacles; ++obstacleId)
+                m_velocity[obstacleId] = Kinematics<T>();
+
+            for(uint i = 0; i < m_obstacleEvents.getSize(); ++i)
+            {
+                if(moveObstacle_common(m_position.getData(),
+                                       m_quaternion.getData(),
+                                       m_velocity.getData(),
+                                       m_obstacleEvents[i],
+                                       currentTime,
+                                       dt))
+                    GP::m_simulationState.obstaclesMoved = true;
+            }
+        }
+
+        // Particles
         for(uint pID = m_counts.numObstacles; pID < m_counts.numObstacles + m_counts.numParticles;
             ++pID)
         {
@@ -268,30 +383,76 @@ void ComponentManager<T, M>::moveParticles(const GrainsMemBuffer<TimeIntegrator<
             moveParticles_common(TI.getData(),
                                  m_rigidBody->getData(),
                                  m_position.getData(),
+                                 m_compositePosition.getData(),
                                  m_quaternion.getData(),
+                                 m_compositeQuaternion.getData(),
                                  m_velocity.getData(),
+                                 m_compositeVelocity.getData(),
                                  m_torce.getData(),
-                                 pID);
+                                 m_compositeTorce.getData(),
+                                 m_bodyTag.getData(),
+                                 pID,
+                                 maxDisplacementSq);
         }
+        updateSubBodyPositions();
     }
-    else
+    else  // DEVICE
     {
+        // Obstacles
+        if(GP::m_hasMovingObstacles)
+        {
+            const uint numEvents            = static_cast<uint>(m_obstacleEvents.getSize());
+            *m_obstaclesMovedFlag.getData() = 0;
+
+            if(m_counts.numObstacles > 0)
+            {
+                cudaErrCheck(cudaMemsetAsync(m_velocity.getData(),
+                                             0,
+                                             m_counts.numObstacles * sizeof(Kinematics<T>),
+                                             m_obstacleMoveStream));
+            }
+
+            // Launch thread-per-event kernel
+            moveObstacles_Kernel<<<1, numEvents, 0, m_obstacleMoveStream>>>(
+                m_obstacleEvents.getData(),
+                numEvents,
+                currentTime,
+                dt,
+                m_position.getData(),
+                m_quaternion.getData(),
+                m_velocity.getData(),
+                m_obstaclesMovedFlag.getDeviceData());
+        }
+
+        // Particles
         uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(m_counts.numParticles,
-                                       GrainsParameters<T>::m_GPU,
-                                       numBlocks,
-                                       numThreads);
+        computeOptimalThreadsAndBlocks(m_counts.numParticles, GP::m_GPU, numBlocks, numThreads);
         moveParticles_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
                                                         m_rigidBody->getData(),
                                                         m_position.getData(),
+                                                        m_compositePosition.getData(),
                                                         m_quaternion.getData(),
+                                                        m_compositeQuaternion.getData(),
                                                         m_velocity.getData(),
+                                                        m_compositeVelocity.getData(),
                                                         m_torce.getData(),
+                                                        m_compositeTorce.getData(),
                                                         m_bodyTag.getData(),
                                                         m_counts.numObstacles,
-                                                        m_counts.numParticles);
+                                                        m_counts.numParticles,
+                                                        maxDisplacementSq);
+        updateSubBodyPositions();
+
+        cudaErrCheck(cudaStreamSynchronize(0));
+        if(GP::m_hasMovingObstacles)
+        {
+            cudaErrCheck(cudaStreamSynchronize(m_obstacleMoveStream));
+            GP::m_simulationState.obstaclesMoved = (*m_obstaclesMovedFlag.getData() != 0);
+        }
     }
-    updateSubBodyPositions();
+
+    if(noRelinkObstacles)
+        GP::m_simulationState.obstaclesMoved = false;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -309,8 +470,12 @@ void ComponentManager<T, M>::advanceVelocity(const GrainsMemBuffer<TimeIntegrato
             advanceVelocity_common(TI.getData(),
                                    m_rigidBody->getData(),
                                    m_quaternion.getData(),
+                                   m_compositeQuaternion.getData(),
                                    m_velocity.getData(),
+                                   m_compositeVelocity.getData(),
                                    m_torce.getData(),
+                                   m_compositeTorce.getData(),
+                                   m_bodyTag.getData(),
                                    pID);
         }
     }
@@ -324,12 +489,17 @@ void ComponentManager<T, M>::advanceVelocity(const GrainsMemBuffer<TimeIntegrato
         advanceVelocity_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
                                                           m_rigidBody->getData(),
                                                           m_quaternion.getData(),
+                                                          m_compositeQuaternion.getData(),
                                                           m_velocity.getData(),
+                                                          m_compositeVelocity.getData(),
                                                           m_torce.getData(),
+                                                          m_compositeTorce.getData(),
                                                           m_bodyTag.getData(),
                                                           m_counts.numObstacles,
                                                           m_counts.numParticles);
     }
+    // Re-derive sub-body velocities so m_velocity[k] reflects the updated compositeVelocity
+    updateSubBodyPositions();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -346,14 +516,22 @@ void ComponentManager<T, M>::updateSubBodyPositions()
         for(uint cID = m_counts.numObstacles; cID < nTotal; ++cID)
         {
             const uint tag = m_bodyTag[cID];
-            if(!isSubBody(tag) || getSubBodyLocalIdx(tag) == 0u)
+            if(!isSubBody(tag))
                 continue;
-            const uint mSlot  = m_masterSlot[getCompositeIdx(tag)];
-            m_position[cID]   = m_position[mSlot] + (m_quaternion[mSlot] >> m_localPos[cID]);
-            m_quaternion[cID] = m_quaternion[mSlot] * m_localQuat[cID];
-            T qn              = norm(m_quaternion[cID]);
+            const uint           cIdx = getCompositeIdx(tag);
+            const Vector3<T>&    cp   = m_compositePosition[cIdx];
+            const Quaternion<T>& cq   = m_compositeQuaternion[cIdx];
+            m_position[cID]           = cp + (cq >> m_localPos[cID]);
+            m_quaternion[cID]         = cq * m_localQuat[cID];
+            T qn                      = norm(m_quaternion[cID]);
             if(qn > T(1e-12))
                 m_quaternion[cID] *= (T(1) / qn);
+            // Derive per-sub-body velocity: v_k = v_CM + omega x r_k
+            const Vector3<T>&    r     = m_position[cID] - cp;
+            const Kinematics<T>& compK = m_compositeVelocity[cIdx];
+            m_velocity[cID]            = Kinematics<T>(compK.getTranslationalComponent()
+                                                + (compK.getAngularComponent() ^ r),
+                                            compK.getAngularComponent());
         }
     }
     else
@@ -361,13 +539,16 @@ void ComponentManager<T, M>::updateSubBodyPositions()
         const uint nTotal = m_counts.numObstacles + m_counts.numParticles;
         uint       numThreads, numBlocks;
         computeOptimalThreadsAndBlocks(nTotal, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-        updateSubBodyPositions_Kernel<<<numBlocks, numThreads>>>(m_position.getData(),
-                                                                 m_quaternion.getData(),
-                                                                 m_localPos.getData(),
-                                                                 m_localQuat.getData(),
-                                                                 m_masterSlot.getData(),
-                                                                 m_bodyTag.getData(),
-                                                                 nTotal);
+        updateSubBodies_Kernel<<<numBlocks, numThreads>>>(m_localPos.getData(),
+                                                          m_localQuat.getData(),
+                                                          m_position.getData(),
+                                                          m_compositePosition.getData(),
+                                                          m_quaternion.getData(),
+                                                          m_compositeQuaternion.getData(),
+                                                          m_velocity.getData(),
+                                                          m_compositeVelocity.getData(),
+                                                          m_bodyTag.getData(),
+                                                          nTotal);
     }
 }
 

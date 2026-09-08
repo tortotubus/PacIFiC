@@ -29,6 +29,8 @@ class LinkedCell
 {
     static_assert(M == MemType::HOST || M == MemType::DEVICE,
                   "LinkedCell only supports MemType::HOST or MemType::DEVICE");
+    static constexpr MemType kMaxDisplacementMemType
+        = (M == MemType::HOST) ? MemType::HOST : MemType::PINNED;
 
 protected:
     /** @name Parameters */
@@ -60,7 +62,7 @@ protected:
     size_t m_cubReduceTempStorageBytes = 0;
     /** \brief Maximum displacement of particles since the last update. Note that we store the
         squared value.  */
-    GrainsMemBuffer<T, MemType::MANAGED> m_maxDisplacementSquared;
+    GrainsMemBuffer<T, kMaxDisplacementMemType> m_maxDisplacementSquared;
     /** \brief Cell size. This is the minimum possible size for the cells. Skin thickness will be
         added to this value. */
     T m_cellSizeWithoutSkin = 0;
@@ -79,11 +81,12 @@ protected:
     /** \brief Number of cells in the grid */
     uint m_numCells = 0;
     /** \brief Flag to indicate if adaptive skin is used */
-    bool m_useAdaptiveSkin
-        = false; /** rief Dedicated CUDA stream for asynchronous displacement reduction */
+    bool m_useAdaptiveSkin = false;
+    /** \brief Dedicated CUDA stream for asynchronous displacement reduction */
     cudaStream_t m_reduceStream = nullptr;
-    /** rief Whether a valid async displacement result is available */
-    bool m_hasAsyncResult = false;  //@}
+    /** \brief Whether a valid async displacement result is available */
+    bool m_hasAsyncResult = false;
+    //@}
 
 public:
     /** @name Helper functors for CUB operations */
@@ -162,7 +165,7 @@ public:
                                                          m_cells);
 
         // Initialize neighbor cells buffer
-        m_neighborCells.initialize(m_numCells * 27);  // 26 neighbors + self
+        m_neighborCells.initialize(size_t(m_numCells) * 27);  // 26 neighbors + self
         m_neighborCells.fill(UINT_MAX);
         generateNeighborCells();
 
@@ -365,6 +368,13 @@ public:
         if(SS.particlesSorted)
             return true;  // Always update if particles were sorted
 
+        // Hard fallback: the displacement-vs-skin trigger freezes both the skin and
+        // m_oldPosition after the first rebuild if it never fires again, so without this
+        // bound a slow-triggering regime can go arbitrarily long without a rebuild (see
+        // AvalancheBoxes/RotatingDrum stale-NL tunneling incidents).
+        if(m_numIterationsSinceLastUpdate >= m_updateFrequency)
+            return true;
+
         if constexpr(M == MemType::HOST)
         {
             T maxDispSq = computeMaxDisplacement();
@@ -372,11 +382,17 @@ public:
         }
         else
         {
-            // 1-lag async: reduce was launched at end of prior updateLinkedCells(); sync only
-            // the reduce stream (near-zero cost if physics integration has run since launch)
+            // The async reduce was launched at the end of the previous updateLinkedCells() and
+            // reads m_positions on m_reduceStream. MoveParticles runs on the default stream
+            // between those two events. Without explicitly ordering the streams, the reduce
+            // kernel may execute before MoveParticles has written the new positions, causing
+            // it to measure near-zero displacement and incorrectly skip a needed NL rebuild.
+            // Synchronise the default stream first to guarantee MoveParticles is complete,
+            // then sync the reduce stream to collect its result.
             if(!m_hasAsyncResult)
-                return true;  // Conservative on first iteration: no result available yet
-            cudaStreamSynchronize(m_reduceStream);
+                return true;           // Conservative on first iteration: no result available yet
+            cudaStreamSynchronize(0);  // Ensure MoveParticles (default stream) is done
+            cudaStreamSynchronize(m_reduceStream);  // Collect displacement result
             return (T(4) * m_maxDisplacementSquared[0] > m_skinThickness * m_skinThickness);
         }
     }
@@ -567,8 +583,8 @@ public:
     {
         // Smoothing factor
         constexpr T mu = T(0.4);
-        // Max Cap the skin thickness at 20% of the cell size
-        constexpr T maxSkinThickness = T(0.2);
+        // Max Cap the skin thickness at 40% of the cell size
+        constexpr T maxSkinThickness = T(0.4);
 
         // Guard: if called before any iteration has elapsed (e.g. sort fires on iteration 0),
         // keep the current skin to avoid division by zero producing NaN.

@@ -2,6 +2,8 @@
 #define _MISCMATH_HH_
 
 #include "Basic.hh"
+#include <cmath>
+#include <type_traits>
 
 // =================================================================================================
 /** @brief Miscellaneous math functions as header-only.
@@ -57,6 +59,23 @@ template <typename T>
 __HOSTDEVICE__ static INLINE T degs(T x) noexcept
 {
     return (x * DEGS_PER_RAD<T>);
+}
+
+// -------------------------------------------------------------------------------------------------
+/** @brief Fast reciprocal square root: single hardware instruction on GPU
+    (rsqrtf / rsqrt), standard 1/sqrt on CPU.
+    @param x  value to invert-sqrt; undefined for x < 0 */
+template <typename T>
+__HOSTDEVICE__ static INLINE T inverseSqrt(T x)
+{
+#ifdef __CUDA_ARCH__
+    if constexpr(std::is_same_v<T, float>)
+        return rsqrtf(x);
+    else
+        return rsqrt(x);
+#else
+    return T(1) / sqrt(x);
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------

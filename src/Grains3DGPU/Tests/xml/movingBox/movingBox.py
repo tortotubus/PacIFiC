@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use("Agg")
-plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica"})
+plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman"})
 
 # ---------------------------------------------------------------------------
 # Physical parameters (must match the YAML)
@@ -70,9 +70,9 @@ def plot_trajectory(results_root: str, plots_root: str) -> None:
     ax.set_box_aspect(1)
     ax.grid(color='lightgrey', linestyle='--', linewidth=0.5)
 
-    out = os.path.join(plots_root, "MovingBoxTrajectory.eps")
+    out = os.path.join(plots_root, "MovingBoxTrajectory.pdf")
     os.makedirs(plots_root, exist_ok=True)
-    plt.savefig(out, format='eps', bbox_inches='tight')
+    plt.savefig(out, format='pdf', bbox_inches='tight')
     plt.close(fig)
     print(f"Wrote: {out}")
 
@@ -115,9 +115,9 @@ def plot_convergence(results_root: str, plots_root: str) -> None:
     ax.legend(fontsize=8)
     plt.grid(True, which="both", color='lightgrey', ls="--", linewidth=0.5)
 
-    out = os.path.join(plots_root, "MovingBoxConvergence.eps")
+    out = os.path.join(plots_root, "MovingBoxConvergence.pdf")
     os.makedirs(plots_root, exist_ok=True)
-    plt.savefig(out, format='eps', bbox_inches='tight')
+    plt.savefig(out, format='pdf', bbox_inches='tight')
     plt.close(fig)
     print(f"Wrote: {out}")
 

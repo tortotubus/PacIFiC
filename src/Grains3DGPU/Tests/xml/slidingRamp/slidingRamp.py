@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use("Agg")
-plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica", "font.size": 16})
+plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman", "font.size": 14})
 
 # ---------------------------------------------------------------------------
 # Physical parameters (must match the YAML)
@@ -100,8 +100,8 @@ def plot_comparison(results_root: str, plots_root: str) -> None:
         ax1.legend(loc="upper left", fontsize=8)
     ax1.grid(color="lightgrey", linestyle="--", linewidth=0.5)
     fig1.tight_layout()
-    out1 = os.path.join(plots_root, "SlidingRamp_HookePosition.eps")
-    plt.savefig(out1, format="eps", bbox_inches="tight")
+    out1 = os.path.join(plots_root, "SlidingRamp_HookePosition.pdf")
+    plt.savefig(out1, format="pdf", bbox_inches="tight")
     plt.close(fig1)
     print(f"Wrote: {out1}")
 
@@ -129,8 +129,8 @@ def plot_comparison(results_root: str, plots_root: str) -> None:
         ax2.legend(loc="upper left", fontsize=8)
     ax2.grid(color="lightgrey", linestyle="--", linewidth=0.5)
     fig2.tight_layout()
-    out2 = os.path.join(plots_root, "SlidingRamp_HookeMemoryPosition.eps")
-    plt.savefig(out2, format="eps", bbox_inches="tight")
+    out2 = os.path.join(plots_root, "SlidingRamp_HookeMemoryPosition.pdf")
+    plt.savefig(out2, format="pdf", bbox_inches="tight")
     plt.close(fig2)
     print(f"Wrote: {out2}")
 

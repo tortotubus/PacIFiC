@@ -6,12 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DATA_DIR="${PACIFIC_BUILDDIR_ABS}/Grains3DGPU/Validations/GJKIterations/data"
-CSV_FILE="${DATA_DIR}/gjk_iterations.csv"
-PYTHON="${PACIFIC_VENV_PY_ABS}"
-EXECUTABLE="GJKIterationsTest"
-
-TRIALS=100
+TRIALS=200
 SEED=42
 DO_BUILD=1
 DO_PLOT=1
@@ -30,6 +25,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+CSV_FILE="data/gjk_iterations.csv"
+EXECUTABLE="./build/GJKIterationsTest"
 
 if [[ $DO_BUILD -eq 1 ]]; then
     echo "Building GJKIterationsTest..."
@@ -37,13 +34,13 @@ if [[ $DO_BUILD -eq 1 ]]; then
 fi
 
 echo "Running GJK iterations benchmark (trials=$TRIALS seed=$SEED -> $CSV_FILE)"
-mkdir -p ${DATA_DIR}
+mkdir -p data
 "$EXECUTABLE" "$TRIALS" "$SEED" "$CSV_FILE"
 
 if [[ $DO_PLOT -eq 1 ]]; then
     echo "Generating plots..."
-    ${PYTHON} plot.py --csv "$CSV_FILE" --plot-dir ${DATA_DIR}
-    echo "Plots written to ${DATA_DIR}"
+    python3 plot.py --csv "$CSV_FILE" --plot-dir data
+    echo "Plots written to data/"
 fi
 
 echo "Done."

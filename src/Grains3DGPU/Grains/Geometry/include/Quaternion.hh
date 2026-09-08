@@ -177,6 +177,11 @@ public:
         @param q the other quaternion */
     __HOSTDEVICE__
     Vector3<T> multToVector3(const Quaternion<T>& q) const noexcept;
+
+    /** @brief Atomically add quaternion components to this quaternion
+        @param other quaternion whose components are added atomically */
+    __DEVICE__
+    void atomicAdd(const Quaternion<T>& other) noexcept;
     //@}
 
     /**@name Operators */

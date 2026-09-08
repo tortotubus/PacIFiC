@@ -1,4 +1,5 @@
 #include "Convex.hh"
+#include "MiscMath.hh"
 #include "VectorMath.hh"
 
 // -------------------------------------------------------------------------------------------------
@@ -18,8 +19,9 @@ __HOSTDEVICE__ Convex<T>::~Convex()
 // -------------------------------------------------------------------------------------------------
 // Eroded convex support function
 template <typename T>
-__HOSTDEVICE__ Vector3<T> Convex<T>::support(const Vector3<T>& v, T crust, T invNorm) const
+__HOSTDEVICE__ Vector3<T> Convex<T>::support(const Vector3<T>& v, T crust) const
 {
+    T invNorm = inverseSqrt(v * v);
     return support(v) - (crust * invNorm) * v;
 }
 
@@ -46,6 +48,15 @@ __HOST__ void Convex<T>::writePoints_PARAVIEW(std::ostream&        f,
     {
         f << point[X] << " " << point[Y] << " " << point[Z] << std::endl;
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+// Returns shape-specific parameters (default: all zeros)
+template <typename T>
+__HOSTDEVICE__ void Convex<T>::getShapeParameters(T (&params)[5]) const
+{
+    for(int i = 0; i < 5; ++i)
+        params[i] = T(0);
 }
 
 // -------------------------------------------------------------------------------------------------

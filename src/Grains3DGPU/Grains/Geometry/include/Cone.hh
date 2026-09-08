@@ -99,6 +99,10 @@ public:
         @param v direction */
     __HOSTDEVICE__
     Vector3<T> support(const Vector3<T>& v) const final;
+
+    /** @brief Eroded cone support: evaluates support of cone with shrunk dimensions */
+    __HOSTDEVICE__
+    Vector3<T> support(const Vector3<T>& v, T crust) const final;
     //@}
 
     /** @name I/O methods */
@@ -140,6 +144,18 @@ public:
                                   std::list<uint>& cellstype,
                                   uint&            firstpoint_globalnumber,
                                   uint&            last_offset) const final;
+
+    /** @brief Returns cone shape parameters: [bottomRadius, height, 0, 0, 0] */
+    __HOSTDEVICE__
+    void getShapeParameters(T (&params)[5]) const final;
+
+    /** @brief Returns "Cone" */
+    __HOST__
+    std::string getConvexName() const final;
+
+    /** @brief Writes the cone as an OBJ mesh (see Convex::writeOBJ) */
+    __HOST__
+    void writeOBJ(std::ostream& f, size_t& firstpoint_number) const final;
     //@}
 };
 

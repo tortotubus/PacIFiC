@@ -96,9 +96,7 @@ public:
                                                 "AspectRatio",
                                                 "GJKAlgo",
                                                 "GJKRepresentation",
-                                                "UseRelativeTransform",
                                                 "NeighborListTime_ms",
-                                                "RelativeTransformTime_ms",
                                                 "GJKTime_ms",
                                                 "TotalTime_ms",
                                                 "PairCount"};
@@ -258,43 +256,37 @@ public:
             = {GJKRepresentationType::QUATERNION, GJKRepresentationType::TRANSFORM};
         std::vector<GJKVariantType> gjkVariants
             = {GJKVariantType::JOHNSON, GJKVariantType::SIGNEDVOLUME};
-        std::vector<bool> transformModes = {true, false};  // relative vs global
 
         for(auto representation : representations)
         {
             for(auto gjkVariant : gjkVariants)
             {
-                for(bool useRelativeTransform : transformModes)
+                // Run all trials for this configuration on CPU
+                if(m_config.platform == PLATFORM::CPU || m_config.platform == PLATFORM::BOTH)
                 {
-                    // Run all trials for this configuration on CPU
-                    if(m_config.platform == PLATFORM::CPU || m_config.platform == PLATFORM::BOTH)
+                    for(uint trial = 0; trial < m_config.numTrials; ++trial)
                     {
-                        for(uint trial = 0; trial < m_config.numTrials; ++trial)
-                        {
-                            runSingleConfiguration<MemType::HOST>(cpuPairList,
-                                                                  cpuPairCount,
-                                                                  trial,
-                                                                  representation,
-                                                                  gjkVariant,
-                                                                  useRelativeTransform);
-                        }
-                        if(m_config.validateContacts)
-                        {
-                            writeContactsToFile(cpuNeighborList.get(), &m_contactInfo);
-                        }
+                        runSingleConfiguration<MemType::HOST>(cpuPairList,
+                                                              cpuPairCount,
+                                                              trial,
+                                                              representation,
+                                                              gjkVariant);
                     }
-                    // Run all trials for this configuration on GPU
-                    if(m_config.platform == PLATFORM::GPU || m_config.platform == PLATFORM::BOTH)
+                    if(m_config.validateContacts)
                     {
-                        for(uint trial = 0; trial < m_config.numTrials; ++trial)
-                        {
-                            runSingleConfiguration<MemType::DEVICE>(gpuPairList,
-                                                                    gpuPairCount,
-                                                                    trial,
-                                                                    representation,
-                                                                    gjkVariant,
-                                                                    useRelativeTransform);
-                        }
+                        writeContactsToFile(cpuNeighborList.get(), &m_contactInfo);
+                    }
+                }
+                // Run all trials for this configuration on GPU
+                if(m_config.platform == PLATFORM::GPU || m_config.platform == PLATFORM::BOTH)
+                {
+                    for(uint trial = 0; trial < m_config.numTrials; ++trial)
+                    {
+                        runSingleConfiguration<MemType::DEVICE>(gpuPairList,
+                                                                gpuPairCount,
+                                                                trial,
+                                                                representation,
+                                                                gjkVariant);
                     }
                     if(m_config.validateContacts)
                     {
@@ -349,47 +341,34 @@ private:
                                 uint                  pairCount,
                                 uint                  trialID,
                                 GJKRepresentationType representation,
-                                GJKVariantType        gjkVariant,
-                                bool                  useRelativeTransform)
+                                GJKVariantType        gjkVariant)
     {
         // Select appropriate buffers based on memory type
         GrainsMemBuffer<RigidBody<T>*, M>*  rbBuffer;
         GrainsMemBuffer<Vector3<T>, M>*     posBuffer;
         GrainsMemBuffer<Quaternion<T>, M>*  quatBuffer;
         GrainsMemBuffer<Transform3<T>, M>*  transformBuffer;
-        GrainsMemBuffer<Vector3<T>, M>*     relPosBuffer;
-        GrainsMemBuffer<Quaternion<T>, M>*  relQuatBuffer;
-        GrainsMemBuffer<Transform3<T>, M>*  relTransformBuffer;
         GrainsMemBuffer<ContactInfo<T>, M>* contactBuffer;
 
         if constexpr(M == MemType::HOST)
         {
-            rbBuffer           = &m_rigidBodies;
-            posBuffer          = &m_positions;
-            quatBuffer         = &m_quaternions;
-            transformBuffer    = &m_transforms;
-            relPosBuffer       = &m_relativePositions;
-            relQuatBuffer      = &m_relativeQuaternions;
-            relTransformBuffer = &m_relativeTransforms;
-            contactBuffer      = &m_contactInfo;
+            rbBuffer        = &m_rigidBodies;
+            posBuffer       = &m_positions;
+            quatBuffer      = &m_quaternions;
+            transformBuffer = &m_transforms;
+            contactBuffer   = &m_contactInfo;
         }
         else
         {
-            rbBuffer           = &m_d_rigidBodies;
-            posBuffer          = &m_d_positions;
-            quatBuffer         = &m_d_quaternions;
-            transformBuffer    = &m_d_transforms;
-            relPosBuffer       = &m_d_relativePositions;
-            relQuatBuffer      = &m_d_relativeQuaternions;
-            relTransformBuffer = &m_d_relativeTransforms;
-            contactBuffer      = &m_d_contactInfo;
+            rbBuffer        = &m_d_rigidBodies;
+            posBuffer       = &m_d_positions;
+            quatBuffer      = &m_d_quaternions;
+            transformBuffer = &m_d_transforms;
+            contactBuffer   = &m_d_contactInfo;
         }
 
         // Resize contact buffer if needed
         contactBuffer->resize(pairCount);
-        relPosBuffer->resize(pairCount);
-        relQuatBuffer->resize(pairCount);
-        relTransformBuffer->resize(pairCount);
 
         // Kernel launch parameters
         uint numThreads, numBlocks;
@@ -398,170 +377,11 @@ private:
                                        numBlocks,
                                        numThreads);
 
-        // Step 2: Compute relative transformations (if using relative mode)
-        StepTimer relTransformTimer;
-        double    relTransformTime = 0.0;
-
-        if(useRelativeTransform && pairCount > 0)
-        {
-            relTransformTimer.start();
-
-            if(representation == GJKRepresentationType::TRANSFORM)
-            {
-                // Use Transform3 representation
-                if constexpr(M == MemType::HOST)
-                {
-                    // CPU version
-                    for(uint pairID = 0; pairID < pairCount; ++pairID)
-                    {
-                        computeRelativeTransformations_common<T>(pairList,
-                                                                 transformBuffer->getData(),
-                                                                 relTransformBuffer->getData(),
-                                                                 pairID);
-                    }
-                }
-                else
-                {
-                    // GPU version - launch kernel
-                    computeRelativeTransformations_Kernel<<<numBlocks, numThreads>>>(
-                        pairList,
-                        transformBuffer->getData(),
-                        relTransformBuffer->getData(),
-                        pairCount);
-                    cudaErrCheck(cudaDeviceSynchronize());
-                }
-            }
-            else  // Quaternion representation
-            {
-                // Use Quaternion representation
-                if constexpr(M == MemType::HOST)
-                {
-                    // CPU version
-                    for(uint pairID = 0; pairID < pairCount; ++pairID)
-                    {
-                        computeRelativeTransformations_common<T>(pairList,
-                                                                 posBuffer->getData(),
-                                                                 quatBuffer->getData(),
-                                                                 relPosBuffer->getData(),
-                                                                 relQuatBuffer->getData(),
-                                                                 pairID);
-                    }
-                }
-                else
-                {
-                    // GPU version - launch kernel
-                    computeRelativeTransformations_Kernel<<<numBlocks, numThreads>>>(
-                        pairList,
-                        posBuffer->getData(),
-                        quatBuffer->getData(),
-                        relPosBuffer->getData(),
-                        relQuatBuffer->getData(),
-                        pairCount);
-                    cudaErrCheck(cudaDeviceSynchronize());
-                }
-            }
-            relTransformTimer.stop();
-            relTransformTime = relTransformTimer.getElapsedMilliseconds();
-        }
-
-        // Step 3: Run GJK collision detection
+        // Step 2: Run GJK collision detection in world coordinates
         StepTimer gjkTimer;
         gjkTimer.start();
 
-        if(pairCount > 0 && useRelativeTransform)
-        {
-            // Use relative transformations
-            if(representation == GJKRepresentationType::TRANSFORM)
-            {
-                // Transform3 representation
-                if constexpr(M == MemType::HOST)
-                {
-                    // CPU version
-                    if(gjkVariant == GJKVariantType::JOHNSON)
-                    {
-                        for(uint pairID = 0; pairID < pairCount; ++pairID)
-                        {
-                            detectCollisionsComponents_common<T, GJKType::JOHNSON, false>(
-                                pairList,
-                                rbBuffer->getData(),
-                                relTransformBuffer->getData(),
-                                contactBuffer->getData(),
-                                pairID);
-                        }
-                    }
-                    else  // SIGNEDVOLUME
-                    {
-                        for(uint pairID = 0; pairID < pairCount; ++pairID)
-                        {
-                            detectCollisionsComponents_common<T, GJKType::SIGNEDVOLUME, false>(
-                                pairList,
-                                rbBuffer->getData(),
-                                relTransformBuffer->getData(),
-                                contactBuffer->getData(),
-                                pairID);
-                        }
-                    }
-                }
-                else
-                {
-                    // GPU version - launch kernel
-                    detectCollisionsComponents_Kernel<<<numBlocks, numThreads>>>(
-                        pairList,
-                        rbBuffer->getData(),
-                        relTransformBuffer->getData(),
-                        contactBuffer->getData(),
-                        pairCount);
-                    cudaErrCheck(cudaDeviceSynchronize());
-                }
-            }
-            else  // Quaternion representation
-            {
-                // Quaternion representation
-                if constexpr(M == MemType::HOST)
-                {
-                    // CPU version
-                    if(gjkVariant == GJKVariantType::JOHNSON)
-                    {
-                        for(uint pairID = 0; pairID < pairCount; ++pairID)
-                        {
-                            detectCollisionsComponents_common<T, GJKType::JOHNSON, false>(
-                                pairList,
-                                rbBuffer->getData(),
-                                relPosBuffer->getData(),
-                                relQuatBuffer->getData(),
-                                contactBuffer->getData(),
-                                pairID);
-                        }
-                    }
-                    else  // SIGNEDVOLUME
-                    {
-                        for(uint pairID = 0; pairID < pairCount; ++pairID)
-                        {
-                            detectCollisionsComponents_common<T, GJKType::SIGNEDVOLUME, false>(
-                                pairList,
-                                rbBuffer->getData(),
-                                relPosBuffer->getData(),
-                                relQuatBuffer->getData(),
-                                contactBuffer->getData(),
-                                pairID);
-                        }
-                    }
-                }
-                else
-                {
-                    // GPU version - launch kernel
-                    detectCollisionsComponents_Kernel<<<numBlocks, numThreads>>>(
-                        pairList,
-                        rbBuffer->getData(),
-                        relPosBuffer->getData(),
-                        relQuatBuffer->getData(),
-                        contactBuffer->getData(),
-                        pairCount);
-                    cudaErrCheck(cudaDeviceSynchronize());
-                }
-            }
-        }
-        else if(pairCount > 0)
+        if(pairCount > 0)
         {
             // Use global coordinates directly
             if(representation == GJKRepresentationType::TRANSFORM)
@@ -574,7 +394,7 @@ private:
                     {
                         for(uint pairID = 0; pairID < pairCount; ++pairID)
                         {
-                            detectCollisionsComponentsGlobal_common<T, GJKType::JOHNSON, false>(
+                            detectCollisionsComponents_common<T, GJKType::JOHNSON, false>(
                                 pairList,
                                 rbBuffer->getData(),
                                 transformBuffer->getData(),
@@ -586,9 +406,7 @@ private:
                     {
                         for(uint pairID = 0; pairID < pairCount; ++pairID)
                         {
-                            detectCollisionsComponentsGlobal_common<T,
-                                                                    GJKType::SIGNEDVOLUME,
-                                                                    false>(
+                            detectCollisionsComponents_common<T, GJKType::SIGNEDVOLUME, false>(
                                 pairList,
                                 rbBuffer->getData(),
                                 transformBuffer->getData(),
@@ -600,7 +418,7 @@ private:
                 else
                 {
                     // GPU version - launch kernel
-                    detectCollisionsComponentsGlobal_Kernel<<<numBlocks, numThreads>>>(
+                    detectCollisionsComponents_Kernel<<<numBlocks, numThreads>>>(
                         pairList,
                         rbBuffer->getData(),
                         transformBuffer->getData(),
@@ -619,7 +437,7 @@ private:
                     {
                         for(uint pairID = 0; pairID < pairCount; ++pairID)
                         {
-                            detectCollisionsComponentsGlobal_common<T, GJKType::JOHNSON, false>(
+                            detectCollisionsComponents_common<T, GJKType::JOHNSON, false>(
                                 pairList,
                                 rbBuffer->getData(),
                                 posBuffer->getData(),
@@ -632,21 +450,20 @@ private:
                     {
                         for(uint pairID = 0; pairID < pairCount; ++pairID)
                         {
-                            detectCollisionsComponentsGlobal_common<T,
-                                                                    GJKType::SIGNEDVOLUME,
-                                                                    false>(pairList,
-                                                                           rbBuffer->getData(),
-                                                                           posBuffer->getData(),
-                                                                           quatBuffer->getData(),
-                                                                           contactBuffer->getData(),
-                                                                           pairID);
+                            detectCollisionsComponents_common<T, GJKType::SIGNEDVOLUME, false>(
+                                pairList,
+                                rbBuffer->getData(),
+                                posBuffer->getData(),
+                                quatBuffer->getData(),
+                                contactBuffer->getData(),
+                                pairID);
                         }
                     }
                 }
                 else
                 {
                     // GPU version - launch kernel
-                    detectCollisionsComponentsGlobal_Kernel<<<numBlocks, numThreads>>>(
+                    detectCollisionsComponents_Kernel<<<numBlocks, numThreads>>>(
                         pairList,
                         rbBuffer->getData(),
                         posBuffer->getData(),
@@ -661,10 +478,10 @@ private:
         gjkTimer.stop();
         double gjkTime = gjkTimer.getElapsedMilliseconds();
 
-        // Step 4: Calculate total time
-        double totalTime = relTransformTime + gjkTime;
+        // Step 3: Calculate total time
+        double totalTime = gjkTime;
 
-        // Step 5: Write results to CSV (neighbor list time reported separately)
+        // Step 4: Write results to CSV (neighbor list time reported separately)
         m_csvWriter->writeRow(
             trialID,
             M == MemType::HOST ? "CPU" : "GPU",
@@ -678,9 +495,7 @@ private:
             m_config.aspectRatio,
             gjkVariant == GJKVariantType::JOHNSON ? "Johnson" : "SignedVolume",
             representation == GJKRepresentationType::TRANSFORM ? "Transform" : "Quaternion",
-            useRelativeTransform ? 1 : 0,
             0.0,  // Neighbor list time measured separately, once per platform
-            relTransformTime,
             gjkTime,
             totalTime,
             pairCount);

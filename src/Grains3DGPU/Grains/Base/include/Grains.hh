@@ -7,6 +7,7 @@
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 #include "Insertion.hh"
+#include "ObstacleLoading.hh"
 #include "PostProcessingWriter.hh"
 #include "RigidBody.hh"
 #include "TimeIntegrator.hh"
@@ -33,6 +34,8 @@ protected:
     std::unique_ptr<Insertion<T>> m_insertion;
     /** \brief Manager of the components in the simulation on the host memory. */
     std::unique_ptr<ComponentManager<T, MemType::HOST>> m_components;
+    /** \brief Flat prescribed-motion events for all obstacles. */
+    GrainsMemBuffer<ObstacleMotionEvent<T>> m_obstacleEvents;
     /** \brief Buffer of contact forces. */
     GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST> m_contactForce;
     /** \brief Buffer of time integrators. */
@@ -66,6 +69,14 @@ public:
     template <MemType M>
     void postProcess(const std::unique_ptr<ComponentManager<T, M>>& cm);
 
+    /** @brief Prints a one-line per-step diagnostic to stdout: simulation time, progress,
+        wall-clock elapsed, step rate, active contact pairs, process RSS, and (on GPU runs)
+        free device memory.  Designed to be called from both GrainsCPU and GrainsGPU so
+        the output format is always identical regardless of execution path.
+        @param stepCount index of the current time step (1-based)
+        @param numPairs  number of active contact pairs at this step */
+    static void printStepInfo(uint stepCount, uint numPairs);
+
     /** @brief Tasks to perform after time-stepping */
     virtual void finalize();
     //@}
@@ -91,6 +102,13 @@ public:
     /** @brief Additional features of the simulation: insertion, post-processing.
         @param rootElement XML root */
     void AdditionalFeatures(DOMElement* rootElement);
+
+    /** @brief Runs contact force parameter estimation for all material pairs and prints to stdout.
+        For each defined contact pair, solves the spring-dashpot ODE analytically to estimate
+        the contact time Tc and maximum penetration depth delta_max at the prescribed collisional
+        relative velocity. Warns when delta_max exceeds the combined crust budget.
+        @param rootElement XML root */
+    void runContactForceEstimates(DOMNode* rootElement) const;
     //@}
 };
 

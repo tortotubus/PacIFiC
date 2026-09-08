@@ -39,7 +39,16 @@ void GrainsCPU<T>::simulate()
     G::m_components->updateSubBodyPositions();
     timer.stop(SimStage::Insertion);
 
-    cout << "Time \t TO \tend \tParticles \tIn \tOut" << endl;
+    printf("%12s  %12s  %7s  %8s  %8s  %8s  %5s  %7s  %7s\n",
+           "SimTime",
+           "EndTime",
+           "Prog%",
+           "Wall(s)",
+           "ETA(s)",
+           "stp/s",
+           "NL#",
+           "Pairs",
+           "CPU_MB");
 
     // Pre-compute forces on the initial configuration so the first
     // moveParticles call (and the KDK first half-kick) has valid accelerations.
@@ -61,26 +70,22 @@ void GrainsCPU<T>::simulate()
     timer.stop(SimStage::PostProcess);
 
     // time marching
-    uint stepCount = 0;
+    uint stepCount  = 0;
+    GP::m_loopStart = std::chrono::steady_clock::now();
     for(SS.time = GP::m_tStart + GP::m_dt; SS.time <= GP::m_tEnd; SS.time += GP::m_dt)
     {
         stepCount++;
         // Output time
         if(GP::m_verbosityFrequency > 0 && (stepCount % GP::m_verbosityFrequency == 0))
-        {
-            ostringstream oss;
-            oss.width(10);
-            oss << left << SS.time;
-            std::cout << oss.str() << "  \t" << GP::m_tEnd << std::endl;
-        }
+            G::printStepInfo(stepCount, G::m_components->getNumberOfPairs());
 
         if(GP::m_isLeapFrog)
         {
             // KDK Step 1: half-kick + drift using f_n (from pre-loop or previous step).
-            timer.start(SimStage::MoveParticles);
-            G::m_components->moveParticles(G::m_timeIntegrator);
+            timer.start(SimStage::MoveComponents);
+            G::m_components->moveComponents(G::m_timeIntegrator);
             G::m_components->updateSubBodyPositions();
-            timer.stop(SimStage::MoveParticles);
+            timer.stop(SimStage::MoveComponents);
             timer.start(SimStage::DetectCollisions);
             G::m_components->detectCollisions();
             timer.stop(SimStage::DetectCollisions);
@@ -101,9 +106,9 @@ void GrainsCPU<T>::simulate()
             timer.start(SimStage::ComputeContactForces);
             G::m_components->computeContactForces(G::m_contactForce);
             timer.stop(SimStage::ComputeContactForces);
-            timer.start(SimStage::MoveParticles);
-            G::m_components->moveParticles(G::m_timeIntegrator);
-            timer.stop(SimStage::MoveParticles);
+            timer.start(SimStage::MoveComponents);
+            G::m_components->moveComponents(G::m_timeIntegrator);
+            timer.stop(SimStage::MoveComponents);
         }
 
         // Post-Processing

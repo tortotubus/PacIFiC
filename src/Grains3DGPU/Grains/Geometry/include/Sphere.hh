@@ -95,6 +95,10 @@ public:
         @param v direction */
     __HOSTDEVICE__
     Vector3<T> support(const Vector3<T>& v) const final;
+
+    /** @brief Eroded sphere support: evaluates support of sphere with radius shrunk by crust */
+    __HOSTDEVICE__
+    Vector3<T> support(const Vector3<T>& v, T crust) const final;
     //@}
 
     /** @name I/O methods */
@@ -137,6 +141,18 @@ public:
                                   std::list<uint>& cellstype,
                                   uint&            firstpoint_globalnumber,
                                   uint&            last_offset) const final;
+
+    /** @brief Returns sphere shape parameters: [radius, 0, 0, 0, 0] */
+    __HOSTDEVICE__
+    void getShapeParameters(T (&params)[5]) const final;
+
+    /** @brief Returns "Sphere" */
+    __HOST__
+    std::string getConvexName() const final;
+
+    /** @brief Writes the sphere as an OBJ mesh (see Convex::writeOBJ) */
+    __HOST__
+    void writeOBJ(std::ostream& f, size_t& firstpoint_number) const final;
     //@}
 };
 

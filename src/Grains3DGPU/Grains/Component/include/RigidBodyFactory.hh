@@ -2,6 +2,7 @@
 #define _RIGIDBODYFACTORY_HH_
 
 #include "GrainsMemBuffer.hh"
+#include "ObstacleLoading.hh"
 #include "RigidBody.hh"
 
 /** @brief Unified input/output data for one category of rigid bodies (obstacles or particles).
@@ -38,6 +39,9 @@ struct ParticleData
     GrainsMemBuffer<Vector3<T>> refInitialPos;
     /** \brief Initial world orientation per template. */
     GrainsMemBuffer<Quaternion<T>> refInitialOri;
+    /** \brief Flat prescribed-motion events for all obstacles (one entry per obstacle×interval
+     * pair). */
+    GrainsMemBuffer<ObstacleMotionEvent<T>> refObstacleEvents;
     /** \brief Number of templates (= size of per-template arrays). */
     uint numTemplates = 0;
 };

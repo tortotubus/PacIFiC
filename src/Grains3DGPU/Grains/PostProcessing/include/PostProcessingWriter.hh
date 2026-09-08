@@ -13,6 +13,7 @@
 enum PostProcessingWriterType
 {
     PARAVIEW,
+    LIGHTWEIGHT,
     RAW
 };
 

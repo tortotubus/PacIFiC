@@ -13,13 +13,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 
-plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica"})
+plt.rcParams.update({"text.usetex": True, "font.family": "Times", "font.size": 12})
 
 # ---------------------------------------------------------------------------
 # Style map: all subplots share the same colour.  #2282A4 is used for both
 # the line/markers and (with transparency) the +/-1 std shaded band.
-_LINE_COLOR  = "tab:blue"
-_SHADE_COLOR = "tab:blue"
+_LINE_COLOR  = "#2282A4"
+_SHADE_COLOR = "#2282A4"
 
 PAIR_STYLES = {
     "box-box":                   {"color": _LINE_COLOR, "shade": _SHADE_COLOR, "marker": "o", "label": r"Box--Box"},
@@ -139,14 +139,15 @@ def main():
         )
 
         ax.set_xscale("log")
+        ax.set_xlim(1.0e-3, 1.0e1)
         ax.set_box_aspect(1)
         ax.grid(color="lightgrey", linestyle="--", linewidth=0.5)
 
-        ax.set_xlabel(r"Distance, $d$ [m]")
+        ax.set_xlabel(r"Distance, $d$ [m]", fontsize=12)
         if ax_idx == 0:
-            ax.set_ylabel(r"GJK iterations $[-]$")
+            ax.set_ylabel(r"GJK iterations $[-]$", fontsize=12)
 
-        ax.legend(loc="upper right", fontsize=8)
+        ax.legend(loc="upper right", fontsize=11)
 
     fig.tight_layout()
 

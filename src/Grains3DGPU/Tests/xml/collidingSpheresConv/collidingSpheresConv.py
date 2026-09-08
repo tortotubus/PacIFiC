@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use("Agg")
-plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica", "font.size": 16})
+plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman", "font.size": 14})
 
 # ---------------------------------------------------------------------------
 # Physical parameters (must match the YAML)
@@ -140,8 +140,8 @@ def plot_trajectory(results_root: str, plots_root: str) -> None:
 
     os.makedirs(plots_root, exist_ok=True)
     fig.tight_layout()
-    out = os.path.join(plots_root, "CollidingSpheresConvTrajectory.eps")
-    plt.savefig(out, format="eps", bbox_inches="tight")
+    out = os.path.join(plots_root, "CollidingSpheresConvTrajectory.pdf")
+    plt.savefig(out, format="pdf", bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote: {out}")
 
@@ -184,8 +184,8 @@ def plot_convergence(results_root: str, plots_root: str) -> None:
     ax.grid(True, which="both", color="lightgrey", ls="--", linewidth=0.5, zorder=0)
 
     os.makedirs(plots_root, exist_ok=True)
-    out = os.path.join(plots_root, "CollidingSpheresConvConvergence.eps")
-    plt.savefig(out, format="eps", bbox_inches="tight")
+    out = os.path.join(plots_root, "CollidingSpheresConvConvergence.pdf")
+    plt.savefig(out, format="pdf", bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote: {out}")
 
@@ -203,7 +203,7 @@ def main() -> None:
     parser.add_argument(
         "--plot-dir",
         default="./plots/collidingSpheresConv",
-        help="Directory for output .eps plot files",
+        help="Directory for output .pdf plot files",
     )
     args = parser.parse_args()
 

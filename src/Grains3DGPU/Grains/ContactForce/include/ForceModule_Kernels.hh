@@ -40,7 +40,7 @@ template <typename T>
 struct OverlapNegativeSelector
 {
     const ContactInfo<T>*    contactInfo;
-    __host__ __device__ bool operator()(uint pairIdx) const
+    __HOST__ __DEVICE__ bool operator()(uint pairIdx) const
     {
         return contactInfo[pairIdx].getOverlapDistance() < T(0);
     }
@@ -65,7 +65,7 @@ INLINE size_t queryCubSelectIfTempStorageBytes(uint  nPairs,
                                        countIter,
                                        activeIdxDev,
                                        numSelectedDev,
-                                       static_cast<int>(nPairs),
+                                       static_cast<int64_t>(nPairs),
                                        selector));
     return bytes;
 }
@@ -99,7 +99,7 @@ INLINE uint buildCompactActiveIndexIf(const ContactInfo<T>* contactInfoDev,
                                        countIter,
                                        activeIdxDev,
                                        mappedCountDev,
-                                       static_cast<int>(nPairs),
+                                       static_cast<int64_t>(nPairs),
                                        selector));
     // CUB wrote the count directly into pinned mapped memory via the device alias;
     // synchronize so the host-side read below sees the completed value.
@@ -119,15 +119,15 @@ INLINE uint buildCompactActiveIndexIf(const ContactInfo<T>* contactInfoDev,
     @param intermediateTorceB intermediate torce storage for particle B in each pair
     @param contactMemory view of contact memory (hash table + history data)
     @param nActive number of active pairs */
-template <typename T>
-__GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* CF,
-                                            const uint2*                       pairList,
-                                            const ContactInfo<T>*              contactInfo,
-                                            const uint*                        activeIdx,
-                                            const Vector3<T>*                  position,
-                                            const Kinematics<T>*               velocity,
-                                            Torce<T>*                          intermediateTorceA,
-                                            Torce<T>*                          intermediateTorceB,
+template <typename T, ContactForceModelType CFType = CF_VIRTUAL>
+__GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* __RESTRICT__ CF,
+                                            const uint2* __RESTRICT__          pairList,
+                                            const ContactInfo<T>* __RESTRICT__ contactInfo,
+                                            const uint* __RESTRICT__           activeIdx,
+                                            const Vector3<T>* __RESTRICT__     position,
+                                            const Kinematics<T>* __RESTRICT__  velocity,
+                                            Torce<T>* __RESTRICT__             intermediateTorceA,
+                                            Torce<T>* __RESTRICT__             intermediateTorceB,
                                             ContactMemoryView<T>               contactMemory,
                                             const uint                         nActive)
 {
@@ -137,15 +137,16 @@ __GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* C
         return;
 
     const uint i = activeIdx[tID];
-    computeContactForces_common(CF,
-                                pairList,
-                                contactInfo,
-                                position,
-                                velocity,
-                                intermediateTorceA,
-                                intermediateTorceB,
-                                contactMemory,
-                                i);
+    computeContactForces_common<T, CFType>(CF,
+                                           pairList,
+                                           contactInfo,
+                                           position,
+                                           velocity,
+                                           intermediateTorceA,
+                                           intermediateTorceB,
+                                           contactMemory,
+                                           i,
+                                           tID);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -157,12 +158,12 @@ __GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* C
     @param torce final per-particle torce array (accumulated atomically)
     @param nActive number of active pairs */
 template <typename T>
-__GLOBAL__ void reduceTorces_Kernel(const uint2*    pairList,
-                                    const uint*     activeIdx,
-                                    const Torce<T>* intermediateTorceA,
-                                    const Torce<T>* intermediateTorceB,
-                                    Torce<T>*       torce,
-                                    const uint      nActive)
+__GLOBAL__ void reduceTorces_Kernel(const uint2* __RESTRICT__    pairList,
+                                    const uint* __RESTRICT__     activeIdx,
+                                    const Torce<T>* __RESTRICT__ intermediateTorceA,
+                                    const Torce<T>* __RESTRICT__ intermediateTorceB,
+                                    Torce<T>* __RESTRICT__       torce,
+                                    const uint                   nActive)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -170,7 +171,7 @@ __GLOBAL__ void reduceTorces_Kernel(const uint2*    pairList,
         return;
 
     const uint i = activeIdx[tID];
-    reduceTorces_common(pairList, intermediateTorceA, intermediateTorceB, torce, i);
+    reduceTorces_common(pairList, intermediateTorceA, intermediateTorceB, torce, i, tID);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -186,16 +187,17 @@ __GLOBAL__ void reduceTorces_Kernel(const uint2*    pairList,
     @param intermediateTorceB intermediate torce storage for particle B (indexed by pair ID)
     @param contactMemory view of contact memory (hash table + history data)
     @param nPairs total number of pairs */
-template <typename T>
-__GLOBAL__ void computeContactForces_AllPairs_Kernel(const ContactForceModel<T>* const* CF,
-                                                     const uint2*                       pairList,
-                                                     const ContactInfo<T>*              contactInfo,
-                                                     const Vector3<T>*                  position,
-                                                     const Kinematics<T>*               velocity,
-                                                     Torce<T>*            intermediateTorceA,
-                                                     Torce<T>*            intermediateTorceB,
-                                                     ContactMemoryView<T> contactMemory,
-                                                     const uint           nPairs)
+template <typename T, ContactForceModelType CFType = CF_VIRTUAL>
+__GLOBAL__ void
+    computeContactForces_AllPairs_Kernel(const ContactForceModel<T>* const* __RESTRICT__ CF,
+                                         const uint2* __RESTRICT__                       pairList,
+                                         const ContactInfo<T>* __RESTRICT__ contactInfo,
+                                         const Vector3<T>* __RESTRICT__     position,
+                                         const Kinematics<T>* __RESTRICT__  velocity,
+                                         Torce<T>* __RESTRICT__             intermediateTorceA,
+                                         Torce<T>* __RESTRICT__             intermediateTorceB,
+                                         ContactMemoryView<T>               contactMemory,
+                                         const uint                         nPairs)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -206,15 +208,16 @@ __GLOBAL__ void computeContactForces_AllPairs_Kernel(const ContactForceModel<T>*
     intermediateTorceA[tID].reset();
     intermediateTorceB[tID].reset();
 
-    computeContactForces_common(CF,
-                                pairList,
-                                contactInfo,
-                                position,
-                                velocity,
-                                intermediateTorceA,
-                                intermediateTorceB,
-                                contactMemory,
-                                tID);
+    computeContactForces_common<T, CFType>(CF,
+                                           pairList,
+                                           contactInfo,
+                                           position,
+                                           velocity,
+                                           intermediateTorceA,
+                                           intermediateTorceB,
+                                           contactMemory,
+                                           tID,
+                                           tID);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -226,18 +229,18 @@ __GLOBAL__ void computeContactForces_AllPairs_Kernel(const ContactForceModel<T>*
     @param torce final per-particle torce array (accumulated atomically)
     @param nPairs total number of pairs */
 template <typename T>
-__GLOBAL__ void reduceTorces_AllPairs_Kernel(const uint2*    pairList,
-                                             const Torce<T>* intermediateTorceA,
-                                             const Torce<T>* intermediateTorceB,
-                                             Torce<T>*       torce,
-                                             const uint      nPairs)
+__GLOBAL__ void reduceTorces_AllPairs_Kernel(const uint2* __RESTRICT__    pairList,
+                                             const Torce<T>* __RESTRICT__ intermediateTorceA,
+                                             const Torce<T>* __RESTRICT__ intermediateTorceB,
+                                             Torce<T>* __RESTRICT__       torce,
+                                             const uint                   nPairs)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(tID >= nPairs)
         return;
 
-    reduceTorces_common(pairList, intermediateTorceA, intermediateTorceB, torce, tID);
+    reduceTorces_common(pairList, intermediateTorceA, intermediateTorceB, torce, tID, tID);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -269,15 +272,17 @@ __GLOBAL__ void addExternalForces_Kernel(const T                    gX,
 // -------------------------------------------------------------------------------------------------
 /** @brief Accumulates forces and torques from non-master sub-bodies into their composite master,
     then resets the sub-body torces. One thread per component.
-    @param torce      per-component torce (sub-bodies read, master accumulated atomically, reset)
-    @param position   world-frame positions (needed to compute moment arm r = sub - master)
-    @param masterSlot lookup: masterSlot[compositeIdx] = current array slot of composite master
-    @param bodyTag    per-component body tag (encodes isSubBody / compositeIdx / localIdx)
-    @param nComponents total number of components (obstacles + particles) */
+    @param torce           per-component torce (read and reset for each sub-body)
+    @param compositeTorce  per-composite net force/torque (accumulated atomically)
+    @param position        world-frame positions
+    @param compositePosition CM world position per composite (indexed by compositeIdx)
+    @param bodyTag         per-component body tag
+    @param nComponents     total number of components (obstacles + particles) */
 template <typename T>
 __GLOBAL__ void assembleCompositeTorces_Kernel(Torce<T>*         torce,
+                                               Torce<T>*         compositeTorce,
                                                const Vector3<T>* position,
-                                               const uint*       masterSlot,
+                                               const Vector3<T>* compositePosition,
                                                const uint*       bodyTag,
                                                const uint        nComponents)
 {
@@ -286,15 +291,15 @@ __GLOBAL__ void assembleCompositeTorces_Kernel(Torce<T>*         torce,
         return;
 
     const uint tag = bodyTag[cID];
-    if(!isSubBody(tag) || getSubBodyLocalIdx(tag) == 0u)
+    if(!isSubBody(tag))
         return;
 
-    const uint       mSlot = masterSlot[getCompositeIdx(tag)];
-    const Vector3<T> r     = position[cID] - position[mSlot];
-    const Vector3<T> f     = torce[cID].getForce();
-    const Vector3<T> tau   = torce[cID].getTorque() + (r ^ f);
-    torce[mSlot].addForceAtomic(f);
-    torce[mSlot].addTorqueAtomic(tau);
+    const uint       cIdx = getCompositeIdx(tag);
+    const Vector3<T> r    = position[cID] - compositePosition[cIdx];
+    const Vector3<T> f    = torce[cID].getForce();
+    const Vector3<T> tau  = torce[cID].getTorque() + (r ^ f);
+    compositeTorce[cIdx].addForceAtomic(f);
+    compositeTorce[cIdx].addTorqueAtomic(tau);
     torce[cID].reset();
 }
 //@}

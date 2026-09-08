@@ -3,7 +3,9 @@
 #include <random>
 
 #include "Box.hh"
+#include "Dodecahedron.hh"
 #include "GJK.hh"
+#include "Octahedron.hh"
 #include "Quaternion.hh"
 #include "QuaternionMath.hh"
 #include "Sphere.hh"
@@ -317,6 +319,21 @@ TEST_F(GJKTest, QuaternionRotationTests)
         result = intersectGJK(*boxA, *boxB, overlapping_pos, rot_z);
         EXPECT_TRUE(result) << "Z-axis rotation at angle " << angle << " should intersect";
     }
+}
+
+TEST_F(GJKTest, RegularPolyhedraIntersectViaGJK)
+{
+    Octahedron<double>   octahedron(0.75);
+    Dodecahedron<double> dodecahedron(0.9);
+
+    Transform3<double> overlap_transform(Quaternion<double>(0.0, 0.0, 0.0, 1.0),
+                                         Vector3<double>(0.4, 0.0, 0.0));
+    Transform3<double> separate_transform(Quaternion<double>(0.0, 0.0, 0.0, 1.0),
+                                          Vector3<double>(3.0, 0.0, 0.0));
+
+    EXPECT_TRUE(intersectGJK(octahedron, *boxB, overlap_transform));
+    EXPECT_TRUE(intersectGJK(dodecahedron, octahedron, overlap_transform));
+    EXPECT_FALSE(intersectGJK(dodecahedron, *boxB, separate_transform));
 }
 
 TEST_F(GJKTest, QuaternionPerformanceAndEdgeCases)

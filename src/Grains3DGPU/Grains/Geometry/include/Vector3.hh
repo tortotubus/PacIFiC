@@ -105,9 +105,11 @@ public:
     __HOSTDEVICE__
     void reset() noexcept;
 
-    /** @brief Atomically add a vector to this vector (GPU safe)
-        @param other vector to add atomically */
-    __device__ void atomicAdd(const Vector3<T>& other) noexcept;
+    /** @brief Add a vector to this vector.
+        Uses CUDA atomicAdd on device and regular component-wise addition on host.
+        @param other vector to add */
+    __HOSTDEVICE__
+    void atomicAdd(const Vector3<T>& other) noexcept;
     //@}
 
     /** @name Operators */

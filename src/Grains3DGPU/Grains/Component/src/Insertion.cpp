@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
 
@@ -13,6 +15,27 @@
 /* ============================================================================================== */
 /* Low-Level Methods                                                                              */
 /* ============================================================================================== */
+// Helper function to build an insertion frame (basisX, basisY, basisZ) from a given Z direction
+// vector
+template <typename T>
+__HOST__ static INLINE void buildInsertionFrameFromZ(const Vector3<T>& zDir,
+                                                     Vector3<T>&       basisX,
+                                                     Vector3<T>&       basisY,
+                                                     Vector3<T>&       basisZ)
+{
+    GAssert(norm2(zDir) > T(0), "Insertion direction vector must be non-zero! Aborting Grains!");
+    basisZ = zDir.normalized();
+
+    // Keep the default rectangular frame unchanged when ZDirection is (0,0,1).
+    Vector3<T> ref(T(0), T(1), T(0));
+    if(std::abs(basisZ * ref) > T(0.95))
+        ref = Vector3<T>(T(1), T(0), T(0));
+
+    basisX = (ref ^ basisZ).normalized();
+    basisY = basisZ ^ basisX;
+}
+
+// -------------------------------------------------------------------------------------------------
 // Reads if the root is of type Random
 template <typename T>
 __HOST__ static INLINE InsertionInfo<T> readDataRand(DOMNode* root)
@@ -102,6 +125,189 @@ __HOST__ static INLINE InsertionInfo<T> readDataZero(DOMNode* root)
     return (vec);
 }
 
+// -------------------------------------------------------------------------------------------------
+// Reads if the root is of type Array (regular 3D grid)
+template <typename T>
+__HOST__ static INLINE InsertionInfo<T> readDataArray(DOMNode* root)
+{
+    ArrayInsertionData<T> aid;
+
+    DOMNode* nOrigin  = ReaderXML::getNode(root, "Origin");
+    DOMNode* nSpacing = ReaderXML::getNode(root, "Spacing");
+    DOMNode* nCount   = ReaderXML::getNode(root, "Count");
+    GAssert(nOrigin, "Array insertion requires an <Origin> child node! Aborting Grains!");
+    GAssert(nSpacing, "Array insertion requires a <Spacing> child node! Aborting Grains!");
+    GAssert(nCount, "Array insertion requires a <Count> child node! Aborting Grains!");
+
+    aid.origin.setValue(T(ReaderXML::getNodeAttr_Double(nOrigin, "X")),
+                        T(ReaderXML::getNodeAttr_Double(nOrigin, "Y")),
+                        T(ReaderXML::getNodeAttr_Double(nOrigin, "Z")));
+
+    const bool hasDX = ReaderXML::hasNodeAttr(nSpacing, "DX");
+    const bool hasDY = ReaderXML::hasNodeAttr(nSpacing, "DY");
+    const bool hasDZ = ReaderXML::hasNodeAttr(nSpacing, "DZ");
+    const bool hasDR = ReaderXML::hasNodeAttr(nSpacing, "DR");
+    const bool hasDT = ReaderXML::hasNodeAttr(nSpacing, "DT");
+    const bool hasDH = ReaderXML::hasNodeAttr(nSpacing, "DH");
+
+    const bool hasNX = ReaderXML::hasNodeAttr(nCount, "NX");
+    const bool hasNY = ReaderXML::hasNodeAttr(nCount, "NY");
+    const bool hasNZ = ReaderXML::hasNodeAttr(nCount, "NZ");
+    const bool hasNR = ReaderXML::hasNodeAttr(nCount, "NR");
+    const bool hasNT = ReaderXML::hasNodeAttr(nCount, "NT");
+    const bool hasNH = ReaderXML::hasNodeAttr(nCount, "NH");
+
+    const bool rectSpacingComplete = hasDX && hasDY && hasDZ;
+    const bool cylSpacingComplete  = hasDR && hasDT && hasDH;
+    const bool rectCountComplete   = hasNX && hasNY && hasNZ;
+    const bool cylCountComplete    = hasNR && hasNT && hasNH;
+
+    GAssert(rectSpacingComplete || cylSpacingComplete,
+            "Array insertion <Spacing> must provide either DX/DY/DZ (rectangular) or "
+            "DR/DT/DH (cylindrical)! Aborting Grains!");
+    GAssert(!(rectSpacingComplete && cylSpacingComplete),
+            "Array insertion <Spacing> cannot mix rectangular and cylindrical attributes! "
+            "Aborting Grains!");
+    GAssert(rectCountComplete || cylCountComplete,
+            "Array insertion <Count> must provide either NX/NY/NZ (rectangular) or "
+            "NR/NT/NH (cylindrical)! Aborting Grains!");
+    GAssert(!(rectCountComplete && cylCountComplete),
+            "Array insertion <Count> cannot mix rectangular and cylindrical attributes! "
+            "Aborting Grains!");
+
+    GAssert(rectSpacingComplete == rectCountComplete,
+            "Array insertion mode mismatch: DX/DY/DZ must be paired with NX/NY/NZ, and "
+            "DR/DT/DH must be paired with NR/NT/NH! Aborting Grains!");
+
+    DOMNode* nZDirection = ReaderXML::getNode(root, "ZDirection");
+
+    if(rectSpacingComplete)
+    {
+        aid.layout = ARRAY_LAYOUT_RECTANGULAR;
+        aid.spacing.setValue(T(ReaderXML::getNodeAttr_Double(nSpacing, "DX")),
+                             T(ReaderXML::getNodeAttr_Double(nSpacing, "DY")),
+                             T(ReaderXML::getNodeAttr_Double(nSpacing, "DZ")));
+        aid.nx      = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NX"));
+        aid.ny      = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NY"));
+        aid.nz      = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NZ"));
+        aid.slopeDA = ReaderXML::hasNodeAttr(nSpacing, "DA")
+                          ? T(ReaderXML::getNodeAttr_Double(nSpacing, "DA"))
+                          : T(0);
+        if(aid.slopeDA > T(0))
+        {
+            aid.totalSlots = 0u;
+            for(uint iz = 0u; iz < aid.nz; ++iz)
+            {
+                const uint nxLayer
+                    = aid.nx + static_cast<uint>(T(iz) * aid.slopeDA / aid.spacing[0]);
+                const uint nyLayer
+                    = aid.ny + static_cast<uint>(T(iz) * aid.slopeDA / aid.spacing[1]);
+                aid.totalSlots += nxLayer * nyLayer;
+            }
+        }
+        else
+            aid.totalSlots = aid.nx * aid.ny * aid.nz;
+
+        Vector3<T> zDir(T(0), T(0), T(1));
+        if(nZDirection)
+            zDir.setValue(T(ReaderXML::getNodeAttr_Double(nZDirection, "X")),
+                          T(ReaderXML::getNodeAttr_Double(nZDirection, "Y")),
+                          T(ReaderXML::getNodeAttr_Double(nZDirection, "Z")));
+        buildInsertionFrameFromZ(zDir, aid.basisX, aid.basisY, aid.basisZ);
+    }
+    else
+    {
+        aid.spacing.setValue(T(ReaderXML::getNodeAttr_Double(nSpacing, "DR")),
+                             T(ReaderXML::getNodeAttr_Double(nSpacing, "DT")),
+                             T(ReaderXML::getNodeAttr_Double(nSpacing, "DH")));
+        aid.nx = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NR"));
+        aid.ny = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NT"));
+        aid.nz = static_cast<uint>(ReaderXML::getNodeAttr_Int(nCount, "NH"));
+
+        GAssert(aid.spacing[0] > T(0) && aid.spacing[1] > T(0) && aid.spacing[2] > T(0),
+                "Cylindrical array insertion requires positive DR/DT/DH! Aborting Grains!");
+
+        aid.layout  = ARRAY_LAYOUT_CYLINDRICAL;
+        aid.slopeDA = ReaderXML::hasNodeAttr(nSpacing, "DA")
+                          ? T(ReaderXML::getNodeAttr_Double(nSpacing, "DA"))
+                          : T(0);
+
+        const T twoPi  = T(2) * T(std::acos(-1.0));
+        aid.totalSlots = 0u;
+        for(uint ih = 0u; ih < aid.nz; ++ih)
+        {
+            // When DA is provided, each height layer gains floor(ih*DA/DR) extra rings.
+            const uint nrLayer = aid.nx + static_cast<uint>(T(ih) * aid.slopeDA / aid.spacing[0]);
+            for(uint ir = 0u; ir < nrLayer; ++ir)
+            {
+                uint ringNt = 1u;
+                if(ir > 0u)
+                {
+                    const T r         = T(ir) * aid.spacing[0];
+                    const T minDTheta = aid.spacing[0] / r;
+                    const T dThetaEff = std::max(aid.spacing[1], minDTheta);
+                    ringNt            = std::max(1u, static_cast<uint>(twoPi / dThetaEff));
+                    ringNt            = std::min(aid.ny, ringNt);
+                }
+                aid.totalSlots += ringNt;
+            }
+        }
+
+        Vector3<T> zDir(T(0), T(1), T(0));
+        if(nZDirection)
+            zDir.setValue(T(ReaderXML::getNodeAttr_Double(nZDirection, "X")),
+                          T(ReaderXML::getNodeAttr_Double(nZDirection, "Y")),
+                          T(ReaderXML::getNodeAttr_Double(nZDirection, "Z")));
+        buildInsertionFrameFromZ(zDir, aid.basisX, aid.basisY, aid.basisZ);
+    }
+    aid.idx = 0;
+
+    GAssert(aid.nx > 0 && aid.ny > 0 && aid.nz > 0,
+            "Array insertion counts must all be positive! Aborting Grains!");
+
+    if(aid.layout == ARRAY_LAYOUT_RECTANGULAR)
+    {
+        if(aid.slopeDA > T(0))
+            GoutWI(12,
+                   "Array initialization (rectangular, DA=" + std::to_string(aid.slopeDA) + "):",
+                   std::to_string(aid.nx) + "x" + std::to_string(aid.ny) + "x"
+                       + std::to_string(aid.nz),
+                   "base,",
+                   std::to_string(aid.totalSlots),
+                   "effective grid points.");
+        else
+            GoutWI(12,
+                   "Array initialization (rectangular):",
+                   std::to_string(aid.nx) + "x" + std::to_string(aid.ny) + "x"
+                       + std::to_string(aid.nz),
+                   "=",
+                   std::to_string(aid.totalSlots),
+                   "grid points.");
+    }
+    else
+    {
+        if(aid.slopeDA > T(0))
+            GoutWI(12,
+                   "Array initialization (cylindrical, adaptive theta, DA="
+                       + std::to_string(aid.slopeDA) + "):",
+                   std::to_string(aid.nx) + "x" + std::to_string(aid.ny) + "x"
+                       + std::to_string(aid.nz),
+                   "base,",
+                   std::to_string(aid.totalSlots),
+                   "effective grid points.");
+        else
+            GoutWI(12,
+                   "Array initialization (cylindrical, adaptive theta):",
+                   std::to_string(aid.nx) + "x" + std::to_string(aid.ny) + "x"
+                       + std::to_string(aid.nz),
+                   "requested,",
+                   std::to_string(aid.totalSlots),
+                   "effective grid points.");
+    }
+
+    return (aid);
+}
+
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
 /* ============================================================================================== */
@@ -142,6 +348,11 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
         {
             type = CONSTANTINSERTION;
             data = readDataCons<T>(root);
+        }
+        else if(nType == "Array")
+        {
+            type = ARRAYINSERTION;
+            data = readDataArray<T>(root);
         }
         else if(nType == "Zero")
         {
@@ -236,6 +447,8 @@ __HOST__ void Insertion<T>::setPositionInsertionInfo(InsertionInfo<T>&& info)
         m_positionType = RANDOMINSERTION;
     else if(std::holds_alternative<std::ifstream>(info))
         m_positionType = FILEINSERTION;
+    else if(std::holds_alternative<ArrayInsertionData<T>>(info))
+        m_positionType = ARRAYINSERTION;
     else if(std::holds_alternative<Vector3<T>>(info))
         m_positionType = CONSTANTINSERTION;
     else
@@ -253,6 +466,8 @@ __HOST__ void Insertion<T>::setOrientationInsertionInfo(InsertionInfo<T>&& info)
         m_orientationType = RANDOMINSERTION;
     else if(std::holds_alternative<std::ifstream>(info))
         m_orientationType = FILEINSERTION;
+    else if(std::holds_alternative<ArrayInsertionData<T>>(info))
+        m_orientationType = ARRAYINSERTION;
     else if(std::holds_alternative<Vector3<T>>(info))
         m_orientationType = CONSTANTINSERTION;
     else
@@ -270,6 +485,8 @@ __HOST__ void Insertion<T>::setTranslationalVelInsertionInfo(InsertionInfo<T>&& 
         m_translationalVelType = RANDOMINSERTION;
     else if(std::holds_alternative<std::ifstream>(info))
         m_translationalVelType = FILEINSERTION;
+    else if(std::holds_alternative<ArrayInsertionData<T>>(info))
+        m_translationalVelType = ARRAYINSERTION;
     else if(std::holds_alternative<Vector3<T>>(info))
         m_translationalVelType = CONSTANTINSERTION;
     else
@@ -287,6 +504,8 @@ __HOST__ void Insertion<T>::setAngularVelInsertionInfo(InsertionInfo<T>&& info)
         m_angularVelType = RANDOMINSERTION;
     else if(std::holds_alternative<std::ifstream>(info))
         m_angularVelType = FILEINSERTION;
+    else if(std::holds_alternative<ArrayInsertionData<T>>(info))
+        m_angularVelType = ARRAYINSERTION;
     else if(std::holds_alternative<Vector3<T>>(info))
         m_angularVelType = CONSTANTINSERTION;
     else
@@ -329,6 +548,128 @@ __HOST__ Vector3<T> Insertion<T>::fetchInsertionData(InsertionType const type,
         std::get<std::ifstream>(data) >> output;
         return (output);
     }
+    else if(type == ARRAYINSERTION)
+    {
+        auto& aid = std::get<ArrayInsertionData<T>>(data);
+        GAssert(aid.idx < aid.totalSlots,
+                "Array insertion exhausted all grid slots! Increase counts in <Count>.");
+        const uint flat = aid.idx++;
+
+        // Generate small random perturbations (~1e-10)
+        const T epsilon = T(1e-10);
+        const T randX   = epsilon * T(2.0 * (double)rand() / RAND_MAX - 1.0);
+        const T randY   = epsilon * T(2.0 * (double)rand() / RAND_MAX - 1.0);
+        const T randZ   = epsilon * T(2.0 * (double)rand() / RAND_MAX - 1.0);
+
+        if(aid.layout == ARRAY_LAYOUT_CYLINDRICAL)
+        {
+            // Cylindrical coordinates with adaptive angular sampling.
+            // When slopeDA > 0 each height layer gains floor(ih*DA/DR) extra rings,
+            // producing an expanding-cone packing.
+            const T twoPi   = T(2) * T(std::acos(-1.0));
+            uint    rem     = flat;
+            uint    ih      = 0u;
+            uint    ir      = 0u;
+            uint    it      = 0u;
+            uint    ihFound = 0u;
+
+            bool found = false;
+            for(ih = 0u; ih < aid.nz && !found; ++ih)
+            {
+                const uint nrLayer
+                    = aid.nx + static_cast<uint>(T(ih) * aid.slopeDA / aid.spacing[0]);
+                for(ir = 0u; ir < nrLayer; ++ir)
+                {
+                    uint ringNt = 1u;
+                    if(ir > 0u)
+                    {
+                        const T r         = T(ir) * aid.spacing[0];
+                        const T minDTheta = aid.spacing[0] / r;
+                        const T dThetaEff = std::max(aid.spacing[1], minDTheta);
+                        ringNt            = std::max(1u, static_cast<uint>(twoPi / dThetaEff));
+                        ringNt            = std::min(aid.ny, ringNt);
+                    }
+                    if(rem < ringNt)
+                    {
+                        it      = rem;
+                        ihFound = ih;
+                        found   = true;
+                        break;
+                    }
+                    rem -= ringNt;
+                }
+            }
+
+            GAssert(found, "Internal error mapping cylindrical insertion index. Aborting Grains!");
+            const T r = T(ir) * aid.spacing[0];
+            T       theta(0);
+            if(ir > 0u)
+            {
+                const T minDTheta = aid.spacing[0] / r;
+                const T dThetaEff = std::max(aid.spacing[1], minDTheta);
+                theta             = T(it) * dThetaEff;
+            }
+            const T h  = T(ihFound) * aid.spacing[2];
+            const T lx = r * T(std::cos(theta));
+            const T ly = r * T(std::sin(theta));
+            const T lz = h;
+            return Vector3<T>(aid.origin[0] + lx * aid.basisX[0] + ly * aid.basisY[0]
+                                  + lz * aid.basisZ[0] + randX,
+                              aid.origin[1] + lx * aid.basisX[1] + ly * aid.basisY[1]
+                                  + lz * aid.basisZ[1] + randY,
+                              aid.origin[2] + lx * aid.basisX[2] + ly * aid.basisY[2]
+                                  + lz * aid.basisZ[2] + randZ);
+        }
+
+        if(aid.slopeDA > T(0))
+        {
+            // Rectangular grid expanding outward by DA per DZ layer.
+            uint rem     = flat;
+            uint ixFound = 0u;
+            uint iyFound = 0u;
+            uint izFound = 0u;
+            bool found   = false;
+            for(uint iz = 0u; iz < aid.nz && !found; ++iz)
+            {
+                const uint nxLayer
+                    = aid.nx + static_cast<uint>(T(iz) * aid.slopeDA / aid.spacing[0]);
+                const uint nyLayer
+                    = aid.ny + static_cast<uint>(T(iz) * aid.slopeDA / aid.spacing[1]);
+                const uint layerSlots = nxLayer * nyLayer;
+                if(rem < layerSlots)
+                {
+                    ixFound = rem % nxLayer;
+                    iyFound = rem / nxLayer;
+                    izFound = iz;
+                    found   = true;
+                }
+                else
+                    rem -= layerSlots;
+            }
+            GAssert(found, "Internal error mapping rectangular insertion index. Aborting Grains!");
+            const T lx = T(ixFound) * aid.spacing[0];
+            const T ly = T(iyFound) * aid.spacing[1];
+            const T lz = T(izFound) * aid.spacing[2];
+            return Vector3<T>(aid.origin[0] + lx * aid.basisX[0] + ly * aid.basisY[0]
+                                  + lz * aid.basisZ[0] + randX,
+                              aid.origin[1] + lx * aid.basisX[1] + ly * aid.basisY[1]
+                                  + lz * aid.basisZ[1] + randY,
+                              aid.origin[2] + lx * aid.basisX[2] + ly * aid.basisY[2]
+                                  + lz * aid.basisZ[2] + randZ);
+        }
+
+        const uint ix = flat % aid.nx;
+        const uint iy = (flat / aid.nx) % aid.ny;
+        const uint iz = flat / (aid.nx * aid.ny);
+
+        const T lx = T(ix) * aid.spacing[0];
+        const T ly = T(iy) * aid.spacing[1];
+        const T lz = T(iz) * aid.spacing[2];
+        return Vector3<T>(
+            aid.origin[0] + lx * aid.basisX[0] + ly * aid.basisY[0] + lz * aid.basisZ[0] + randX,
+            aid.origin[1] + lx * aid.basisX[1] + ly * aid.basisY[1] + lz * aid.basisZ[1] + randY,
+            aid.origin[2] + lx * aid.basisX[2] + ly * aid.basisY[2] + lz * aid.basisZ[2] + randZ);
+    }
     else if(type == CONSTANTINSERTION)
         return (std::get<Vector3<T>>(data));
     else
@@ -350,9 +691,25 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
                                    const GrainsMemBuffer<Vector3<T>>&    localPos,
                                    const GrainsMemBuffer<Quaternion<T>>& localQuat)
 {
-    GoutWI(3, "Inserting", numParticles, "particles ...");
+    Gout("Inserting", numParticles, "particles ...");
 
-    if(m_forceInsertion)
+    // Progress bar: report every 5% of numParticles slots processed
+    const uint progressInterval = std::max(1u, numParticles / 20u);
+    uint       nextMilestone    = progressInterval;
+    auto       reportProgress   = [&](uint i) {
+        if(i + 1u >= nextMilestone || i + 1u == numParticles)
+        {
+            int pct = static_cast<int>(100u * (i + 1u) / numParticles);
+            GoutWI(3,
+                   "[Insertion]",
+                   pct,
+                   "% (" + std::to_string(i + 1u) + " / " + std::to_string(numParticles)
+                       + " particles)");
+            nextMilestone += progressInterval;
+        }
+    };
+
+    if(m_forceInsertion || m_positionType == ARRAYINSERTION)
     {
         for(uint i = 0; i < numParticles; ++i)
         {
@@ -375,6 +732,7 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
 
             Vector3<T> ang       = fetchInsertionData(m_angularVelType, m_angularVelInsertionInfo);
             kinematics[insertID] = Kinematics<T>(vel, ang);
+            reportProgress(i);
         }
     }
     else
@@ -444,12 +802,22 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
             const RigidBody<T>* rbMaster     = (*rigidBody)[insertID];
             const Convex<T>&    convexMaster = *rbMaster->getConvex();
             const T             crustMaster  = rbMaster->getCrustThickness();
-            if(overlapsLC(insertID, convexMaster, crustMaster, insertPosition, insertQuaternion))
+
+            // For a composite master (LocalIdx==0), insertPosition is the composite CM;
+            // slave's world position is CM + q >> localPos[*].
+            const uint       tag          = bodyTag[insertID];
+            const bool       isCompMaster = isSubBody(tag) && (getSubBodyLocalIdx(tag) == 0u);
+            const Vector3<T> masterWorldPos
+                = isCompMaster ? insertPosition + (insertQuaternion >> localPos[insertID])
+                               : insertPosition;
+            const Quaternion<T> masterWorldQuat
+                = isCompMaster ? insertQuaternion * localQuat[insertID] : insertQuaternion;
+
+            if(overlapsLC(insertID, convexMaster, crustMaster, masterWorldPos, masterWorldQuat))
                 return false;
 
             // For composite masters: check every slave sub-body at its world pose
-            const uint tag = bodyTag[insertID];
-            if(isSubBody(tag))
+            if(isCompMaster)
             {
                 const uint cIdx = getCompositeIdx(tag);
                 for(uint k = insertID + 1;
@@ -498,6 +866,8 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
                 // clang-format on
                 if(withinBounds && canInsert(insertID, pCand, qCand))
                 {
+                    // pCand is the composite CM (or standalone body position).
+                    // Store it directly so initCompositeFrames() can later snapshot the CM.
                     position[insertID]    = pCand;
                     orientation[insertID] = qCand;
                     Vector3<T> vel        = fetchInsertionData(m_translationalVelType,
@@ -506,12 +876,15 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
                         = fetchInsertionData(m_angularVelType, m_angularVelInsertionInfo);
                     kinematics[insertID] = Kinematics<T>(vel, ang);
                     placed               = true;
-                    // Add master to LC
-                    const Cells<T>* cells = LC.getLinkedCell()[0];
-                    LC.addParticleToCell(insertID, cells->computeCellHash(pCand));
-                    // For composite masters: write slave world poses and add them to LC
-                    const uint tag = bodyTag[insertID];
-                    if(isSubBody(tag))
+                    // Add master to LC using its actual world position (CM + q >> localPos[0])
+                    const Cells<T>*  cells   = LC.getLinkedCell()[0];
+                    const uint       tag     = bodyTag[insertID];
+                    const bool       isCompM = isSubBody(tag) && (getSubBodyLocalIdx(tag) == 0u);
+                    const Vector3<T> masterWorldPos
+                        = isCompM ? pCand + (qCand >> localPos[insertID]) : pCand;
+                    LC.addParticleToCell(insertID, cells->computeCellHash(masterWorldPos));
+                    // For composite masters: write all slave world poses and add to LC
+                    if(isCompM)
                     {
                         const uint cIdx = getCompositeIdx(tag);
                         for(uint k = insertID + 1;
@@ -533,11 +906,12 @@ __HOST__ void Insertion<T>::insert(const GrainsMemBuffer<RigidBody<T>*>* rigidBo
             GAssert(
                 placed,
                 std::string("Failed to place a particle without overlap after too many attempts.")
-                    + "Only inserted " + std::to_string(i) + " out of "
+                    + " Only inserted " + std::to_string(i) + " out of "
                     + std::to_string(numParticles) + " particles. ");
+            reportProgress(i);
         }
     }
-    GoutWI(3, "Inserted", std::to_string(numParticles), "particles.");
+    Gout("Inserted", std::to_string(numParticles), "particles.");
 }
 
 // -------------------------------------------------------------------------------------------------

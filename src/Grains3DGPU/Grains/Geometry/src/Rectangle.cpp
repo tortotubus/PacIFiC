@@ -122,6 +122,16 @@ __HOSTDEVICE__ Vector3<T> Rectangle<T>::support(const Vector3<T>& v) const
 }
 
 // -------------------------------------------------------------------------------------------------
+// Eroded rectangle support: evaluates support with shrunk dimensions
+template <typename T>
+__HOSTDEVICE__ Vector3<T> Rectangle<T>::support(const Vector3<T>& v, T crust) const
+{
+    return (Vector3<T>(v[X] < T(0) ? -(m_LX - crust) : (m_LX - crust),
+                       v[Y] < T(0) ? -(m_LY - crust) : (m_LY - crust),
+                       T(0)));
+}
+
+// -------------------------------------------------------------------------------------------------
 // Returns if a point is inside the rectangle
 template <typename T>
 __HOSTDEVICE__ bool Rectangle<T>::isInside(const Vector3<T>& p) const
@@ -202,6 +212,33 @@ __HOST__ void Rectangle<T>::writeConnection_PARAVIEW(std::list<uint>& connectivi
     cellstype.push_back(8);
 
     firstpoint_globalnumber += 4;
+}
+
+// -------------------------------------------------------------------------------------------------
+// Returns rectangle shape parameters: [Lx, Ly, 0, 0, 0]
+template <typename T>
+__HOSTDEVICE__ void Rectangle<T>::getShapeParameters(T (&params)[5]) const
+{
+    params[0] = m_LX;
+    params[1] = m_LY;
+    params[2] = T(0);
+    params[3] = T(0);
+    params[4] = T(0);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Returns the convex name
+template <typename T>
+__HOST__ std::string Rectangle<T>::getConvexName() const
+{
+    return "Rectangle";
+}
+
+// -------------------------------------------------------------------------------------------------
+// OBJ mesh: Rectangle is a 2D shape; nothing to write
+template <typename T>
+__HOST__ void Rectangle<T>::writeOBJ(std::ostream&, size_t&) const
+{
 }
 
 // -------------------------------------------------------------------------------------------------

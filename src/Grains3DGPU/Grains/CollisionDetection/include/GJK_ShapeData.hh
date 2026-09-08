@@ -6,25 +6,33 @@
 #include "Cone.hh"
 #include "Convex.hh"
 #include "Cylinder.hh"
+#include "Dodecahedron.hh"
+#include "Drum.hh"
 #include "MiscMath.hh"
+#include "Octahedron.hh"
 #include "Rectangle.hh"
 #include "RigidBody.hh"
 #include "Sphere.hh"
 #include "Superquadric.hh"
+#include "Trapezoid.hh"
 #include "Vector3.hh"
 #include "VectorMath.hh"
 
 /** @name Structs */
 //@{
-// -------------------------------------------------------------------------------------------------
 /** @brief POD struct holding all data needed to evaluate a convex support function on the GPU
     without virtual dispatch. Layout of params[] by shape type:
       SPHERE:         params[0] = radius
       BOX:            params[0] = ex, [1] = ey, [2] = ez
+      OCTAHEDRON:     params[0] = circumradius
+      DODECAHEDRON:   params[0] = circumradius
       CYLINDER:       params[0] = radius, [1] = halfHeight
       CONE:           params[0] = bottomRadius, [1] = quarterHeight, [2] = sinAngle
       SUPERQUADRIC:   params[0] = a, [1] = b, [2] = c, [3] = n1, [4] = n2
       RECTANGLE:      params[0] = LX, [1] = LY
+      TRAPEZOID:      params[0] = halfWidthBottom, [1] = halfWidthTop, [2] = halfHeight
+      TRIANGLE:       params[0] = halfBase, [1] = halfHeight
+            DRUM:           params[0] = radius, [1] = halfHeight
     crust = crustThickness  (per-body full crust, matching GJK erosion convention). */
 template <typename T>
 struct ShapeData
@@ -33,6 +41,7 @@ struct ShapeData
     T          crust;                // crustThickness (per-body full crust)
     T          params[5];            // shape-specific support params
     T          circumscribedRadius;  // circumscribed sphere radius
+    T          inscribedRadius;      // inscribed sphere radius (= min bounding-box half-extent)
     T          invMass;              // 1/mass (0 for fixed/obstacle bodies)
     uint       material;             // material ID for contact hash
 };
@@ -60,7 +69,6 @@ struct BVData
 // =================================================================================================
 /** @name Structs */
 //@{
-// -------------------------------------------------------------------------------------------------
 /** @brief Fills a ShapeData struct from a RigidBody, reading the concrete shape geometry.
     Uses virtual dispatch once on the init path (not in the GJK hot loop).
     @param sd output ShapeData to fill
@@ -71,57 +79,34 @@ __HOSTDEVICE__ void fillShapeData(ShapeData<T>& sd, const RigidBody<T>* rb)
     const Convex<T>* conv = rb->getConvex();
     sd.type               = conv->getConvexType();
     sd.crust              = rb->getCrustThickness();
+    conv->getShapeParameters(sd.params);
+
     switch(sd.type)
     {
     case SPHERE:
-        sd.params[0] = static_cast<const Sphere<T>*>(conv)->getRadius();
-        break;
     case BOX:
-    {
-        const Vector3<T> e = static_cast<const Box<T>*>(conv)->getExtent();
-        sd.params[0]       = e[X];
-        sd.params[1]       = e[Y];
-        sd.params[2]       = e[Z];
+    case OCTAHEDRON:
+    case DODECAHEDRON:
         break;
-    }
     case CYLINDER:
-    {
-        const Cylinder<T>* c = static_cast<const Cylinder<T>*>(conv);
-        sd.params[0]         = c->getRadius();
-        sd.params[1]         = c->getHeight() / T(2);
+        sd.params[1] *= T(0.5);
         break;
-    }
     case CONE:
-    {
-        const Cone<T>* c = static_cast<const Cone<T>*>(conv);
-        sd.params[0]     = c->getRadius();
-        sd.params[1]     = c->getHeight() / T(4);
-        sd.params[2]     = c->getSinAngle();
+        sd.params[1] *= T(0.25);
+        sd.params[2] = static_cast<const Cone<T>*>(conv)->getSinAngle();
         break;
-    }
     case SUPERQUADRIC:
-    {
-        const Superquadric<T>* sq = static_cast<const Superquadric<T>*>(conv);
-        const Vector3<T>       ex = sq->getExtent();
-        const Vector3<T>       en = sq->getExponent();
-        sd.params[0]              = ex[X];
-        sd.params[1]              = ex[Y];
-        sd.params[2]              = ex[Z];
-        sd.params[3]              = en[X];
-        sd.params[4]              = en[Y];
-        break;
-    }
     case RECTANGLE:
-    {
-        const Vector3<T> e = static_cast<const Rectangle<T>*>(conv)->getExtent();
-        sd.params[0]       = e[X];
-        sd.params[1]       = e[Y];
+    case TRAPEZOID:
+    case TRIANGLE:
+    case DRUM:
         break;
-    }
     default:
         break;
     }
     sd.circumscribedRadius = rb->getCircumscribedRadius();
+    const Vector3<T> bbox  = conv->computeBoundingBox();
+    sd.inscribedRadius     = min(min(bbox[X], bbox[Y]), bbox[Z]);
     const T mass           = rb->getMass();
     sd.invMass             = (mass == T(0)) ? T(0) : T(1) / mass;
     sd.material            = rb->getMaterial();
@@ -164,21 +149,72 @@ __HOSTDEVICE__ Vector3<T> device_support_raw(const ShapeData<T>& sd, const Vecto
                           v[Y] < T(0) ? -sd.params[1] : sd.params[1],
                           v[Z] < T(0) ? -sd.params[2] : sd.params[2]);
     }
+    case OCTAHEDRON:
+    {
+        const T radius = sd.params[0];
+        const T ax     = fabs(v[X]);
+        const T ay     = fabs(v[Y]);
+        const T az     = fabs(v[Z]);
+        if(ax >= ay && ax >= az)
+            return Vector3<T>(v[X] < T(0) ? -radius : radius, T(0), T(0));
+        if(ay >= az)
+            return Vector3<T>(T(0), v[Y] < T(0) ? -radius : radius, T(0));
+        return Vector3<T>(T(0), T(0), v[Z] < T(0) ? -radius : radius);
+    }
+    case DODECAHEDRON:
+    {
+        const T radius = sd.params[0];
+        const T phi    = (T(1) + sqrt(T(5))) / T(2);
+        const T invPhi = (sqrt(T(5)) - T(1)) / T(2);
+        const T scale  = radius / sqrt(T(3));
+
+        Vector3<T> best(-scale, -scale, -scale);
+        T          bestScore = best * v;
+
+        auto consider = [&](T x, T y, T z) {
+            const Vector3<T> candidate(x, y, z);
+            const T          score = candidate * v;
+            if(score > bestScore)
+            {
+                best      = candidate;
+                bestScore = score;
+            }
+        };
+
+        consider(-scale, -scale, scale);
+        consider(-scale, scale, -scale);
+        consider(-scale, scale, scale);
+        consider(scale, -scale, -scale);
+        consider(scale, -scale, scale);
+        consider(scale, scale, -scale);
+        consider(scale, scale, scale);
+        consider(T(0), -invPhi * scale, -phi * scale);
+        consider(T(0), -invPhi * scale, phi * scale);
+        consider(T(0), invPhi * scale, -phi * scale);
+        consider(T(0), invPhi * scale, phi * scale);
+        consider(-invPhi * scale, -phi * scale, T(0));
+        consider(-invPhi * scale, phi * scale, T(0));
+        consider(invPhi * scale, -phi * scale, T(0));
+        consider(invPhi * scale, phi * scale, T(0));
+        consider(-phi * scale, T(0), -invPhi * scale);
+        consider(-phi * scale, T(0), invPhi * scale);
+        consider(phi * scale, T(0), -invPhi * scale);
+        consider(phi * scale, T(0), invPhi * scale);
+        return best;
+    }
     case CYLINDER:
     {
         const T radius     = sd.params[0];
         const T halfHeight = sd.params[1];
         const T s          = sqrt(v[X] * v[X] + v[Z] * v[Z]);
+        const T hy         = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
         if(s > EPS<T>)
         {
             const T d = radius / s;
-            if(fabs(v[Y]) < EPS<T>)
-                return Vector3<T>(v[X] * d, T(0), v[Z] * d);
-            else
-                return Vector3<T>(v[X] * d, v[Y] < T(0) ? -halfHeight : halfHeight, v[Z] * d);
+            return Vector3<T>(v[X] * d, hy, v[Z] * d);
         }
         else
-            return Vector3<T>(T(0), v[Y] < T(0) ? -halfHeight : halfHeight, T(0));
+            return Vector3<T>(T(0), hy, T(0));
     }
     case CONE:
     {
@@ -229,6 +265,39 @@ __HOSTDEVICE__ Vector3<T> device_support_raw(const ShapeData<T>& sd, const Vecto
                           v[Y] < T(0) ? -sd.params[1] : sd.params[1],
                           T(0));
     }
+    case DRUM:
+    {
+        const T radius     = sd.params[0];
+        const T halfHeight = sd.params[1];
+        const T s          = sqrt(v[X] * v[X] + v[Z] * v[Z]);
+        const T hy         = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
+        if(s > EPS<T>)
+        {
+            const T d = radius / s;
+            return Vector3<T>(v[X] * d, hy, v[Z] * d);
+        }
+        return Vector3<T>(T(0), hy, T(0));
+    }
+    case TRAPEZOID:
+    {
+        const T wb       = sd.params[0];
+        const T wt       = sd.params[1];
+        const T hh       = sd.params[2];
+        const T scoreTop = v[Y] * hh + fabs(v[X]) * wt;
+        const T scorBot  = -v[Y] * hh + fabs(v[X]) * wb;
+        const T hy       = (scoreTop >= scorBot) ? hh : -hh;
+        const T hw       = (scoreTop >= scorBot) ? wt : wb;
+        return Vector3<T>(v[X] < T(0) ? -hw : hw, hy, T(0));
+    }
+    case TRIANGLE:
+    {
+        const T hb       = sd.params[0];
+        const T hh       = sd.params[1];
+        const T scoreTop = v[Y] * hh;
+        const T scorBot  = -v[Y] * hh + fabs(v[X]) * hb;
+        return (scoreTop >= scorBot) ? Vector3<T>(T(0), hh, T(0))
+                                     : Vector3<T>(v[X] < T(0) ? -hb : hb, -hh, T(0));
+    }
     default:
         return Vector3<T>(T(0), T(0), T(0));
     }
@@ -236,17 +305,187 @@ __HOSTDEVICE__ Vector3<T> device_support_raw(const ShapeData<T>& sd, const Vecto
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Evaluates the crust-eroded support function using ShapeData (vtable-free).
-    Equivalent to Convex<T>::support(v, crustArg, invNorm) but without virtual dispatch.
+    Instead of the generic Minkowski erosion (support(v) - crust/|v|*v), evaluates the exact
+    support of the dimensionally-shrunk shape, preserving the original geometry type.
     @param sd      ShapeData describing the shape
     @param v       search direction (need not be normalised)
     @param crustArg crust thickness (per-body full crustThickness)
-    @param invNorm 1 / norm(v), pre-computed by the caller
     @return        crust-eroded support point in shape-local frame */
 template <typename T>
-__HOSTDEVICE__ Vector3<T>
-               device_support(const ShapeData<T>& sd, const Vector3<T>& v, T crustArg, T invNorm)
+__HOSTDEVICE__ Vector3<T> device_support(const ShapeData<T>& sd, const Vector3<T>& v, T crustArg)
 {
-    return device_support_raw(sd, v) - crustArg * invNorm * v;
+    switch(sd.type)
+    {
+    case SPHERE:
+    {
+        const T len = sqrt(v[X] * v[X] + v[Y] * v[Y] + v[Z] * v[Z]);
+        if(len < EPS<T>)
+            return Vector3<T>(T(0), T(0), T(0));
+        return ((sd.params[0] - crustArg) / len) * v;
+    }
+    case BOX:
+    {
+        const T ex = sd.params[0] - crustArg;
+        const T ey = sd.params[1] - crustArg;
+        const T ez = sd.params[2] - crustArg;
+        return Vector3<T>(v[X] < T(0) ? -ex : ex, v[Y] < T(0) ? -ey : ey, v[Z] < T(0) ? -ez : ez);
+    }
+    case OCTAHEDRON:
+    {
+        const T radius = sd.params[0] - crustArg;
+        const T ax     = fabs(v[X]);
+        const T ay     = fabs(v[Y]);
+        const T az     = fabs(v[Z]);
+        if(ax >= ay && ax >= az)
+            return Vector3<T>(v[X] < T(0) ? -radius : radius, T(0), T(0));
+        if(ay >= az)
+            return Vector3<T>(T(0), v[Y] < T(0) ? -radius : radius, T(0));
+        return Vector3<T>(T(0), T(0), v[Z] < T(0) ? -radius : radius);
+    }
+    case DODECAHEDRON:
+    {
+        const T radius = sd.params[0] - crustArg;
+        const T phi    = (T(1) + sqrt(T(5))) / T(2);
+        const T invPhi = (sqrt(T(5)) - T(1)) / T(2);
+        const T scale  = radius / sqrt(T(3));
+
+        Vector3<T> best(-scale, -scale, -scale);
+        T          bestScore = best * v;
+
+        auto consider = [&](T x, T y, T z) {
+            const Vector3<T> candidate(x, y, z);
+            const T          score = candidate * v;
+            if(score > bestScore)
+            {
+                best      = candidate;
+                bestScore = score;
+            }
+        };
+
+        consider(-scale, -scale, scale);
+        consider(-scale, scale, -scale);
+        consider(-scale, scale, scale);
+        consider(scale, -scale, -scale);
+        consider(scale, -scale, scale);
+        consider(scale, scale, -scale);
+        consider(scale, scale, scale);
+        consider(T(0), -invPhi * scale, -phi * scale);
+        consider(T(0), -invPhi * scale, phi * scale);
+        consider(T(0), invPhi * scale, -phi * scale);
+        consider(T(0), invPhi * scale, phi * scale);
+        consider(-invPhi * scale, -phi * scale, T(0));
+        consider(-invPhi * scale, phi * scale, T(0));
+        consider(invPhi * scale, -phi * scale, T(0));
+        consider(invPhi * scale, phi * scale, T(0));
+        consider(-phi * scale, T(0), -invPhi * scale);
+        consider(-phi * scale, T(0), invPhi * scale);
+        consider(phi * scale, T(0), -invPhi * scale);
+        consider(phi * scale, T(0), invPhi * scale);
+        return best;
+    }
+    case CYLINDER:
+    {
+        const T radius     = sd.params[0] - crustArg;
+        const T halfHeight = sd.params[1] - crustArg;
+        const T s          = sqrt(v[X] * v[X] + v[Z] * v[Z]);
+        const T hy         = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
+        if(s > EPS<T>)
+        {
+            const T d = radius / s;
+            return Vector3<T>(v[X] * d, hy, v[Z] * d);
+        }
+        else
+            return Vector3<T>(T(0), hy, T(0));
+    }
+    case CONE:
+    {
+        const T bottomRadius  = sd.params[0] - crustArg;
+        const T quarterHeight = sd.params[1] - crustArg / T(2);
+        const T h             = T(4) * quarterHeight;
+        const T sinAngle      = bottomRadius / sqrt(bottomRadius * bottomRadius + h * h);
+        if(v[Y] > norm(v) * sinAngle)
+            return Vector3<T>(T(0), T(3) * quarterHeight, T(0));
+        const T s = sqrt(v[X] * v[X] + v[Z] * v[Z]);
+        if(s > EPS<T>)
+        {
+            const T d = bottomRadius / s;
+            return Vector3<T>(v[X] * d, -quarterHeight, v[Z] * d);
+        }
+        return Vector3<T>(T(0), -quarterHeight, T(0));
+    }
+    case SUPERQUADRIC:
+    {
+        const T a     = sd.params[0] - crustArg;
+        const T b     = sd.params[1] - crustArg;
+        const T c     = sd.params[2] - crustArg;
+        const T n1    = sd.params[3];
+        const T n2    = sd.params[4];
+        const T abvx  = fabs(v[X]);
+        const T abvy  = fabs(v[Y]);
+        const T abvz  = fabs(v[Z]);
+        const T signx = T(sgn(v[X]));
+        const T signy = T(sgn(v[Y]));
+        const T signz = T(sgn(v[Z]));
+        if(abvx == T(0))
+        {
+            if(abvy == T(0))
+                return Vector3<T>(T(0), T(0), signz * c);
+            const T alpha = pow(c / b * abvz / abvy, T(1) / (n1 - T(1)));
+            const T yt    = T(1) / pow(T(1) + pow(alpha, n1), T(1) / n1);
+            return Vector3<T>(T(0), signy * b * yt, signz * alpha * c * yt);
+        }
+        const T alpha = pow(b / a * abvy / abvx, T(1) / (n2 - T(1)));
+        const T temp  = T(1) + pow(alpha, n2);
+        const T gamma = pow(temp, (n1 - n2) / (n2 * (n1 - T(1))));
+        const T beta  = gamma * pow(c / a * abvz / abvx, T(1) / (n1 - T(1)));
+        const T xt    = T(1) / pow(pow(temp, n1 / n2) + pow(beta, n1), T(1) / n1);
+        return Vector3<T>(signx * a * xt, signy * alpha * b * xt, signz * beta * c * xt);
+    }
+    case RECTANGLE:
+    {
+        const T lx = sd.params[0] - crustArg;
+        const T ly = sd.params[1] - crustArg;
+        return Vector3<T>(v[X] < T(0) ? -lx : lx, v[Y] < T(0) ? -ly : ly, T(0));
+    }
+    case DRUM:
+    {
+        const T radius     = sd.params[0] - crustArg;
+        const T halfHeight = sd.params[1] - crustArg;
+        const T s          = sqrt(v[X] * v[X] + v[Z] * v[Z]);
+        const T hy         = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
+        if(s > EPS<T>)
+        {
+            const T d = radius / s;
+            return Vector3<T>(v[X] * d, hy, v[Z] * d);
+        }
+        return Vector3<T>(T(0), hy, T(0));
+    }
+    case TRAPEZOID:
+    {
+        const T wb_e     = sd.params[0] - crustArg > T(0) ? sd.params[0] - crustArg : T(0);
+        const T wt_e     = sd.params[1] - crustArg > T(0) ? sd.params[1] - crustArg : T(0);
+        const T hh_e     = sd.params[2] - crustArg > T(0) ? sd.params[2] - crustArg : T(0);
+        const T scoreTop = v[Y] * hh_e + fabs(v[X]) * wt_e;
+        const T scorBot  = -v[Y] * hh_e + fabs(v[X]) * wb_e;
+        const T hy       = (scoreTop >= scorBot) ? hh_e : -hh_e;
+        const T hw       = (scoreTop >= scorBot) ? wt_e : wb_e;
+        return Vector3<T>(v[X] < T(0) ? -hw : hw, hy, T(0));
+    }
+    case TRIANGLE:
+    {
+        const T hb_e     = sd.params[0] - crustArg > T(0) ? sd.params[0] - crustArg : T(0);
+        const T hh_e     = sd.params[1] - crustArg > T(0) ? sd.params[1] - crustArg : T(0);
+        const T scoreTop = v[Y] * hh_e;
+        const T scorBot  = -v[Y] * hh_e + fabs(v[X]) * hb_e;
+        return (scoreTop >= scorBot) ? Vector3<T>(T(0), hh_e, T(0))
+                                     : Vector3<T>(v[X] < T(0) ? -hb_e : hb_e, -hh_e, T(0));
+    }
+    default:
+    {
+        const T invNorm = inverseSqrt(v[X] * v[X] + v[Y] * v[Y] + v[Z] * v[Z]);
+        return device_support_raw(sd, v) - crustArg * invNorm * v;
+    }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
