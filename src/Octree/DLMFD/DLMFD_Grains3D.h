@@ -131,17 +131,26 @@ event GranularSolver_predictor (t < -1.)
   {
     if ( RIGIDBODIES_AS_FIXED_OBSTACLES )
     {  
-      // Output the call to Grains3D
-      printf ("Grains3D sends RB data\n");
+#     if !PRODUCTION_LOG
+        // Output the call to Grains3D
+        printf ("Grains3D sends RB data\n");
+#     endif  
     }
     else
     {    
-      // Output the call to Grains3D
-      printf ("Grains3D runs and sends RB data\n");      
+#     if !PRODUCTION_LOG
+        // Output the call to Grains3D
+        printf ("Grains3D runs and sends RB data\n");
+#     endif       
       
       // Run the granular simulation
       Simu_Grains( dt );
     }
+    
+#   if PRODUCTION_LOG
+      // Output the call to Grains3D
+      printf ("G3D - ");
+#   endif     
 
     // Transfer the data from Grains to an array of characters
     pstr = GrainsToBasilisk( &pstrsize );         
@@ -164,7 +173,11 @@ event GranularSolver_updateVelocity (t < -1.)
   if ( pid() == 0 )
   {
     // Output the call to Grains3D
-    printf ("Grains3D\n");
+#   if !PRODUCTION_LOG
+      printf ("Grains3D\n");
+#   else
+      printf ("G3D - ");
+#   endif    
 
     // Copy velocity in a 2D array
     UpdateDLMFDtoGS_vel( DLMFDtoGS_vel, allRigidBodies, nbRigidBodies );  

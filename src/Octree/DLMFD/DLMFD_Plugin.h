@@ -599,7 +599,7 @@ event last_output_data (t = end)
 # endif 
 
   do_output( mess );    
-  output_dlmfd_perf ( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
+  output_dlmfd_perf( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
   	&allDLMFDptscells );
   event( "Additional_user_last_output_data" );	       
 }	
@@ -623,9 +623,13 @@ event once_timestep_is_determined (i++)
 
   if ( pid() == 0 )
   {
-    printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
+#   if !PRODUCTION_LOG
+      printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
     	i, t, t+dt );
-    printf( "   Time step = %8.5e\n", dt );
+      printf( "   Time step = %8.5e\n", dt );	    
+#   else
+      printf( "\nITER %d - t+dt=%8.5e\n", i, t+dt );
+#   endif
   }
   
   // We free dynamic features of rigid bodies from the previous time step
@@ -649,11 +653,15 @@ event once_timestep_is_determined (i++)
 # endif  
   
   /* Granular solver predictor */
-  if ( pid() == 0 ) printf( "   GS predictor step: " ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   GS predictor step: " );
+# endif   
   event( "GranularSolver_predictor" );  
 
   /* Construction of rigid bodies and their DLMFD features */
-  if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# endif    
   DLMFD_construction();  
 }
 
@@ -706,7 +714,9 @@ void do_DLMFD( const int i )
   /* Update velocity in the granular solver */
   if ( pid() == 0 && nbParticles )
   { 
-    printf( "   GS velocity update in " );
+#   if !PRODUCTION_LOG
+      printf( "   GS velocity update in " );
+#   endif
     event( "GranularSolver_updateVelocity" );
   }    
 
@@ -741,8 +751,12 @@ event end_timestep (i++)
 //----------------------------------------------------------------------------
 {
   if ( pid() == 0 )
-    printf( "   NS solver: MGu_niter = %d, MGpf_niter = %d, MGp_niter = %d\n", 
+#   if !PRODUCTION_LOG  
+      printf( "   NS solver: MGu_niter = %d, MGpf_niter = %d, MGp_niter = %d\n", 
     	mgu.i, mgpf.i, mgp.i );
+#   else
+      printf( "NS(%d/%d/%d) - ", mgu.i, mgpf.i, mgp.i );
+#   endif
 
 # if DLMFD_PROB_AFTER_NAVIERSTOKES 
     do_DLMFD( i );
@@ -799,9 +813,32 @@ event end_timestep (i++)
    
   
   /* Fluid velocity change over the time step */
-  deltau = change( u.x, u_previoustime );
+  deltau = change( u.VELOCITYCHANGE_COMPONENT, u_previoustime );
   if ( pid() == 0 )
-    printf( "   Velocity change = %8.5e\n", deltau );       
+#   if !PRODUCTION_LOG      
+      printf( "   Velocity change = %8.5e\n", deltau );
+#   else
+      printf( "Dv = %8.5e\n", deltau );
+#   endif 
+    
+# if COMPUTE_AVGL2NORM_DIVU && !PRODUCTION_LOG
+    /* Average L2 norm of div(uf) */    
+    double L2normdivu = 0.;
+    foreach(reduction(+:L2normdivu)) 
+    {
+      double div = 0.;
+      foreach_dimension()
+        div += uf.x[1] - uf.x[];
+      L2normdivu += sq(div) * pow( Delta, dimension - 2 );
+    }
+    if ( pid() == 0 )
+      printf( "   Avg L2norm(div(uf)) = %8.5e\n", sqrt( L2normdivu 
+    	/ ( FULL_DOMAIN.x * FULL_DOMAIN.y 
+#     if dimension == 3  
+	* FULL_DOMAIN.z
+#     endif	 
+	) ) );
+# endif            
 }
 
 
@@ -817,12 +854,16 @@ event adapt (i++)
     int totalcell = totalcells();
     if ( pid() == 0 )
     {
-#     if dimension == 2  
-        printf( "   Quadtree grid cells: " );
+#     if !PRODUCTION_LOG 
+#       if dimension == 2  
+          printf( "   Quadtree grid cells: " );
+#       else
+          printf( "   Octree grid cells: " );
+#       endif
+        printf( "total = %d, ", totalcell );
 #     else
-        printf( "   Octree grid cells: " );
+        printf( "Grid(t=%d/", totalcell );
 #     endif
-      printf( "total = %d, ", totalcell );
     }
 
 # if LEVELDIFF_FLAG_U == 0
@@ -844,8 +885,12 @@ event adapt (i++)
     event( "Compute_cs" ); 
 # endif	
 
-    if ( pid() == 0 ) 
-      printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+    if ( pid() == 0 )
+#     if !PRODUCTION_LOG     
+        printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+#     else
+        printf( "r=%d/c=%d)\n", s.nf, s.nc );
+#     endif	
 # endif
 
   // Compute the AABB of the local domain

@@ -197,6 +197,18 @@
 #   define DLMFD_INTERIORPOINTS 1
 # endif
 
+# ifndef COMPUTE_AVGL2NORM_DIVU
+#   define COMPUTE_AVGL2NORM_DIVU 0
+# endif
+
+# ifndef VELOCITYCHANGE_COMPONENT
+#   define VELOCITYCHANGE_COMPONENT x
+# endif
+
+# ifndef PRODUCTION_LOG
+#   define PRODUCTION_LOG 0
+# endif
+
 # ifndef DLMFD_OPT
 #   define DLMFD_OPT 1     // use optimized version of DLMFD algorithm
 # endif
