@@ -723,10 +723,6 @@ void do_DLMFD( const int i )
   /* Save the forces acting on rigid bodies before adapting the mesh  */
   computeHydroForceTorque( allRigidBodies, nbRigidBodies, fdata, t + dt, dt, 
   	DLM_Flag, DLM_lambda, DLM_Index, FLUID_DENSITY, DLM_PeriodicRefCenter );
-  
-  /* Save all rigid body data */
-  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
-    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );     
 }
 
 
@@ -810,7 +806,24 @@ event end_timestep (i++)
 		imposed_periodicpressuredrop, flowrate );
 #   endif  
 # endif
-   
+
+
+  /* Correct fluid and rigid body z-velocity such that the rigid body remains
+  stationary in the z direction */
+# if SINGLE_SETTLING_STATIONARY_Z
+    double vz = allRigidBodies[0].U.z;
+    foreach() u.z[] -= vz;
+    uback -= vz;
+    allRigidBodies[0].U.z = 0.;
+    if ( pid() == 0 && nbParticles )
+    {
+      event( "GranularSolver_updateVelocity" );
+      FILE* ff = fopen ( "Res/uz_back.res", "a" );
+      fprintf( ff, "%.8e %.8e\n", t + dt, uback );    
+      fclose( ff ); 
+    }
+# endif             
+
   
   /* Fluid velocity change over the time step */
   deltau = change( u.VELOCITYCHANGE_COMPONENT, u_previoustime );
@@ -838,7 +851,11 @@ event end_timestep (i++)
 	* FULL_DOMAIN.z
 #     endif	 
 	) ) );
-# endif            
+# endif 
+
+  /* Save all rigid body data */
+  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
+    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );
 }
 
 

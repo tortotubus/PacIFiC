@@ -209,6 +209,10 @@
 #   define PRODUCTION_LOG 0
 # endif
 
+# ifndef SINGLE_SETTLING_STATIONARY_Z
+#   define SINGLE_SETTLING_STATIONARY_Z 0
+# endif
+
 # ifndef DLMFD_OPT
 #   define DLMFD_OPT 1     // use optimized version of DLMFD algorithm
 # endif
@@ -598,6 +602,9 @@ dynUIarray deactivatedBPindices;
 dynPDBarray deactivatedIndexFieldValues;
 AABB local_domain;
 coord FULL_DOMAIN;
+# if SINGLE_SETTLING_STATIONARY_Z
+    double uback = 0.;
+# endif
 
 
 
