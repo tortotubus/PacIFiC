@@ -408,7 +408,19 @@ event init (i = 0)
 
 	
   // Initialize the field u_previoustime to compute x-velocity change
-  foreach() u_previoustime[] = u.x[];
+  foreach() u_previoustime[] = u.VELOCITYCHANGE_COMPONENT[];
+
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we need to set the actual particle z position as if it
+  moves and the value of uback */
+# if SINGLE_SETTLING_STATIONARY_Z
+    if ( restarted_simu )
+      read_single_settling_stationary_restart( DUMP_DIR, &uback, &actualzpos );
+    else
+      actualzpos = allRigidBodies[0].g.center.z;    
+# endif   
   
   
   // By default:
@@ -474,6 +486,15 @@ void do_output( char const* mess )
 
   scalar* dump_list = NULL;
 
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we shift the fluid and particle z velocity component by 
+  - uback such that at the post processing level all looks as if the particle 
+  moves. */
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] -= uback;    
+# endif  
+
 # if LAMBDA2
     scalar l2[];
     lambda2( u, l2 );        
@@ -531,6 +552,11 @@ void do_output( char const* mess )
 # endif
 
   // Basilisk output for restart
+  // Reset fluid velocity to its value in the simulation
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] += uback;    
+# endif 
+
 # if DLM_ALPHA_COUPLING
     dump_list = (scalar *){u, g, p, pf, DLM_explicit};
 # else
@@ -542,10 +568,17 @@ void do_output( char const* mess )
   // B_SPLIT_EXPLICIT_ACCELERATION is on, we save the explication part of the 
   // particle split acceleration for restart purposes
 # if B_SPLIT_EXPLICIT_ACCELERATION
-    if ( pid() == 0 ) 
-      save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
+    save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
       	nbRigidBodies );
-# endif        
+# endif
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we save the value of uback and the actual z position of
+  the particle */
+# if SINGLE_SETTLING_STATIONARY_Z
+    save_single_settling_stationary_restart( DUMP_DIR, uback, actualzpos );
+# endif         
 
   // Granular solver output for both post-processing & restart
   event( "GranularSolver_saveResults" );
@@ -817,10 +850,10 @@ event end_timestep (i++)
     allRigidBodies[0].U.z = 0.;
     if ( pid() == 0 && nbParticles )
     {
-      event( "GranularSolver_updateVelocity" );
-      FILE* ff = fopen ( "Res/uz_back.res", "a" );
-      fprintf( ff, "%.8e %.8e\n", t + dt, uback );    
-      fclose( ff ); 
+#     if !PRODUCTION_LOG
+        printf( "   GS velocity update in " );
+#     endif
+        event( "GranularSolver_updateVelocity" );
     }
 # endif             
 
@@ -853,9 +886,24 @@ event end_timestep (i++)
 	) ) );
 # endif 
 
-  /* Save all rigid body data */
+  /* Save all rigid body data 
+  In case of single settling particle kept stationary in the z direction through
+  adjusting the incoming z velocity component denoted uback at the back boundary
+  condition, we shift the fluid and particle z velocity component by - uback
+  such that at the post processing level all looks as if the particle moves.
+  We also recompute its z vertical position with a 1st order Euler scheme */
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = - uback;
+    actualzpos += allRigidBodies[0].U.z * dt;
+    double zzz = allRigidBodies[0].g.center.z;
+    allRigidBodies[0].g.center.z = actualzpos;
+# endif     
   if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
     rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = 0.;
+    allRigidBodies[0].g.center.z = zzz;
+# endif       
 }
 
 

@@ -2522,6 +2522,46 @@ void read_t_restart( char* dirname, double* time, double* deltat, double* ppd )
 
 
 
+/** Save the time and time step in a file */
+//----------------------------------------------------------------------------
+void save_single_settling_stationary_restart( char* dirname, double u, 
+	double pos )
+//----------------------------------------------------------------------------
+{
+  if ( pid() == 0 )
+  {
+    char dump_name[80] = "";
+    strcpy( dump_name, dirname );
+    strcat( dump_name, "/single_settling_stationary_restart.res" );
+    FILE* ft = fopen( dump_name, "w" );
+    fprintf ( ft, "%.10e %.10e", u, pos );
+    fclose( ft );
+  }  
+}
+
+
+
+
+/** Read the restart time and time step from a file */
+//----------------------------------------------------------------------------
+void read_single_settling_stationary_restart( char* dirname, double* u, 
+	double* pos )
+//----------------------------------------------------------------------------
+{
+  char dump_name[80] = "";
+  strcpy( dump_name, dirname );
+  strcat( dump_name, "/single_settling_stationary_restart.res" );
+  FILE* ft = fopen( dump_name, "r" );
+  int result = fscanf ( ft, "%lf %lf", u, pos );
+  if ( result != 2 ) 
+    if ( pid() == 0 )
+      printf( "WARNING: problem when reading data in file %s\n", dump_name );
+  fclose( ft );  
+}
+
+
+
+
 /** Allocate number of rigid body dependent arrays */
 //----------------------------------------------------------------------------
 void allocate_np_dep_arrays( const size_t nrb, const size_t npart,
@@ -2638,24 +2678,27 @@ void save_explicit_splitAcceleration( char* dirname, RigidBody const* allrbs,
 	const size_t nrb )
 //----------------------------------------------------------------------------
 {
-  char dump_name[160] = "";
-  strcpy( dump_name, dirname );
-  strcat( dump_name, "/particle_explicit_acceleration.res" );
-  FILE* ft = fopen( dump_name, "w" );
+  if ( pid() == 0 )
+  {
+    char dump_name[160] = "";
+    strcpy( dump_name, dirname );
+    strcat( dump_name, "/particle_explicit_acceleration.res" );
+    FILE* ft = fopen( dump_name, "w" );
 
-  for (size_t k = 0; k < nrb; k++)
-  { 
-    fprintf ( ft, "%.10e", allrbs[k].splitUacc.x );
-    fprintf ( ft, " %.10e", allrbs[k].splitUacc.y );
-#   if dimension == 3
-      fprintf ( ft, " %.10e", allrbs[k].splitUacc.z );
-      fprintf ( ft, " %.10e", allrbs[k].splitwacc.x );
-      fprintf ( ft, " %.10e", allrbs[k].splitwacc.y );      
-#   endif
-    fprintf ( ft, " %.10e\n", allrbs[k].splitwacc.z );                        
+    for (size_t k = 0; k < nrb; k++)
+    { 
+      fprintf ( ft, "%.10e", allrbs[k].splitUacc.x );
+      fprintf ( ft, " %.10e", allrbs[k].splitUacc.y );
+#     if dimension == 3
+        fprintf ( ft, " %.10e", allrbs[k].splitUacc.z );
+        fprintf ( ft, " %.10e", allrbs[k].splitwacc.x );
+        fprintf ( ft, " %.10e", allrbs[k].splitwacc.y );      
+#     endif
+      fprintf ( ft, " %.10e\n", allrbs[k].splitwacc.z );                        
+    }  
+
+    fclose( ft );
   }  
-
-  fclose( ft );  
 }
 
 

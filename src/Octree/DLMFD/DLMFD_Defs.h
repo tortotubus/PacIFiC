@@ -603,7 +603,7 @@ dynPDBarray deactivatedIndexFieldValues;
 AABB local_domain;
 coord FULL_DOMAIN;
 # if SINGLE_SETTLING_STATIONARY_Z
-    double uback = 0.;
+    double uback = 0., actualzpos = 0.;
 # endif
 
 
