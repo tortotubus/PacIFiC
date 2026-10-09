@@ -6,6 +6,7 @@
  * HyperTreeGrid.
  */
 typedef struct {
+    coord transform;         /**< Translation applied to the written tree coordinates. */
     size_t max_vertices;    /**< Number of cells in the tree level with the greatest number of cells */
     int64_t number_of_depths; /**< Common number of depth levels in this Basilisk forest view. */
     int64_t *depth_per_tree;  /**< Per-root tree depth array expected by VTKHDF. */
@@ -96,7 +97,8 @@ void vtk_hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data
     vtk_hdf_hypertreegrid_data->n_x = (size_t)Dimensions.x + 1;
     vtk_hdf_hypertreegrid_data->x = malloc(vtk_hdf_hypertreegrid_data->n_x * sizeof(double));
     for (size_t i = 0; i < vtk_hdf_hypertreegrid_data->n_x; i++)
-        vtk_hdf_hypertreegrid_data->x[i] = X0 + (double)i * root_delta;
+        vtk_hdf_hypertreegrid_data->x[i] =
+            X0 + (double)i * root_delta + vtk_hdf_hypertreegrid_data->transform.x;
 #else
     vtk_hdf_hypertreegrid_data->n_x = 1;
     vtk_hdf_hypertreegrid_data->x = malloc(1 * sizeof(double));
@@ -107,7 +109,8 @@ void vtk_hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data
     vtk_hdf_hypertreegrid_data->n_y = (size_t)Dimensions.y + 1;
     vtk_hdf_hypertreegrid_data->y = malloc(vtk_hdf_hypertreegrid_data->n_y * sizeof(double));
     for (size_t j = 0; j < vtk_hdf_hypertreegrid_data->n_y; j++)
-        vtk_hdf_hypertreegrid_data->y[j] = Y0 + (double)j * root_delta;
+        vtk_hdf_hypertreegrid_data->y[j] =
+            Y0 + (double)j * root_delta + vtk_hdf_hypertreegrid_data->transform.y;
 #else
     vtk_hdf_hypertreegrid_data->n_y = 1;
     vtk_hdf_hypertreegrid_data->y = malloc(1 * sizeof(double));
@@ -118,7 +121,8 @@ void vtk_hdf_get_coordinates(vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data
     vtk_hdf_hypertreegrid_data->n_z = (size_t)Dimensions.z + 1;
     vtk_hdf_hypertreegrid_data->z = malloc(vtk_hdf_hypertreegrid_data->n_z * sizeof(double));
     for (size_t k = 0; k < vtk_hdf_hypertreegrid_data->n_z; k++)
-        vtk_hdf_hypertreegrid_data->z[k] = Z0 + (double)k * root_delta;
+        vtk_hdf_hypertreegrid_data->z[k] =
+            Z0 + (double)k * root_delta + vtk_hdf_hypertreegrid_data->transform.z;
 #else
     vtk_hdf_hypertreegrid_data->n_z = 1;
     vtk_hdf_hypertreegrid_data->z = malloc(1 * sizeof(double));
@@ -339,9 +343,11 @@ void vtk_hdf_hypertreegrid_data_free(vtkHDFHyperTreeGridData *vtk_hdf_hypertreeg
 /**
  * @brief Constructor for the @ref vtkHDFHyperTreeGridData struct. 
  *
+ * @param transform Translation applied to the written tree coordinates.
+ *
  * @memberof vtkHDFHyperTreeGridData
  */
-vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(void) {
+vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(coord transform = {0}) {
     vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data = calloc(1, sizeof(vtkHDFHyperTreeGridData));
 
     if (!vtk_hdf_hypertreegrid_data) {
@@ -354,6 +360,7 @@ vtkHDFHyperTreeGridData *vtk_hdf_hypertreegrid_data_init(void) {
         exit(1);
     }
 
+    vtk_hdf_hypertreegrid_data->transform = transform;
     vtk_hdf_hypertreegrid_data->number_of_trees = vtk_hdf_number_of_roots();
     vtk_hdf_hypertreegrid_data->tree_ids = qcalloc(vtk_hdf_hypertreegrid_data->number_of_trees, int64_t);
 

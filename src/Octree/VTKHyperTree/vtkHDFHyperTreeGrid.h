@@ -585,6 +585,7 @@ void vtk_HDF_hypertreegrid_collective_write_compressed_dataset(
  * @param scalar_list List of any basilisk scalar fields
  * @param vector_list List of any basilisk vector fields
  * @param fname The filename to write the vtkhdf (HDF5) file to
+ * @param transform Translation applied to the written tree coordinates
  *
  * @memberof vtkHDFHyperTreeGrid
  *
@@ -846,7 +847,8 @@ void vtk_HDF_hypertreegrid_collective_write_compressed_dataset(
  */
 vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
                                                vector *vector_list,
-                                               const char *fname) {
+                                               const char *fname,
+                                               coord transform = {0}) {
 
   // Create the vtkHDF struct
   vtkHDF vtk_hdf = vtk_HDF_init(fname);
@@ -1030,7 +1032,8 @@ vtkHDFHyperTreeGrid vtk_HDF_hypertreegrid_init(scalar *scalar_list,
    * local-view data that we will write after this. See @ref
    * vtk_hdf_hypertreegrid_data_init in vtkHDFHyperTreeGridData.h
    */
-  vtkHDFHyperTreeGridData *vtk_hdf_htg_data = vtk_hdf_hypertreegrid_data_init();
+  vtkHDFHyperTreeGridData *vtk_hdf_htg_data =
+      vtk_hdf_hypertreegrid_data_init(transform);
 
   /*
    * Group: /VTKHDF/CellData
