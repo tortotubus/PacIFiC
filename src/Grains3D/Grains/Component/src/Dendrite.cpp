@@ -377,18 +377,11 @@ void Dendrite::readAdditionalFeatures( istream& fileIn )
 // Inertia helper functions
 vector<double> Dendrite::hex_moment( double sideLength, double depth ) 
 {
-  double ixx = (2./3.) * pow(sideLength, 2) * sin(M_PI / 3.) * depth 
-  	* (1./4. * pow(depth, 2) + pow(sideLength, 2) * pow(sin(M_PI / 3.), 2));
-  ixx += 8./12. * depth * sin(M_PI/3.) * (1./4.*pow(sin(M_PI/3.), 2) 
-  	* pow(sideLength, 4) + 1./8. * pow(depth, 2) * pow(sideLength, 2));
-
-  double iyy = 2 * depth * pow(sideLength, 2) * sin(M_PI/3.) * cos(M_PI/3.) 
-  	* ((2./3.) * pow(sideLength * cos(M_PI/3.), 2) + (1./6.)*pow(depth,2));
-  iyy += 8 * depth * sin(M_PI/3.) * ((7./24.-15./64.) * pow(sideLength, 4) 
-  	+ pow(sideLength*depth, 2) * (1./24.-1./32.));
-
-  double izz = ixx + iyy - sin(M_PI/3.)*cos(M_PI/3.) * pow(sideLength,2) 
-  	* pow(depth,3);
+  double volume = 1.5 * pow( 3., 0.5 ) * pow( sideLength, 2. ) * depth;
+  double ixx = volume * ( pow( depth, 2. ) / 12. 
+  	+ 5. * pow( sideLength, 2. ) / 24. );
+  double iyy = ixx;
+  double izz = 5. * volume * pow( sideLength, 2. ) / 12.;	 	
 
   return {ixx, iyy, izz};
 }
@@ -396,20 +389,23 @@ vector<double> Dendrite::hex_moment( double sideLength, double depth )
 vector<double> Dendrite::straight_arm_moment( double width, double height, 
 	double depth ) 
 {
-  double mass_branch = (width * height * depth); // not including density 
-  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center 
+  double mass_branch = width * height * depth; // not including density 
+  double dist_com = height / 2. + width * sin( M_PI / 3. ); // dist to center 
   	// of mass
 
-  double local_ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
-  double local_iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
-  double local_izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
+  double local_ixx = ( 1./12. ) * mass_branch 
+  	* ( pow( height, 2. ) + pow( depth, 2. ) );
+  double local_iyy = ( 1./12. ) * mass_branch 
+  	* ( pow( depth, 2. ) + pow( width, 2. ) );
+  double local_izz = ( 1./12. ) * mass_branch 
+  	* ( pow( height, 2. ) + pow( width, 2. ) );
 
   double ixx = local_ixx;
   double iyy = local_iyy;
   double izz = local_izz;
 
-  ixx += mass_branch * pow(dist_com, 2);
-  izz += mass_branch * pow(dist_com, 2);
+  ixx += mass_branch * pow( dist_com, 2. );
+  izz += mass_branch * pow( dist_com, 2. );
 
   return {ixx, iyy, izz};
 }
@@ -417,22 +413,25 @@ vector<double> Dendrite::straight_arm_moment( double width, double height,
 vector<double> Dendrite::angled_arm_moment( double width, double height, 
 	double depth ) 
 {
-  double mass_branch = (width * height * depth); // not including density 
-  double dist_com = height / 2. + (width * sin(M_PI / 3.)); // dist to center 
+  double mass_branch = width * height * depth; // not including density 
+  double dist_com = height / 2. + width * sin( M_PI / 3.); // dist to center 
   	// of mass
 
-  double ixx = (1./12.) * mass_branch * (pow(height, 2) + pow(depth, 2));
-  double iyy = (1./12.) * mass_branch * (pow(depth, 2) + pow(width, 2));
-  double izz = (1./12.) * mass_branch * (pow(height, 2) + pow(width, 2));
+  double ixx = ( 1./12. ) * mass_branch 
+  	* ( pow( height, 2. ) + pow( depth, 2. ) );
+  double iyy = ( 1./12. ) * mass_branch 
+  	* ( pow( depth, 2. ) + pow( width, 2. ) );
+  double izz = ( 1./12. ) * mass_branch 
+  	* ( pow( height, 2. ) + pow( width, 2. ) );
 
   double ang = M_PI / 3.;
-  double dist_x = dist_com * cos(ang);
-  double dist_y = dist_com * sin(ang);
+  double dist_x = dist_com * cos( ang );
+  double dist_y = dist_com * sin( ang );
 
-  ixx += mass_branch * pow(dist_com, 2);
-  izz += mass_branch * pow(dist_com, 2);
+  ixx += mass_branch * pow( dist_com, 2. );
+  izz += mass_branch * pow( dist_com, 2. );
 
   // return inertia tensor with applied change of basis
-  return {iyy * pow(sin(ang), 2) + ixx * pow(cos(ang), 2), 
-  	ixx * pow(sin(ang), 2) + iyy * pow(cos(ang), 2), izz};
+  return {iyy * pow( sin( ang ), 2. ) + ixx * pow( cos( ang ), 2. ), 
+  	ixx * pow( sin( ang ), 2. ) + iyy * pow( cos( ang ), 2. ), izz};
 }
