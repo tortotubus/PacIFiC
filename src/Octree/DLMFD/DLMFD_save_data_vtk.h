@@ -424,6 +424,13 @@ void save_data_vtk( scalar* list, vector* vlist, RigidBody const* allrb,
     for (vector v in vlist) synchronize((scalar*){v});     
 
     // Write our .vtkhdf file
+
+    /*
+     *   coord transform = {0};
+     *   transform.z = ...?;
+     *   vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, filename_htg, transform = transform);
+     */
+
     vtkHDFHyperTreeGrid vtk_hdf = vtk_HDF_hypertreegrid_init( list, vlist, 
     	filename_htg );
     vtk_HDF_hypertreegrid_close( &vtk_hdf );
