@@ -81,7 +81,7 @@ all: grains3d mac fluid octree
 grains3d: builddir $(GRAINS_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grains
 
-grainsgpu: builddir venv $(GRAINS_GPU_THIRDPARTY_DEPS)
+grains3dgpu: builddir venv $(GRAINS_GPU_THIRDPARTY_DEPS)
 	$(PACIFIC_SRC_MAKE) grainsgpu
 
 testsgpu: builddir $(GRAINS_GPU_THIRDPARTY_DEPS)
@@ -104,24 +104,7 @@ docs-develop:
 #
 # Git Submodules
 #
-
-help:
-	@printf "Targets:\n"
-	@printf "\t$(GREEN)make all   $(RESET)\n"
-	@printf "\t$(GREEN)make clean $(RESET)\n"
-	@printf "\t$(GREEN)make grains3d$(RESET)\n"
-	@printf "\t$(GREEN)make mac   $(RESET)\n"
-	@printf "\t$(GREEN)make fluid $(RESET)\n"
-	@printf "\t$(CYAN)make docs        $(RESET)\n"
-	@printf "\t$(CYAN)make docs-develop$(RESET)\n"
-	@printf "\t$(RED)make third_party         $(RESET)\n"
-	@printf "\t$(RED)make third_party-basilisk$(RESET)\n"
-	@printf "\t$(RED)make third_party-hdf5    $(RESET)\n"
-	@printf "\t$(RED)make third_party-zlib    $(RESET)\n"
-	@printf "\t$(RED)make third_party-xercesc $(RESET)\n"
-	@printf "\t$(YELLOW)make submodule$(RESET)\n"
-	@printf "\t$(YELLOW)make submodule-clean$(RESET)\n"
-
+ 
 submodule: submodule-basilisk submodule-hdf5 submodule-zlib submodule-xercesc submodule-petsc submodule-gtest
 submodule-clean: submodule-basilisk-clean submodule-hdf5-clean submodule-zlib-clean submodule-xercesc-clean submodule-petsc-clean submodule-gtest-clean
 
@@ -214,9 +197,8 @@ help:
 	@printf "Targets:\n"
 	@printf "\t$(GREEN)make all   $(RESET)\n"
 	@printf "\t$(GREEN)make clean $(RESET)\n"
-	@printf "\t$(GREEN)make grains$(RESET)\n"
-	@printf "\t$(GREEN)make grainsgpu$(RESET)\n"
-	@printf "\t$(GREEN)make testsgpu$(RESET)\n"
+	@printf "\t$(GREEN)make grains3d$(RESET)\n"
+	@printf "\t$(GREEN)make grains3dgpu$(RESET)\n" 
 	@printf "\t$(GREEN)make mac   $(RESET)\n"
 	@printf "\t$(GREEN)make fluid $(RESET)\n"
 	@printf "\t$(CYAN)make docs        $(RESET)\n"
