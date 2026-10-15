@@ -12,17 +12,11 @@
 #   define GRAINS_INPUTFILE "Grains/Simu/simul.xml"
 # endif
 
-/** Split explicit acceleration treatment in case of particles are lighter 
-than the fluid or neutrally buoyant */
-# ifndef B_SPLIT_EXPLICIT_ACCELERATION
-#   define B_SPLIT_EXPLICIT_ACCELERATION 0
-# endif
-
 /** Coupling Interface for Grains3D */
-# include "InterfaceGrains3DBasilisk.h"
+# include "DLMFD_InterfaceGrains3DBasilisk.h"
 
 /** Additional functions for the coupling with Grains3D */
-# include "BasiliskGrains3DCouplingFunctions.h"
+# include "DLMFD_BasiliskGrains3DCouplingFunctions.h"
 
 
 /** Here we overload the generic events defined in the general DLMFD plugin 
@@ -38,7 +32,7 @@ event GranularSolver_init (t < -1.)
   char* pstr = NULL;
   int pstrsize = 0;  
 
-  // Grains runs in sequential 
+  // Grains runs in serial 
   if ( pid() == 0 )
   {
     // Output the call to Grains3D
@@ -137,17 +131,26 @@ event GranularSolver_predictor (t < -1.)
   {
     if ( RIGIDBODIES_AS_FIXED_OBSTACLES )
     {  
-      // Output the call to Grains3D
-      printf ("Grains3D sends RB data\n");
+#     if !PRODUCTION_LOG
+        // Output the call to Grains3D
+        printf ("Grains3D sends RB data\n");
+#     endif  
     }
     else
     {    
-      // Output the call to Grains3D
-      printf ("Grains3D runs and sends RB data\n");      
+#     if !PRODUCTION_LOG
+        // Output the call to Grains3D
+        printf ("Grains3D runs and sends RB data\n");
+#     endif       
       
       // Run the granular simulation
       Simu_Grains( dt );
     }
+    
+#   if PRODUCTION_LOG
+      // Output the call to Grains3D
+      printf ("G3D - ");
+#   endif     
 
     // Transfer the data from Grains to an array of characters
     pstr = GrainsToBasilisk( &pstrsize );         
@@ -170,7 +173,11 @@ event GranularSolver_updateVelocity (t < -1.)
   if ( pid() == 0 )
   {
     // Output the call to Grains3D
-    printf ("Grains3D\n");
+#   if !PRODUCTION_LOG
+      printf ("Grains3D\n");
+#   else
+      printf ("G3D - ");
+#   endif    
 
     // Copy velocity in a 2D array
     UpdateDLMFDtoGS_vel( DLMFDtoGS_vel, allRigidBodies, nbRigidBodies );  

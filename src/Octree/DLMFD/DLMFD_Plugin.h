@@ -1,217 +1,21 @@
 /** 
-# The general DLMFD plugin 
+# General DLMFD plugin 
 */
 
-/** File names definition and global variables */  
-# ifndef FLUID_DUMP_FILENAME
-#   define FLUID_DUMP_FILENAME "Savings/dump"
-# endif
-# ifndef DUMP_DIR
-#   define DUMP_DIR "Savings"
-# endif
-
-# ifndef RESULT_DIR
-#   define RESULT_DIR "Res"
-# endif
-# ifndef RESULT_RIGIDBODY_VP_ROOTFILENAME
-#   define RESULT_RIGIDBODY_VP_ROOTFILENAME "rigidbody_data"
-# endif
-# ifndef RESULT_RIGIDBODY_HYDROFAT_ROOTFILENAME
-#   define RESULT_RIGIDBODY_HYDROFAT_ROOTFILENAME "rigidbody_hydroFaT"
-# endif
-# ifndef RESULT_FLUID_ROOTFILENAME
-#   define RESULT_FLUID_ROOTFILENAME "fluid"
-# endif
-
-# ifndef RESULT_DIR
-#   define RESULT_DIR "Res"
-# endif
-
-# ifndef CONVERGE_UZAWA_FILENAME 
-#   define CONVERGE_UZAWA_FILENAME "convergence_uzawa_velocity.dat"
-# endif
-# ifndef DLMFD_CELLS_FILENAME 
-#   define DLMFD_CELLS_FILENAME "dlmfd_cells.dat"
-# endif
-# ifndef DLMFD_PERF_FILENAME 
-#   define DLMFD_PERF_FILENAME "dlmfd_perf.dat"
-# endif
-
-# ifndef ROUNDDOUBLECOEF
-#   define ROUNDDOUBLECOEF (1.e-4)
-# endif
-
-# ifndef TINTERVALOUTPUT
-#   define TINTERVALOUTPUT (1.)
-# endif
-
-# ifndef SIMUTIMEINTERVAL
-#   define SIMUTIMEINTERVAL (1.)
-# endif
-
-# ifndef FIGS_DIR
-#   define FIGS_DIR "Figs"
-# endif
-
-# ifndef INITIALGRIDADAPTIVE_NEWMETHOD
-#   define INITIALGRIDADAPTIVE_NEWMETHOD 1
-# endif
-
-# ifndef IMPOSED_PERIODICFLOW
-#   define IMPOSED_PERIODICFLOW 0
-# endif
-
-# ifndef IMPOSED_PERIODICFLOW_TYPE
-#   define IMPOSED_PERIODICFLOW_TYPE 0 // 0 for pressure and 1 for flow rate
-# endif
-
-# ifndef IMPOSED_PERIODICFLOW_DIRECTION
-#   define IMPOSED_PERIODICFLOW_DIRECTION 0 
-# endif
-
-# ifndef PERIODICFLOWRATE_LEVEL
-#   define PERIODICFLOWRATE_LEVEL MAXLEVEL 
-# endif
-
-# ifndef DLMFD_PROB_AFTER_NAVIERSTOKES
-#   define DLMFD_PROB_AFTER_NAVIERSTOKES 0
-# endif
-
-# ifndef RIGIDBODIES_AS_FIXED_OBSTACLES
-#   define RIGIDBODIES_AS_FIXED_OBSTACLES 0
-# endif
-
-# ifndef LEVELDIFF_FLAG_U
-#   define LEVELDIFF_FLAG_U 0
-# endif
-
-# ifndef FLAG_ADAPT_CRIT
-#   define FLAG_ADAPT_CRIT (1.E-16)
-# endif
-
-# ifndef UX_ADAPT_CRIT
-#   define UX_ADAPT_CRIT (1.E-2)
-# endif
-
-# ifndef UY_ADAPT_CRIT
-#   define UY_ADAPT_CRIT (1.E-2)
-# endif
-
-# ifndef UZ_ADAPT_CRIT
-#   define UZ_ADAPT_CRIT (1.E-2)
-# endif
-
-# ifndef GRAVITY_VECTOR
-#   if dimension == 2
-#     define GRAVITY_VECTOR ((coord){0.,0.})
-#   else 
-#     define GRAVITY_VECTOR ((coord){0.,0.,0.})
-#   endif
-# endif
-
-# ifndef LAMBDA2
-#   define LAMBDA2 0
-# endif
-
-# ifndef VORTICITY
-#   define VORTICITY 0
-# endif
-
-# ifndef PARAVIEW_VTU
-#   define PARAVIEW_VTU 0
-# endif
-
-# ifndef PARAVIEW_HTG
-#   define PARAVIEW_HTG 0
-# endif
-
-# ifndef PARAVIEW_SCALAR_LIST
-#   define PARAVIEW_SCALAR_LIST p
-# endif
-
-# ifndef PARAVIEW_VECTOR_LIST
-#   define PARAVIEW_VECTOR_LIST u
-# endif
-
-# ifndef BVIEW
-#   define BVIEW 0
-# endif
-
-# ifndef BVIEW_LIST
-#   define BVIEW_LIST u,p
-# endif
-
-# ifndef PARAVIEW_DLMFD_INTPTS
-#   define PARAVIEW_DLMFD_INTPTS 0
-# endif
-
-# if PARAVIEW_DLMFD_INTPTS
-#   ifndef PARAVIEW_DLMFD_INTPTS_FILENAME
-#     define PARAVIEW_DLMFD_INTPTS_FILENAME "dlmfd_interior_points"
-#   endif      
-# endif
-
-# ifndef PARAVIEW_DLMFD_BNDPTS
-#   define PARAVIEW_DLMFD_BNDPTS 0
-# endif
-
-# if PARAVIEW_DLMFD_BNDPTS
-#   ifndef PARAVIEW_DLMFD_BNDPTS_FILENAME
-#     define PARAVIEW_DLMFD_BNDPTS_FILENAME "dlmfd_boundary_points"
-#   endif      
-# endif
-
-# if PARAVIEW_VTU || PARAVIEW_HTG || PARAVIEW_DLMFD_INTPTS \
-	|| PARAVIEW_DLMFD_BNDPTS
-#   define PARAVIEW 1
-# else 
-#   define PARAVIEW 0
-# endif
-
-
-double deltau;
-int restarted_simu = 0;
-# if PARAVIEW_VTU
-    char vtu_field_times_series[100000] = "";
-# endif
-# if PARAVIEW_HTG
-    char htg_field_times_series[100000] = "";
-# endif
-# if PARAVIEW_DLMFD_BNDPTS
-    char vtk_bndpts_times_series[100000] = "";      
-# endif 
-# if PARAVIEW_DLMFD_INTPTS
-    char vtk_intpts_times_series[100000] = "";        
-# endif 
-int init_cycle_number = 0;
-double maxtime = 0.;
-double trestart = 0.;
-double dtrestart = 0.;
-bool save_data_restart = false;
-scalar u_previoustime[];
-double imposed_periodicpressuredrop = 0.;
-double imposed_periodicflowrate = 0.;
-size_t nbRigidBodies = 0;
-size_t nbParticles = 0;
-size_t NbObstacles = 0;
-size_t nbReferenceRigidBodies = 0; 
-
-
-# if EMBED
-    scalar rhov[];
-    face vector muv[];
-    face vector alphav[];
-# endif
-
+/** Definitions and global variables */
+# include "DLMFD_Defs.h"
 
 /** Fictitious domain implementation */
 # include "DLMFD_Uzawa_velocity.h"
 
 /** Paraview output functions */
-# include "save_data_vtk.h"
+# include "DLMFD_save_data_vtk.h"
 
 /** Lambda criterion for visualizing wakes */
 # include "lambda2.h"
+
+/** Performance monitoring */
+# include "DLMFD_Perf.h"
 
 
 
@@ -261,6 +65,26 @@ event Compute_cs (t < -1.)
 
 
 
+/** Generic additional things to do when writing output & restart data: TO BE 
+OVERLOADED BY THE USER */
+//----------------------------------------------------------------------------
+event Additional_user_output_data (t < -1.)
+//----------------------------------------------------------------------------
+{}
+
+
+
+
+/** Generic additional things to do when writing output & restart data: TO BE 
+OVERLOADED BY THE USER */
+//----------------------------------------------------------------------------
+event Additional_user_last_output_data (t < -1.)
+//----------------------------------------------------------------------------
+{}
+
+
+
+
 /** Overloading of the init event: initialize fluid and rigid bodies */
 //----------------------------------------------------------------------------
 event init (i = 0) 
@@ -273,13 +97,29 @@ event init (i = 0)
     printf( "==================================\n" );        
   }   
 
+  // Define domain size
+# if ADAPTIVE 
+    foreach_dimension() FULL_DOMAIN.x = L0 ;
+# else
+    FULL_DOMAIN.x = L0 ;
+    FULL_DOMAIN.y = L0 * (double)Dimensions.y / (double)Dimensions.x ;
+#   if dimension == 3
+      FULL_DOMAIN.z = L0 * (double)Dimensions.z / (double)Dimensions.x ;
+#   endif
+# endif
+
   // Output basic fluid and geometric parameters
   if ( pid() == 0 )
   {
     printf( "Fluid density = %6.3e\n", FLUID_DENSITY );
     printf( "Fluid viscosity = %6.3e\n", FLUID_VISCOSITY );
     printf( "Space dimension = %d\n", dimension );    
-    printf( "Domain size = %6.3e\n", L0 );
+    printf( "Domain size = %6.3e x %6.3e x %6.3e\n", FULL_DOMAIN.x, 
+    	FULL_DOMAIN.y, FULL_DOMAIN.z );
+#   if !ADAPTIVE 
+      printf( "Number of cells = %d\n", (1 << 3*MAXLEVEL) * Dimensions.y
+      	* Dimensions.z / ( Dimensions.x * Dimensions.x ) );      
+#   endif   
     printf( "\n" );            
   }  
 
@@ -330,7 +170,7 @@ event init (i = 0)
     // Read restart time
     if ( pid() == 0 ) printf( "Read t and dt from time restart file\n" );
     read_t_restart( DUMP_DIR, &trestart, &dtrestart, 
-    	&imposed_periodicpressuredrop );  
+    	&imposed_periodicpressuredrop );
 
     // Re-initialize the VTK writer
 #   if PARAVIEW
@@ -361,6 +201,12 @@ event init (i = 0)
   char outputshift[1]="";
   print_referencerigidbodies( ReferenceRigidBodies, nbReferenceRigidBodies, 
     	&outputshift[0] );	  
+
+ 
+  // Check particle data files in case of restart
+  if ( restarted_simu )
+    check_particle_datafiles_restart( allRigidBodies, 
+	nbRigidBodies, !RIGIDBODIES_AS_FIXED_OBSTACLES, trestart, dtrestart );
 
 
   // Initialize/open all DLMFD file pointers
@@ -562,15 +408,28 @@ event init (i = 0)
 
 	
   // Initialize the field u_previoustime to compute x-velocity change
-  foreach() u_previoustime[] = u.x[];
+  foreach() u_previoustime[] = u.VELOCITYCHANGE_COMPONENT[];
+
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we need to set the actual particle z position as if it
+  moves and the value of uback */
+# if SINGLE_SETTLING_STATIONARY_Z
+    if ( restarted_simu )
+      read_single_settling_stationary_restart( DUMP_DIR, &uback, &actualzpos );
+    else
+      actualzpos = allRigidBodies[0].g.center.z;    
+# endif   
   
   
   // By default:
-  // * do NOT DUMP the work fields used in the DLMFD sub-problem, the 
-  // field u_previoustime and the pressure field
+  // * u, p and pf are dumped (contrary to Basilisk, p and pf are dumped
+  // to guarantee arithmetic exact restart)
+  // * do NOT DUMP the work fields used in the DLMFD sub-problem and the 
+  // field u_previoustime
   // * DUMP the DLM_explicit field in the DLMFD sub-problem
   u_previoustime.nodump = true ;
-  p.nodump = true ;
   DLM_Flag.nodump = true;
   DLM_FlagMesh.nodump = true ;
   foreach_dimension()
@@ -626,6 +485,15 @@ void do_output( char const* mess )
   if ( pid() == 0 ) printf ( "Output data at %s %8.6f START\n", mess, t ); 
 
   scalar* dump_list = NULL;
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we shift the fluid and particle z velocity component by 
+  - uback such that at the post processing level all looks as if the particle 
+  moves. */
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] -= uback;    
+# endif  
 
 # if LAMBDA2
     scalar l2[];
@@ -684,10 +552,15 @@ void do_output( char const* mess )
 # endif
 
   // Basilisk output for restart
+  // Reset fluid velocity to its value in the simulation
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] += uback;    
+# endif 
+
 # if DLM_ALPHA_COUPLING
-    dump_list = (scalar *){u, g, DLM_explicit};
+    dump_list = (scalar *){u, g, p, pf, DLM_explicit};
 # else
-    dump_list = (scalar *){u, g};    
+    dump_list = (scalar *){u, g, p, pf};    
 # endif     
   dump( FLUID_DUMP_FILENAME, dump_list );
       
@@ -695,10 +568,17 @@ void do_output( char const* mess )
   // B_SPLIT_EXPLICIT_ACCELERATION is on, we save the explication part of the 
   // particle split acceleration for restart purposes
 # if B_SPLIT_EXPLICIT_ACCELERATION
-    if ( pid() == 0 ) 
-      save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
+    save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
       	nbRigidBodies );
-# endif        
+# endif
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we save the value of uback and the actual z position of
+  the particle */
+# if SINGLE_SETTLING_STATIONARY_Z
+    save_single_settling_stationary_restart( DUMP_DIR, uback, actualzpos );
+# endif         
 
   // Granular solver output for both post-processing & restart
   event( "GranularSolver_saveResults" );
@@ -727,7 +607,8 @@ event output_data (t += TINTERVALOUTPUT;
     DLMFD_construction();  
 # endif  
 
-  do_output( mess );  
+  do_output( mess );
+  event( "Additional_user_output_data" );  
 }
 
 
@@ -751,8 +632,9 @@ event last_output_data (t = end)
 # endif 
 
   do_output( mess );    
-  output_dlmfd_perf ( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
-  	&allDLMFDptscells );	       
+  output_dlmfd_perf( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
+  	&allDLMFDptscells );
+  event( "Additional_user_last_output_data" );	       
 }	
 
 
@@ -774,9 +656,13 @@ event once_timestep_is_determined (i++)
 
   if ( pid() == 0 )
   {
-    printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
+#   if !PRODUCTION_LOG
+      printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
     	i, t, t+dt );
-    printf( "   Time step = %8.5e\n", dt );
+      printf( "   Time step = %8.5e\n", dt );	    
+#   else
+      printf( "\nITER %d - t+dt=%8.5e\n", i, t+dt );
+#   endif
   }
   
   // We free dynamic features of rigid bodies from the previous time step
@@ -787,24 +673,28 @@ event once_timestep_is_determined (i++)
   // In case of a periodic flow, we add the imposed pressure drop
 # if IMPOSED_PERIODICFLOW
 #   if IMPOSED_PERIODICFLOW_DIRECTION == 0 
-      const face vector dp[] = { 
-	- imposed_periodicpressuredrop / ( L0 * FLUID_DENSITY ), 0., 0. };
+      const face vector dp[] = { - imposed_periodicpressuredrop 
+      	/ ( FULL_DOMAIN.x * FLUID_DENSITY ), 0., 0. };
 #   elif IMPOSED_PERIODICFLOW_DIRECTION == 1
-      const face vector dp[] = { 0.,
-	- imposed_periodicpressuredrop / ( L0 * FLUID_DENSITY ), 0. };  	
+      const face vector dp[] = { 0., - imposed_periodicpressuredrop 
+      	/ ( FULL_DOMAIN.y * FLUID_DENSITY ), 0. };  	
 #   else 
-      const face vector dp[] = { 0., 0., 
-		- imposed_periodicpressuredrop / ( L0 * FLUID_DENSITY ) };  
+      const face vector dp[] = { 0., 0., - imposed_periodicpressuredrop 
+      	/ ( FULL_DOMAIN.z * FLUID_DENSITY ) };  
 #   endif
     a = dp;
 # endif  
   
   /* Granular solver predictor */
-  if ( pid() == 0 ) printf( "   GS predictor step: " ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   GS predictor step: " );
+# endif   
   event( "GranularSolver_predictor" );  
 
   /* Construction of rigid bodies and their DLMFD features */
-  if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# endif    
   DLMFD_construction();  
 }
 
@@ -857,17 +747,15 @@ void do_DLMFD( const int i )
   /* Update velocity in the granular solver */
   if ( pid() == 0 && nbParticles )
   { 
-    printf( "   GS velocity update in " );
+#   if !PRODUCTION_LOG
+      printf( "   GS velocity update in " );
+#   endif
     event( "GranularSolver_updateVelocity" );
   }    
 
   /* Save the forces acting on rigid bodies before adapting the mesh  */
   computeHydroForceTorque( allRigidBodies, nbRigidBodies, fdata, t + dt, dt, 
   	DLM_Flag, DLM_lambda, DLM_Index, FLUID_DENSITY, DLM_PeriodicRefCenter );
-  
-  /* Save all rigid body data */
-  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
-    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );     
 }
 
 
@@ -879,7 +767,7 @@ event after_viscous_term (i++)
 { 
 # if !DLMFD_PROB_AFTER_NAVIERSTOKES 
     do_DLMFD( i );
-# endif 
+# endif  
 }
 
 
@@ -892,7 +780,12 @@ event end_timestep (i++)
 //----------------------------------------------------------------------------
 {
   if ( pid() == 0 )
-    printf( "   NS solver: MGu_niter = %d, MGp_niter = %d\n", mgu.i, mgp.i );
+#   if !PRODUCTION_LOG  
+      printf( "   NS solver: MGu_niter = %d, MGpf_niter = %d, MGp_niter = %d\n", 
+    	mgu.i, mgpf.i, mgp.i );
+#   else
+      printf( "NS(%d/%d/%d) - ", mgu.i, mgpf.i, mgp.i );
+#   endif
 
 # if DLMFD_PROB_AFTER_NAVIERSTOKES 
     do_DLMFD( i );
@@ -904,35 +797,41 @@ event end_timestep (i++)
     double flowrate = 0.;
 #   if IMPOSED_PERIODICFLOW_TYPE == 0
 #     if IMPOSED_PERIODICFLOW_DIRECTION == 0 
-        flowrate = compute_flowrate_right( u, PERIODICFLOWRATE_LEVEL );
+        flowrate = compute_flowrate_xperiodic( u );
 #     elif IMPOSED_PERIODICFLOW_DIRECTION == 1
-        flowrate = compute_flowrate_top( u, PERIODICFLOWRATE_LEVEL );
+        flowrate = compute_flowrate_yperiodic( u );
 #     else 
-        flowrate = compute_flowrate_front( u, PERIODICFLOWRATE_LEVEL );
+        flowrate = compute_flowrate_zperiodic( u );
 #     endif 
       if ( pid() == 0 )
         printf( "   Periodic flow rate = %8.5e\n", flowrate );           
 #   else
-      double Q1 = - dt / ( L0 * FLUID_DENSITY );
+      double Q1 = 0.;
       double deltaflowrate = 0.;                    
-#     if IMPOSED_PERIODICFLOW_DIRECTION == 0 
-        flowrate = compute_flowrate_right( u, PERIODICFLOWRATE_LEVEL );
+#     if IMPOSED_PERIODICFLOW_DIRECTION == 0
+        Q1 = - dt / ( FULL_DOMAIN.x * FLUID_DENSITY ); 
+        flowrate = compute_flowrate_xperiodic( u );
 	deltaflowrate = imposed_periodicflowrate - flowrate;
-	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * L0 * L0 );
+	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * FULL_DOMAIN.y
+		* FULL_DOMAIN.z );
 	foreach()
-	  u.x[] += deltaflowrate / ( L0 * L0 );  
+	  u.x[] += deltaflowrate / ( FULL_DOMAIN.y * FULL_DOMAIN.z );  
 #     elif IMPOSED_PERIODICFLOW_DIRECTION == 1
-        flowrate = compute_flowrate_top( u, PERIODICFLOWRATE_LEVEL );
+        Q1 = - dt / ( FULL_DOMAIN.y * FLUID_DENSITY );
+	flowrate = compute_flowrate_yperiodic( u );
 	deltaflowrate = imposed_periodicflowrate - flowrate;
-	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * L0 * L0 );
+	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * FULL_DOMAIN.x 
+		* FULL_DOMAIN.z );
 	foreach()
-	  u.y[] += deltaflowrate / ( L0 * L0 ); 
+	  u.y[] += deltaflowrate / ( FULL_DOMAIN.x * FULL_DOMAIN.z ); 
 #     else 
-        flowrate = compute_flowrate_front( u, PERIODICFLOWRATE_LEVEL );
+        Q1 = - dt / ( FULL_DOMAIN.z * FLUID_DENSITY );
+	flowrate = compute_flowrate_zperiodic( u );
 	deltaflowrate = imposed_periodicflowrate - flowrate;		
-	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * L0 * L0 );
+	imposed_periodicpressuredrop += deltaflowrate / ( Q1 * FULL_DOMAIN.x 
+		* FULL_DOMAIN.y );
 	foreach()
-	  u.z[] += deltaflowrate / ( L0 * L0 );    
+	  u.z[] += deltaflowrate / ( FULL_DOMAIN.x * FULL_DOMAIN.y );    
 #     endif
       synchronize((scalar *){u});
       if ( pid() == 0 )
@@ -940,12 +839,71 @@ event end_timestep (i++)
 		imposed_periodicpressuredrop, flowrate );
 #   endif  
 # endif
-   
+
+
+  /* Correct fluid and rigid body z-velocity such that the rigid body remains
+  stationary in the z direction */
+# if SINGLE_SETTLING_STATIONARY_Z
+    double vz = allRigidBodies[0].U.z;
+    foreach() u.z[] -= vz;
+    uback -= vz;
+    allRigidBodies[0].U.z = 0.;
+    if ( pid() == 0 && nbParticles )
+    {
+#     if !PRODUCTION_LOG
+        printf( "   GS velocity update in " );
+#     endif
+        event( "GranularSolver_updateVelocity" );
+    }
+# endif             
+
   
   /* Fluid velocity change over the time step */
-  deltau = change( u.x, u_previoustime );
+  deltau = change( u.VELOCITYCHANGE_COMPONENT, u_previoustime );
   if ( pid() == 0 )
-    printf( "   Velocity change = %8.5e\n", deltau );       
+#   if !PRODUCTION_LOG      
+      printf( "   Velocity change = %8.5e\n", deltau );
+#   else
+      printf( "Dv = %8.5e\n", deltau );
+#   endif 
+    
+# if COMPUTE_AVGL2NORM_DIVU && !PRODUCTION_LOG
+    /* Average L2 norm of div(uf) */    
+    double L2normdivu = 0.;
+    foreach(reduction(+:L2normdivu)) 
+    {
+      double div = 0.;
+      foreach_dimension()
+        div += uf.x[1] - uf.x[];
+      L2normdivu += sq(div) * pow( Delta, dimension - 2 );
+    }
+    if ( pid() == 0 )
+      printf( "   Avg L2norm(div(uf)) = %8.5e\n", sqrt( L2normdivu 
+    	/ ( FULL_DOMAIN.x * FULL_DOMAIN.y 
+#     if dimension == 3  
+	* FULL_DOMAIN.z
+#     endif	 
+	) ) );
+# endif 
+
+  /* Save all rigid body data 
+  In case of single settling particle kept stationary in the z direction through
+  adjusting the incoming z velocity component denoted uback at the back boundary
+  condition, we shift the fluid and particle z velocity component by - uback
+  such that at the post processing level all looks as if the particle moves.
+  We also recompute its z vertical position with a 1st order Euler scheme */
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = - uback;
+    actualzpos += allRigidBodies[0].U.z * dt;
+    double zzz = allRigidBodies[0].g.center.z;
+    allRigidBodies[0].g.center.z = actualzpos;
+# endif     
+  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
+    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = 0.;
+    allRigidBodies[0].g.center.z = zzz;
+# endif       
 }
 
 
@@ -961,26 +919,43 @@ event adapt (i++)
     int totalcell = totalcells();
     if ( pid() == 0 )
     {
-#     if dimension == 2  
-        printf( "   Quadtree grid cells: " );
+#     if !PRODUCTION_LOG 
+#       if dimension == 2  
+          printf( "   Quadtree grid cells: " );
+#       else
+          printf( "   Octree grid cells: " );
+#       endif
+        printf( "total = %d, ", totalcell );
 #     else
-        printf( "   Octree grid cells: " );
+        printf( "Grid(t=%d/", totalcell );
 #     endif
-      printf( "total = %d, ", totalcell );
     }
 
-    astats s = adapt_wavelet_multimaxlevel( (scalar *){DLM_FlagMesh, u}, 
+# if LEVELDIFF_FLAG_U == 0
+    astats s = adapt_wavelet( (scalar *){DLM_FlagMesh, u}, 
 	(double[]){FLAG_ADAPT_CRIT, UX_ADAPT_CRIT, UY_ADAPT_CRIT, 
-	UZ_ADAPT_CRIT}, (int[]){MAXLEVEL, MAXLEVEL-LEVELDIFF_FLAG_U, 
-	MAXLEVEL-LEVELDIFF_FLAG_U, MAXLEVEL-LEVELDIFF_FLAG_U}, 
+	UZ_ADAPT_CRIT}, maxlevel = MAXLEVEL, minlevel = LEVEL );	
+# else	
+    // Flag regions around rigid bodies
+    flag_rigidbodies_with_boundarylayers( allRigidBodies, nbRigidBodies,
+    	DLM_FlagMaxLev, BOUNDARY_LAYER_THICKNESS_COEF, &local_domain );       
+
+    astats s = adapt_wavelet_spatial ( DLM_FlagMaxLev, MAXLEVEL,
+	(scalar *){DLM_FlagMesh, u}, (double[]){FLAG_ADAPT_CRIT, UX_ADAPT_CRIT,
+	UY_ADAPT_CRIT, UZ_ADAPT_CRIT}, MAXLEVEL-LEVELDIFF_FLAG_U, 
 	minlevel = LEVEL );	
+# endif	
 	
 # if EMBED
     event( "Compute_cs" ); 
 # endif	
 
-    if ( pid() == 0 ) 
-      printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+    if ( pid() == 0 )
+#     if !PRODUCTION_LOG     
+        printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+#     else
+        printf( "r=%d/c=%d)\n", s.nf, s.nc );
+#     endif	
 # endif
 
   // Compute the AABB of the local domain

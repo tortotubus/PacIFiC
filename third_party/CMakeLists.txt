@@ -19,5 +19,7 @@ if (PACIFIC_BUILD_THIRD_PARTY_GTEST)
     add_subdirectory(gtest)
 endif()
 
-if(PACIFIC_BUILD_THIRD_PARTY_PETSC)
+if(BUILD_THIRD_PARTY_PETSC)
+    set(PACIFIC_PETSC_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "PETSc install prefix")
+    add_subdirectory(petsc)
 endif()
