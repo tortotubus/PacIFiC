@@ -139,16 +139,6 @@ __HOSTDEVICE__ Vector3<T> Box<T>::support(const Vector3<T>& v) const
 }
 
 // -------------------------------------------------------------------------------------------------
-// Eroded box support: evaluates support of box with extents shrunk by crust
-template <typename T>
-__HOSTDEVICE__ Vector3<T> Box<T>::support(const Vector3<T>& v, T crust) const
-{
-    return (Vector3<T>(v[X] < T(0) ? -(m_extent[X] - crust) : (m_extent[X] - crust),
-                       v[Y] < T(0) ? -(m_extent[Y] - crust) : (m_extent[Y] - crust),
-                       v[Z] < T(0) ? -(m_extent[Z] - crust) : (m_extent[Z] - crust)));
-}
-
-// -------------------------------------------------------------------------------------------------
 // Input operator
 template <typename T>
 __HOST__ void Box<T>::readConvex(std::istream& fileIn)
@@ -227,49 +217,6 @@ __HOST__ void Box<T>::writeConnection_PARAVIEW(std::list<uint>& connectivity,
     offsets.push_back(last_offset);
     cellstype.push_back(12);
     firstpoint_globalnumber += 8;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns box shape parameters: [Lx, Ly, Lz, 0, 0]
-template <typename T>
-__HOSTDEVICE__ void Box<T>::getShapeParameters(T (&params)[5]) const
-{
-    params[0] = m_extent[X];
-    params[1] = m_extent[Y];
-    params[2] = m_extent[Z];
-    params[3] = T(0);
-    params[4] = T(0);
-}
-
-// -------------------------------------------------------------------------------------------------
-// Writes the box as a Wavefront OBJ mesh, mirroring reference Box::write_convex_OBJ.
-// Corner order matches writePoints_PARAVIEW: 0=(-x,-y,-z) ... 7=(-x,+y,+z).
-template <typename T>
-__HOST__ void Box<T>::writeOBJ(std::ostream& f, size_t& fp) const
-{
-    f << "v " << -m_extent[X] << " " << -m_extent[Y] << " " << -m_extent[Z] << "\n";  // 0
-    f << "v " << +m_extent[X] << " " << -m_extent[Y] << " " << -m_extent[Z] << "\n";  // 1
-    f << "v " << +m_extent[X] << " " << -m_extent[Y] << " " << +m_extent[Z] << "\n";  // 2
-    f << "v " << -m_extent[X] << " " << -m_extent[Y] << " " << +m_extent[Z] << "\n";  // 3
-    f << "v " << -m_extent[X] << " " << +m_extent[Y] << " " << -m_extent[Z] << "\n";  // 4
-    f << "v " << +m_extent[X] << " " << +m_extent[Y] << " " << -m_extent[Z] << "\n";  // 5
-    f << "v " << +m_extent[X] << " " << +m_extent[Y] << " " << +m_extent[Z] << "\n";  // 6
-    f << "v " << -m_extent[X] << " " << +m_extent[Y] << " " << +m_extent[Z] << "\n";  // 7
-    f << "f " << fp + 4 << " " << fp + 5 << " " << fp + 6 << " " << fp + 7 << "\n";
-    f << "f " << fp + 5 << " " << fp + 1 << " " << fp + 2 << " " << fp + 6 << "\n";
-    f << "f " << fp + 1 << " " << fp + 0 << " " << fp + 3 << " " << fp + 2 << "\n";
-    f << "f " << fp + 0 << " " << fp + 4 << " " << fp + 7 << " " << fp + 3 << "\n";
-    f << "f " << fp + 4 << " " << fp + 0 << " " << fp + 1 << " " << fp + 5 << "\n";
-    f << "f " << fp + 3 << " " << fp + 7 << " " << fp + 6 << " " << fp + 2 << "\n";
-    fp += 8;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns the convex name
-template <typename T>
-__HOST__ std::string Box<T>::getConvexName() const
-{
-    return "Box";
 }
 
 // -------------------------------------------------------------------------------------------------

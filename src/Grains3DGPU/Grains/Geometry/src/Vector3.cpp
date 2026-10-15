@@ -148,21 +148,15 @@ __HOSTDEVICE__ void Vector3<T>::reset() noexcept
 }
 
 // -------------------------------------------------------------------------------------------------
-// Add a vector to this vector. Uses atomicAdd on device and regular addition on host.
+// Atomically add a vector to this vector (GPU safe)
 template <typename T>
-__HOSTDEVICE__ void Vector3<T>::atomicAdd(const Vector3<T>& other) noexcept
+__DEVICE__ void Vector3<T>::atomicAdd(const Vector3<T>& other) noexcept
 {
-#if defined(__CUDA_ARCH__)
     T*       thisPtr  = m_comp;
     const T* otherPtr = other.m_comp;
-    ::atomicAdd(thisPtr + 0, otherPtr[0]);
-    ::atomicAdd(thisPtr + 1, otherPtr[1]);
-    ::atomicAdd(thisPtr + 2, otherPtr[2]);
-#else
-    m_comp[0] += other.m_comp[0];
-    m_comp[1] += other.m_comp[1];
-    m_comp[2] += other.m_comp[2];
-#endif
+    ::atomicAdd(thisPtr + 0, *(otherPtr + 0));
+    ::atomicAdd(thisPtr + 1, *(otherPtr + 1));
+    ::atomicAdd(thisPtr + 2, *(otherPtr + 2));
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 """Plot collision detection benchmark results from comprehensive CSV data."""
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman", "font.size": 14})
+plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica", "font.size": 16})
 
 CPU_COLOR = '#4A90E2'
 GPU_COLOR = '#1E3A8A'
@@ -35,12 +34,14 @@ def create_shape_label(row):
     return shape
 
 def create_combo_code(row):
-    """Abbreviate GJK algorithm / representation."""
+    """Abbreviate GJK algorithm / representation / transform flags."""
     algo = 'S' if row['GJKAlgo'] == 'SignedVolume' else 'J'
 
     rep = 'T' if row['GJKRepresentation'] == 'Transform' else 'Q'
 
-    return f'{algo}{rep}'
+    trans = 'R' if row['UseRelativeTransform'] == 1 else 'A'
+
+    return f'{algo}{rep}{trans}'
 
 def find_best_configuration(df, precision, platform, particle_count, shape_label):
     """Median-fastest combo and its time for one (precision, platform, N, shape)."""
@@ -189,7 +190,7 @@ def plot_precision(csv_file, precision, output_file):
     plt.close()
 
 def plot_all_combinations(csv_file, precision, platform, output_file):
-    """All GJK combos vs time for a few N, 2x2 panels by shape."""
+    """All eight GJK combos vs time for a few N, 2x2 panels by shape."""
     df = pd.read_csv(csv_file)
 
     df['ShapeLabel'] = df.apply(create_shape_label, axis=1)
@@ -203,7 +204,7 @@ def plot_all_combinations(csv_file, precision, platform, output_file):
         'B4': 'Box (AR=4)'
     }
 
-    all_combos = ['JQ', 'JT', 'SQ', 'ST']
+    all_combos = ['JQA', 'JQR', 'JTA', 'JTR', 'SQA', 'SQR', 'STA', 'STR']
 
     df_filtered = df[(df['Precision'] == precision) & (df['Platform'] == platform)].copy()
 

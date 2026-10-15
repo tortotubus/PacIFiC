@@ -9,26 +9,20 @@
 // =================================================================================================
 /** @brief Hash table entry for contact tracking.
 
-    Each entry stores a key (pair of component IDs) and a state flag. The slot position in the
-    table doubles as the index into the parallel ContactHistory array, so no separate index field
-    is needed.
+    Each entry stores a key (pair of component IDs), an index pointing to the ContactForce in a
+    flat array, and a flag for hash table management.
 
     @author A.Yazdani - 2026 - Construction */
 // =================================================================================================
 struct ContactEntry
 {
-    enum : uint
-    {
-        EMPTY     = 0u,
-        ACTIVE    = 1u,
-        TOMBSTONE = 2u
-    };
-
     /** @name Parameters */
     //@{
     /** \brief Contact pair key (i,j) where i < j */
     uint2 m_key;
-    /** \brief Entry state: 0=empty, 1=active, 2=tombstone */
+    /** \brief Index into the ContactForce array */
+    uint m_index;
+    /** \brief Validity and activity flag: 0=empty, 1=stale (not touched this step), 2=active */
     uint m_valid;
     //@}
 
@@ -39,7 +33,8 @@ struct ContactEntry
     __HOSTDEVICE__
     ContactEntry()
         : m_key(make_uint2(0, 0))
-        , m_valid(EMPTY)
+        , m_index(0xFFFFFFFF)  // Invalid index marker
+        , m_valid(0)
     {
     }
     //@}
@@ -83,9 +78,9 @@ struct ContactHistory
 // =================================================================================================
 /** @brief Complete contact memory view for passing to force models.
 
-    Contains the hash table and the parallel history array. The slot position i in m_table is
-    also the index into m_historyData[i], so no separate index field is needed. Contains only
-    raw pointers and primitive types, making it safe to pass to kernels by value.
+    This unified structure contains everything needed for contact history tracking: hash table
+    pointers for looking up contact indices, and the flat array of contact history data. Contains
+    only raw pointers and primitive types, making it safe to pass to kernels by value.
 
     @author A.Yazdani - 2026 - Construction */
 // =================================================================================================
@@ -94,12 +89,14 @@ struct ContactMemoryView
 {
     /** @name Parameters */
     //@{
-    /** \brief Pointer to flat array of contact history data (one entry per hash-table slot) */
+    /** \brief Pointer to flat array of contact history data */
     ContactHistory<T>* m_historyData;
     /** \brief Pointer to hash table entries */
     ContactEntry* m_table;
-    /** \brief Total capacity of the hash table (= size of m_historyData) */
+    /** \brief Total capacity of the hash table */
     uint m_capacity;
+    /** \brief Pointer to the next index counter */
+    uint* m_nextIndex;
     //@}
 
     /** @name Constructors */
@@ -111,45 +108,26 @@ struct ContactMemoryView
         : m_historyData(nullptr)
         , m_table(nullptr)
         , m_capacity(0)
+        , m_nextIndex(nullptr)
     {
     }
 
     // ---------------------------------------------------------------------------------------------
-    /** @brief Constructor with parameters */
+    /** @brief Constructor with parameters
+        @param historyData pointer to contact history data array
+        @param table pointer to hash table entries
+        @param capacity total capacity of the hash table
+        @param nextIndex pointer to the next index counter */
     __HOSTDEVICE__
-    ContactMemoryView(ContactHistory<T>* historyData, ContactEntry* table, uint capacity)
+    ContactMemoryView(ContactHistory<T>* historyData,
+                      ContactEntry*      table,
+                      uint               capacity,
+                      uint*              nextIndex)
         : m_historyData(historyData)
         , m_table(table)
         , m_capacity(capacity)
+        , m_nextIndex(nextIndex)
     {
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    /** @brief Claims a slot for a new contact, resets its history, and returns the slot index. */
-    __HOSTDEVICE__
-    bool claimSlot(uint slot, uint expectedState, uint2 key, uint& index)
-    {
-        ContactEntry& entry = m_table[slot];
-
-#ifdef __CUDA_ARCH__
-        if(atomicCAS(&entry.m_valid, expectedState, ContactEntry::ACTIVE) != expectedState)
-            return false;
-
-        m_historyData[slot] = ContactHistory<T>();
-        entry.m_key         = key;
-        __threadfence();
-        index = slot;
-        return true;
-#else
-        if(entry.m_valid != expectedState)
-            return false;
-
-        m_historyData[slot] = ContactHistory<T>();
-        entry.m_key         = key;
-        entry.m_valid       = ContactEntry::ACTIVE;
-        index               = slot;
-        return true;
-#endif
     }
     //@}
 
@@ -175,16 +153,17 @@ struct ContactMemoryView
             const ContactEntry& e   = m_table[idx];
 
             // Empty slot found - key not in table
-            if(e.m_valid == ContactEntry::EMPTY)
+            if(e.m_valid == 0)
                 return false;
 
-            // Key found — return slot position as index
-            if(e.m_valid == ContactEntry::ACTIVE && e.m_key.x == key.x && e.m_key.y == key.y)
+            // Key found (either stale or active)
+            if((e.m_valid == 1 || e.m_valid == 2) && e.m_key.x == key.x && e.m_key.y == key.y)
             {
 #ifdef __CUDA_ARCH__
+                // Ensure all writes are visible before reading (GPU only)
                 __threadfence();
 #endif
-                index = idx;
+                index = e.m_index;
                 return true;
             }
         }
@@ -201,111 +180,82 @@ struct ContactMemoryView
     __HOSTDEVICE__
     bool findOrInsert(uint2 key, uint& index)
     {
-        if(m_capacity == 0 || m_table == nullptr)
+        if(m_capacity == 0 || m_table == nullptr || m_nextIndex == nullptr)
             return false;
 
         uint h = primeHash(key) % m_capacity;
 
-        // Use m_capacity as sentinel: m_capacity is never a valid slot index.
-        const uint NO_CLAIMABLE   = m_capacity;
-        uint       firstClaimable = NO_CLAIMABLE;
-        bool       retryProbe     = false;
-
-        do
+        for(uint i = 0; i < m_capacity; ++i)
         {
-            retryProbe     = false;
-            firstClaimable = NO_CLAIMABLE;
-
-            for(uint i = 0; i < m_capacity; ++i)
-            {
-                uint          idx = (h + i) % m_capacity;
-                ContactEntry& e   = m_table[idx];
+            uint          idx = (h + i) % m_capacity;
+            ContactEntry& e   = m_table[idx];
 
 #ifdef __CUDA_ARCH__
-                if(e.m_valid == ContactEntry::EMPTY)
+            // GPU path
+            // Empty slot - try to claim it atomically
+            if(e.m_valid == 0)
+            {
+                // Atomic compare-and-swap: if e.m_valid is 0, set it to 2 (active)
+                if(atomicCAS(&e.m_valid, 0u, 2u) == 0u)
                 {
-                    const uint targetSlot = firstClaimable != NO_CLAIMABLE ? firstClaimable : idx;
-                    const uint expectedState = firstClaimable != NO_CLAIMABLE
-                                                   ? ContactEntry::TOMBSTONE
-                                                   : ContactEntry::EMPTY;
-                    if(claimSlot(targetSlot, expectedState, key, index))
-                        return true;
+                    // Successfully claimed this slot
+                    e.m_key = key;
 
-                    retryProbe = true;
-                    break;
-                }
-                else if(e.m_valid == ContactEntry::ACTIVE && e.m_key.x == key.x
-                        && e.m_key.y == key.y)
-                {
+                    // Assign new index atomically
+                    uint newIndex = atomicAdd(m_nextIndex, 1u);
+                    e.m_index     = newIndex;
+
+                    // Ensure writes are visible to all threads before they can read
                     __threadfence();
-                    index = idx;
-                    return true;
-                }
-                else if(e.m_valid == ContactEntry::TOMBSTONE && e.m_key.x == key.x
-                        && e.m_key.y == key.y)
-                {
-                    // Contact continued — atomically promote TOMBSTONE → ACTIVE.
-                    // Use CAS (not unconditional atomicExch) so we can detect the race where
-                    // a concurrent thread's claimSlot() claims this same tombstone for a
-                    // different key between our key-match read and the promotion write.
-                    if(atomicCAS(&e.m_valid, ContactEntry::TOMBSTONE, ContactEntry::ACTIVE)
-                       == ContactEntry::TOMBSTONE)
-                    {
-                        __threadfence();
-                        index = idx;
-                        return true;
-                    }
-                    // Another thread claimed this slot; restart the probe.
-                    retryProbe = true;
-                    break;
-                }
-                else if(e.m_valid == ContactEntry::TOMBSTONE && firstClaimable == NO_CLAIMABLE)
-                {
-                    firstClaimable = idx;
-                }
-#else
-                if(e.m_valid == ContactEntry::EMPTY)
-                {
-                    const uint targetSlot = firstClaimable != NO_CLAIMABLE ? firstClaimable : idx;
-                    const uint expectedState = firstClaimable != NO_CLAIMABLE
-                                                   ? ContactEntry::TOMBSTONE
-                                                   : ContactEntry::EMPTY;
-                    return claimSlot(targetSlot, expectedState, key, index);
-                }
-                else if(e.m_valid == ContactEntry::ACTIVE && e.m_key.x == key.x
-                        && e.m_key.y == key.y)
-                {
-                    index = idx;
-                    return true;
-                }
-                else if(e.m_valid == ContactEntry::TOMBSTONE && e.m_key.x == key.x
-                        && e.m_key.y == key.y)
-                {
-                    // Contact continued — promote back to active, keep history
-                    e.m_valid = ContactEntry::ACTIVE;
-                    index     = idx;
-                    return true;
-                }
-                else if(e.m_valid == ContactEntry::TOMBSTONE && firstClaimable == NO_CLAIMABLE)
-                {
-                    firstClaimable = idx;
-                }
-#endif
-            }
 
-            if(!retryProbe && firstClaimable != NO_CLAIMABLE)
+                    index = newIndex;
+                    return true;
+                }
+                // Another thread claimed it, continue probing
+            }
+            // Stale entry - reactivate it
+            else if(e.m_valid == 1 && e.m_key.x == key.x && e.m_key.y == key.y)
             {
-                if(claimSlot(firstClaimable, ContactEntry::TOMBSTONE, key, index))
-                    return true;
-#ifdef __CUDA_ARCH__
-                // On the GPU the CAS inside claimSlot can lose to a concurrent thread.
-                // Rather than returning false (which propagates a null historyPtr to the
-                // force kernel), restart the full probe to find another available slot.
-                retryProbe = true;
-#endif
+                // Mark as active for this timestep
+                atomicExch(&e.m_valid, 2u);
+                __threadfence();
+                index = e.m_index;
+                return true;
             }
-
-        } while(retryProbe);
+            // Already active - just return the index
+            else if(e.m_valid == 2 && e.m_key.x == key.x && e.m_key.y == key.y)
+            {
+                __threadfence();
+                index = e.m_index;
+                return true;
+            }
+#else
+            // CPU path
+            // Empty slot - claim it
+            if(e.m_valid == 0)
+            {
+                e.m_valid = 2;  // Mark as active
+                e.m_key   = key;
+                e.m_index = (*m_nextIndex)++;
+                index     = e.m_index;
+                return true;
+            }
+            // Stale entry - reactivate it
+            else if(e.m_valid == 1 && e.m_key.x == key.x && e.m_key.y == key.y)
+            {
+                e.m_valid = 2;  // Mark as active
+                index     = e.m_index;
+                return true;
+            }
+            // Already active - just return the index
+            else if(e.m_valid == 2 && e.m_key.x == key.x && e.m_key.y == key.y)
+            {
+                index = e.m_index;
+                return true;
+            }
+#endif
+            // Different key, continue probing
+        }
 
         // Hash table is full - cannot insert
         return false;
@@ -329,22 +279,18 @@ struct ContactMemoryView
             ContactEntry& e   = m_table[idx];
 
             // Empty slot - key not found
-            if(e.m_valid == ContactEntry::EMPTY)
+            if(e.m_valid == 0)
                 return false;
 
-            // Key found — remove it
-            if(e.m_valid == ContactEntry::ACTIVE && e.m_key.x == key.x && e.m_key.y == key.y)
+            // Key found - remove it
+            if(e.m_key.x == key.x && e.m_key.y == key.y)
             {
 #ifdef __CUDA_ARCH__
-                // Only change the state atomically.  Do NOT reset m_historyData here: that
-                // write is non-atomic and would race with another thread that claims this
-                // newly-tombstoned slot via claimSlot() and is already inside computeForces()
-                // reading/writing the same slot.  claimSlot() always resets the history when
-                // a new pair takes the slot, so no extra reset is needed.
-                atomicExch(&e.m_valid, ContactEntry::TOMBSTONE);
+                // Mark as invalid atomically
+                atomicExch(&e.m_valid, 0u);
 #else
-                m_historyData[idx] = ContactHistory<T>();
-                e.m_valid          = ContactEntry::TOMBSTONE;
+                // Mark as invalid
+                e.m_valid = 0;
 #endif
                 return true;
             }
@@ -376,8 +322,10 @@ private:
     GrainsMemBuffer<ContactEntry, M> m_table;
     /** \brief Total capacity of the hash table */
     uint m_capacity;
-    /** \brief Maximum number of contacts that can be stored (used for sizing) */
+    /** \brief Maximum number of contacts that can be stored */
     uint m_maxContacts;
+    /** \brief Pointer to the next index counter (in device/host memory) */
+    uint* m_nextIndex;
     //@}
 
 public:
@@ -415,8 +363,14 @@ public:
     /** @brief Gets the maximum number of contacts */
     uint getMaxContacts() const;
 
-    /** @brief Counts the number of ACTIVE entries in the hash table (host-side, O(capacity)) */
-    uint countActive() const;
+    /** @brief Gets the current next index value (host-side read only) */
+    uint getNextIndex() const;
+
+    /** @brief Gets the pointer to the next index counter */
+    uint* getNextIndexPointer();
+
+    /** @brief Gets the pointer to the next index counter (const) */
+    const uint* getNextIndexPointer() const;
 
     /** @brief Gets a complete view for passing to kernels */
     ContactMemoryView<T> getView();
@@ -435,10 +389,8 @@ public:
     /** @brief Clears all entries in the hash table and resets history data */
     void clear();
 
-    /** @brief Grows the contact table to at least newMaxContacts if it is currently smaller.
-        The existing history is discarded (all contacts are treated as new after a grow).
-        @param newMaxContacts the minimum required number of contact slots */
-    void grow(uint newMaxContacts);
+    /** @brief Resets the index counter */
+    void resetIndexCounter();
 
     /** @brief Performs mark-and-sweep cleanup: demotes active to stale, removes stale to empty.
         Should be called at the beginning of each timestep before contact detection */

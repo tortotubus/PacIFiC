@@ -87,7 +87,7 @@ public:
         : LinkedCell<T, MemType::DEVICE>(
               rb, positions, quaternions, linkedCellParameters, nObstacles, nParticles)
         , m_numParticlesPerCell(m_numCells)
-        , m_cellParticleIDs(size_t(m_numCells) * linkedCellParameters.maxParticlesPerCell)
+        , m_cellParticleIDs(m_numCells * linkedCellParameters.maxParticlesPerCell)
         , m_cellPrefixSums(m_numCells)
         , m_atomicPackBuffer(nParticles)
         , m_maxParticlesPerCell(linkedCellParameters.maxParticlesPerCell)
@@ -221,9 +221,9 @@ public:
             cudaEventRecord(m_resizeComplete, 0);
 
             // Resize buffers with appropriate streams
-            m_neighborCells.reserve(size_t(m_numCells) * 27, m_stream1);
+            m_neighborCells.reserve(m_numCells * 27, m_stream1);
             m_numParticlesPerCell.reserve(m_numCells, m_stream2);
-            m_cellParticleIDs.reserve(size_t(m_numCells) * m_maxParticlesPerCell, m_stream2);
+            m_cellParticleIDs.reserve(m_numCells * m_maxParticlesPerCell, m_stream2);
 
             // Copy old positions on stream0 (independent)
             cudaMemcpyAsync(m_oldPosition.getData(),

@@ -78,9 +78,9 @@ __HOSTDEVICE__ uint Cells<T, OrderingScheme>::getNumCells() const
 // -------------------------------------------------------------------------------------------------
 // Gets the required size for neighbor cells
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ size_t Cells<T, OrderingScheme>::getSizeOfNeighborCells() const
+__HOSTDEVICE__ uint Cells<T, OrderingScheme>::getSizeOfNeighborCells() const
 {
-    return (size_t(27) * m_numCells.w);
+    return (27 * m_numCells.w);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ __HOSTDEVICE__ void Cells<T, OrderingScheme>::resize(const T cellSize)
         }
     }
 
-    m_numCells.w = uint(size_t(m_numCells.x) * m_numCells.y * m_numCells.z);
+    m_numCells.w = m_numCells.x * m_numCells.y * m_numCells.z;
 
     // Center the domain within the cell grid
     m_minCornerLinkedCell[X] = m_minCorner[X] - (m_numCells.x * m_cellSize - DX) * T(0.5);

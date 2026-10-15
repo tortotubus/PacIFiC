@@ -96,7 +96,7 @@ public:
 
     /** @brief Returns the size required for neighbor list */
     __HOSTDEVICE__
-    size_t getSizeOfNeighborCells() const;
+    uint getSizeOfNeighborCells() const;
     //@}
 
     /** @name Methods */

@@ -28,10 +28,12 @@ template <typename T, MemType M = MemType::HOST>
 class ForceModule
 {
 private:
-    /** @name Data members */
+    /** @name Owned resources */
     //@{
     /** \brief Compact array of active pair indices (DEVICE path only) */
     GrainsMemBuffer<uint, M> m_activeIndex;
+    /** \brief CUB DeviceSelect::If temporary storage (DEVICE path only) */
+    GrainsMemBuffer<uint8_t, M> m_cubSelectTempStorage;
     /** \brief Zero-copy mapped pinned buffer holding the CUB compaction count.
         Device writes via getDeviceData() (mapped alias); host reads via getData(). */
     GrainsMemBuffer<uint, MemType::MAPPED> m_numActivePairsMapped;
@@ -41,8 +43,6 @@ private:
     GrainsMemBuffer<Torce<T>, M> m_intermediateTorceB;
     /** \brief Contact history hash table (allocated only when isContactWithMemory == true) */
     ContactHashTable<T, M> m_contactTable;
-    /** \brief CUB DeviceSelect::If temporary storage (DEVICE path only) */
-    GrainsMemBuffer<uint8_t, M> m_cubSelectTempStorage;
     //@}
 
 public:
@@ -82,20 +82,17 @@ public:
         @param newPairCapacity New pair buffer capacity */
     void resizeBuffers(size_t newPairCapacity);
 
-    /** @brief Accumulates all sub-body forces/torques into compositeTorce[compositeIdx].
-        Torque arms are computed relative to compositePosition (the CM), so the output feeds
-        directly into the composite Euler equations.  No-op when counts.numSubBodies == 0.
-        @param torce             Per-component torce array (read and reset for sub-bodies)
-        @param compositeTorce    Per-composite net force/torque (accumulated in place)
-        @param position          Per-component position array
-        @param compositePosition CM world position per composite (indexed by compositeIdx)
-        @param bodyTag           Per-component body tag
-        @param counts            Component counts */
+    /** @brief Accumulates forces/torques from non-master sub-bodies into their composite master
+        and resets the sub-body torces. No-op when counts.numSubBodies == 0.
+        @param torce        Per-component torce array (modified in-place)
+        @param position     Per-component position array
+        @param bodyTag      Per-component body tag
+        @param masterSlot   Per-composite master slot lookup
+        @param counts       Component counts */
     void assembleCompositeTorces(GrainsMemBuffer<Torce<T>, M>&         torce,
-                                 GrainsMemBuffer<Torce<T>, M>&         compositeTorce,
                                  const GrainsMemBuffer<Vector3<T>, M>& position,
-                                 const GrainsMemBuffer<Vector3<T>, M>& compositePosition,
                                  const GrainsMemBuffer<uint, M>&       bodyTag,
+                                 const GrainsMemBuffer<uint, M>&       masterSlot,
                                  const ComponentCounts&                counts);
 
     /** @brief Runs the complete force computation pipeline. Steps:
@@ -104,29 +101,27 @@ public:
           3. [DEVICE] computeContactForces_Kernel -> reduceTorces_Kernel
              [HOST]   sequential computeContactForces_common loop
           4. addExternalForces (gravity)
-          5. assembleCompositeTorces: collects all sub-body forces into compositeTorce
-        @param CF              Array of contact force models
-        @param rigidBody       Per-component rigid body pointer array
-        @param position        Per-component position array
-        @param compositePosition CM world position per composite (indexed by compositeIdx)
-        @param velocity        Per-component kinematics array
-        @param pairList        Per-pair component index pairs (from CDModule)
-        @param contactInfo     Per-pair contact information in world frame (from CDModule)
-        @param torce           Per-component torce array (contact + gravity; reset for sub-bodies)
-        @param compositeTorce  Per-composite net force/torque (accumulated for composites)
-        @param bodyTag         Per-component body tag (encodes composite membership)
-        @param counts          Component counts
+          5. assembleCompositeTorces (no-op when numSubBodies == 0)
+        @param CF            Array of contact force models
+        @param rigidBody     Per-component rigid body pointer array
+        @param position      Per-component position array
+        @param velocity      Per-component kinematics array
+        @param pairList      Per-pair component index pairs (from CDModule)
+        @param contactInfo   Per-pair contact information in world frame (from CDModule)
+        @param torce         Per-component torce array (modified in-place)
+        @param bodyTag       Per-component body tag (encodes composite membership)
+        @param masterSlot    Per-composite master slot lookup (size = numComposites)
+        @param counts        Component counts (numPairs, numSubBodies, numObstacles, numParticles)
      */
     void run(const GrainsMemBuffer<ContactForceModel<T>*, M>& CF,
              const GrainsMemBuffer<RigidBody<T>*, M>*         rigidBody,
              const GrainsMemBuffer<Vector3<T>, M>&            position,
-             const GrainsMemBuffer<Vector3<T>, M>&            compositePosition,
              const GrainsMemBuffer<Kinematics<T>, M>&         velocity,
              const GrainsMemBuffer<uint2, M>&                 pairList,
              const GrainsMemBuffer<ContactInfo<T>, M>&        contactInfo,
              GrainsMemBuffer<Torce<T>, M>&                    torce,
-             GrainsMemBuffer<Torce<T>, M>&                    compositeTorce,
              const GrainsMemBuffer<uint, M>&                  bodyTag,
+             const GrainsMemBuffer<uint, M>&                  masterSlot,
              const ComponentCounts&                           counts);
     //@}
 };

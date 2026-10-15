@@ -11,8 +11,6 @@ cudaDeviceProp GrainsParameters<T>::m_GPU = {};
 /* Dynamic Settings */
 template <typename T>
 SimulationState<T> GrainsParameters<T>::m_simulationState;
-template <typename T>
-bool GrainsParameters<T>::m_hasMovingObstacles = false;
 
 /* Spatial */
 template <typename T>
@@ -33,8 +31,6 @@ template <typename T>
 uint GrainsParameters<T>::m_numContactPairs = 0;
 template <typename T>
 bool GrainsParameters<T>::m_isContactWithMemory = false;
-template <typename T>
-uint GrainsParameters<T>::m_cfKernelType = 0;
 template <typename T>
 bool GrainsParameters<T>::m_useCompaction = true;
 
@@ -63,8 +59,6 @@ template <typename T>
 GrainsCDMTimer GrainsParameters<T>::m_cdmTimer;
 template <typename T>
 GrainsForceTimer GrainsParameters<T>::m_fmTimer;
-template <typename T>
-std::chrono::steady_clock::time_point GrainsParameters<T>::m_loopStart;
 
 // -------------------------------------------------------------------------------------------------
 // Explicit instantiation

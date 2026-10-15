@@ -1,6 +1,5 @@
 #include "PostProcessingWriterFactory.hh"
 #include "GrainsUtils.hh"
-#include "LightweightPostProcessingWriter.hh"
 #include "ParaviewPostProcessingWriter.hh"
 #include "RawDataPostProcessingWriter.hh"
 
@@ -16,8 +15,6 @@ PostProcessingWriter<T>* PostProcessingWriterFactory<T>::create(DOMNode* nPPW)
         ppw = new RawDataPostProcessingWriter<T>(nPPW);
     else if(PPWName == "Paraview")
         ppw = new ParaviewPostProcessingWriter<T>(nPPW);
-    else if(PPWName == "Lightweight")
-        ppw = new LightweightPostProcessingWriter<T>(nPPW);
     else
         GAbort("Unknown postprocessing writer. Aborting Grains!");
 

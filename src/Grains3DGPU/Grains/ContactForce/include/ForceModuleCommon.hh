@@ -9,8 +9,6 @@
 #include "ContactInfo.hh"
 #include "ContactTable.hh"
 #include "GrainsParameters.hh"
-#include "HookeContactForceModel.hh"
-#include "HookeMemoryContactForceModel.hh"
 #include "Kinematics.hh"
 #include "RigidBody.hh"
 #include "Torce.hh"
@@ -33,31 +31,6 @@
 // =================================================================================================
 /** @name ForceModule common functions between host and device */
 //@{
-/** @brief Dispatches computeForces with devirtualization when CFType is known at compile time.
-    When CFType is HOOKE or HOOKEMEMORY, uses static_cast to call the concrete final method
-    directly, eliminating vtable lookup and enabling inlining.  Falls back to virtual dispatch
-    when CFType is CF_VIRTUAL (default). */
-template <typename T, ContactForceModelType CFType>
-__HOSTDEVICE__ static INLINE void dispatchComputeForces(const ContactForceModel<T>* const* CF,
-                                                        uint                               cfID,
-                                                        const ContactInfo<T>&              ci,
-                                                        const Vector3<T>&                  relVel,
-                                                        const Vector3<T>&  relAngVel,
-                                                        const Vector3<T>&  posA,
-                                                        const Vector3<T>&  posB,
-                                                        ContactHistory<T>* hist,
-                                                        Torce<T>&          tA,
-                                                        Torce<T>&          tB)
-{
-    if constexpr(CFType == HOOKE)
-        static_cast<const HookeContactForceModel<T>*>(CF[cfID])
-            ->computeForces(ci, relVel, relAngVel, posA, posB, hist, tA, tB);
-    else if constexpr(CFType == HOOKEMEMORY)
-        static_cast<const HookeMemoryContactForceModel<T>*>(CF[cfID])
-            ->computeForces(ci, relVel, relAngVel, posA, posB, hist, tA, tB);
-    else
-        CF[cfID]->computeForces(ci, relVel, relAngVel, posA, posB, hist, tA, tB);
-}
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Computes the contact forces and writes directly to per-particle torce array (CPU path).
@@ -69,16 +42,15 @@ __HOSTDEVICE__ static INLINE void dispatchComputeForces(const ContactForceModel<
     @param torce per-particle torce array (modified in-place, indexed by component ID)
     @param contactMemory view of contact memory (hash table + history data)
     @param pairID ID of the pair */
-template <typename T, ContactForceModelType CFType = CF_VIRTUAL>
-__HOSTDEVICE__ static INLINE void
-    computeContactForces_common(const ContactForceModel<T>* const* __RESTRICT__ CF,
-                                const uint2* __RESTRICT__                       pairList,
-                                const ContactInfo<T>* __RESTRICT__              contactInfo,
-                                const Vector3<T>* __RESTRICT__                  position,
-                                const Kinematics<T>* __RESTRICT__               velocity,
-                                Torce<T>* __RESTRICT__                          torce,
-                                ContactMemoryView<T>                            contactMemory,
-                                const uint                                      pairID)
+template <typename T>
+__HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
+                                                              const uint2*          pairList,
+                                                              const ContactInfo<T>* contactInfo,
+                                                              const Vector3<T>*     position,
+                                                              const Kinematics<T>*  velocity,
+                                                              Torce<T>*             torce,
+                                                              ContactMemoryView<T>  contactMemory,
+                                                              const uint            pairID)
 {
     // Contact Details
     ContactInfo<T> ci = contactInfo[pairID];
@@ -104,27 +76,64 @@ __HOSTDEVICE__ static INLINE void
         // relative angular velocity
         const Vector3<T>& relAngVel(vA.getAngularComponent() - vB.getAngularComponent());
 
+#ifdef GRAINS_CONTACT_DEBUG
+        {
+            static uint64_t s_contactStep = 0;
+            ++s_contactStep;
+            const Vector3<T>& cv   = snapshot.contactVector;
+            const Vector3<T>& cp   = snapshot.contactPoint;
+            const Vector3<T>& posB = position[idB];
+            const Vector3<T>  omB  = vB.getAngularComponent();
+            printf("[CD %lu] pair=(%u,%u) "
+                   "cv=(%.4e,%.4e,%.4e) overlap=%.4e "
+                   "cp=(%.4e,%.4e,%.4e) "
+                   "posB=(%.4e,%.4e,%.4e) "
+                   "vB=(%.4e,%.4e,%.4e) omB=(%.4e,%.4e,%.4e) "
+                   "relVel=(%.4e,%.4e,%.4e)\n",
+                   s_contactStep,
+                   idA,
+                   idB,
+                   (double)cv[0],
+                   (double)cv[1],
+                   (double)cv[2],
+                   (double)snapshot.overlapDistance,
+                   (double)cp[0],
+                   (double)cp[1],
+                   (double)cp[2],
+                   (double)posB[0],
+                   (double)posB[1],
+                   (double)posB[2],
+                   (double)vB.getTranslationalComponent()[0],
+                   (double)vB.getTranslationalComponent()[1],
+                   (double)vB.getTranslationalComponent()[2],
+                   (double)omB[0],
+                   (double)omB[1],
+                   (double)omB[2],
+                   (double)relVel[0],
+                   (double)relVel[1],
+                   (double)relVel[2]);
+        }
+#endif
+
         // Look up or create contact history entry
         ContactHistory<T>* historyPtr = nullptr;
         if(contactMemory.m_historyData != nullptr)
         {
             uint historyIndex;
-            if(contactMemory.findOrInsert(pair, historyIndex))
-                historyPtr = &(contactMemory.m_historyData[historyIndex]);
+            contactMemory.findOrInsert(pair, historyIndex);
+            historyPtr = &(contactMemory.m_historyData[historyIndex]);
         }
 
         // note that we will add torce to obstacles as well.
         uint contactForceID = snapshot.contactHash;
-        dispatchComputeForces<T, CFType>(CF,
-                                         contactForceID,
-                                         ci,
-                                         relVel,
-                                         relAngVel,
-                                         position[idA],
-                                         position[idB],
-                                         historyPtr,
-                                         torce[idA],
-                                         torce[idB]);
+        CF[contactForceID]->computeForces(ci,
+                                          relVel,
+                                          relAngVel,
+                                          position[idA],
+                                          position[idB],
+                                          historyPtr,
+                                          torce[idA],
+                                          torce[idB]);
     }
     // reset the distance so we don't compute the torce twice
     ci.setOverlapDistance(T(0));
@@ -137,24 +146,20 @@ __HOSTDEVICE__ static INLINE void
     @param contactInfo contact information in the world frame
     @param position position of the components
     @param velocity kinematics of the components
-    @param torceA intermediate torce storage for particle A (indexed by localID)
-    @param torceB intermediate torce storage for particle B (indexed by localID)
+    @param torceA intermediate torce storage for particle A in each pair (indexed by pairID)
+    @param torceB intermediate torce storage for particle B in each pair (indexed by pairID)
     @param contactMemory view of contact memory (hash table + history data)
-    @param pairID ID of the pair in the full neighbor list (for reading pairList/contactInfo)
-    @param localID compact slot index for writing to intermediateTorce buffers
-           (equals pairID on the no-compaction path, equals thread index on the compaction path) */
-template <typename T, ContactForceModelType CFType = CF_VIRTUAL>
-__HOSTDEVICE__ static INLINE void
-    computeContactForces_common(const ContactForceModel<T>* const* __RESTRICT__ CF,
-                                const uint2* __RESTRICT__                       pairList,
-                                const ContactInfo<T>* __RESTRICT__              contactInfo,
-                                const Vector3<T>* __RESTRICT__                  position,
-                                const Kinematics<T>* __RESTRICT__               velocity,
-                                Torce<T>* __RESTRICT__                          torceA,
-                                Torce<T>* __RESTRICT__                          torceB,
-                                ContactMemoryView<T>                            contactMemory,
-                                const uint                                      pairID,
-                                const uint                                      localID)
+    @param pairID ID of the pair */
+template <typename T>
+__HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
+                                                              const uint2*          pairList,
+                                                              const ContactInfo<T>* contactInfo,
+                                                              const Vector3<T>*     position,
+                                                              const Kinematics<T>*  velocity,
+                                                              Torce<T>*             torceA,
+                                                              Torce<T>*             torceB,
+                                                              ContactMemoryView<T>  contactMemory,
+                                                              const uint            pairID)
 {
     // Contact Details
     ContactInfo<T> ci = contactInfo[pairID];
@@ -185,26 +190,25 @@ __HOSTDEVICE__ static INLINE void
         if(contactMemory.m_historyData != nullptr)
         {
             uint historyIndex;
-            if(contactMemory.findOrInsert(pair, historyIndex))
-                historyPtr = &(contactMemory.m_historyData[historyIndex]);
+            contactMemory.findOrInsert(pair, historyIndex);
+            historyPtr = &(contactMemory.m_historyData[historyIndex]);
         }
 
-        // Reset intermediate torces before accumulating -- indexed by localID (compact slot).
-        torceA[localID].reset();
-        torceB[localID].reset();
+        // Reset intermediate torces before accumulating -- these per-pair slots are never
+        // cleared between timesteps, and computeForces uses addForce (accumulates).
+        torceA[pairID].reset();
+        torceB[pairID].reset();
 
         // note that we will add torce to obstacles as well.
         uint contactForceID = snapshot.contactHash;
-        dispatchComputeForces<T, CFType>(CF,
-                                         contactForceID,
-                                         ci,
-                                         relVel,
-                                         relAngVel,
-                                         position[idA],
-                                         position[idB],
-                                         historyPtr,
-                                         torceA[localID],
-                                         torceB[localID]);
+        CF[contactForceID]->computeForces(ci,
+                                          relVel,
+                                          relAngVel,
+                                          position[idA],
+                                          position[idB],
+                                          historyPtr,
+                                          torceA[pairID],
+                                          torceB[pairID]);
     }
     // reset the distance so we don't compute the torce twice
     ci.setOverlapDistance(T(0));
@@ -213,24 +217,22 @@ __HOSTDEVICE__ static INLINE void
 // -------------------------------------------------------------------------------------------------
 /** @brief Reduces per-pair intermediate torces to per-particle torces (DEVICE kernel helper).
     @param pairList list of pairs
-    @param intermediateTorceA intermediate torce storage for particle A
-    @param intermediateTorceB intermediate torce storage for particle B
+    @param intermediateTorceA intermediate torce storage for particle A in each pair
+    @param intermediateTorceB intermediate torce storage for particle B in each pair
     @param torce final per-particle torce array (accumulated atomically)
-    @param pairID ID of the pair in the full neighbor list (for reading pairList)
-    @param localID compact slot index for reading from intermediateTorce buffers */
+    @param pairID ID of the pair */
 template <typename T>
-__device__ static INLINE void reduceTorces_common(const uint2* __RESTRICT__    pairList,
-                                                  const Torce<T>* __RESTRICT__ intermediateTorceA,
-                                                  const Torce<T>* __RESTRICT__ intermediateTorceB,
-                                                  Torce<T>* __RESTRICT__       torce,
-                                                  const uint                   pairID,
-                                                  const uint                   localID)
+__device__ static INLINE void reduceTorces_common(const uint2*    pairList,
+                                                  const Torce<T>* intermediateTorceA,
+                                                  const Torce<T>* intermediateTorceB,
+                                                  Torce<T>*       torce,
+                                                  const uint      pairID)
 {
     const uint2     pair = pairList[pairID];
     const uint      idA  = pair.x;
     const uint      idB  = pair.y;
-    const Torce<T>& tA   = intermediateTorceA[localID];
-    const Torce<T>& tB   = intermediateTorceB[localID];
+    const Torce<T>& tA   = intermediateTorceA[pairID];
+    const Torce<T>& tB   = intermediateTorceB[pairID];
 
     // Atomically accumulate all components (6 atomics per particle)
     torce[idA].addTorceAtomic(tA);

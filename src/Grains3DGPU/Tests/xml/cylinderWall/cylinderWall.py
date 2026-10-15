@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 # Use non-interactive backend
 matplotlib.use("Agg")
-plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman", "font.size": 14})
+plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica", "font.size": 16})
 
 
 def readResults(thetaArray, results_root):
@@ -134,9 +134,10 @@ def main():
 
     out_dir = os.path.join(plots_root)
     os.makedirs(out_dir, exist_ok=True)
-    out_pdf = os.path.join(out_dir, "CylWallImpactTranslational.pdf")
+    out_eps = os.path.join(out_dir, "CylWallImpactTranslational.eps")
+    out_png = os.path.join(out_dir, "CylWallImpactTranslational.png")
 
-    fig.savefig(out_pdf, format="pdf", bbox_inches="tight")
+    fig.savefig(out_eps, format="eps", bbox_inches="tight")
 
     return 0
 

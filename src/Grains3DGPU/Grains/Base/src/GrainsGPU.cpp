@@ -62,23 +62,22 @@ void GrainsGPU<T>::setupGPUDevice()
 template <typename T>
 void GrainsGPU<T>::initialize(DOMElement* rootElement)
 {
-    // Set up GPU device FIRST so GP::m_isGPU is true when Grains::Construction()
-    // enables the CDM timer
-    Gout(std::string(80, '='));
-    Gout("Setting up the simulation on device ...");
-    Gout(std::string(80, '='));
-    setupGPUDevice();
-
-    // Read using the base class Grains<T> (now with GPU context ready)
+    // Read using the base class Grains<T> with GPU context ready
     Grains<T>::initialize(rootElement);
 
     // Reading different blocks of the input XML
     // Note that most of the reading is done at Grains<T>::initialize
     // Herein, we initialize specifically for GPU
+    Gout(std::string(80, '='));
+    Gout("Setting up the simulation on device ...");
+    Gout(std::string(80, '='));
+    setupGPUDevice();
     Construction(rootElement);
     Forces(rootElement);
     AdditionalFeatures(rootElement);
-    Gout(std::string(80, '=') + "\n");
+    Gout(std::string(80, '='));
+    Gout("Setting up the simulation on device completed!");
+    Gout(std::string(80, '='));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -105,17 +104,7 @@ void GrainsGPU<T>::simulate()
     cout << "Copying completed!" << endl;
     timer.stop(SimStage::Insertion);  // auto-syncs (IsGPU == true)
 
-    printf("\n%12s  %12s  %7s  %8s  %8s  %8s  %5s  %7s  %7s  %7s\n",
-           "SimTime",
-           "EndTime",
-           "Prog%",
-           "Wall(s)",
-           "ETA(s)",
-           "stp/s",
-           "NL#",
-           "Pairs",
-           "CPU_MB",
-           "GPU_MB");
+    cout << "\nTime \t TO \tend \tParticles \tIn \tOut" << endl;
 
     // Pre-compute forces on the initial configuration so the first moveParticles call (and the
     // KDK first half-kick) has valid accelerations.
@@ -136,21 +125,25 @@ void GrainsGPU<T>::simulate()
     Grains<T>::postProcess(Grains<T>::m_components);
     timer.stop(SimStage::PostProcess);
 
-    uint stepCount  = 0;
-    GP::m_loopStart = std::chrono::steady_clock::now();
+    uint stepCount = 0;
     for(SS.time = GP::m_tStart + GP::m_dt; SS.time <= GP::m_tEnd; SS.time += GP::m_dt)
     {
         stepCount++;
         // Output time
         if(GP::m_verbosityFrequency > 0 && (stepCount % GP::m_verbosityFrequency == 0))
-            Grains<T>::printStepInfo(stepCount, m_d_components->getNumberOfPairs());
+        {
+            ostringstream oss;
+            oss.width(10);
+            oss << left << SS.time;
+            std::cout << oss.str() << "  \t" << GP::m_tEnd << std::endl;
+        }
 
         if(GP::m_isLeapFrog)
         {
-            // KDK Step 1: move both particles and obstacles to x_{n+1} using f_n.
-            timer.start(SimStage::MoveComponents);
-            m_d_components->moveComponents(m_d_timeIntegrator);
-            timer.stop(SimStage::MoveComponents);  // auto-syncs
+            // KDK Step 1: half-kick + drift using f_n (from pre-loop or previous step).
+            timer.start(SimStage::MoveParticles);
+            m_d_components->moveParticles(m_d_timeIntegrator);
+            timer.stop(SimStage::MoveParticles);  // auto-syncs
             // Detect collisions and compute forces at x_{n+1}.
             timer.start(SimStage::DetectCollisions);
             m_d_components->detectCollisions();
@@ -165,16 +158,16 @@ void GrainsGPU<T>::simulate()
         }
         else
         {
-            // Single-pass: detect and compute forces at x_n, then advance everything.
+            // Single-pass scheme: compute forces at x_n, then advance.
             timer.start(SimStage::DetectCollisions);
             m_d_components->detectCollisions();
             timer.stop(SimStage::DetectCollisions);  // auto-syncs
             timer.start(SimStage::ComputeContactForces);
             m_d_components->computeContactForces(m_d_contactForce);
             timer.stop(SimStage::ComputeContactForces);  // auto-syncs
-            timer.start(SimStage::MoveComponents);
-            m_d_components->moveComponents(m_d_timeIntegrator);
-            timer.stop(SimStage::MoveComponents);  // auto-syncs
+            timer.start(SimStage::MoveParticles);
+            m_d_components->moveParticles(m_d_timeIntegrator);
+            timer.stop(SimStage::MoveParticles);  // auto-syncs
         }
 
         // Post-Processing
@@ -251,7 +244,6 @@ void GrainsGPU<T>::Construction(DOMElement* rootElement)
                                                                  std::move(hostOri),
                                                                  std::move(hostLocalPos),
                                                                  std::move(hostLocalQuat),
-                                                                 Grains<T>::m_obstacleEvents,
                                                                  hm.getNumberOfObstacles(),
                                                                  hm.getNumberOfParticles(),
                                                                  hm.getNumberOfComposites(),

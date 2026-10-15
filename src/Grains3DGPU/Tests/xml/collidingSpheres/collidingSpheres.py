@@ -7,7 +7,7 @@ import scipy.special as sc
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman", "font.size": 14})
+plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica", "font.size": 16})
 
 
 def analyticalSolution(v0, w0, gamma, tList):
@@ -64,9 +64,9 @@ def main():
     ax1.set_axisbelow(True)
     ax1.grid(color='lightgrey', linestyle='--', linewidth=0.5, zorder=0)
 
-    out_plot = os.path.join(plots_root, 'CollidingSpheresOverlap.pdf')
+    out_plot = os.path.join(plots_root, 'CollidingSpheresOverlap.eps')
     os.makedirs(os.path.dirname(out_plot), exist_ok=True)
-    plt.savefig(out_plot, format='pdf', bbox_inches='tight')
+    plt.savefig(out_plot, format='eps', bbox_inches='tight')
 
 
 if __name__ == '__main__':

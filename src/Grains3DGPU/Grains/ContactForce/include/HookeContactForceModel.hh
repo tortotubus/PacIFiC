@@ -115,27 +115,6 @@ public:
                        ContactHistory<T>*    contactHistory,
                        Torce<T>&             torceA,
                        Torce<T>&             torceB) const final;
-
-    /** @brief Computes and prints contact force parameter estimates (see ContactForceModel base)
-        @param massA         mass of the first component [kg] (use 1e20 for obstacles)
-        @param massB         mass of the second component [kg] (use 1e20 for obstacles)
-        @param crustA        crust thickness of the first component [m]
-        @param crustB        crust thickness of the second component [m]
-        @param v0            pre-collisional relative velocity magnitude [m/s]
-        @param dt            simulation time step [s]
-        @param labelA        display label for the first component
-        @param labelB        display label for the second component
-        @param out           output stream (e.g. std::cout) */
-    __HOST__
-    void computeEstimates(T             massA,
-                          T             massB,
-                          T             crustA,
-                          T             crustB,
-                          T             v0,
-                          T             dt,
-                          std::string   labelA,
-                          std::string   labelB,
-                          std::ostream& out) const final;
     //@}
 };
 

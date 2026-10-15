@@ -49,9 +49,7 @@ enum class NarrowPhaseType
     /** @brief GJK with Johnson's sub-algorithm */
     GJK = 0,
     /** @brief GJK with Signed Volume sub-algorithm */
-    GJK_SV = 1,
-    /** @brief Analytical sphere (+ rectangle) detection -- no GJK */
-    SPHERE = 2
+    GJK_SV = 1
 };
 //@}
 
@@ -105,16 +103,13 @@ struct LinkedCellParameters
     /** \brief Maximum number of particles per cell (used for ATOMICFIXED LinkedCell type). */
     uint maxParticlesPerCell = 64;
     /** \brief Initial number of pairs per particle. */
-    uint initialNumberOfPairsPerParticle = 8;
+    uint initialNumberOfPairsPerParticle = 16;
     /** \brief If using adaptive skin, this is the desired number of iterations that the skin should
         be valid for. If it is set to 0, then we don't use adaptive skin. If set to 1, the skin is
         updated every iteration and trivially it gives worse performance. */
     uint updateFrequency = 0;
     /** \brief Number of iterations between each sorting. */
     uint sortFrequency = 0;
-    /** \brief When true, skip runtime obstacle relinking in LinkedCell updates.
-        Use only when obstacles are static for the full simulation. */
-    bool noRelinkObstacles = false;
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -132,6 +127,10 @@ struct CollisionDetectionParameters
     NarrowPhaseType narrowPhaseType = NarrowPhaseType::GJK;
     /** \brief Use GJK warm-start acceleration. */
     bool gjkAcceleration = false;
+    /** \brief If true, relative transformations (B in A-local frame) are computed once before
+        narrow-phase detection and cached; set to false (e.g. for spheres) to skip that step and
+        call the GJK overload that works directly in world frame instead. */
+    bool useRelativeTransformations = true;
     /** \brief Use pre-built ShapeData array for vtable-free GJK support evaluation. */
     bool usePrebuiltShapes = false;
 };
@@ -157,10 +156,6 @@ public:
     /* Dynamic Settings */
     /** \brief Simulation state */
     static SimulationState<T> m_simulationState;
-    /** \brief True when at least one obstacle has non-empty ObstacleLoading intervals.
-        Set once during component construction; used to bypass all obstacle-update work
-        at runtime when no obstacle ever moves. */
-    static bool m_hasMovingObstacles;
 
     /* Spatial */
     /** @brief Global domain origin */
@@ -181,8 +176,6 @@ public:
     static uint m_numContactPairs;
     /** \brief Is contact with memory activated? */
     static bool m_isContactWithMemory;
-    /** \brief Contact force kernel dispatch type (0=HOOKE, 1=HOOKEMEMORY, 2+=virtual dispatch). */
-    static uint m_cfKernelType;
     /** \brief Use compaction to work only on active pairs on GPU.
         When false the force kernel runs over all pairs. */
     static bool m_useCompaction;
@@ -202,10 +195,6 @@ public:
     static Vector3<T> m_gravity;
 
     /* Post-Processing */
-    /** \brief Wall-clock instant when the time-stepping loop starts.
-        Set just before the main for-loop in simulate(); used by printStepInfo()
-        to report elapsed wall time and step rate. */
-    static std::chrono::steady_clock::time_point m_loopStart;
     /** \brief Queue of simulation time to write Post-Processing */
     static std::queue<T> m_tSave;
     /** @brief Frequency of time output (print every N steps, 0=never, 1=every step) */

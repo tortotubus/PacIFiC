@@ -15,7 +15,7 @@ enum class SimStage : uint8_t
     Insertion,             ///< insertParticles() [+ copyTo(device) for GPU]
     DetectCollisions,      ///< ComponentManager::detectCollisions()
     ComputeContactForces,  ///< ComponentManager::computeContactForces()
-    MoveComponents,        ///< ComponentManager::moveComponents() (particles + obstacles)
+    MoveParticles,         ///< ComponentManager::moveParticles()
     AdvanceVelocity,       ///< ComponentManager::advanceVelocity() (KDK only)
     PostProcess,           ///< Grains::postProcess()
     COUNT
@@ -25,11 +25,13 @@ enum class SimStage : uint8_t
     Values are contiguous from 0 and used directly as array indices. */
 enum class CDMStage : uint8_t
 {
-    Sort = 0,      ///< CollisionDetectionModule::sortParticles()
-    NeighborList,  ///< CollisionDetectionModule::updateNeighborList()
-    BVFilter,      ///< CollisionDetectionModule::filterPairsBV()
-    NarrowPhase,   ///< CollisionDetectionModule::detectCollisionsComponents()
-    Total,         ///< Full CollisionDetectionModule::run() wall-clock span
+    Sort = 0,           ///< CollisionDetectionModule::sortParticles()
+    NeighborList,       ///< CollisionDetectionModule::updateNeighborList()
+    RelativeTransform,  ///< CollisionDetectionModule::computeRelativeTransformations()
+    BVFilter,           ///< CollisionDetectionModule::filterPairsBV()
+    NarrowPhase,        ///< CollisionDetectionModule::detectCollisionsComponents*()
+    Transform,          ///< CollisionDetectionModule::transformContactInfo()
+    Total,              ///< Full CollisionDetectionModule::run() wall-clock span
     COUNT
 };
 
@@ -135,7 +137,7 @@ public:
         };
         const double staged = (*this)[SimStage::Insertion] + (*this)[SimStage::DetectCollisions]
                               + (*this)[SimStage::ComputeContactForces]
-                              + (*this)[SimStage::MoveComponents]
+                              + (*this)[SimStage::MoveParticles]
                               + (*this)[SimStage::AdvanceVelocity] + (*this)[SimStage::PostProcess];
         const double other = (tot > staged) ? (tot - staged) : 0.0;
 
@@ -145,7 +147,7 @@ public:
         row("Insertion:", (*this)[SimStage::Insertion]);
         row("Collision Detection:", (*this)[SimStage::DetectCollisions]);
         row("Contact Forces:", (*this)[SimStage::ComputeContactForces]);
-        row("Move Components:", (*this)[SimStage::MoveComponents]);
+        row("Move Particles:", (*this)[SimStage::MoveParticles]);
         row("Advance Velocity:", (*this)[SimStage::AdvanceVelocity]);
         row("Post-Processing:", (*this)[SimStage::PostProcess]);
         row("Other:", other);
@@ -219,7 +221,9 @@ public:
     {
         const double total       = (*this)[CDMStage::Total];
         const double subStageSum = (*this)[CDMStage::Sort] + (*this)[CDMStage::NeighborList]
-                                   + (*this)[CDMStage::BVFilter] + (*this)[CDMStage::NarrowPhase];
+                                   + (*this)[CDMStage::RelativeTransform]
+                                   + (*this)[CDMStage::BVFilter] + (*this)[CDMStage::NarrowPhase]
+                                   + (*this)[CDMStage::Transform];
         const double denom = total > 0.0 ? total : (subStageSum > 0.0 ? subStageSum : 1e-12);
         const double other = (total > subStageSum) ? (total - subStageSum) : 0.0;
         auto         row   = [&](const char* label, double t) {
@@ -233,8 +237,10 @@ public:
         std::cout << std::string(80, '-') << '\n';
         row("Sort:", (*this)[CDMStage::Sort]);
         row("Neighbor List:", (*this)[CDMStage::NeighborList]);
+        row("Relative Transforms:", (*this)[CDMStage::RelativeTransform]);
         row("BV Filter:", (*this)[CDMStage::BVFilter]);
         row("GJK Narrow Phase:", (*this)[CDMStage::NarrowPhase]);
+        row("Contact Transform:", (*this)[CDMStage::Transform]);
         row("Other:", other);
         std::cout << std::string(80, '-') << '\n';
         row("Total:", total > 0.0 ? total : subStageSum);

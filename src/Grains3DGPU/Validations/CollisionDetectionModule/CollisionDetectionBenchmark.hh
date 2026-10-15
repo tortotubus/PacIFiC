@@ -333,9 +333,11 @@ public:
 
         const double sortMs  = GP::m_cdmTimer[CDMStage::Sort] * inv;
         const double nlMs    = GP::m_cdmTimer[CDMStage::NeighborList] * inv;
+        const double relMs   = GP::m_cdmTimer[CDMStage::RelativeTransform] * inv;
         const double bvMs    = GP::m_cdmTimer[CDMStage::BVFilter] * inv;
         const double gjkMs   = GP::m_cdmTimer[CDMStage::NarrowPhase] * inv;
-        const double totalMs = sortMs + nlMs + bvMs + gjkMs;
+        const double trnMs   = GP::m_cdmTimer[CDMStage::Transform] * inv;
+        const double totalMs = sortMs + nlMs + relMs + bvMs + gjkMs + trnMs;
 
         // ------------------------------------------------------------------
         // Write CSV row
@@ -353,6 +355,7 @@ public:
                                                                           : "signedvolume",
                        m_scenario.gjkAcceleration ? 1 : 0,
                        bvStr(),
+                       m_scenario.useRelativeTransformations ? 1 : 0,
                        m_scenario.usePrebuiltShapes ? 1 : 0,
                        nlStr(),
                        lcStr(),
@@ -362,8 +365,10 @@ public:
                        m_counts.numPairs,
                        sortMs,
                        nlMs,
+                       relMs,
                        bvMs,
                        gjkMs,
+                       trnMs,
                        totalMs);
     }
 
@@ -378,6 +383,7 @@ public:
                              const std::vector<NarrowPhaseType>&    narrowPhases,
                              const std::vector<bool>&               gjkAccels,
                              const std::vector<BoundingVolumeType>& bvs,
+                             const std::vector<bool>&               relTransforms,
                              const std::vector<bool>&               prebuiltShapes,
                              const std::vector<NeighborListType>&   nls,
                              const std::vector<LinkedCellType>&     lcts,
@@ -386,21 +392,23 @@ public:
         for(auto np : narrowPhases)
             for(auto accel : gjkAccels)
                 for(auto bv : bvs)
-                    for(auto prebuilt : prebuiltShapes)
-                        for(auto nl : nls)
-                            for(auto lc : lcts)
-                                for(auto sf : sortFreqs)
-                                {
-                                    m_scenario.narrowPhaseType    = np;
-                                    m_scenario.gjkAcceleration    = accel;
-                                    m_scenario.boundingVolumeType = bv;
-                                    m_scenario.usePrebuiltShapes  = prebuilt;
-                                    m_scenario.neighborListType   = nl;
-                                    m_scenario.linkedCellType     = lc;
-                                    m_scenario.sortFrequency      = sf;
+                    for(auto rel : relTransforms)
+                        for(auto prebuilt : prebuiltShapes)
+                            for(auto nl : nls)
+                                for(auto lc : lcts)
+                                    for(auto sf : sortFreqs)
+                                    {
+                                        m_scenario.narrowPhaseType            = np;
+                                        m_scenario.gjkAcceleration            = accel;
+                                        m_scenario.boundingVolumeType         = bv;
+                                        m_scenario.useRelativeTransformations = rel;
+                                        m_scenario.usePrebuiltShapes          = prebuilt;
+                                        m_scenario.neighborListType           = nl;
+                                        m_scenario.linkedCellType             = lc;
+                                        m_scenario.sortFrequency              = sf;
 
-                                    run(runID++);
-                                }
+                                        run(runID++);
+                                    }
     }
 
     // -------------------------------------------------------------------------
@@ -419,6 +427,7 @@ public:
                          "GJKVariant",
                          "GJKAccel",
                          "BoundingVolume",
+                         "UseRelTransform",
                          "UsePrebuiltShapes",
                          "NeighborListType",
                          "LinkedCellType",
@@ -428,8 +437,10 @@ public:
                          "PairCount",
                          "SortTime_ms",
                          "NeighborListTime_ms",
+                         "RelTransformTime_ms",
                          "BVFilterTime_ms",
                          "NarrowPhaseTime_ms",
+                         "TransformTime_ms",
                          "TotalTime_ms"});
     }
 
@@ -630,11 +641,12 @@ private:
     CollisionDetectionParameters<T> buildCDParams() const
     {
         CollisionDetectionParameters<T> cdp;
-        cdp.neighborListType   = m_scenario.neighborListType;
-        cdp.boundingVolumeType = m_scenario.boundingVolumeType;
-        cdp.narrowPhaseType    = m_scenario.narrowPhaseType;
-        cdp.gjkAcceleration    = m_scenario.gjkAcceleration;
-        cdp.usePrebuiltShapes  = m_scenario.usePrebuiltShapes;
+        cdp.neighborListType           = m_scenario.neighborListType;
+        cdp.boundingVolumeType         = m_scenario.boundingVolumeType;
+        cdp.narrowPhaseType            = m_scenario.narrowPhaseType;
+        cdp.gjkAcceleration            = m_scenario.gjkAcceleration;
+        cdp.useRelativeTransformations = m_scenario.useRelativeTransformations;
+        cdp.usePrebuiltShapes          = m_scenario.usePrebuiltShapes;
 
         LinkedCellParameters<T>& lcp = cdp.linkedCellParameters;
         lcp.type                     = m_scenario.linkedCellType;

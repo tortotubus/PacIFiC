@@ -298,34 +298,6 @@ TEST_F(NeighborListSimpleTest, LinkedCell_SortBased_GPU_KnownGroundTruth)
 }
 
 // ------------------------------------------------------------------------------------------------
-// Test 4b: LinkedCell SORTBASED GPU skips particles that fall outside the linked-cell domain.
-// ------------------------------------------------------------------------------------------------
-TEST_F(NeighborListSimpleTest, LinkedCell_SortBased_GPU_IgnoresOutOfGridParticle)
-{
-    using GP                                      = GrainsParameters<double>;
-    GP::m_collisionDetection.neighborListType     = NeighborListType::LINKEDCELL;
-    lcParamsLarge.type                            = LinkedCellType::SORTBASED;
-    lcParamsLarge.maxCorner                       = Vector3<double>(1.5, 1.5, 1.5);
-    GP::m_collisionDetection.linkedCellParameters = lcParamsLarge;
-    resetNLCounter();
-
-    auto NL  = NeighborListFactory<double, MemType::DEVICE>::create(&rb_gpu,
-                                                                   pos_gpu,
-                                                                   quat_gpu,
-                                                                   GP::m_collisionDetection,
-                                                                   nObs,
-                                                                   nParts);
-    auto got = extractPairs_GPU(NL.get(), pos_gpu, nObs, nParts);
-
-    PairSet expected = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
-
-    EXPECT_EQ(got.size(), expected.size())
-        << "LinkedCell SORTBASED: wrong number of pairs when a particle is outside the grid";
-    EXPECT_EQ(got, expected)
-        << "LinkedCell SORTBASED: out-of-grid particles should not produce invalid pairs";
-}
-
-// ------------------------------------------------------------------------------------------------
 // Test 5: LinkedCell ATOMIC GPU -- large cell -> all 10 pairs found.
 // ------------------------------------------------------------------------------------------------
 TEST_F(NeighborListSimpleTest, LinkedCell_Atomic_GPU_KnownGroundTruth)

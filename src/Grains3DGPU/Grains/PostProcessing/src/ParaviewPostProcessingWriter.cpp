@@ -2,53 +2,16 @@
 #include "GrainsUtils.hh"
 #include "VectorMath.hh"
 
-#include <zlib.h>
-
-/* ============================================================================================== */
-/* ZLib Compression Helpers                                                                       */
-/* ============================================================================================== */
-// Compresses raw bytes with zlib and returns the compressed buffer.
-static std::vector<uint8_t> compressZlib(const void* data, size_t size)
-{
-    uLongf               compressedSize = compressBound(static_cast<uLong>(size));
-    std::vector<uint8_t> compressed(compressedSize);
-    int                  ret = compress2(compressed.data(),
-                        &compressedSize,
-                        reinterpret_cast<const Bytef*>(data),
-                        static_cast<uLong>(size),
-                        Z_DEFAULT_COMPRESSION);
-    if(ret != Z_OK)
-        throw std::runtime_error("zlib compress2 failed with error code " + std::to_string(ret));
-    compressed.resize(compressedSize);
-    return compressed;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Writes a compressed data block in VTK appended format.
-// VTK compressed block header: [1 block][uncompressed size][last block size][compressed size]
-// all as uint64, followed by the compressed bytes.
-static void writeCompressedBlock(std::ostream& f, const void* data, size_t size)
-{
-    std::vector<uint8_t> compressed = compressZlib(data, size);
-    uint64_t             header[4];
-    header[0] = 1;                                         // number of blocks
-    header[1] = static_cast<uint64_t>(size);               // size of each block before compression
-    header[2] = static_cast<uint64_t>(size);               // size of the last partial block
-    header[3] = static_cast<uint64_t>(compressed.size());  // compressed size
-    f.write(reinterpret_cast<const char*>(header), sizeof(header));
-    f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
-}
-
 /* ============================================================================================== */
 /* Low-Level Methods                                                                              */
 /* ============================================================================================== */
-// Writes obstacles data in binary compressed VTU format
+// Writes obstacles data
 template <typename T>
 void writeObstacles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
                              const std::unique_ptr<ComponentManager<T>>& cm,
                              const std::string&                          obsFileName)
 {
-    std::ofstream f(obsFileName, std::ios::out | std::ios::binary);
+    std::ofstream f(obsFileName, std::ios::out);
     if(!f.is_open())
     {
         std::cerr << "Failed to open file: " << obsFileName << std::endl;
@@ -62,117 +25,89 @@ void writeObstacles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
     for(uint i = 0; i < numObstacles; ++i)
         tr[i] = Transform3<T>(quaternion[i], position[i]);
 
+    f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" " << "byte_order=\"LittleEndian\" ";
+    f << ">" << endl;
+    f << "<UnstructuredGrid>" << endl;
     uint nbpts = 0, nbcells = 0;
     for(uint i = 0; i < numObstacles; ++i)
     {
         nbpts += rb[i]->getConvex()->numberOfPoints_PARAVIEW();
         nbcells += rb[i]->getConvex()->numberOfCells_PARAVIEW();
     }
-
-    // --- Collect all raw data arrays ---
-    // Points
-    std::vector<float> pointsData;
-    pointsData.reserve(nbpts * 3);
-    for(uint i = 0; i < numObstacles; ++i)
-    {
-        std::list<Vector3<T>> pts = rb[i]->getConvex()->writePoints_PARAVIEW(tr[i], nullptr);
-        for(auto& p : pts)
-        {
-            pointsData.push_back(static_cast<float>(p[X]));
-            pointsData.push_back(static_cast<float>(p[Y]));
-            pointsData.push_back(static_cast<float>(p[Z]));
-        }
-    }
-
-    // Connectivity, offsets, types
-    list<uint> connectivityList, offsetsList, cellstypeList;
-    uint       firstpoint_globalnumber = 0, last_offset = 0;
-    for(uint i = 0; i < numObstacles; ++i)
-        rb[i]->getConvex()->writeConnection_PARAVIEW(connectivityList,
-                                                     offsetsList,
-                                                     cellstypeList,
-                                                     firstpoint_globalnumber,
-                                                     last_offset);
-    std::vector<int32_t> connectivity(connectivityList.begin(), connectivityList.end());
-    std::vector<int32_t> offsets(offsetsList.begin(), offsetsList.end());
-    std::vector<int32_t> types(cellstypeList.begin(), cellstypeList.end());
-
-    // CellData: Indicator
-    std::vector<float> indicatorData;
-    indicatorData.reserve(nbcells);
-    for(uint i = 0; i < numObstacles; ++i)
-    {
-        float indic = 0.f;
-        int   nc    = rb[i]->getConvex()->numberOfCells_PARAVIEW();
-        for(int j = 0; j < nc; ++j)
-            indicatorData.push_back(indic);
-    }
-
-    // --- Write VTK XML header ---
-    // Track offsets into appended data (byte offsets from start of raw binary after '_')
-    uint64_t appendedOffset = 0;
-    f << "<VTKFile type=\"UnstructuredGrid\" version=\"2.0\" " << "byte_order=\"LittleEndian\" "
-      << "header_type=\"UInt64\" " << "compressor=\"vtkZLibDataCompressor\">" << endl;
-    f << "<UnstructuredGrid>" << endl;
     f << "<Piece NumberOfPoints=\"" << nbpts << "\"" << " NumberOfCells=\"" << nbcells << "\">"
       << endl;
-
-    // Points
     f << "<Points>" << endl;
-    f << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(pointsData.data(), pointsData.size() * sizeof(float)).size();
+    f << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" ";
+    f << "format=\"ascii\">";
+    f << endl;
+    for(uint i = 0; i < numObstacles; ++i)
+        rb[i]->getConvex()->writePoints_PARAVIEW(f, tr[i]);
+    f << "</DataArray>" << endl;
     f << "</Points>" << endl;
 
-    // Cells
+    list<uint>           connectivity, offsets, cellstype;
+    list<uint>::iterator ii;
+    uint                 firstpoint_globalnumber = 0, last_offset = 0;
+    for(uint i = 0; i < numObstacles; ++i)
+        rb[i]->getConvex()->writeConnection_PARAVIEW(connectivity,
+                                                     offsets,
+                                                     cellstype,
+                                                     firstpoint_globalnumber,
+                                                     last_offset);
     f << "<Cells>" << endl;
-    f << "<DataArray type=\"Int32\" Name=\"connectivity\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset
-        += 4 * sizeof(uint64_t)
-           + compressZlib(connectivity.data(), connectivity.size() * sizeof(int32_t)).size();
-    f << "<DataArray type=\"Int32\" Name=\"offsets\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(offsets.data(), offsets.size() * sizeof(int32_t)).size();
-    f << "<DataArray type=\"Int32\" Name=\"types\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset
-        += 4 * sizeof(uint64_t) + compressZlib(types.data(), types.size() * sizeof(int32_t)).size();
+    f << "<DataArray type=\"Int32\" Name=\"connectivity\" ";
+    f << "format=\"ascii\">";
+    f << endl;
+    for(ii = connectivity.begin(); ii != connectivity.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+    f << "</DataArray>" << endl;
+    f << "<DataArray type=\"Int32\" Name=\"offsets\" ";
+    f << "format=\"ascii\">";
+    f << endl;
+    for(ii = offsets.begin(); ii != offsets.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+    f << "</DataArray>" << endl;
+    f << "<DataArray type=\"Int32\" Name=\"types\" ";
+    f << "format=\"ascii\">";
+    f << endl;
+    for(ii = cellstype.begin(); ii != cellstype.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+    f << "</DataArray>" << endl;
     f << "</Cells>" << endl;
 
-    // CellData
     f << "<CellData Scalars=\"Indicator\">" << endl;
-    f << "<DataArray type=\"Float32\" Name=\"Indicator\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
+    f << "<DataArray type=\"Float32\" Name=\"Indicator\" ";
+    f << "format=\"ascii\">";
+    f << endl;
+    for(uint i = 0; i < numObstacles; ++i)
+    {
+        // double indic = obstacleRB[i]->getIndicator();
+        double indic = 0;
+        int    nc    = rb[i]->getConvex()->numberOfCells_PARAVIEW();
+        for(uint j = 0; j < nc; ++j)
+            f << indic << " ";
+    }
+    f << endl;
+    f << "</DataArray>" << endl;
     f << "</CellData>" << endl;
 
     f << "</Piece>" << endl;
     f << "</UnstructuredGrid>" << endl;
-
-    // --- Appended data section ---
-    f << "<AppendedData encoding=\"raw\">" << endl;
-    f << "_";
-    writeCompressedBlock(f, pointsData.data(), pointsData.size() * sizeof(float));
-    writeCompressedBlock(f, connectivity.data(), connectivity.size() * sizeof(int32_t));
-    writeCompressedBlock(f, offsets.data(), offsets.size() * sizeof(int32_t));
-    writeCompressedBlock(f, types.data(), types.size() * sizeof(int32_t));
-    writeCompressedBlock(f, indicatorData.data(), indicatorData.size() * sizeof(float));
-    f << endl;
-    f << "</AppendedData>" << endl;
     f << "</VTKFile>" << endl;
     f.close();
 }
 
 // -------------------------------------------------------------------------------------------------
-// Writes particles data in binary compressed VTU format
+// Writes particles data
 template <typename T>
 void writeParticles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
                              const std::unique_ptr<ComponentManager<T>>& cm,
                              const std::string&                          parFileName)
 {
-    std::ofstream f(parFileName, std::ios::out | std::ios::binary);
+    std::ofstream f(parFileName, std::ios::out);
     if(!f.is_open())
     {
         std::cerr << "Failed to open file: " << parFileName << std::endl;
@@ -187,6 +122,9 @@ void writeParticles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
     for(uint i = 0; i < numParticles; ++i)
         tr[i] = Transform3<T>(quaternion[numObstacles + i], position[numObstacles + i]);
 
+    f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" " << "byte_order=\"LittleEndian\" ";
+    f << ">" << endl;
+    f << "<UnstructuredGrid>" << endl;
     uint nbpts = 0, nbcells = 0;
     for(uint i = numObstacles; i < numObstacles + numParticles; ++i)
     {
@@ -194,116 +132,98 @@ void writeParticles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
         nbcells += rb[i]->getConvex()->numberOfCells_PARAVIEW();
     }
 
-    // --- Collect all raw data arrays ---
-    // Points
-    std::vector<float> pointsData;
-    pointsData.reserve(nbpts * 3);
-    for(uint i = 0; i < numParticles; ++i)
-    {
-        std::list<Vector3<T>> pts
-            = rb[numObstacles + i]->getConvex()->writePoints_PARAVIEW(tr[i], nullptr);
-        for(auto& p : pts)
-        {
-            pointsData.push_back(static_cast<float>(p[X]));
-            pointsData.push_back(static_cast<float>(p[Y]));
-            pointsData.push_back(static_cast<float>(p[Z]));
-        }
-    }
-
-    // Connectivity, offsets, types
-    list<uint> connectivityList, offsetsList, cellstypeList;
-    uint       firstpoint_globalnumber = 0, last_offset = 0;
-    for(uint i = 0; i < numParticles; ++i)
-        rb[numObstacles + i]->getConvex()->writeConnection_PARAVIEW(connectivityList,
-                                                                    offsetsList,
-                                                                    cellstypeList,
-                                                                    firstpoint_globalnumber,
-                                                                    last_offset);
-    std::vector<int32_t> connectivity(connectivityList.begin(), connectivityList.end());
-    std::vector<int32_t> offsets(offsetsList.begin(), offsetsList.end());
-    std::vector<int32_t> types(cellstypeList.begin(), cellstypeList.end());
-
-    // CellData arrays
-    std::vector<float> normUData, normOmData, coordNumData;
-    normUData.reserve(nbcells);
-    normOmData.reserve(nbcells);
-    coordNumData.reserve(nbcells);
-    for(uint i = numObstacles; i < numObstacles + numParticles; ++i)
-    {
-        float normU    = static_cast<float>(norm(kin[i].getTranslationalComponent()));
-        float normOm   = static_cast<float>(norm(kin[i].getAngularComponent()));
-        float coordNum = 0.f;
-        uint  nc       = rb[i]->getConvex()->numberOfCells_PARAVIEW();
-        for(uint j = 0; j < nc; ++j)
-        {
-            normUData.push_back(normU);
-            normOmData.push_back(normOm);
-            coordNumData.push_back(coordNum);
-        }
-    }
-
-    // --- Write VTK XML header with appended offsets ---
-    uint64_t appendedOffset = 0;
-    f << "<VTKFile type=\"UnstructuredGrid\" version=\"2.0\" " << "byte_order=\"LittleEndian\" "
-      << "header_type=\"UInt64\" " << "compressor=\"vtkZLibDataCompressor\">" << endl;
-    f << "<UnstructuredGrid>" << endl;
     f << "<Piece NumberOfPoints=\"" << nbpts << "\"" << " NumberOfCells=\"" << nbcells << "\">"
       << endl;
 
-    // Points
     f << "<Points>" << endl;
-    f << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(pointsData.data(), pointsData.size() * sizeof(float)).size();
+    f << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" ";
+    f << "format=\"ascii\">" << endl;
+
+    for(uint i = 0; i < numParticles; ++i)
+    {
+        rb[numObstacles + i]->getConvex()->writePoints_PARAVIEW(f, tr[i]);
+    }
+    f << "</DataArray>" << endl;
     f << "</Points>" << endl;
 
-    // Cells
+    list<uint>           connectivity, offsets, cellstype;
+    list<uint>::iterator ii;
+    uint                 firstpoint_globalnumber = 0, last_offset = 0;
+    for(uint i = 0; i < numParticles; ++i)
+        rb[numObstacles + i]->getConvex()->writeConnection_PARAVIEW(connectivity,
+                                                                    offsets,
+                                                                    cellstype,
+                                                                    firstpoint_globalnumber,
+                                                                    last_offset);
     f << "<Cells>" << endl;
-    f << "<DataArray type=\"Int32\" Name=\"connectivity\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset
-        += 4 * sizeof(uint64_t)
-           + compressZlib(connectivity.data(), connectivity.size() * sizeof(int32_t)).size();
-    f << "<DataArray type=\"Int32\" Name=\"offsets\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(offsets.data(), offsets.size() * sizeof(int32_t)).size();
-    f << "<DataArray type=\"Int32\" Name=\"types\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset
-        += 4 * sizeof(uint64_t) + compressZlib(types.data(), types.size() * sizeof(int32_t)).size();
+    f << "<DataArray type=\"Int32\" Name=\"connectivity\" ";
+    f << "format=\"ascii\">" << endl;
+    for(ii = connectivity.begin(); ii != connectivity.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+    f << "</DataArray>" << endl;
+    f << "<DataArray type=\"Int32\" Name=\"offsets\" ";
+    f << "format=\"ascii\">" << endl;
+
+    for(ii = offsets.begin(); ii != offsets.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+
+    f << "</DataArray>" << endl;
+    f << "<DataArray type=\"Int32\" Name=\"types\" ";
+    f << "format=\"ascii\">" << endl;
+
+    for(ii = cellstype.begin(); ii != cellstype.end(); ii++)
+        f << *ii << " ";
+    f << endl;
+
+    f << "</DataArray>" << endl;
     f << "</Cells>" << endl;
 
-    // CellData
     f << "<CellData Scalars=\"NormU,NormOm,CoordNumb\">" << endl;
-    f << "<DataArray type=\"Float32\" Name=\"NormU\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(normUData.data(), normUData.size() * sizeof(float)).size();
-    f << "<DataArray type=\"Float32\" Name=\"NormOm\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    appendedOffset += 4 * sizeof(uint64_t)
-                      + compressZlib(normOmData.data(), normOmData.size() * sizeof(float)).size();
-    f << "<DataArray type=\"Float32\" Name=\"CoordNumb\" " << "format=\"appended\" offset=\""
-      << appendedOffset << "\"/>" << endl;
-    f << "</CellData>" << endl;
 
-    f << "</Piece>" << endl;
-    f << "</UnstructuredGrid>" << endl;
+    f << "<DataArray type=\"Float32\" Name=\"NormU\" ";
+    f << "format=\"ascii\">" << endl;
 
-    // --- Appended data section ---
-    f << "<AppendedData encoding=\"raw\">" << endl;
-    f << "_";
-    writeCompressedBlock(f, pointsData.data(), pointsData.size() * sizeof(float));
-    writeCompressedBlock(f, connectivity.data(), connectivity.size() * sizeof(int32_t));
-    writeCompressedBlock(f, offsets.data(), offsets.size() * sizeof(int32_t));
-    writeCompressedBlock(f, types.data(), types.size() * sizeof(int32_t));
-    writeCompressedBlock(f, normUData.data(), normUData.size() * sizeof(float));
-    writeCompressedBlock(f, normOmData.data(), normOmData.size() * sizeof(float));
-    writeCompressedBlock(f, coordNumData.data(), coordNumData.size() * sizeof(float));
+    for(uint i = numObstacles; i < numObstacles + numParticles; ++i)
+    {
+        T    normU = norm(kin[i].getTranslationalComponent());
+        uint nc    = rb[i]->getConvex()->numberOfCells_PARAVIEW();
+        for(uint j = 0; j < nc; ++j)
+            f << normU << " ";
+    }
     f << endl;
-    f << "</AppendedData>" << endl;
+    f << "</DataArray>" << endl;
+
+    f << "<DataArray type=\"Float32\" Name=\"NormOm\" ";
+    f << "format=\"ascii\">" << endl;
+
+    for(uint i = numObstacles; i < numObstacles + numParticles; ++i)
+    {
+        T    normOm = norm(kin[i].getAngularComponent());
+        uint nc     = rb[i]->getConvex()->numberOfCells_PARAVIEW();
+        for(uint j = 0; j < nc; ++j)
+            f << normOm << " ";
+    }
+    f << endl;
+    f << "</DataArray>" << endl;
+
+    f << "<DataArray type=\"Float32\" Name=\"CoordNumb\" ";
+    f << "format=\"ascii\">" << endl;
+
+    for(uint i = numObstacles; i < numObstacles + numParticles; ++i)
+    {
+        T    coordNum = 0;
+        uint nc       = rb[i]->getConvex()->numberOfCells_PARAVIEW();
+        for(uint j = 0; j < nc; ++j)
+            f << coordNum << " ";
+    }
+    f << endl;
+    f << "</DataArray>" << endl;
+    f << "</CellData>" << endl;
+    f << "</Piece>" << endl;
+
+    f << "</UnstructuredGrid>" << endl;
     f << "</VTKFile>" << endl;
     f.close();
 }

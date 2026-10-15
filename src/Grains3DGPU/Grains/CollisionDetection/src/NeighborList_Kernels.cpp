@@ -159,21 +159,14 @@ __GLOBAL__ void generateObstacleParticlePairs_Device(const uint2*    obstacleIDs
         if(cellStart == UINT_MAX)
             continue;  // Empty cell
 
-        // Find cell end: scan forward for the next occupied cell's start.
-        // Do NOT assign cellEnd before validating — assigning UINT_MAX and then
-        // checking would leave cellEnd == UINT_MAX when no later cell exists,
-        // causing an unbounded read loop → Warp Illegal Address.
-        uint cellEnd = numParticles;
-        uint k       = cell;
-        while(++k < numCells)
+        // Find cell end (handles both variants: with/without UINT_MAX sentinels)
+        uint cellEnd;
+        uint k = cell;
+        do
         {
-            const uint next = cellPrefixSums[k];
-            if(next != UINT_MAX)
-            {
-                cellEnd = next;
-                break;
-            }
-        }
+            ++k;
+            cellEnd = (k < numCells) ? cellPrefixSums[k] : numParticles;
+        } while(cellEnd == UINT_MAX && k < numCells);
 
         // Add pairs for all particles in this cell
         for(uint p = cellStart; p < cellEnd; ++p)
@@ -233,18 +226,17 @@ __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
         if(cellStart == UINT_MAX)
             continue;
 
-        // Find end of cell (same fix as in generateObstacleParticlePairs_Device).
-        uint k       = c;
-        uint cellEnd = numParticles;
-        while(++k < numCells)
+        // Find end of cell
+        uint k = c;
+        uint cellEnd;
+        do
         {
-            const uint next = cellPrefixSums[k];
-            if(next != UINT_MAX)
-            {
-                cellEnd = next;
-                break;
-            }
-        }
+            ++k;
+            cellEnd = cellPrefixSums[k];
+        } while(cellEnd == UINT_MAX && k < numCells);
+
+        if(k == numCells)
+            cellEnd = numParticles;
 
         // Count particles in this neighbor cell.
         // For same-cell pairs (c == cell): use i < j to avoid duplicates.
@@ -252,10 +244,7 @@ __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
         // only this thread processes the (cell, c) cell pair, so emit all pairs.
         for(uint p = cellStart; p < cellEnd; ++p)
         {
-            const uint64_t neighborPacked = cellParticleIDs[p];
-            if(neighborPacked == UINT64_MAX)
-                continue;
-            const uint j = (uint)(neighborPacked & 0xFFFFFFFF);
+            const uint j = (uint)(cellParticleIDs[p] & 0xFFFFFFFF);
 
             if(c == cell && j <= i)
                 continue;
@@ -308,18 +297,17 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
         if(cellStart == UINT_MAX)
             continue;
 
-        // Find end of cell (same fix as in generateObstacleParticlePairs_Device).
-        uint k       = c;
-        uint cellEnd = numParticles;
-        while(++k < numCells)
+        // Find end of cell
+        uint k = c;
+        uint cellEnd;
+        do
         {
-            const uint next = cellPrefixSums[k];
-            if(next != UINT_MAX)
-            {
-                cellEnd = next;
-                break;
-            }
-        }
+            ++k;
+            cellEnd = cellPrefixSums[k];
+        } while(cellEnd == UINT_MAX && k < numCells);
+
+        if(k == numCells)
+            cellEnd = numParticles;
 
         // Loop through particles in the neighbor cell.
         // For same-cell pairs (c == cell): use i < j to avoid duplicates.
@@ -327,10 +315,8 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
         // only this thread processes the (cell, c) cell pair, so emit all pairs.
         for(uint p = cellStart; p < cellEnd; ++p)
         {
-            const uint64_t neighborPacked = cellParticleIDs[p];
-            if(neighborPacked == UINT64_MAX)
-                continue;
-            const uint j = (uint)(neighborPacked & 0xFFFFFFFF);
+            // Unpack particle ID from cellParticleIDs
+            const uint j = (uint)(cellParticleIDs[p] & 0xFFFFFFFF);
 
             if(c == cell && i >= j)
                 continue;
@@ -379,13 +365,9 @@ __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsL
         if(c == UINT_MAX || c < cell)
             continue;
 
-        // Compute cellStart for fixed layout: cellID * maxParticlesPerCell.
-        // Clamp cellEnd to cellStart + maxParticlesPerCell: numParticlesPerCell[c] can exceed
-        // maxParticlesPerCell when the cell overflows (excess particles are silently dropped
-        // by the insert kernel), and reading past the cell's fixed-size slot causes OOB access
-        // into the next cell's memory region, producing spurious or missed pairs.
+        // Compute cellStart for fixed layout: cellID * maxParticlesPerCell
         uint cellStart = c * maxParticlesPerCell;
-        uint cellEnd   = cellStart + min(numParticlesPerCell[c], maxParticlesPerCell);
+        uint cellEnd   = cellStart + numParticlesPerCell[c];
 
         // Count particles in the neighbor cell.
         // For same-cell pairs (c == cell): use i < j to avoid duplicates.
@@ -445,10 +427,9 @@ __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNei
         if(c == UINT_MAX || c < cell)
             continue;
 
-        // Compute cellStart for fixed layout: cellID * maxParticlesPerCell.
-        // Clamp cellEnd: same reason as in countNeighbors_AtomicFixed_Device.
+        // Compute cellStart for fixed layout: cellID * maxParticlesPerCell
         uint cellStart = c * maxParticlesPerCell;
-        uint cellEnd   = cellStart + min(numParticlesPerCell[c], maxParticlesPerCell);
+        uint cellEnd   = cellStart + numParticlesPerCell[c];
 
         // Loop through particles in the neighbor cell.
         // For same-cell pairs (c == cell): use i < j to avoid duplicates.

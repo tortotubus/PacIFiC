@@ -132,6 +132,7 @@ static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
     // Offset in the obstacleCellID buffer
     const uint offset = obstacleIdx * maxPerObstacle;
     // Nested loops with 1-ring expansion; guard against cellCount >= maxPerObstacle
+    // (can happen when numCells > 3375 and the cap reduces maxPerObstacle below the AABB size)
     for(int x = minX; x <= maxX && cellCount < maxPerObstacle; ++x)
     {
         for(int y = minY; y <= maxY && cellCount < maxPerObstacle; ++y)
@@ -315,7 +316,7 @@ static __GLOBAL__ void computeCellStart_Kernel(const uint64_t* cellParticleIDs,
     sync(cta);
 
     if(tid < numParticles)
-        if(hash != UINT_MAX && (tid == 0 || hash != sharedHash[threadIdx.x]))
+        if(tid == 0 || hash != sharedHash[threadIdx.x])
             cellStart[hash] = tid;
 }
 

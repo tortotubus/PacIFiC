@@ -12,7 +12,6 @@
 #include "Kinematics.hh"
 #include "ParticleSorter_Kernels.hh"
 #include "Quaternion.hh"
-#include "RigidBody.hh"
 #include "Torce.hh"
 #include "Vector3.hh"
 
@@ -42,7 +41,6 @@ protected:
     /** \brief Sorted indices output from CUB - used by gather kernels (values_out) */
     GrainsMemBuffer<uint, M> m_sortedIndicesOut;
     /** \brief Temporary buffers for gathering sorted data */
-    GrainsMemBuffer<RigidBody<T>*, M> m_tempRigidBody;
     GrainsMemBuffer<Vector3<T>, M>    m_tempPosition;
     GrainsMemBuffer<Kinematics<T>, M> m_tempVelocity;
     GrainsMemBuffer<Quaternion<T>, M> m_tempQuaternion;
@@ -55,7 +53,7 @@ protected:
     /** \brief CUB sort temporary storage bytes */
     size_t m_cubSortTempStorageBytes = 0;
     /** \brief CUDA streams for parallel gather operations (device only) */
-    cudaStream_t m_streams[8];
+    cudaStream_t m_streams[7];
     //@}
 
 public:
@@ -74,11 +72,10 @@ public:
         using GP             = GrainsParameters<T>;
         const auto& CD       = GP::m_collisionDetection;
         const auto& LCParams = CD.linkedCellParameters;
-        const T     cellSize = LCParams.minCellSize * LCParams.cellSizeFactor;
         // Create Cells object with Morton ordering
         CellsFactory<T, CellOrdering::MORTON>::template create<M>(LCParams.minCorner,
                                                                   LCParams.maxCorner,
-                                                                  cellSize,
+                                                                  LCParams.cellSizeFactor,
                                                                   m_cells);
 
         // Allocate buffers.
@@ -88,7 +85,6 @@ public:
         m_mortonCodesAux.initialize(numParticles);
         m_sortedIndices.initialize(numParticles);
         m_sortedIndicesOut.initialize(numParticles);
-        m_tempRigidBody.reserve(numParticles);
         m_tempPosition.reserve(numParticles);
         m_tempVelocity.reserve(numParticles);
         m_tempQuaternion.reserve(numParticles);
@@ -101,18 +97,20 @@ public:
         {
             cudaGetLastError();
             // Initialize CUB sort workspace
+            uint64_t* dummyKeys   = nullptr;
+            uint*     dummyValues = nullptr;
             cudaErrCheck(cub::DeviceRadixSort::SortPairs(nullptr,
                                                          m_cubSortTempStorageBytes,
-                                                         m_mortonCodes.getData(),
-                                                         m_mortonCodesAux.getData(),
-                                                         m_sortedIndices.getData(),
-                                                         m_sortedIndicesOut.getData(),
+                                                         dummyKeys,
+                                                         dummyKeys,
+                                                         dummyValues,
+                                                         dummyValues,
                                                          numParticles));
-            cudaErrCheck(cudaMalloc(&m_cubSortTempStorage, m_cubSortTempStorageBytes));
+            cudaMalloc(&m_cubSortTempStorage, m_cubSortTempStorageBytes);
 
             // Create CUDA streams for parallel gather operations
-            for(int i = 0; i < 8; ++i)
-                cudaErrCheck(cudaStreamCreate(&m_streams[i]));
+            for(int i = 0; i < 7; ++i)
+                cudaStreamCreate(&m_streams[i]);
         }
     }
 
@@ -136,7 +134,7 @@ public:
             }
 
             // Destroy CUDA streams
-            for(int i = 0; i < 8; ++i)
+            for(int i = 0; i < 7; ++i)
                 cudaStreamDestroy(m_streams[i]);
 
             // Free the Cells object on device.
@@ -156,7 +154,6 @@ public:
     //@{
     // ---------------------------------------------------------------------------------------------
     /** @brief Sorts particle data arrays based on Morton codes
-        @param rigidBody rigid body pointers (input/output)
         @param position particle positions (input/output)
         @param velocity particle velocities (input/output)
         @param quaternion particle orientations (input/output)
@@ -166,8 +163,7 @@ public:
         @param localQuat per-component local quaternion offsets (input/output)
         @param numObstacles number of obstacles
         @param numParticles number of particles to sort */
-    void sortParticles(GrainsMemBuffer<RigidBody<T>*, M>& rigidBody,
-                       GrainsMemBuffer<Vector3<T>, M>&    position,
+    void sortParticles(GrainsMemBuffer<Vector3<T>, M>&    position,
                        GrainsMemBuffer<Kinematics<T>, M>& velocity,
                        GrainsMemBuffer<Quaternion<T>, M>& quaternion,
                        GrainsMemBuffer<Torce<T>, M>&      torce,
@@ -177,31 +173,6 @@ public:
                        uint                               numObstacles,
                        uint                               numParticles)
     {
-        GAssert(numParticles <= m_mortonCodes.getSize(),
-                "ParticleSorter Morton-code buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_sortedIndices.getSize(),
-                "ParticleSorter index buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_sortedIndicesOut.getSize(),
-                "ParticleSorter output-index buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempRigidBody.getCapacity(),
-                "ParticleSorter temporary rigid-body buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempPosition.getCapacity(),
-                "ParticleSorter temporary position buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempVelocity.getCapacity(),
-                "ParticleSorter temporary velocity buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempQuaternion.getCapacity(),
-                "ParticleSorter temporary quaternion buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempTorce.getCapacity(),
-                "ParticleSorter temporary torce buffer smaller than runtime particle count");
-        GAssert(numParticles <= m_tempBodyTag.getCapacity(),
-                "ParticleSorter temporary body-tag buffer smaller than runtime particle count");
-        GAssert(
-            numParticles <= m_tempLocalPos.getCapacity(),
-            "ParticleSorter temporary local-position buffer smaller than runtime particle count");
-        GAssert(
-            numParticles <= m_tempLocalQuat.getCapacity(),
-            "ParticleSorter temporary local-quaternion buffer smaller than runtime particle count");
-
         if constexpr(M == MemType::HOST)
         {
             // Step 1: Compute Morton codes for particles only (skip obstacles)
@@ -209,13 +180,7 @@ public:
             const Vector3<T>* pos         = position.getData();
 
             for(uint i = 0; i < numParticles; ++i)
-            {
-                const uint denseIndex = m_cells[0]->computeDenseIndex(pos[numObstacles + i], false);
-                mortonCodes[i]
-                    = (denseIndex == UINT_MAX)
-                          ? ~uint64_t(0)
-                          : static_cast<uint64_t>(m_cells[0]->mortonKeyFromLinearIndex(denseIndex));
-            }
+                mortonCodes[i] = m_cells[0]->computeCellHash(pos[numObstacles + i]);
 
             // Step 2: Initialize indices [0, 1, 2, ..., numParticles-1]
             uint* indices = m_sortedIndices.getData();
@@ -228,7 +193,6 @@ public:
             });
 
             // Step 4: Gather particle arrays according to sorted indices
-            RigidBody<T>** tempRigidBody = m_tempRigidBody.getData();
             Vector3<T>*    tempPos       = m_tempPosition.getData();
             Kinematics<T>* tempVel       = m_tempVelocity.getData();
             Quaternion<T>* tempQuat      = m_tempQuaternion.getData();
@@ -237,7 +201,6 @@ public:
             Vector3<T>*    tempLocalPos  = m_tempLocalPos.getData();
             Quaternion<T>* tempLocalQuat = m_tempLocalQuat.getData();
 
-            RigidBody<T>* const* srcRigidBody = rigidBody.getData() + numObstacles;
             const Vector3<T>*    srcPos       = position.getData() + numObstacles;
             const Kinematics<T>* srcVel       = velocity.getData() + numObstacles;
             const Quaternion<T>* srcQuat      = quaternion.getData() + numObstacles;
@@ -249,7 +212,6 @@ public:
             for(uint i = 0; i < numParticles; ++i)
             {
                 uint idx         = indices[i];
-                tempRigidBody[i] = srcRigidBody[idx];
                 tempPos[i]       = srcPos[idx];
                 tempVel[i]       = srcVel[idx];
                 tempQuat[i]      = srcQuat[idx];
@@ -260,7 +222,6 @@ public:
             }
 
             // Step 5: Copy sorted data back to particle arrays (skip obstacles)
-            RigidBody<T>** dstRigidBody = rigidBody.getData() + numObstacles;
             Vector3<T>*    dstPos       = position.getData() + numObstacles;
             Kinematics<T>* dstVel       = velocity.getData() + numObstacles;
             Quaternion<T>* dstQuat      = quaternion.getData() + numObstacles;
@@ -271,7 +232,6 @@ public:
 
             for(uint i = 0; i < numParticles; ++i)
             {
-                dstRigidBody[i] = tempRigidBody[i];
                 dstPos[i]       = tempPos[i];
                 dstVel[i]       = tempVel[i];
                 dstQuat[i]      = tempQuat[i];
@@ -344,99 +304,85 @@ public:
                 m_sortedIndicesOut.getData(),
                 numParticles);
 
-            // Stream 4: RigidBody
+            // Stream 4: BodyTag
             gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[4]>>>(
-                rigidBody.getData() + numObstacles,
-                m_tempRigidBody.getData(),
-                m_sortedIndicesOut.getData(),
-                numParticles);
-
-            // Stream 5: BodyTag
-            gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[5]>>>(
                 bodyTag.getData() + numObstacles,
                 m_tempBodyTag.getData(),
                 m_sortedIndicesOut.getData(),
                 numParticles);
 
-            // Stream 6: LocalPos
-            gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[6]>>>(
+            // Stream 5: LocalPos
+            gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[5]>>>(
                 localPos.getData() + numObstacles,
                 m_tempLocalPos.getData(),
                 m_sortedIndicesOut.getData(),
                 numParticles);
 
-            // Stream 7: LocalQuat
-            gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[7]>>>(
+            // Stream 6: LocalQuat
+            gather_Kernel<<<numBlocks, threadsPerBlock, 0, m_streams[6]>>>(
                 localQuat.getData() + numObstacles,
                 m_tempLocalQuat.getData(),
                 m_sortedIndicesOut.getData(),
                 numParticles);
 
             // Wait for all gather operations to complete
-            for(int i = 0; i < 8; ++i)
-                cudaErrCheck(cudaStreamSynchronize(m_streams[i]));
+            for(int i = 0; i < 7; ++i)
+                cudaStreamSynchronize(m_streams[i]);
 
             // Step 5: Copy sorted data back to particle arrays using multiple
             // streams (skip obstacles)
             // Stream 0: Position
-            cudaErrCheck(cudaMemcpyAsync(position.getData() + numObstacles,
-                                         m_tempPosition.getData(),
-                                         numParticles * sizeof(Vector3<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[0]));
+            cudaMemcpyAsync(position.getData() + numObstacles,
+                            m_tempPosition.getData(),
+                            numParticles * sizeof(Vector3<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[0]);
 
             // Stream 1: Velocity
-            cudaErrCheck(cudaMemcpyAsync(velocity.getData() + numObstacles,
-                                         m_tempVelocity.getData(),
-                                         numParticles * sizeof(Kinematics<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[1]));
+            cudaMemcpyAsync(velocity.getData() + numObstacles,
+                            m_tempVelocity.getData(),
+                            numParticles * sizeof(Kinematics<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[1]);
 
             // Stream 2: Quaternion
-            cudaErrCheck(cudaMemcpyAsync(quaternion.getData() + numObstacles,
-                                         m_tempQuaternion.getData(),
-                                         numParticles * sizeof(Quaternion<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[2]));
+            cudaMemcpyAsync(quaternion.getData() + numObstacles,
+                            m_tempQuaternion.getData(),
+                            numParticles * sizeof(Quaternion<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[2]);
 
             // Stream 3: Torce
-            cudaErrCheck(cudaMemcpyAsync(torce.getData() + numObstacles,
-                                         m_tempTorce.getData(),
-                                         numParticles * sizeof(Torce<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[3]));
+            cudaMemcpyAsync(torce.getData() + numObstacles,
+                            m_tempTorce.getData(),
+                            numParticles * sizeof(Torce<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[3]);
 
-            // Stream 4: RigidBody
-            cudaErrCheck(cudaMemcpyAsync(rigidBody.getData() + numObstacles,
-                                         m_tempRigidBody.getData(),
-                                         numParticles * sizeof(RigidBody<T>*),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[4]));
+            // Stream 4: BodyTag
+            cudaMemcpyAsync(bodyTag.getData() + numObstacles,
+                            m_tempBodyTag.getData(),
+                            numParticles * sizeof(uint),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[4]);
 
-            // Stream 5: BodyTag
-            cudaErrCheck(cudaMemcpyAsync(bodyTag.getData() + numObstacles,
-                                         m_tempBodyTag.getData(),
-                                         numParticles * sizeof(uint),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[5]));
+            // Stream 5: LocalPos
+            cudaMemcpyAsync(localPos.getData() + numObstacles,
+                            m_tempLocalPos.getData(),
+                            numParticles * sizeof(Vector3<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[5]);
 
-            // Stream 6: LocalPos
-            cudaErrCheck(cudaMemcpyAsync(localPos.getData() + numObstacles,
-                                         m_tempLocalPos.getData(),
-                                         numParticles * sizeof(Vector3<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[6]));
-
-            // Stream 7: LocalQuat
-            cudaErrCheck(cudaMemcpyAsync(localQuat.getData() + numObstacles,
-                                         m_tempLocalQuat.getData(),
-                                         numParticles * sizeof(Quaternion<T>),
-                                         cudaMemcpyDeviceToDevice,
-                                         m_streams[7]));
+            // Stream 6: LocalQuat
+            cudaMemcpyAsync(localQuat.getData() + numObstacles,
+                            m_tempLocalQuat.getData(),
+                            numParticles * sizeof(Quaternion<T>),
+                            cudaMemcpyDeviceToDevice,
+                            m_streams[6]);
 
             // Wait for all copy operations to complete
-            for(int i = 0; i < 8; ++i)
-                cudaErrCheck(cudaStreamSynchronize(m_streams[i]));
+            for(int i = 0; i < 7; ++i)
+                cudaStreamSynchronize(m_streams[i]);
         }
     }
     //@}

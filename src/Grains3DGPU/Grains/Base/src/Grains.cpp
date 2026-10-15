@@ -5,7 +5,6 @@
 #include "RigidBodyFactory.hh"
 #include "TimeIntegratorFactory.hh"
 #include "VectorMath.hh"
-#include <set>
 
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
@@ -38,10 +37,9 @@ void Grains<T>::initialize(DOMElement* rootElement)
     Construction(rootElement);
     Forces(rootElement);
     AdditionalFeatures(rootElement);
-    Gout(std::string(80, '=') + "\n");
-
-    // Estimate contact force parameters for each contact pair
-    runContactForceEstimates(rootElement);
+    Gout(std::string(80, '='));
+    Gout("Reading the input file completed!");
+    Gout(std::string(80, '='));
 
     // Post-processing start
     for(auto& pp : m_postProcessor)
@@ -78,54 +76,6 @@ void Grains<T>::postProcess(const std::unique_ptr<ComponentManager<T, MT>>& cm)
     // In case we get past the saveTime, we need to remove it from the queue
     if(!GP::m_tSave.empty() && SS.time > GP::m_tSave.front())
         GP::m_tSave.pop();
-}
-
-// -------------------------------------------------------------------------------------------------
-// Prints a one-line per-step diagnostic to stdout
-template <typename T>
-void Grains<T>::printStepInfo(uint stepCount, uint numPairs)
-{
-    using GP        = GrainsParameters<T>;
-    const auto& SS  = GP::m_simulationState;
-    const auto  now = std::chrono::steady_clock::now();
-
-    const double elapsedSec = std::chrono::duration<double>(now - GP::m_loopStart).count();
-    const double totalSteps = (GP::m_tEnd - GP::m_tStart) / GP::m_dt;
-    const double progress   = 100.0 * stepCount / totalSteps;
-    const double rate       = (elapsedSec > 0.0) ? stepCount / elapsedSec : 0.0;
-    const double eta        = (rate > 0.0) ? (totalSteps - stepCount) / rate : 0.0;
-
-    // Memory queries are expensive (file I/O for RSS, driver call for GPU).
-    // Throttle to at most once per second to avoid measurable per-step overhead.
-    static size_t                                cachedRssMB = 0;
-    static size_t                                cachedGpuMB = 0;
-    static std::chrono::steady_clock::time_point lastMemQuery{};
-    constexpr double                             memRefreshInterval = 1.0;  // seconds
-    if(std::chrono::duration<double>(now - lastMemQuery).count() >= memRefreshInterval)
-    {
-        cachedRssMB  = getUsedProcessMemoryKB() / 1024;
-        lastMemQuery = now;
-        if(GP::m_isGPU)
-        {
-            size_t freeGPU, totalGPU;
-            cudaMemGetInfo(&freeGPU, &totalGPU);
-            cachedGpuMB = (totalGPU - freeGPU) / (1024 * 1024);
-        }
-    }
-
-    printf("%12.5e  %12.5e  %6.1f%%  %8.1f  %8.1f  %8.1f  %5u  %7u  %7zu",
-           static_cast<double>(SS.time),
-           static_cast<double>(GP::m_tEnd),
-           progress,
-           elapsedSec,
-           eta,
-           rate,
-           SS.neighborListUpdateCount,
-           numPairs,
-           cachedRssMB);
-    if(GP::m_isGPU)
-        printf("  %7zu", cachedGpuMB);
-    printf("\n");
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -185,32 +135,19 @@ void Grains<T>::setupComponents(DOMNode* root, DOMElement* rootElement)
 
     uint offset = 0;
 
-    // Expand obstacles: one rigid body per sub-body slot (handles N-panel expanded walls)
+    // Expand obstacles (subBodiesPerTemplate = 1, numEachRef = 1 always)
+    for(uint i = 0; i < obstacleData.numTemplates; ++i)
     {
-        uint obsSlotBase = 0;
-        for(uint i = 0; i < obstacleData.numTemplates; ++i)
-        {
-            uint                 S_i  = obstacleData.subBodiesPerTemplate[i];
-            const Vector3<T>&    cObs = obstacleData.refInitialPos[i];
-            const Quaternion<T>& qObs = obstacleData.refInitialOri[i];
-            for(uint k = 0; k < S_i; ++k)
-            {
-                uint rbIdx              = obsSlotBase + k;
-                m_rigidBodyList[offset] = new RigidBody<T>(*obstacleData.refRB[rbIdx]);
-                initialBodyTags[offset] = makeStandaloneBodyTag(rbIdx);
-                // World position: composite center + panel local offset rotated to world frame
-                initialPosition[offset] = cObs + (qObs >> obstacleData.refLocalPos[rbIdx]);
-                // World orientation: composite orientation composed with panel's local rotation
-                initialOrientation[offset] = qObs * obstacleData.refLocalQuat[rbIdx];
-                initialLocalPos[offset]    = Vector3<T>(T(0), T(0), T(0));
-                initialLocalQuat[offset]   = Quaternion<T>(T(0), T(0), T(0), T(1));
-                T r                        = obstacleData.refRB[rbIdx]->getCircumscribedRadius();
-                if(r > LC.maxObstacleRadius)
-                    LC.maxObstacleRadius = r;
-                ++offset;
-            }
-            obsSlotBase += S_i;
-        }
+        m_rigidBodyList[offset]    = new RigidBody<T>(*obstacleData.refRB[i]);
+        initialBodyTags[offset]    = makeStandaloneBodyTag(i);
+        initialPosition[offset]    = obstacleData.refInitialPos[i];
+        initialOrientation[offset] = obstacleData.refInitialOri[i];
+        initialLocalPos[offset]    = Vector3<T>(T(0), T(0), T(0));
+        initialLocalQuat[offset]   = Quaternion<T>(T(0), T(0), T(0), T(1));
+        T r                        = obstacleData.refRB[i]->getCircumscribedRadius();
+        if(r > LC.maxObstacleRadius)
+            LC.maxObstacleRadius = r;
+        ++offset;
     }
 
     // Expand particles
@@ -300,19 +237,17 @@ void Grains<T>::setupComponents(DOMNode* root, DOMElement* rootElement)
     }
 
     // Construct ComponentManager. Contact forces MUST be parsed before this call.
-    m_obstacleEvents.copyFrom(obstacleData.refObstacleEvents);
-    m_components = std::make_unique<ComponentManager<T, MemType::HOST>>(
-        &m_rigidBodyList,
-        std::move(initialBodyTags),
-        std::move(initialPosition),
-        std::move(initialOrientation),
-        std::move(initialLocalPos),
-        std::move(initialLocalQuat),
-        std::move(obstacleData.refObstacleEvents),
-        numObstacles,
-        numParticles,
-        nComposites,
-        nSubBodies);
+    m_components
+        = std::make_unique<ComponentManager<T, MemType::HOST>>(&m_rigidBodyList,
+                                                               std::move(initialBodyTags),
+                                                               std::move(initialPosition),
+                                                               std::move(initialOrientation),
+                                                               std::move(initialLocalPos),
+                                                               std::move(initialLocalQuat),
+                                                               numObstacles,
+                                                               numParticles,
+                                                               nComposites,
+                                                               nSubBodies);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -370,6 +305,20 @@ void Grains<T>::Construction(DOMElement* rootElement)
         GoutWI(9, "Collision detection timings enabled!");
         GP::m_cdmTimer.enable(GP::m_isGPU);
     }
+    {
+        const std::string relTransVal
+            = ReaderXML::getNodeAttr_String(collisionDetection, "UseRelativeTransformations");
+        if(relTransVal == "true")
+        {
+            GoutWI(9, "Collision detection using relative transformations enabled!");
+            CD.useRelativeTransformations = true;
+        }
+        else if(relTransVal == "false")
+        {
+            GoutWI(9, "Collision detection using relative transformations disabled!");
+            CD.useRelativeTransformations = false;
+        }
+    }
 
     // Neighbor list
     DOMNode* nNeighborList = ReaderXML::getNode(collisionDetection, "NeighborList");
@@ -404,22 +353,14 @@ void Grains<T>::Construction(DOMElement* rootElement)
         LC.cellSizeFactor = T(ReaderXML::getNodeAttr_Double(nLinkedCell, "CellSizeFactor"));
 
         // Update and sort frequency
-        LC.updateFrequency   = ReaderXML::getNodeAttr_Int(nLinkedCell, "UpdatingFrequency");
-        LC.sortFrequency     = ReaderXML::getNodeAttr_Int(nLinkedCell, "SortingFrequency");
-        LC.noRelinkObstacles = false;
-        if(ReaderXML::hasNodeAttr(nLinkedCell, "NoRelinkObstacles"))
-        {
-            const std::string noRelink
-                = ReaderXML::getNodeAttr_String(nLinkedCell, "NoRelinkObstacles");
-            LC.noRelinkObstacles = (noRelink == "true");
-        }
+        LC.updateFrequency = ReaderXML::getNodeAttr_Int(nLinkedCell, "UpdatingFrequency");
+        LC.sortFrequency   = ReaderXML::getNodeAttr_Int(nLinkedCell, "SortingFrequency");
 
         GoutWI(9,
                "LinkedCell: " + linkedCellType + +", cell size factor "
                    + std::to_string(LC.cellSizeFactor) + ", updating frequency "
                    + std::to_string(LC.updateFrequency) + ", sorting frequency "
-                   + std::to_string(LC.sortFrequency) + ", no relink obstacles "
-                   + (LC.noRelinkObstacles ? "true" : "false") + " ...");
+                   + std::to_string(LC.sortFrequency) + " ...");
     }
     else  // BruteForce - still need basic LinkedCell params for insertion checks
     {
@@ -452,8 +393,6 @@ void Grains<T>::Construction(DOMElement* rootElement)
             CD.narrowPhaseType = NarrowPhaseType::GJK;
         else if(narrowPhaseType == "GJK_SV")
             CD.narrowPhaseType = NarrowPhaseType::GJK_SV;
-        else if(narrowPhaseType == "Sphere")
-            CD.narrowPhaseType = NarrowPhaseType::SPHERE;
         else
             GAbort("Unknown narrow phase type! Aborting Grains!");
         // GJK warm-start acceleration: "true" to enable (default: false)
@@ -607,155 +546,6 @@ void Grains<T>::AdditionalFeatures(DOMElement* rootElement)
     }
     else
         GoutWI(6, "No postprocessing writer!");
-}
-
-// -------------------------------------------------------------------------------------------------
-// Runs contact force parameter estimation for all material pairs and prints to stdout.
-template <typename T>
-__HOST__ void Grains<T>::runContactForceEstimates(DOMNode* rootElement) const
-{
-    using GP        = GrainsParameters<T>;
-    DOMNode* root   = ReaderXML::getNode(rootElement, "Simulation");
-    DOMNode* nCFEst = ReaderXML::getNode(root, "ContactForceEstimates");
-    if(!nCFEst)
-        return;  // No ContactForceEstimates node: skip this method
-
-    // Determine v0 from whichever input is provided
-    T           v0;
-    std::string v0Label;
-    DOMNode*    nVel    = ReaderXML::getNode(nCFEst, "CollisionalRelativeVelocity");
-    DOMNode*    nHeight = ReaderXML::getNode(nCFEst, "DropHeight");
-    GAssert(nVel || nHeight,
-            "ContactForceEstimates: provide either <CollisionalRelativeVelocity> "
-            "or <DropHeight>. Aborting!");
-    GAssert(!(nVel && nHeight),
-            "ContactForceEstimates: provide only one of <CollisionalRelativeVelocity> "
-            "or <DropHeight>, not both. Aborting!");
-    if(nVel)
-    {
-        v0      = T(ReaderXML::getNodeAttr_Double(nVel, "value"));
-        v0Label = "v0 = " + std::to_string(double(v0)) + " m/s  (prescribed)";
-    }
-    else
-    {
-        T h    = T(ReaderXML::getNodeAttr_Double(nHeight, "value"));
-        T gMag = norm(GP::m_gravity);
-        GAssert(gMag > T(0),
-                "ContactForceEstimates with DropHeight: gravity magnitude is zero. Aborting!");
-        v0      = sqrt(T(2) * gMag * h);
-        v0Label = "v0 = " + std::to_string(double(v0))
-                  + " m/s  (from drop height h = " + std::to_string(double(h))
-                  + " m, |g| = " + std::to_string(double(gMag)) + " m/s²)";
-    }
-
-    // m_rigidBodyList: [0, nObs) = obstacles, [nObs, nObs+nPart) = particles.
-    uint nObs = m_components->getNumberOfObstacles();
-    uint nAll = nObs + m_components->getNumberOfParticles();
-
-    // Reverse the materialMap to get matID -> name
-    std::unordered_map<uint, std::string> idToName;
-    for(auto& kv : GP::m_materialMap)
-        idToName[kv.second] = kv.first;
-
-    // Build SEPARATE representative maps: one per role (obstacle / particle).
-    // This is critical when particles and obstacles share the same material name/ID:
-    // obstacle RigidBodies have no meaningful mass, so using them for mass lookups
-    // would produce avmass=0 and NaN results.
-    std::unordered_map<uint, RigidBody<T>*> particleMatRep, obstacleMatRep;
-    for(uint i = 0; i < nObs; ++i)
-    {
-        RigidBody<T>* rb  = m_rigidBodyList[i];
-        uint          mid = rb->getMaterial();
-        if(obstacleMatRep.find(mid) == obstacleMatRep.end())
-            obstacleMatRep[mid] = rb;
-    }
-    for(uint i = nObs; i < nAll; ++i)
-    {
-        RigidBody<T>* rb  = m_rigidBodyList[i];
-        uint          mid = rb->getMaterial();
-        if(particleMatRep.find(mid) == particleMatRep.end())
-            particleMatRep[mid] = rb;
-    }
-
-    // Collect unique material IDs for each role
-    std::set<uint> particleMats, obstacleMats;
-    for(auto& kv : particleMatRep)
-        particleMats.insert(kv.first);
-    for(auto& kv : obstacleMatRep)
-        obstacleMats.insert(kv.first);
-
-    // Label helper: appends "(particle)" or "(obstacle)" when the same name appears in both
-    auto makeLabel = [&](uint mid, bool isObstacle) -> std::string {
-        const std::string& name       = idToName[mid];
-        bool               sharedName = particleMats.count(mid) && obstacleMats.count(mid);
-        if(sharedName)
-            return name + (isObstacle ? " (obstacle)" : " (particle)");
-        return name;
-    };
-
-    Gout(std::string(80, '='));
-    Gout("Contact Force Parameter Estimates");
-    Gout(std::string(80, '='));
-
-    Gout("Parameters:");
-    GoutWI(3, v0Label, "and time step dt =", GP::m_dt, "s");
-
-    // Particle-particle pairs
-    Gout("\n + Particle-Particle Pairs:");
-    for(uint matA : particleMats)
-    {
-        for(uint matB : particleMats)
-        {
-            if(matB > matA)
-                continue;  // triangular: only (matA >= matB)
-            uint idx = triangularHash(matA, matB);
-            if(idx >= m_contactForce.getSize() || m_contactForce[idx] == nullptr)
-                continue;
-            T massA  = particleMatRep[matA]->getMass();
-            T massB  = particleMatRep[matB]->getMass();
-            T crustA = particleMatRep[matA]->getCrustThickness();
-            T crustB = particleMatRep[matB]->getCrustThickness();
-            m_contactForce[idx]->computeEstimates(massA,
-                                                  massB,
-                                                  crustA,
-                                                  crustB,
-                                                  v0,
-                                                  GP::m_dt,
-                                                  makeLabel(matA, false),
-                                                  makeLabel(matB, false),
-                                                  std::cout);
-        }
-    }
-
-    // Particle-obstacle pairs
-    Gout("Particle-Obstacle Pairs:");
-    for(uint matP : particleMats)
-    {
-        for(uint matO : obstacleMats)
-        {
-            uint l   = std::max(matP, matO);
-            uint s   = std::min(matP, matO);
-            uint idx = triangularHash(l, s);
-            if(idx >= m_contactForce.getSize() || m_contactForce[idx] == nullptr)
-                continue;
-            T massP  = particleMatRep[matP]->getMass();
-            T crustP = particleMatRep[matP]->getCrustThickness();
-            T crustO = obstacleMatRep[matO]->getCrustThickness();
-            // Obstacles are fixed walls (infinite effective mass); pass 1e20 so that
-            // the reduced mass m* = mP*mO/(mP+mO) ≈ mP as expected.
-            m_contactForce[idx]->computeEstimates(massP,
-                                                  T(1e20),
-                                                  crustP,
-                                                  crustO,
-                                                  v0,
-                                                  GP::m_dt,
-                                                  makeLabel(matP, false),
-                                                  makeLabel(matO, true),
-                                                  std::cout);
-        }
-    }
-
-    Gout(std::string(80, '=') + "\n");
 }
 
 // -------------------------------------------------------------------------------------------------

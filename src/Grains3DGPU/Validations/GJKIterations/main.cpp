@@ -56,20 +56,6 @@ static Quaternion<double> randomUnitQuat(std::mt19937& rng)
 }
 
 // -------------------------------------------------------------------------------------------------
-static std::vector<double> makeLogSpace(double minValue, double maxValue, int nValues)
-{
-    std::vector<double> values(static_cast<size_t>(nValues));
-    const double        logMin = std::log10(minValue);
-    const double        logMax = std::log10(maxValue);
-
-    for(int i = 0; i < nValues; ++i)
-        values[static_cast<size_t>(i)]
-            = std::pow(10.0, logMin + (logMax - logMin) * i / (nValues - 1));
-
-    return values;
-}
-
-// -------------------------------------------------------------------------------------------------
 /** @brief Run the GJK iteration sweep for one shape pair.
 
     Shape A is kept at the origin with identity orientation.  Shape B is placed
@@ -125,14 +111,14 @@ static void runPair(const std::string&         name,
             const Transform3<double> b2a(a2w, b2w);
 
             uint         nbIter = 0u;
-            const double dist   = computeClosestPoints_GJK<double, GJKType::JOHNSON>(shapeA,
-                                                                                   shapeB,
-                                                                                   b2a,
-                                                                                   crustA,
-                                                                                   crustB,
-                                                                                   pa,
-                                                                                   pb,
-                                                                                   nbIter);
+            const double dist   = computeClosestPoints_GJK<double, GJKType::SIGNEDVOLUME>(shapeA,
+                                                                                        shapeB,
+                                                                                        b2a,
+                                                                                        crustA,
+                                                                                        crustB,
+                                                                                        pa,
+                                                                                        pb,
+                                                                                        nbIter);
 
             // Only record non-overlapping, converged configurations.
             // nbIter == 1000 indicates the iteration cap was hit (GJK did not
@@ -151,7 +137,7 @@ int main(int argc, char* argv[])
 {
     // ---- parameters ---------------------------------------------------------
     // Number of random-orientation trials per (pair, gap) combination
-    const int nTrials = (argc > 1) ? std::stoi(argv[1]) : 200;
+    const int nTrials = (argc > 1) ? std::stoi(argv[1]) : 100;
     // Random seed
     const unsigned int seed = (argc > 2) ? static_cast<unsigned int>(std::stoul(argv[2])) : 42u;
     // Output file
@@ -205,17 +191,16 @@ int main(int argc, char* argv[])
     // Reference length: rCyl (~ 0.1)
     // Gap range: [1e-4 * ref, 1e2 * ref]  => 7 decades
     const double refLen = rCyl;
-    const int    nGaps  = 210;  // ~30 samples per decade
+    const int    nGaps  = 140;  // ~20 samples per decade
     const double gapMin = 1.0e-4 * refLen;
     const double gapMax = 1.0e+2 * refLen;
+    const double logMin = std::log10(gapMin);
+    const double logMax = std::log10(gapMax);
 
-    const std::vector<double> gapValues = makeLogSpace(gapMin, gapMax, nGaps);
-
-    // Box-box needs extra near-contact coverage because many random orientations
-    // still produce comparatively large true separations at the smallest nominal
-    // gaps. Add a denser low-gap sweep and more trials for that slice.
-    const std::vector<double> boxLowGapValues = makeLogSpace(1.0e-5 * refLen, 1.0e-2 * refLen, 90);
-    const int                 boxLowGapTrials = std::max(4 * nTrials, 800);
+    std::vector<double> gapValues(static_cast<size_t>(nGaps));
+    for(int i = 0; i < nGaps; ++i)
+        gapValues[static_cast<size_t>(i)]
+            = std::pow(10.0, logMin + (logMax - logMin) * i / (nGaps - 1));
 
     // ---- output -------------------------------------------------------------
     std::ofstream out(csvPath);
@@ -259,22 +244,6 @@ int main(int argc, char* argv[])
                 nTrials,
                 rng,
                 out);
-
-        if(p.name == "box-box")
-        {
-            std::cout << "Running extra near-contact sweep for box-box ...\n";
-            runPair(p.name,
-                    *p.shapeA,
-                    *p.shapeB,
-                    p.rSumAB,
-                    p.crustA,
-                    p.crustB,
-                    boxLowGapValues,
-                    boxLowGapTrials,
-                    rng,
-                    out);
-        }
-
         out.flush();
     }
 

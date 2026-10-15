@@ -29,7 +29,7 @@
 // =================================================================================================
 
 __global__ static void
-    bench_findOrInsert_kernel(ContactMemoryView<float> view, uint2* keys, uint* out, int n)
+    bench_findOrInsert_kernel(ContactHashTableView view, uint2* keys, uint* out, int n)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= n)
@@ -124,14 +124,13 @@ private:
                        const std::vector<uint2>& preload_keys,
                        int                       capacity)
     {
-        ContactHashTable<float, MemType::HOST> table(capacity, capacity);
-        ContactMemoryView<float>               view = table.getView();
+        ContactHashTable<MemType::HOST> table(capacity);
 
         // Pre-populate table
         for(int i = 0; i < N_preload; i++)
         {
             uint idx;
-            view.findOrInsert(preload_keys[i], idx);
+            table.findOrInsert(preload_keys[i], idx);
         }
 
         // Time lookup operations
@@ -140,7 +139,7 @@ private:
         for(int i = 0; i < N; i++)
         {
             uint idx;
-            view.findOrInsert(keys[i], idx);
+            table.findOrInsert(keys[i], idx);
         }
         timer.stop();
         return timer.getElapsedMilliseconds();
@@ -160,8 +159,8 @@ private:
                                           const std::vector<uint2>& preload_keys,
                                           int                       capacity)
     {
-        ContactHashTable<float, MemType::DEVICE> devTable(capacity, capacity);
-        ContactMemoryView<float>                 view = devTable.getView();
+        ContactHashTable<MemType::DEVICE> devTable(capacity);
+        ContactHashTableView              view = devTable.getView();
 
         uint2* d_keys         = nullptr;
         uint*  d_out          = nullptr;

@@ -35,6 +35,11 @@ enum class ParticleShapeType
                               NL is already stable before timing starts.  This gives steady-state
                               narrow-phase / BV / transform cost per call.
 
+    === BV + relative-transform interaction ===
+      The OBB pre-filter (filterPairsBV) is only executed on the relative-transform path.
+      Setting BV=OBB with useRelativeTransformations=false is valid but the BV stage is a
+      no-op at runtime; bvFilterTime will be 0.
+
     === Sorting ===
       sortFrequency N > 0  :  sort triggers when neighborListUpdateCount % N == 0.
                               Since counts only increment on NL rebuild (which only happens on
@@ -61,8 +66,12 @@ struct BenchmarkScenario
     NarrowPhaseType narrowPhaseType = NarrowPhaseType::GJK;
     /** Enable warm-start (simplex-carry-over) acceleration inside GJK. */
     bool gjkAcceleration = false;
-    /** Bounding-volume pre-filter: OFF = none, OBB/OBC = oriented bounding-volume test. */
+    /** Bounding-volume pre-filter: OFF = none, OBB = oriented bounding box SAT.
+        Active only on the relative-transform path (useRelativeTransformations=true). */
     BoundingVolumeType boundingVolumeType = BoundingVolumeType::OFF;
+    /** true  = compute per-pair relative pos/quat, then run GJK in local frame
+        false = feed world-frame pos/quat directly to GJK (no pre-transform step) */
+    bool useRelativeTransformations = true;
     /** true  = pre-build ShapeData arrays (vtable-free GPU path)
         false = use Convex<T> virtual dispatch (CPU default path) */
     bool usePrebuiltShapes = false;

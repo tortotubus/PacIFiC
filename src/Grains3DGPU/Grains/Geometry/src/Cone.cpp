@@ -150,30 +150,6 @@ __HOSTDEVICE__ Vector3<T> Cone<T>::support(const Vector3<T>& v) const
 }
 
 // -------------------------------------------------------------------------------------------------
-// Eroded cone support: evaluates support of cone with shrunk dimensions
-template <typename T>
-__HOSTDEVICE__ Vector3<T> Cone<T>::support(const Vector3<T>& v, T crust) const
-{
-    T bottomRadius  = m_bottomRadius - crust;
-    T quarterHeight = m_quarterHeight - crust / T(2);
-    T h             = T(4) * quarterHeight;
-    T sinAngle      = bottomRadius / sqrt(bottomRadius * bottomRadius + h * h);
-    if(v[Y] > norm(v) * sinAngle)
-        return (Vector3<T>(T(0), T(3) * quarterHeight, T(0)));
-    else
-    {
-        T s = sqrt(v[X] * v[X] + v[Z] * v[Z]);
-        if(s > EPS<T>)
-        {
-            T d = bottomRadius / s;
-            return (Vector3<T>(v[X] * d, -quarterHeight, v[Z] * d));
-        }
-        else
-            return (Vector3<T>(T(0), -quarterHeight, T(0)));
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
 // Input operator
 template <typename T>
 __HOST__ void Cone<T>::readConvex(std::istream& fileIn)
@@ -281,54 +257,6 @@ __HOST__ void Cone<T>::writeConnection_PARAVIEW(std::list<uint>& connectivity,
     cellstype.push_back(10);
 
     firstpoint_globalnumber += visuNodeNbOnPer + 2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns cone shape parameters: [bottomRadius, height, 0, 0, 0]
-template <typename T>
-__HOSTDEVICE__ void Cone<T>::getShapeParameters(T (&params)[5]) const
-{
-    params[0] = m_bottomRadius;
-    params[1] = T(4) * m_quarterHeight;
-    params[2] = T(0);
-    params[3] = T(0);
-    params[4] = T(0);
-}
-
-// -------------------------------------------------------------------------------------------------
-// Writes the cone as a Wavefront OBJ mesh, mirroring reference Cone::write_convex_OBJ.
-// visuNodeNbOnPer = 32.
-template <typename T>
-__HOST__ void Cone<T>::writeOBJ(std::ostream& f, size_t& fp) const
-{
-    constexpr int N      = visuNodeNbOnPer;
-    const T       dtheta = TWO_PI<T> / T(N);
-
-    for(int i = 0; i < N; ++i)  // base rim [0..N-1]
-        f << "v " << m_bottomRadius * cos(T(i) * dtheta) << " " << -m_quarterHeight << " "
-          << m_bottomRadius * sin(T(i) * dtheta) << "\n";
-    f << "v " << T(0) << " " << -m_quarterHeight << " " << T(0) << "\n";        // base center [N]
-    f << "v " << T(0) << " " << T(3) * m_quarterHeight << " " << T(0) << "\n";  // apex [N+1]
-
-    const size_t Center = fp + N;
-    const size_t Tip    = fp + N + 1;
-
-    for(int i = 0; i < N - 1; ++i)
-        f << "f " << fp + i << " " << fp + i + 1 << " " << Tip << "\n";
-    f << "f " << fp + N - 1 << " " << fp << " " << Tip << "\n";
-    for(int i = 0; i < N - 1; ++i)
-        f << "f " << fp + i << " " << fp + i + 1 << " " << Center << "\n";
-    f << "f " << fp + N - 1 << " " << fp << " " << Center << "\n";
-
-    fp += N + 2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns the convex name
-template <typename T>
-__HOST__ std::string Cone<T>::getConvexName() const
-{
-    return "Cone";
 }
 
 // -------------------------------------------------------------------------------------------------

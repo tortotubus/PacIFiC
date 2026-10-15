@@ -35,6 +35,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "BoundingVolumeType": "OBB",
         "NarrowPhaseType": "GJK",
         "EnableTimings": "false",
+        "UseRelativeTransformations": "false",
         "NarrowPhaseAcceleration": "false"
     },
 
@@ -142,6 +143,7 @@ class TemplatePopulator:
         m["bounding_volume_type"] = cd.get("BoundingVolumeType", "")
         m["narrow_phase_type"] = cd.get("NarrowPhaseType", "")
         m["cd_enable_timings"] = cd.get("EnableTimings", "false")
+        m["cd_use_relative_transformations"] = cd.get("UseRelativeTransformations", "false")
         m["narrow_phase_acceleration"] = cd.get("NarrowPhaseAcceleration", "false")
 
         cfm_cfg = self.config.get("ContactForceModels", {})

@@ -9,7 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use("Agg")
-plt.rcParams.update({"text.usetex": True, "font.family": "Times New Roman"})
+plt.rcParams.update({"text.usetex": True, "font.family": "Helvetica"})
 
 # ---------------------------------------------------------------------------
 # Physical parameters (must match the YAML)
@@ -104,8 +104,8 @@ def plot_trajectory(results_root: str, plots_root: str) -> None:
     ax.grid(color="lightgrey", linestyle="--", linewidth=0.5)
 
     os.makedirs(plots_root, exist_ok=True)
-    out = os.path.join(plots_root, "SpringWallTrajectory.pdf")
-    plt.savefig(out, format="pdf", bbox_inches="tight")
+    out = os.path.join(plots_root, "SpringWallTrajectory.eps")
+    plt.savefig(out, format="eps", bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote: {out}")
 
@@ -159,8 +159,8 @@ def plot_convergence(results_root: str, plots_root: str) -> None:
     ax.grid(True, which="both", color="lightgrey", ls="--", linewidth=0.5)
 
     os.makedirs(plots_root, exist_ok=True)
-    out = os.path.join(plots_root, "SpringWallConvergence.pdf")
-    plt.savefig(out, format="pdf", bbox_inches="tight")
+    out = os.path.join(plots_root, "SpringWallConvergence.eps")
+    plt.savefig(out, format="eps", bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote: {out}")
 
@@ -180,7 +180,7 @@ def main() -> None:
     parser.add_argument(
         "--plot-dir",
         default="./plots/springWall",
-        help="Directory for output .pdf plot files",
+        help="Directory for output .eps plot files",
     )
     args = parser.parse_args()
 

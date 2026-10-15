@@ -67,7 +67,7 @@ __HOSTDEVICE__ static INLINE bool valid(const uint s, const uint all_bits, const
         {
             if(s & bit)
             {
-                if(det[s][i] <= T(0))
+                if(det[s][i] < HIGHEPS<T>)
                     return (false);
             }
             else if(det[s | bit][i] > T(0))
@@ -167,7 +167,7 @@ template <typename T>
 __HOSTDEVICE__ static INLINE bool proper(const uint s, const T det[16][4])
 {
     for(uint i = 0, bit = 1; i < 4; ++i, bit <<= 1)
-        if((s & bit) && det[s][i] <= T(0))
+        if((s & bit) && det[s][i] < HIGHEPS<T>)
             return (false);
     return (true);
 }
@@ -252,10 +252,25 @@ __HOSTDEVICE__ static INLINE bool
 __HOSTDEVICE__
 void catch_me()
 {
-    printf("closestPointsGJK: Exceeding MAXITERS iterations.\n");
+    printf("closestPointsGJK: Exceeding 1000 iterations.\n");
 }
 
 // -------------------------------------------------------------------------------------------------
+/** @brief Fast reciprocal square root: single hardware instruction on GPU
+    (rsqrtf / rsqrt), standard 1/sqrt on CPU.
+    @param x  value to invert-sqrt; undefined for x < 0 */
+template <typename T>
+__HOSTDEVICE__ static INLINE T inverseSqrt(T x)
+{
+#ifdef __CUDA_ARCH__
+    if constexpr(std::is_same_v<T, float>)
+        return rsqrtf(x);
+    else
+        return rsqrt(x);
+#else
+    return T(1) / sqrt(x);
+#endif
+}
 
 /* ============================================================================================== */
 /* Signed Volume Low-Level Methods                                                                */
@@ -292,27 +307,9 @@ __HOSTDEVICE__ static INLINE void s1d(const Vector3<T> (&y)[4], uint& bits, T (&
     }
 
     // Calculate the signed volume of the simplex.
-    Vector3<T> t  = y[i2] - y[i1];
-    T          t2 = norm2(t);
-
-    // Guard: if the two points are nearly coincident, keep the closest one
-    if(t2 < HIGHEPS<T>)
-    {
-        if(norm2(y[i1]) <= norm2(y[i2]))
-        {
-            bits &= ~(1 << i2);
-            lambdas[i1] = T(1);
-        }
-        else
-        {
-            bits &= ~(1 << i1);
-            lambdas[i2] = T(1);
-        }
-        return;
-    }
-
-    uint I      = 0;
-    T    neg_tI = -t[0];
+    Vector3<T> t      = y[i2] - y[i1];
+    uint       I      = 0;
+    T          neg_tI = -t[0];
 
     if(fabs(t[1]) > fabs(neg_tI))
     {
@@ -326,7 +323,7 @@ __HOSTDEVICE__ static INLINE void s1d(const Vector3<T> (&y)[4], uint& bits, T (&
         neg_tI = -t[2];
     }
 
-    T pI = (y[i2] * t) / t2 * neg_tI + y[i2][I];
+    T pI = (y[i2] * t) / norm2(t) * neg_tI + y[i2][I];
 
     // Identify the signed volume resulting from replacing each point by the
     // origin.
@@ -376,66 +373,57 @@ __HOSTDEVICE__ static INLINE void s2d(const Vector3<T> (&y)[4], uint& bits, T (&
     }
 
     Vector3<T> n  = (y[point1_idx] - y[point0_idx]) ^ (y[point2_idx] - y[point0_idx]);
-    T          n2 = norm2(n);
+    Vector3<T> p0 = (y[point0_idx] * n / norm2(n)) * n;
 
-    // Cofactors and sign comparisons -- default: all zero/false so that the
-    // edge-testing fallback is used when the triangle is degenerate (collinear)
+    // Choose maximum area plane to project onto.
+    // Make sure to store the *signed* area of the plane.
+    // This loop is unrolled to save a few extra ops (assigning
+    // an initial area of zero, an extra abs, etc)
+    uint idx_x  = 1;
+    uint idx_y  = 2;
+    T    mu_max = (y[point1_idx][1] * y[point2_idx][2] + y[point0_idx][1] * y[point1_idx][2]
+                + y[point2_idx][1] * y[point0_idx][2] - y[point1_idx][1] * y[point0_idx][2]
+                - y[point2_idx][1] * y[point1_idx][2] - y[point0_idx][1] * y[point2_idx][2]);
+
+    // This term is multiplied by -1.
+    T mu = (y[point1_idx][2] * y[point0_idx][0] + y[point2_idx][2] * y[point1_idx][0]
+            + y[point0_idx][2] * y[point2_idx][0] - y[point1_idx][2] * y[point2_idx][0]
+            - y[point0_idx][2] * y[point1_idx][0] - y[point2_idx][2] * y[point0_idx][0]);
+    if(fabs(mu) > fabs(mu_max))
+    {
+        mu_max = mu;
+        idx_x  = 0;
+    }
+
+    mu = (y[point1_idx][0] * y[point2_idx][1] + y[point0_idx][0] * y[point1_idx][1]
+          + y[point2_idx][0] * y[point0_idx][1] - y[point1_idx][0] * y[point0_idx][1]
+          - y[point2_idx][0] * y[point1_idx][1] - y[point0_idx][0] * y[point2_idx][1]);
+    if(fabs(mu) > fabs(mu_max))
+    {
+        mu_max = mu;
+        idx_x  = 0;
+        idx_y  = 1;
+    }
+
+    // Compute the signed areas of each of the simplices formed by replacing an
+    // index with a projection of the origin onto the area in this plane
     T    C[3]                = {T(0)};
-    T    mu_max              = T(0);
     bool sign_comparisons[3] = {false};
 
-    // Guard: triangle must be non-degenerate for a valid origin projection
-    if(n2 > HIGHEPS<T>)
-    {
-        Vector3<T> p0 = (y[point0_idx] * n / n2) * n;
+    C[0]                = (p0[idx_x] * y[point1_idx][idx_y] + p0[idx_y] * y[point2_idx][idx_x]
+            + y[point1_idx][idx_x] * y[point2_idx][idx_y] - p0[idx_x] * y[point2_idx][idx_y]
+            - p0[idx_y] * y[point1_idx][idx_x] - y[point2_idx][idx_x] * y[point1_idx][idx_y]);
+    sign_comparisons[0] = compareSigns(mu_max, C[0]);
 
-        // Choose maximum area plane to project onto.
-        // Make sure to store the *signed* area of the plane.
-        // This loop is unrolled to save a few extra ops (assigning
-        // an initial area of zero, an extra abs, etc)
-        uint idx_x = 1;
-        uint idx_y = 2;
-        mu_max     = (y[point1_idx][1] * y[point2_idx][2] + y[point0_idx][1] * y[point1_idx][2]
-                  + y[point2_idx][1] * y[point0_idx][2] - y[point1_idx][1] * y[point0_idx][2]
-                  - y[point2_idx][1] * y[point1_idx][2] - y[point0_idx][1] * y[point2_idx][2]);
+    C[1]                = (p0[idx_x] * y[point2_idx][idx_y] + p0[idx_y] * y[point0_idx][idx_x]
+            + y[point2_idx][idx_x] * y[point0_idx][idx_y] - p0[idx_x] * y[point0_idx][idx_y]
+            - p0[idx_y] * y[point2_idx][idx_x] - y[point0_idx][idx_x] * y[point2_idx][idx_y]);
+    sign_comparisons[1] = compareSigns(mu_max, C[1]);
 
-        // This term is multiplied by -1.
-        T mu = (y[point1_idx][2] * y[point0_idx][0] + y[point2_idx][2] * y[point1_idx][0]
-                + y[point0_idx][2] * y[point2_idx][0] - y[point1_idx][2] * y[point2_idx][0]
-                - y[point0_idx][2] * y[point1_idx][0] - y[point2_idx][2] * y[point0_idx][0]);
-        if(fabs(mu) > fabs(mu_max))
-        {
-            mu_max = mu;
-            idx_x  = 0;
-        }
-
-        mu = (y[point1_idx][0] * y[point2_idx][1] + y[point0_idx][0] * y[point1_idx][1]
-              + y[point2_idx][0] * y[point0_idx][1] - y[point1_idx][0] * y[point0_idx][1]
-              - y[point2_idx][0] * y[point1_idx][1] - y[point0_idx][0] * y[point2_idx][1]);
-        if(fabs(mu) > fabs(mu_max))
-        {
-            mu_max = mu;
-            idx_x  = 0;
-            idx_y  = 1;
-        }
-
-        // Compute the signed areas of each of the simplices formed by replacing an
-        // index with a projection of the origin onto the area in this plane
-        C[0]                = (p0[idx_x] * y[point1_idx][idx_y] + p0[idx_y] * y[point2_idx][idx_x]
-                + y[point1_idx][idx_x] * y[point2_idx][idx_y] - p0[idx_x] * y[point2_idx][idx_y]
-                - p0[idx_y] * y[point1_idx][idx_x] - y[point2_idx][idx_x] * y[point1_idx][idx_y]);
-        sign_comparisons[0] = compareSigns(mu_max, C[0]);
-
-        C[1]                = (p0[idx_x] * y[point2_idx][idx_y] + p0[idx_y] * y[point0_idx][idx_x]
-                + y[point2_idx][idx_x] * y[point0_idx][idx_y] - p0[idx_x] * y[point0_idx][idx_y]
-                - p0[idx_y] * y[point2_idx][idx_x] - y[point0_idx][idx_x] * y[point2_idx][idx_y]);
-        sign_comparisons[1] = compareSigns(mu_max, C[1]);
-
-        C[2]                = (p0[idx_x] * y[point0_idx][idx_y] + p0[idx_y] * y[point1_idx][idx_x]
-                + y[point0_idx][idx_x] * y[point1_idx][idx_y] - p0[idx_x] * y[point1_idx][idx_y]
-                - p0[idx_y] * y[point0_idx][idx_x] - y[point1_idx][idx_x] * y[point0_idx][idx_y]);
-        sign_comparisons[2] = compareSigns(mu_max, C[2]);
-    }
+    C[2]                = (p0[idx_x] * y[point0_idx][idx_y] + p0[idx_y] * y[point1_idx][idx_x]
+            + y[point0_idx][idx_x] * y[point1_idx][idx_y] - p0[idx_x] * y[point1_idx][idx_y]
+            - p0[idx_y] * y[point0_idx][idx_x] - y[point1_idx][idx_x] * y[point0_idx][idx_y]);
+    sign_comparisons[2] = compareSigns(mu_max, C[2]);
 
     if(sign_comparisons[0] + sign_comparisons[1] + sign_comparisons[2] == 3)
     {
@@ -514,16 +502,11 @@ __HOSTDEVICE__ static INLINE void s3d(const Vector3<T> (&y)[4], uint& bits, T (&
            - y[0][0] * y[2][1] * y[1][2];
     T dM = C[0] + C[1] + C[2] + C[3];
 
-    // Guard: if the determinant is near-zero (coplanar points), skip sign
-    // checks so the face-testing fallback handles the degenerate tetrahedron
     uint sign_comparisons[4] = {0};
-    if(fabs(dM) > HIGHEPS<T>)
-    {
-        sign_comparisons[0] = compareSigns(dM, C[0]);
-        sign_comparisons[1] = compareSigns(dM, C[1]);
-        sign_comparisons[2] = compareSigns(dM, C[2]);
-        sign_comparisons[3] = compareSigns(dM, C[3]);
-    }
+    sign_comparisons[0]      = compareSigns(dM, C[0]);
+    sign_comparisons[1]      = compareSigns(dM, C[1]);
+    sign_comparisons[2]      = compareSigns(dM, C[2]);
+    sign_comparisons[3]      = compareSigns(dM, C[3]);
 
     if((sign_comparisons[0] + sign_comparisons[1] + sign_comparisons[2] + sign_comparisons[3]) == 4)
     {
@@ -798,7 +781,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
     // Constants
     constexpr T    relError = EPS<T>;               // relative tolerance
     constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr uint MAXITERS = 1000;
 
     // Johnson-specific variables
     uint       bits     = 0;            // identifies current simplex
@@ -836,8 +819,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
 
         // Support points (eroded by crust in local frame, reusing local dir)
         const Vector3<T> vB = v * b2a.getBasis();
-        p[last]             = a.support(-v, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(-v, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         w                   = p[last] - b2a(q[last]);
 
         // termination criteria -- optimality gap
@@ -861,15 +844,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -888,7 +869,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     // Constants
     constexpr T    relError = EPS<T>;               // relative tolerance
     constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr uint MAXITERS = 1000;                 // Maximum iterations
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -899,9 +880,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -928,8 +908,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
         // Support points (eroded by crust in local frame, reusing local dir)
         const Vector3<T> vB = v * b2a.getBasis();
-        p[last]             = a.support(-v, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(-v, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         w                   = p[last] - b2a(q[last]);
 
         // termination criteria -- optimality gap
@@ -938,13 +918,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -955,9 +934,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -973,9 +954,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const Convex<T>&     a,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {
@@ -1015,9 +995,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
                                                   uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // Johnson-specific variables
     uint bits     = 0;  // identifies current simplex
@@ -1044,7 +1023,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         last     = 0;
@@ -1058,8 +1037,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vA = (-v) * a2w.getBasis();
         const Vector3<T> vB = v * b2w.getBasis();
-        p[last]             = a.support(vA, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(vA, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         w                   = a2w(p[last]) - b2w(q[last]);
 
         // termination criteria -- optimality gap
@@ -1083,15 +1062,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1109,9 +1086,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
                                                        uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -1122,9 +1098,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -1136,7 +1111,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         for(uint new_index = 0; new_index < 4; ++new_index)
@@ -1152,8 +1127,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vA = (-v) * a2w.getBasis();
         const Vector3<T> vB = v * b2w.getBasis();
-        p[last]             = a.support(vA, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(vA, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         w                   = a2w(p[last]) - b2w(q[last]);
 
         // termination criteria -- optimality gap
@@ -1162,13 +1137,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -1179,9 +1153,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1198,9 +1174,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const Convex<T>&     a,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {
@@ -1242,9 +1217,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
                                                   uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // Johnson-specific variables
     uint bits     = 0;  // identifies current simplex
@@ -1271,7 +1245,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         last     = 0;
@@ -1284,8 +1258,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
 
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vB = q_b2a << v;
-        p[last]             = a.support(-v, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(-v, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_b2a, q_b2a, w);
 
         // termination criteria -- optimality gap
@@ -1309,15 +1283,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1335,9 +1307,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
                                                        uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -1348,9 +1319,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -1362,7 +1332,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         for(uint new_index = 0; new_index < 4; ++new_index)
@@ -1377,8 +1347,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vB = q_b2a << v;
-        p[last]             = a.support(-v, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(-v, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_b2a, q_b2a, w);
 
         // termination criteria -- optimality gap
@@ -1387,13 +1357,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -1404,9 +1373,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1423,9 +1394,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const Convex<T>&     a,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {
@@ -1469,9 +1439,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
                                                   uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // Johnson-specific variables
     uint bits     = 0;  // identifies current simplex
@@ -1498,7 +1467,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         last     = 0;
@@ -1512,8 +1481,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vA = q_a2w << (-v);
         const Vector3<T> vB = q_b2w << v;
-        p[last]             = a.support(vA, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(vA, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_a2w, v_b2w, q_a2w, q_b2w, w);
 
         // termination criteria -- optimality gap
@@ -1537,15 +1506,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const Convex<T>&     a,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1565,9 +1532,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
                                                        uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -1578,9 +1544,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -1592,7 +1557,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         for(uint new_index = 0; new_index < 4; ++new_index)
@@ -1608,8 +1573,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
         // Support points (eroded by crust in local frame, reusing local dirs)
         const Vector3<T> vA = q_a2w << (-v);
         const Vector3<T> vB = q_b2w << v;
-        p[last]             = a.support(vA, crustA);
-        q[last]             = b.support(vB, crustB);
+        p[last]             = a.support(vA, crustA, invDist);
+        q[last]             = b.support(vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_a2w, v_b2w, q_a2w, q_b2w, w);
 
         // termination criteria -- optimality gap
@@ -1618,13 +1583,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -1635,9 +1599,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const Convex<T>&     a,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1656,9 +1622,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const Convex<T>&     a,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {
@@ -1704,9 +1669,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
                                                   uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // Johnson-specific variables
     uint bits     = 0;  // identifies current simplex
@@ -1733,7 +1697,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         last     = 0;
@@ -1746,8 +1710,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
 
         // Support points (vtable-free via ShapeData)
         const Vector3<T> vB = q_b2a << v;
-        p[last]             = device_support(sdA, -v, crustA);
-        q[last]             = device_support(sdB, vB, crustB);
+        p[last]             = device_support(sdA, -v, crustA, invDist);
+        q[last]             = device_support(sdB, vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_b2a, q_b2a, w);
 
         // termination criteria -- optimality gap
@@ -1771,15 +1735,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1797,9 +1759,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
                                                        uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -1810,9 +1771,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -1824,7 +1784,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         for(uint new_index = 0; new_index < 4; ++new_index)
@@ -1839,8 +1799,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
 
         // Support points (vtable-free via ShapeData)
         const Vector3<T> vB = q_b2a << v;
-        p[last]             = device_support(sdA, -v, crustA);
-        q[last]             = device_support(sdB, vB, crustB);
+        p[last]             = device_support(sdA, -v, crustA, invDist);
+        q[last]             = device_support(sdB, vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_b2a, q_b2a, w);
 
         // termination criteria -- optimality gap
@@ -1849,13 +1809,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -1866,9 +1825,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -1885,9 +1846,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const ShapeData<T>&  sdA,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {
@@ -1931,9 +1891,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
                                                   uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // Johnson-specific variables
     uint bits     = 0;  // identifies current simplex
@@ -1960,7 +1919,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         last     = 0;
@@ -1974,8 +1933,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
         // Support points (vtable-free via ShapeData)
         const Vector3<T> vA = q_a2w << (-v);
         const Vector3<T> vB = q_b2w << v;
-        p[last]             = device_support(sdA, vA, crustA);
-        q[last]             = device_support(sdB, vB, crustB);
+        p[last]             = device_support(sdA, vA, crustA, invDist);
+        q[last]             = device_support(sdB, vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_a2w, v_b2w, q_a2w, q_b2w, w);
 
         // termination criteria -- optimality gap
@@ -1999,15 +1958,13 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_Johnson(const ShapeData<T>&  sdA,
         dist    = dist2 * invDist;
     }
 
-    dist2   = norm2(v);
-    invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
-    dist    = dist2 * invDist;
-
     computePoints<T>(bits, p, q, det, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -2027,9 +1984,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
                                                        uint&                nbIter)
 {
     // Constants
-    constexpr T    relError = EPS<T>;               // relative tolerance
-    constexpr T    absError = T(1.e-4 * relError);  // absolute tolerance
-    constexpr uint MAXITERS = 100;                  // Maximum iterations
+    constexpr T relError = EPS<T>;               // relative tolerance
+    constexpr T absError = T(1.e-4 * relError);  // absolute tolerance
 
     // SignedVolume-specific variables
     uint bits = 0;  // identifies current simplex
@@ -2040,9 +1996,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
     Vector3<T> y[4];                 // support points of A-B in world
     T          lambdas[4] = {T(0)};  // Weights
 
-    T    mu            = T(0);  // optimality gap
-    int  numIterations = 0;     // No. iterations
-    uint used_ever     = 0;     // tracks all y[] slots ever populated
+    T   mu            = T(0);  // optimality gap
+    int numIterations = 0;     // No. iterations
 
     // Acceleration-specific variables
     T momentum = T(0);  // Only used if Acceleration is true
@@ -2054,7 +2009,7 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
     T          invDist = (dist2 > T(0)) ? inverseSqrt(dist2) : T(0);
     T          dist    = dist2 * invDist;
 
-    while(bits < 15 && dist > HIGHEPS<T> && numIterations < MAXITERS)
+    while(bits < 15 && dist > HIGHEPS<T> && numIterations < 1000)
     {
         // Updating the bits
         for(uint new_index = 0; new_index < 4; ++new_index)
@@ -2070,8 +2025,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
         // Support points (vtable-free via ShapeData)
         const Vector3<T> vA = q_a2w << (-v);
         const Vector3<T> vB = q_b2w << v;
-        p[last]             = device_support(sdA, vA, crustA);
-        q[last]             = device_support(sdB, vB, crustB);
+        p[last]             = device_support(sdA, vA, crustA, invDist);
+        q[last]             = device_support(sdB, vB, crustB, invDist);
         FusedMinkowskiDifference(p[last], q[last], v_a2w, v_b2w, q_a2w, q_b2w, w);
 
         // termination criteria -- optimality gap
@@ -2080,13 +2035,12 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
             break;
 
         // termination criteria -- degenerate case
-        if(degenerate(used_ever, y, w))
+        if(degenerate(bits, y, w))
             break;
 
         // if not terminated, get ready for the next iteration
         y[last] = w;
         bits |= (1 << last);
-        used_ever |= (1 << last);
         sv_subalgorithm(y, bits, lambdas, v);
 
         ++numIterations;
@@ -2097,9 +2051,11 @@ __HOSTDEVICE__ T computeClosestPoints_GJK_SignedVolume(const ShapeData<T>&  sdA,
 
     computePoints<T>(bits, p, q, lambdas, pa, pb);
 
-    if(numIterations >= MAXITERS)
+    if(numIterations >= 1000)
         catch_me();
-    nbIter = numIterations;
+    else
+        nbIter = numIterations;
+
     return (dist);
 }
 
@@ -2118,9 +2074,8 @@ __HOSTDEVICE__ T computeClosestPoints_GJK(const ShapeData<T>&  sdA,
                                           Vector3<T>&          pb,
                                           uint&                nbIter)
 {
-    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME
-                      || GJKType == GJKType::SPHERE,
-                  "GJKType must be Johnson, SignedVolume, or Sphere");
+    static_assert(GJKType == GJKType::JOHNSON || GJKType == GJKType::SIGNEDVOLUME,
+                  "GJKType must be either Johnson or SignedVolume");
 
     if constexpr(GJKType == GJKType::JOHNSON)
     {

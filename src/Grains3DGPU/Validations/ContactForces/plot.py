@@ -10,8 +10,8 @@ import numpy as np
 matplotlib.use("Agg")
 plt.rcParams.update({
     "text.usetex": True,
-    "font.family": "Times New Roman",
-    "font.size": 14,
+    "font.family": "Helvetica",
+    "font.size": 16,
 })
 
 SPEEDUP_COLOR = 'tab:blue'
@@ -66,13 +66,13 @@ def plot_benchmarks(csv_file='data/contact_table_bench.csv', output_file='data/c
         base, ext = os.path.splitext(output_file)
         out_file = f"{base}_LF{lf}{ext}"
         fig.tight_layout()
-        plt.savefig(out_file, format='pdf', bbox_inches='tight')
+        plt.savefig(out_file, format='eps', bbox_inches='tight')
         plt.close(fig)
         print(f"Plot saved to: {out_file}")
 
 if __name__ == '__main__':
     import sys
     csv_file = sys.argv[1] if len(sys.argv) > 1 else 'data/contact_table_bench.csv'
-    output_file = sys.argv[2] if len(sys.argv) > 2 else 'data/contact_table_bench.pdf'
+    output_file = sys.argv[2] if len(sys.argv) > 2 else 'data/contact_table_bench.eps'
 
     plot_benchmarks(csv_file, output_file)

@@ -3,8 +3,10 @@
 
 set -e
 
-EXECUTABLE="./build/GJKPerformanceTest"
-CSV_FILE="data/collision_benchmark_comprehensive.csv"
+PYTHON=$PACIFIC_VENV_PY_ABS
+EXECUTABLE="CDBenchmark"
+DATADIR="${PACIFIC_BUILDDIR_ABS}/Grains3DGPU/Validations/CollectionDetection/data"
+CSV_FILE="${DATADIR}/collision_benchmark_comprehensive.csv"
 TRIALS=3
 SEED=42
 
@@ -20,7 +22,7 @@ SQ4_X=$(echo "scale=10; $r / 2" | bc -l)
 SQ4_Y=$(echo "scale=10; $r / 2" | bc -l)
 SQ4_Z=$(echo "scale=10; 4 * $r" | bc -l)
 
-mkdir -p data
+mkdir -p ${DATADIR}
 rm -f "$CSV_FILE"
 
 echo "================================================================================"

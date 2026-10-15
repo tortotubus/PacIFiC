@@ -362,15 +362,6 @@ __HOSTDEVICE__ Vector3<T> Quaternion<T>::multToVector3(const Quaternion<T>& q) c
 }
 
 // -------------------------------------------------------------------------------------------------
-// Atomically add quaternion components to this quaternion
-template <typename T>
-__DEVICE__ void Quaternion<T>::atomicAdd(const Quaternion<T>& other) noexcept
-{
-    m_vqt.atomicAdd(other.m_vqt);
-    ::atomicAdd(&m_w, other.m_w);
-}
-
-// -------------------------------------------------------------------------------------------------
 // ith-component accessor: (0,1,2) for the vector components and 3 forthe scalar
 template <typename T>
 __HOSTDEVICE__ T Quaternion<T>::operator[](size_t i) const noexcept

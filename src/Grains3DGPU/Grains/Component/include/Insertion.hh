@@ -21,8 +21,6 @@ enum InsertionType
     FILEINSERTION,
     /** @brief Constant insertion, i.e., all values are set to a constant */
     CONSTANTINSERTION,
-    /** @brief Array insertion, i.e., placed on a regular 3D grid */
-    ARRAYINSERTION,
     /** @brief Default insertion, i.e., all values are zero */
     DEFAULTINSERTION
 };
@@ -36,57 +34,12 @@ enum InsertionMode
     OVERTIME
 };
 
-/** @brief Layout used for array insertion coordinates */
-enum ArrayInsertionLayout
-{
-    /** @brief Cartesian grid generated from DX/DY/DZ and NX/NY/NZ */
-    ARRAY_LAYOUT_RECTANGULAR,
-    /** @brief Cylindrical grid generated from DR/DT/DH and NR/NT/NH */
-    ARRAY_LAYOUT_CYLINDRICAL
-};
-//@}
-
-/** @name Structs */
-//@{
-/** @brief Struct to hold the parameters for array insertion */
-template <typename T>
-struct ArrayInsertionData
-{
-    /** @brief Starting corner of the 3D grid */
-    Vector3<T> origin;
-    /** @brief Grid spacing in X, Y, Z */
-    Vector3<T> spacing;
-    /** @brief Local insertion frame X direction in world coordinates */
-    Vector3<T> basisX;
-    /** @brief Local insertion frame Y direction in world coordinates */
-    Vector3<T> basisY;
-    /** @brief Local insertion frame Z direction in world coordinates */
-    Vector3<T> basisZ;
-    /** @brief Number of grid points in X */
-    uint nx;
-    /** @brief Number of grid points in Y */
-    uint ny;
-    /** @brief Number of grid points in Z */
-    uint nz;
-    /** @brief Coordinate layout for this array insertion */
-    ArrayInsertionLayout layout;
-    /** @brief Total number of generated insertion slots */
-    uint totalSlots;
-    /** @brief Flat index of the next grid point to return */
-    uint idx;
-    /** @brief Radial (cylindrical) or linear (rectangular) growth per height layer.
-        When positive, each layer gains floor(ih*DA/DR) extra rings or floor(iz*DA/DX|DY)
-        extra columns/rows. Zero means standard layout with no expansion. */
-    T slopeDA;
-};
-
 /** @brief info required for comping up with an insertion position. It can be either a value (T)
     that is used as the seed for random generator algorithm, a string (std::string) that is used as
-    the pathToFile, a 3d vector (vector3<T>) for constant values, an ArrayInsertionData<T> for
-    regular 3D grid insertion, and a value (0) in case the default insertion option is desired. */
+    the pathToFile, a 3d vector (vector3<T>) for constant values, and a value (0) in case the
+    default insertion option is desired. */
 template <typename T>
-using InsertionInfo = std::
-    variant<std::vector<InsertionWindow<T>>, std::ifstream, Vector3<T>, ArrayInsertionData<T>>;
+using InsertionInfo = std::variant<std::vector<InsertionWindow<T>>, std::ifstream, Vector3<T>>;
 //@}
 
 // =================================================================================================

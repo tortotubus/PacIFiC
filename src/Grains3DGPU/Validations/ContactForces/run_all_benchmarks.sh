@@ -3,12 +3,15 @@
 
 set -e
 
-EXECUTABLE="./build/ContactTablePerformance"
-CSV_FILE="data/contact_table_bench.csv"
+PYTHON=$PACIFIC_VENV_PY_ABS
+EXECUTABLE="ContactForces"
+DATADIR="${PACIFIC_BUILDDIR_ABS}/Grains3DGPU/Validations/ContactForces/data"
+CSV_FILE="${DATADIR}/contact_table_bench.csv"
+
 TRIALS=3
 SEED=42
 
-mkdir -p data
+mkdir -p ${DATADIR}
 rm -f "$CSV_FILE"
 
 echo "================================================================================"

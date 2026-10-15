@@ -127,42 +127,14 @@ __HOSTDEVICE__ Vector3<T> Cylinder<T>::support(const Vector3<T>& v) const
         T s = sqrt(v[X] * v[X] + v[Z] * v[Z]);
         if(s > EPS<T>)
         {
-            T d  = m_radius / s;
-            T hy = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -m_halfHeight : m_halfHeight);
-            return (Vector3<T>(v[X] * d, hy, v[Z] * d));
+            T d = m_radius / s;
+            if(fabs(v[Y]) < EPS<T>)
+                return (Vector3<T>(v[X] * d, T(0), v[Z] * d));
+            else
+                return (Vector3<T>(v[X] * d, v[Y] < T(0) ? -m_halfHeight : m_halfHeight, v[Z] * d));
         }
         else
-        {
-            T hy = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -m_halfHeight : m_halfHeight);
-            return (Vector3<T>(T(0), hy, T(0)));
-        }
-    }
-    else
-        return (Vector3<T>());
-}
-
-// -------------------------------------------------------------------------------------------------
-// Eroded cylinder support: evaluates support of cylinder with shrunk dimensions
-template <typename T>
-__HOSTDEVICE__ Vector3<T> Cylinder<T>::support(const Vector3<T>& v, T crust) const
-{
-    T radius     = m_radius - crust;
-    T halfHeight = m_halfHeight - crust;
-    T nrm        = sqrt(v[X] * v[X] + v[Y] * v[Y] + v[Z] * v[Z]);
-    if(nrm > EPS<T>)
-    {
-        T s = sqrt(v[X] * v[X] + v[Z] * v[Z]);
-        if(s > EPS<T>)
-        {
-            T d  = radius / s;
-            T hy = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
-            return (Vector3<T>(v[X] * d, hy, v[Z] * d));
-        }
-        else
-        {
-            T hy = fabs(v[Y]) < EPS<T> ? T(0) : (v[Y] < T(0) ? -halfHeight : halfHeight);
-            return (Vector3<T>(T(0), hy, T(0)));
-        }
+            return (Vector3<T>(T(0), v[Y] < T(0) ? -m_halfHeight : m_halfHeight, T(0)));
     }
     else
         return (Vector3<T>());
@@ -288,61 +260,6 @@ __HOST__ void Cylinder<T>::writeConnection_PARAVIEW(std::list<uint>& connectivit
     cellstype.push_back(13);
 
     firstpoint_globalnumber += 2 * visuNodeNbOnPer + 2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns cylinder shape parameters: [radius, height, 0, 0, 0]
-template <typename T>
-__HOSTDEVICE__ void Cylinder<T>::getShapeParameters(T (&params)[5]) const
-{
-    params[0] = m_radius;
-    params[1] = T(2) * m_halfHeight;
-    params[2] = T(0);
-    params[3] = T(0);
-    params[4] = T(0);
-}
-
-// -------------------------------------------------------------------------------------------------
-// Writes the cylinder as a Wavefront OBJ mesh, mirroring reference Cylinder::write_convex_OBJ.
-// visuNodeNbOnPer = 32.
-template <typename T>
-__HOST__ void Cylinder<T>::writeOBJ(std::ostream& f, size_t& fp) const
-{
-    constexpr int N      = visuNodeNbOnPer;
-    const T       dtheta = TWO_PI<T> / T(N);
-
-    for(int i = 0; i < N; ++i)  // lower rim [0..N-1]
-        f << "v " << m_radius * cos(T(i) * dtheta) << " " << -m_halfHeight << " "
-          << m_radius * sin(T(i) * dtheta) << "\n";
-    for(int i = 0; i < N; ++i)  // upper rim [N..2N-1]
-        f << "v " << m_radius * cos(T(i) * dtheta) << " " << +m_halfHeight << " "
-          << m_radius * sin(T(i) * dtheta) << "\n";
-    f << "v " << T(0) << " " << -m_halfHeight << " " << T(0) << "\n";  // lower center [2N]
-    f << "v " << T(0) << " " << +m_halfHeight << " " << T(0) << "\n";  // upper center [2N+1]
-
-    const size_t LowCtr = fp + 2 * N;
-    const size_t UpCtr  = fp + 2 * N + 1;
-
-    for(int i = 0; i < N - 1; ++i)
-        f << "f " << fp + i << " " << fp + i + 1 << " " << fp + i + N + 1 << " " << fp + i + N
-          << "\n";
-    f << "f " << fp + N - 1 << " " << fp << " " << fp + N << " " << fp + 2 * N - 1 << "\n";
-    for(int i = 0; i < N - 1; ++i)
-        f << "f " << fp + i << " " << fp + i + 1 << " " << LowCtr << "\n";
-    f << "f " << fp + N - 1 << " " << fp << " " << LowCtr << "\n";
-    for(int i = 0; i < N - 1; ++i)
-        f << "f " << fp + i + N << " " << fp + i + 1 + N << " " << UpCtr << "\n";
-    f << "f " << fp + 2 * N - 1 << " " << fp + N << " " << UpCtr << "\n";
-
-    fp += 2 * N + 2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns the convex name
-template <typename T>
-__HOST__ std::string Cylinder<T>::getConvexName() const
-{
-    return "Cylinder";
 }
 
 // -------------------------------------------------------------------------------------------------

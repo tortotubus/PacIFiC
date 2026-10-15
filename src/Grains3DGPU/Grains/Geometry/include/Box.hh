@@ -107,10 +107,6 @@ public:
         @param v direction */
     __HOSTDEVICE__
     Vector3<T> support(const Vector3<T>& v) const final;
-
-    /** @brief Eroded box support: evaluates support of box with extents shrunk by crust */
-    __HOSTDEVICE__
-    Vector3<T> support(const Vector3<T>& v, T crust) const final;
     //@}
 
     /** @name I/O methods */
@@ -152,18 +148,6 @@ public:
                                   std::list<uint>& cellstype,
                                   uint&            firstpoint_globalnumber,
                                   uint&            last_offset) const final;
-
-    /** @brief Returns box shape parameters: [Lx, Ly, Lz, 0, 0] */
-    __HOSTDEVICE__
-    void getShapeParameters(T (&params)[5]) const final;
-
-    /** @brief Returns "Box" */
-    __HOST__
-    std::string getConvexName() const final;
-
-    /** @brief Writes the box as an OBJ mesh (see Convex::writeOBJ) */
-    __HOST__
-    void writeOBJ(std::ostream& f, size_t& firstpoint_number) const final;
     //@}
 };
 

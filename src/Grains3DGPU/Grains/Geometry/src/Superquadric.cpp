@@ -204,43 +204,6 @@ __HOSTDEVICE__ Vector3<T> Superquadric<T>::support(const Vector3<T>& v) const
 }
 
 // -------------------------------------------------------------------------------------------------
-// Eroded superquadric support: evaluates support with shrunk scale parameters
-template <typename T>
-__HOSTDEVICE__ Vector3<T> Superquadric<T>::support(const Vector3<T>& v, T crust) const
-{
-    T const a     = m_a - crust;
-    T const b     = m_b - crust;
-    T const c     = m_c - crust;
-    T const abvx  = fabs(v[X]);
-    T const abvy  = fabs(v[Y]);
-    T const abvz  = fabs(v[Z]);
-    T const signx = sgn(v[X]);
-    T const signy = sgn(v[Y]);
-    T const signz = sgn(v[Z]);
-
-    if(abvx == T(0))
-    {
-        if(abvy == T(0))
-            return (Vector3<T>(T(0), T(0), signz * c));
-        else
-        {
-            T const alpha = pow(c / b * abvz / abvy, T(1) / (m_n1 - T(1)));
-            T const yt    = T(1) / pow(T(1) + pow(alpha, m_n1), T(1) / m_n1);
-            return (Vector3<T>(T(0), signy * b * yt, signz * alpha * c * yt));
-        }
-    }
-    else
-    {
-        T const alpha = pow(b / a * abvy / abvx, T(1) / (m_n2 - T(1)));
-        T const temp  = T(1) + pow(alpha, m_n2);
-        T const gamma = pow(temp, (m_n1 - m_n2) / (m_n2 * (m_n1 - T(1))));
-        T const beta  = gamma * pow(c / a * abvz / abvx, T(1) / (m_n1 - T(1)));
-        T const xt    = T(1) / pow(pow(temp, m_n1 / m_n2) + pow(beta, m_n1), T(1) / m_n1);
-        return (Vector3<T>(signx * a * xt, signy * alpha * b * xt, signz * beta * c * xt));
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
 // Input operator
 template <typename T>
 __HOST__ void Superquadric<T>::readConvex(std::istream& fileIn)
@@ -457,80 +420,6 @@ __HOST__ void Superquadric<T>::writeConnection_PARAVIEW(std::list<uint>& connect
     cellstype.push_back(10);
 
     firstpoint_globalnumber += visuNodeNbOnPer * (visuNodeNbOnPer - 1) + 3;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns superquadric shape parameters: [a, b, c, n1, n2]
-template <typename T>
-__HOSTDEVICE__ void Superquadric<T>::getShapeParameters(T (&params)[5]) const
-{
-    params[0] = m_a;
-    params[1] = m_b;
-    params[2] = m_c;
-    params[3] = m_n1;
-    params[4] = m_n2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Writes the superquadric as a Wavefront OBJ mesh, mirroring reference
-// Superquadric::write_convex_OBJ. visuNodeNbOnPer = 16.
-template <typename T>
-__HOST__ void Superquadric<T>::writeOBJ(std::ostream& f, size_t& fp) const
-{
-    constexpr int N    = visuNodeNbOnPer;
-    constexpr int nR   = N - 1;
-    constexpr int ppl  = N;
-    const T       eps1 = T(2) / m_n1;
-    const T       eps2 = T(2) / m_n2;
-    const T       dth  = PI<T> / T(N);
-    const T       dph  = TWO_PI<T> / T(N);
-
-    auto spow = [](T base, T exp) -> T {
-        if(base == T(0))
-            return T(0);
-        return (base < T(0)) ? -pow(-base, exp) : pow(base, exp);
-    };
-
-    for(int i = 1; i < N; ++i)
-    {
-        const T cost = cos(T(i) * dth), sint = sin(T(i) * dth);
-        const T ce1 = spow(cost, eps1);
-        const T se1 = pow(std::abs(sint), eps1);
-        for(int j = 0; j < N; ++j)
-            f << "v " << m_a * se1 * spow(cos(T(j) * dph), eps2) << " "
-              << m_b * se1 * spow(sin(T(j) * dph), eps2) << " " << m_c * ce1 << "\n";
-    }
-    f << "v " << T(0) << " " << T(0) << " " << -m_c << "\n";  // bottom pole [ppl*nR]
-    f << "v " << T(0) << " " << T(0) << " " << +m_c << "\n";  // top pole    [ppl*nR+1]
-
-    const size_t Bot = fp + ppl * nR;
-    const size_t Top = fp + ppl * nR + 1;
-
-    for(int k = 0; k < nR - 1; ++k)
-    {
-        for(int i = 0; i < ppl - 1; ++i)
-            f << "f " << fp + k * ppl + i << " " << fp + k * ppl + i + 1 << " "
-              << fp + (k + 1) * ppl + i + 1 << " " << fp + (k + 1) * ppl + i << "\n";
-        f << "f " << fp + k * ppl + ppl - 1 << " " << fp + k * ppl << " " << fp + (k + 1) * ppl
-          << " " << fp + (k + 1) * ppl + ppl - 1 << "\n";
-    }
-    for(int i = 0; i < ppl - 1; ++i)
-        f << "f " << fp + i << " " << fp + i + 1 << " " << Top << "\n";
-    f << "f " << fp + ppl - 1 << " " << fp << " " << Top << "\n";
-    for(int i = 0; i < ppl - 1; ++i)
-        f << "f " << fp + (nR - 1) * ppl + i << " " << fp + (nR - 1) * ppl + i + 1 << " " << Bot
-          << "\n";
-    f << "f " << fp + nR * ppl - 1 << " " << fp + (nR - 1) * ppl << " " << Bot << "\n";
-
-    fp += ppl * nR + 2;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Returns the convex name
-template <typename T>
-__HOST__ std::string Superquadric<T>::getConvexName() const
-{
-    return "Superquadric";
 }
 
 // -------------------------------------------------------------------------------------------------

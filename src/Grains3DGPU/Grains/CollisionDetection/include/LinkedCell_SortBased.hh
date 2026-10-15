@@ -41,8 +41,6 @@ protected:
     //@{
     /** \brief Packed uint64 buffer: upper 32 bits = cellID, lower 32 bits = particleID */
     GrainsMemBuffer<uint64_t, MemType::DEVICE> m_cellParticleIDs;
-    /** \brief Auxiliary output buffer for non-aliased CUB radix sort */
-    GrainsMemBuffer<uint64_t, MemType::DEVICE> m_cellParticleIDsAux;
     /** \brief Buffer to store cell prefix sums (start indices for each cell) */
     GrainsMemBuffer<uint, MemType::DEVICE> m_cellPrefixSums;
     /** \brief Pre-allocated workspace for CUB sort operations */
@@ -82,14 +80,13 @@ public:
         : LinkedCell<T, MemType::DEVICE>(
               rb, positions, quaternions, linkedCellParameters, nObstacles, nParticles)
         , m_cellParticleIDs(nParticles)
-        , m_cellParticleIDsAux(nParticles)
         , m_cellPrefixSums(m_numCells)
     {
         // Pre-allocate CUB sort workspace
         cudaErrCheck(cub::DeviceRadixSort::SortKeys(m_cubSortTempStorage,
                                                     m_cubSortTempStorageBytes,
                                                     m_cellParticleIDs.getData(),
-                                                    m_cellParticleIDsAux.getData(),
+                                                    m_cellParticleIDs.getData(),
                                                     m_numParticles));
         cudaErrCheck(cudaMalloc(&m_cubSortTempStorage, m_cubSortTempStorageBytes));
 
@@ -185,7 +182,7 @@ public:
             cudaEventRecord(m_resizeComplete, 0);
 
             // Resize buffers with appropriate streams
-            m_neighborCells.reserve(size_t(m_numCells) * 27, m_stream0);
+            m_neighborCells.reserve(m_numCells * 27, m_stream0);
             m_cellPrefixSums.reserve(m_numCells, m_stream2);
 
             // Copy old positions on stream1 (independent)
@@ -260,9 +257,8 @@ public:
         cudaErrCheck(cub::DeviceRadixSort::SortKeys(m_cubSortTempStorage,
                                                     m_cubSortTempStorageBytes,
                                                     m_cellParticleIDs.getData(),
-                                                    m_cellParticleIDsAux.getData(),
+                                                    m_cellParticleIDs.getData(),
                                                     m_numParticles));
-        std::swap(m_cellParticleIDs, m_cellParticleIDsAux);
         // Compute cell start indices from sorted packed keys
         uint numBlocks, numThreads;
         computeOptimalThreadsAndBlocks(m_numParticles,

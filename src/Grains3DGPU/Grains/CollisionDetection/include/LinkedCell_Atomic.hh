@@ -203,7 +203,7 @@ public:
             cudaEventRecord(m_resizeComplete, 0);
 
             // Resize buffers with appropriate streams
-            m_neighborCells.reserve(size_t(m_numCells) * 27, m_stream1);
+            m_neighborCells.reserve(m_numCells * 27, m_stream1);
             m_numParticlesPerCell.reserve(m_numCells, m_stream2);
             m_cellPrefixSums.reserve(m_numCells, m_stream2);
             m_cellCounters.reserve(m_numCells, m_stream2);

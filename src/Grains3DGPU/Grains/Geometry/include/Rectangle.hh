@@ -99,10 +99,6 @@ public:
     __HOSTDEVICE__
     Vector3<T> support(const Vector3<T>& v) const final;
 
-    /** @brief Eroded rectangle support: evaluates support with shrunk dimensions */
-    __HOSTDEVICE__
-    Vector3<T> support(const Vector3<T>& v, T crust) const final;
-
     /** @brief Returns whether point p lies in the rectangle
         @param p point */
     __HOSTDEVICE__
@@ -149,18 +145,6 @@ public:
                                   std::list<uint>& cellstype,
                                   uint&            firstpoint_globalnumber,
                                   uint&            last_offset) const final;
-
-    /** @brief Returns rectangle shape parameters: [Lx, Ly, 0, 0, 0] */
-    __HOSTDEVICE__
-    void getShapeParameters(T (&params)[5]) const final;
-
-    /** @brief Returns "Rectangle" */
-    __HOST__
-    std::string getConvexName() const final;
-
-    /** @brief Rectangle has no volumetric OBJ mesh; does nothing */
-    __HOST__
-    void writeOBJ(std::ostream&, size_t&) const final;
     //@}
 };
 

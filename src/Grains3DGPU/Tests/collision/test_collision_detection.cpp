@@ -3,11 +3,8 @@
 
 #include "Box.hh"
 #include "CollisionDetection.hh"
-#include "ContactInfo.hh"
-#include "GJK.hh"
 #include "Quaternion.hh"
 #include "RigidBody.hh"
-#include "Sphere.hh"
 #include "Vector3.hh"
 
 class CollisionDetectionTest : public ::testing::Test

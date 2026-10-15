@@ -4,7 +4,6 @@
 #include <tuple>
 
 #include "ContactInfo.hh"
-#include "Drum.hh"
 #include "GJK.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
@@ -15,8 +14,6 @@
 #include "Rectangle.hh"
 #include "RigidBody.hh"
 #include "Transform3.hh"
-#include "Trapezoid.hh"
-#include "Triangle.hh"
 
 // =================================================================================================
 /** @brief The header-only file for Rigid bodies collision detections.
@@ -27,15 +24,6 @@
 // =================================================================================================
 /** @name CollisionDetection Low-Level Methods */
 //@{
-template <typename T>
-struct PanelGeometry
-{
-    T halfWidthBottom;
-    T halfWidthTop;
-    T halfHeight;
-};
-
-// -------------------------------------------------------------------------------------------------
 /** @brief Helper that extracts commonly-used rigid-body properties for contact handling.
     @param rbA first rigid body
     @param rbB second rigid body */
@@ -112,230 +100,7 @@ __HOSTDEVICE__ static INLINE bool
     T dist2    = norm2(v_b2a);
     return (dist2 < radiiSum * radiiSum);
 }
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE T clampSymmetric(T value, T limit)
-{
-    return value > limit ? limit : (value < -limit ? -limit : value);
-}
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE void computeDrumContactLocal(
-    const Vector3<T>& cB, T radius, T halfHeight, Vector3<T>& ptA, Vector3<T>& normal)
-{
-    const T radial = sqrt(cB[X] * cB[X] + cB[Z] * cB[Z]);
-    if(radial > LOWEPS<T>)
-    {
-        const T invRadial = T(1) / radial;
-        ptA[X]            = radius * cB[X] * invRadial;
-        ptA[Z]            = radius * cB[Z] * invRadial;
-    }
-    else
-    {
-        ptA[X] = radius;
-        ptA[Z] = T(0);
-    }
-    ptA[Y] = clampSymmetric(cB[Y], halfHeight);
-
-    Vector3<T> d    = cB - ptA;
-    const T    dist = norm(d);
-    if(dist > LOWEPS<T>)
-    {
-        normal = d / dist;
-        return;
-    }
-
-    if(radial > LOWEPS<T>)
-    {
-        const T invRadial = T(1) / radial;
-        const T sign      = radial >= radius ? T(1) : T(-1);
-        normal            = Vector3<T>(sign * cB[X] * invRadial, T(0), sign * cB[Z] * invRadial);
-        return;
-    }
-
-    normal = Vector3<T>(T(-1), T(0), T(0));
-}
-
-// -------------------------------------------------------------------------------------------------
-__HOSTDEVICE__ static INLINE bool isPanelType(ConvexType type)
-{
-    return type == ConvexType::RECTANGLE || type == ConvexType::TRAPEZOID
-           || type == ConvexType::TRIANGLE || type == ConvexType::DRUM;
-}
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE PanelGeometry<T> getPanelGeometry(const Convex<T>& convex)
-{
-    if(convex.getConvexType() == ConvexType::RECTANGLE)
-    {
-        const Vector3<T> bbox = convex.computeBoundingBox();
-        return {bbox[X], bbox[X], bbox[Y]};
-    }
-    if(convex.getConvexType() == ConvexType::TRAPEZOID)
-    {
-        const auto& trap = static_cast<const Trapezoid<T>&>(convex);
-        return {trap.getHalfWidthBottom(), trap.getHalfWidthTop(), trap.getHalfHeight()};
-    }
-    if(convex.getConvexType() == ConvexType::TRIANGLE)
-    {
-        const auto& tri = static_cast<const Triangle<T>&>(convex);
-        return {tri.getHalfBase(), T(0), tri.getHalfHeight()};
-    }
-    return {T(0), T(0), T(0)};
-}
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE PanelGeometry<T> getPanelGeometry(const ShapeData<T>& shapeData)
-{
-    if(shapeData.type == ConvexType::RECTANGLE)
-        return {shapeData.params[0], shapeData.params[0], shapeData.params[1]};
-    if(shapeData.type == ConvexType::TRAPEZOID)
-        return {shapeData.params[0], shapeData.params[1], shapeData.params[2]};
-    if(shapeData.type == ConvexType::TRIANGLE)
-        return {shapeData.params[0], T(0), shapeData.params[1]};
-    return {T(0), T(0), T(0)};
-}
-
-// -------------------------------------------------------------------------------------------------
-/** @brief Computes the closest point on a trapezoid panel surface to the particle center cB
-    (all in the panel's body-local frame) and the outward normal from the surface toward the
-    particle.
-    Body-frame convention: trapezoid lies in XY plane (Z=0); bottom edge (halfWidthBottom) at
-    y = -halfHeight, top edge (halfWidthTop) at y = +halfHeight.
-    @param cB             particle center in panel-local frame
-    @param halfWidthBottom half-width at y = -halfHeight
-    @param halfWidthTop    half-width at y = +halfHeight
-    @param halfHeight      half-height of the panel
-    @param ptA        output: closest point on the panel surface
-    @param normal     output: unit normal from ptA toward cB */
-template <typename T>
-__HOSTDEVICE__ static INLINE void computeTrapezoidContactLocal(const Vector3<T>& cB,
-                                                               T                 halfWidthBottom,
-                                                               T                 halfWidthTop,
-                                                               T                 halfHeight,
-                                                               Vector3<T>&       ptA,
-                                                               Vector3<T>&       normal)
-{
-    // Clamp y to panel height
-    const T cy = cB[Y] > halfHeight ? halfHeight : (cB[Y] < -halfHeight ? -halfHeight : cB[Y]);
-    // Interpolate half-width at clamped y
-    const T t  = (cy + halfHeight) / (T(2) * halfHeight);
-    const T hw = halfWidthBottom + (halfWidthTop - halfWidthBottom) * t;
-    // Clamp x to interpolated half-width
-    const T cx = cB[X] > hw ? hw : (cB[X] < -hw ? -hw : cB[X]);
-
-    ptA[X] = cx;
-    ptA[Y] = cy;
-    ptA[Z] = T(0);
-
-    // Normal: from panel's closest point toward particle center
-    Vector3<T> d    = cB - ptA;
-    const T    dist = norm(d);
-    if(dist > LOWEPS<T>)
-    {
-        normal = d / dist;
-        return;
-    }
-
-    // Degenerate: particle centre is exactly on the panel surface; use face normal
-    normal = cB[Z] >= T(0) ? Vector3<T>(T(0), T(0), T(1)) : Vector3<T>(T(0), T(0), T(-1));
-}
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE void computePanelContactLocal(const Vector3<T>& cB,
-                                                           const Convex<T>&  convex,
-                                                           Vector3<T>&       ptA,
-                                                           Vector3<T>&       normal)
-{
-    if(convex.getConvexType() == ConvexType::DRUM)
-    {
-        const auto& drum = static_cast<const Drum<T>&>(convex);
-        computeDrumContactLocal(cB, drum.getRadius(), drum.getHeight() / T(2), ptA, normal);
-        return;
-    }
-
-    const auto geometry = getPanelGeometry(convex);
-    computeTrapezoidContactLocal(cB,
-                                 geometry.halfWidthBottom,
-                                 geometry.halfWidthTop,
-                                 geometry.halfHeight,
-                                 ptA,
-                                 normal);
-}
-
-// -------------------------------------------------------------------------------------------------
-template <typename T>
-__HOSTDEVICE__ static INLINE void computePanelContactLocal(const Vector3<T>&   cB,
-                                                           const ShapeData<T>& shapeData,
-                                                           Vector3<T>&         ptA,
-                                                           Vector3<T>&         normal)
-{
-    if(shapeData.type == ConvexType::DRUM)
-    {
-        computeDrumContactLocal(cB, shapeData.params[0], shapeData.params[1], ptA, normal);
-        return;
-    }
-
-    const auto geometry = getPanelGeometry(shapeData);
-    computeTrapezoidContactLocal(cB,
-                                 geometry.halfWidthBottom,
-                                 geometry.halfWidthTop,
-                                 geometry.halfHeight,
-                                 ptA,
-                                 normal);
-}
 //@}
-
-// -------------------------------------------------------------------------------------------------
-/** @brief Fills the contact-overlap fields of snapshot for the flat-panel case.
-    Sets overlapDistance = normal · (ptB − ptA); fills contactPoint and contactVector
-    only if overlapDistance < T(0) (actual contact).
-    @param ptA closest point on panel A (world frame)
-    @param ptB closest point on convex B (world frame)
-    @param normal outward unit normal of panel A (world frame)
-    @param snapshot snapshot to fill */
-template <typename T>
-__HOSTDEVICE__ static INLINE void
-    fillPanelContactSnapshot(const Vector3<T>&                  ptA,
-                             const Vector3<T>&                  ptB,
-                             const Vector3<T>&                  normal,
-                             typename ContactInfo<T>::Snapshot& snapshot)
-{
-    Vector3<T> n = normal;
-    round(n);
-    snapshot.overlapDistance = n * (ptB - ptA);
-    snapshot.contactPoint    = T(0.5) * (ptA + ptB);
-    snapshot.contactVector   = n;
-}
-
-// -------------------------------------------------------------------------------------------------
-/** @brief Fills the contact-overlap fields of snapshot for the GJK case.
-    Subtracts crustA + crustB from snapshot.overlapDistance (which must hold the raw
-    GJK separation distance at call time), then fills contactPoint and contactVector.
-    @param ptA world-frame witness point on body A
-    @param ptB world-frame witness point on body B
-    @param crustA crust thickness of body A
-    @param crustB crust thickness of body B
-    @param snapshot snapshot to update */
-template <typename T>
-__HOSTDEVICE__ static INLINE void
-    fillGJKContactSnapshot(const Vector3<T>&                  ptA,
-                           const Vector3<T>&                  ptB,
-                           const T                            crustA,
-                           const T                            crustB,
-                           typename ContactInfo<T>::Snapshot& snapshot)
-{
-    snapshot.overlapDistance -= crustA + crustB;
-    snapshot.contactPoint = T(0.5) * (ptA + ptB);
-    Vector3<T> d          = (ptB - ptA).normalized();
-    round(d);
-    snapshot.contactVector = d;
-}
 
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
@@ -489,20 +254,31 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
         snapshot.contactPoint    = (rA + T(.5) * snapshot.overlapDistance) * snapshot.contactVector;
         snapshot.contactVector.normalize();
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        Vector3<T> ptA, ptB, normal;
-        computePanelContactLocal(b2a.getOrigin(), convexA, ptA, normal);
-        ptB = (b2a)(convexB.support((-normal) * b2a.getBasis()));
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        // ptA is the point on rectangle and ptB is the point on particle
+        Vector3<T>       ptA, ptB;
+        const Vector3<T> r = b2a.getOrigin()[Z] > 0 ? Vector3<T>(0, 0, -1) : Vector3<T>(0, 0, 1);
+        ptB                = (b2a)(convexB.support(r * b2a.getBasis()));
+        if(ptB[Z] < T(0))
+        {
+            ptA = Vector3<T>(ptB[X], ptB[Y], T(0));
+            if(convexA.isInside(ptA))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         Vector3<T> ptA, ptB;
         uint       nbIterGJK     = 0;
@@ -514,45 +290,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            // GJK degenerate (deep overlap): retry with inflated crust (factor 10, min 50%
-            // of shape size) to recover a contact direction, then impose nominal overlap.
-            const Vector3<T> bboxA       = convexA.computeBoundingBox();
-            const Vector3<T> bboxB       = convexB.computeBoundingBox();
-            const T          inscribedRA = min(min(bboxA[X], bboxA[Y]), bboxA[Z]);
-            const T          inscribedRB = min(min(bboxB[X], bboxB[Y]), bboxB[Z]);
-            const T          retryCA     = min(T(10) * crustA, inscribedRA);
-            const T          retryCB     = min(T(10) * crustB, inscribedRB);
-            Vector3<T>       rptA, rptB;
-            uint             rIter     = 0;
-            T                retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
-                                                                          convexB,
-                                                                          b2a,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                rptB                   = (b2a)(rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = b2a.getOrigin().normalized();
-                snapshot.contactPoint  = T(0.5) * b2a.getOrigin();
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            // ptA = (a2a)(ptA);
-            ptB = (b2a)(ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        // ptA = (a2a)(ptA);
+        ptB                    = (b2a)(ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information
@@ -664,25 +409,35 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
             snapshot.contactVector = d_hat;
         }
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        const Vector3<T>& vA       = a2w.getOrigin();
-        const Matrix3<T>& mA       = a2w.getBasis();
-        const Vector3<T>  cB_local = inverse(mA) * (b2w.getOrigin() - vA);
-        Vector3<T>        ptA_local, normal_local;
-        computePanelContactLocal(cB_local, convexA, ptA_local, normal_local);
-        const Vector3<T> normal = mA * normal_local;
-        ptA                     = vA + mA * ptA_local;
-        ptB                     = (b2w)(convexB.support((-normal) * b2w.getBasis()));
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        // ptA is the point on rectangle and ptB is the point on particle
+        const Vector3<T>& c = a2w.getOrigin();
+        const Matrix3<T>& m = a2w.getBasis();
+        // rectangle normal is a2w.getBasis() * [0, 0, 1] which is the last column of the transform
+        Vector3<T> r(m(XZ), m(YZ), m(ZZ));
+        r.normalize();
+        r *= copysign(T(1), r * (b2w.getOrigin() - c));
+        ptB = (b2w)(convexB.support((-r) * b2w.getBasis()));
+        if(r * (ptB - c) < T(0))
+        {
+            ptA = ((c - ptB) * r) * r + ptB;
+            if(convexA.isInside(inverse(m) * (ptA - c)))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         uint nbIterGJK           = 0;
         snapshot.overlapDistance = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
@@ -694,45 +449,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const Vector3<T> bboxA       = convexA.computeBoundingBox();
-            const Vector3<T> bboxB       = convexB.computeBoundingBox();
-            const T          inscribedRA = min(min(bboxA[X], bboxA[Y]), bboxA[Z]);
-            const T          inscribedRB = min(min(bboxB[X], bboxB[Y]), bboxB[Z]);
-            const T          retryCA     = min(T(10) * crustA, inscribedRA);
-            const T          retryCB     = min(T(10) * crustB, inscribedRB);
-            Vector3<T>       rptA, rptB;
-            uint             rIter     = 0;
-            T                retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
-                                                                          convexB,
-                                                                          a2w,
-                                                                          b2w,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                rptA                   = (a2w)(rptA);
-                rptB                   = (b2w)(rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = (b2w.getOrigin() - a2w.getOrigin()).normalized();
-                snapshot.contactPoint  = T(0.5) * (a2w.getOrigin() + b2w.getOrigin());
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            ptA = (a2w)(ptA);
-            ptB = (b2w)(ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        ptA                    = (a2w)(ptA);
+        ptB                    = (b2w)(ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information
@@ -807,21 +531,32 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
         snapshot.contactPoint    = (rA + T(.5) * snapshot.overlapDistance) * snapshot.contactVector;
         snapshot.contactVector.normalize();
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        Vector3<T> ptA, ptB, normal;
-        computePanelContactLocal(v_b2a, convexA, ptA, normal);
-        ptB = convexB.support(q_b2a << (-normal));
+        // ptA is the point on rectangle and ptB is the point on particle
+        Vector3<T>       ptA, ptB;
+        const Vector3<T> r = v_b2a[Z] > 0 ? Vector3<T>(0, 0, -1) : Vector3<T>(0, 0, 1);
+        ptB                = convexB.support(q_b2a << r);
         transform(q_b2a, v_b2a, ptB);
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        if(ptB[Z] < T(0))
+        {
+            ptA = Vector3<T>(ptB[X], ptB[Y], T(0));
+            if(convexA.isInside(ptA))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         Vector3<T> ptA, ptB;
         uint       nbIterGJK     = 0;
@@ -834,44 +569,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const Vector3<T> bboxA       = convexA.computeBoundingBox();
-            const Vector3<T> bboxB       = convexB.computeBoundingBox();
-            const T          inscribedRA = min(min(bboxA[X], bboxA[Y]), bboxA[Z]);
-            const T          inscribedRB = min(min(bboxB[X], bboxB[Y]), bboxB[Z]);
-            const T          retryCA     = min(T(10) * crustA, inscribedRA);
-            const T          retryCB     = min(T(10) * crustB, inscribedRB);
-            Vector3<T>       rptA, rptB;
-            uint             rIter     = 0;
-            T                retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
-                                                                          convexB,
-                                                                          v_b2a,
-                                                                          q_b2a,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_b2a, v_b2a, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = v_b2a.normalized();
-                snapshot.contactPoint  = T(0.5) * v_b2a;
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            // transform(q_a2a, v_a2a, ptA);
-            transform(q_b2a, v_b2a, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        // transform(q_a2a, v_a2a, ptA);
+        transform(q_b2a, v_b2a, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information
@@ -991,23 +696,32 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
             snapshot.contactVector = d_hat;
         }
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        const Vector3<T> cB_local = q_a2w << (v_b2w - v_a2w);
-        Vector3<T>       ptA_local, normal_local;
-        computePanelContactLocal(cB_local, convexA, ptA_local, normal_local);
-        const Vector3<T> normal = q_a2w >> normal_local;
-        ptA                     = v_a2w + (q_a2w >> ptA_local);
-        ptB                     = (q_b2w >> convexB.support(q_b2w << (-normal))) + v_b2w;
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        // ptA is the point on rectangle and ptB is the point on particle
+        Vector3<T> r = q_a2w >> Vector3<T>(0, 0, 1);
+        r.normalize();
+        r *= copysign(T(1), r * (v_b2w - v_a2w));
+        ptB = (q_b2w >> convexB.support(q_b2w << (-r))) + v_b2w;
+        if(r * (ptB - v_a2w) < T(0))
+        {
+            ptA = ((v_a2w - ptB) * r) * r + ptB;
+            if(convexA.isInside(q_a2w << (ptA - v_a2w)))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         uint nbIterGJK           = 0;
         snapshot.overlapDistance = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
@@ -1021,47 +735,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const Vector3<T> bboxA       = convexA.computeBoundingBox();
-            const Vector3<T> bboxB       = convexB.computeBoundingBox();
-            const T          inscribedRA = min(min(bboxA[X], bboxA[Y]), bboxA[Z]);
-            const T          inscribedRB = min(min(bboxB[X], bboxB[Y]), bboxB[Z]);
-            const T          retryCA     = min(T(10) * crustA, inscribedRA);
-            const T          retryCB     = min(T(10) * crustB, inscribedRB);
-            Vector3<T>       rptA, rptB;
-            uint             rIter     = 0;
-            T                retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(convexA,
-                                                                          convexB,
-                                                                          v_a2w,
-                                                                          v_b2w,
-                                                                          q_a2w,
-                                                                          q_b2w,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_a2w, v_a2w, rptA);
-                transform(q_b2w, v_b2w, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = (v_b2w - v_a2w).normalized();
-                snapshot.contactPoint  = T(0.5) * (v_a2w + v_b2w);
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            transform(q_a2w, v_a2w, ptA);
-            transform(q_b2w, v_b2w, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        transform(q_a2w, v_a2w, ptA);
+        transform(q_b2w, v_b2w, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information
@@ -1138,21 +819,32 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const ShapeData<T>&  sdA,
             = (circRadiusA + T(.5) * snapshot.overlapDistance) * snapshot.contactVector;
         snapshot.contactVector.normalize();
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case (vtable-free via device_support_raw + params[] bounds check)
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        Vector3<T> ptA, ptB, normal;
-        computePanelContactLocal(v_b2a, sdA, ptA, normal);
-        ptB = device_support_raw(sdB, q_b2a << (-normal));
+        Vector3<T>       ptA, ptB;
+        const Vector3<T> r = v_b2a[Z] > 0 ? Vector3<T>(0, 0, -1) : Vector3<T>(0, 0, 1);
+        ptB                = device_support_raw(sdB, q_b2a << r);
         transform(q_b2a, v_b2a, ptB);
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        if(ptB[Z] < T(0))
+        {
+            ptA = Vector3<T>(ptB[X], ptB[Y], T(0));
+            if(ptA[X] >= -sdA.params[0] && ptA[X] <= sdA.params[0] && ptA[Y] >= -sdA.params[1]
+               && ptA[Y] <= sdA.params[1])
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case: vtable-free GJK via ShapeData
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         Vector3<T> ptA, ptB;
         uint       nbIterGJK     = 0;
@@ -1165,39 +857,13 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const ShapeData<T>&  sdA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const T    retryCA = min(T(10) * crustA, sdA.inscribedRadius);
-            const T    retryCB = min(T(10) * crustB, sdB.inscribedRadius);
-            Vector3<T> rptA, rptB;
-            uint       rIter     = 0;
-            T          retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
-                                                                          sdB,
-                                                                          v_b2a,
-                                                                          q_b2a,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_b2a, v_b2a, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = v_b2a.normalized();
-                snapshot.contactPoint  = T(0.5) * v_b2a;
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            transform(q_b2a, v_b2a, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        transform(q_b2a, v_b2a, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     contactInfo.setSnapshot(snapshot);
@@ -1278,21 +944,32 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
         snapshot.contactPoint    = (rA + T(.5) * snapshot.overlapDistance) * snapshot.contactVector;
         snapshot.contactVector.normalize();
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case (falls through to virtual supporting convex)
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        Vector3<T> ptA, ptB, normal;
-        computePanelContactLocal(v_b2a, convexA, ptA, normal);
-        ptB = convexB.support(q_b2a << (-normal));
+        // ptA is the point on rectangle and ptB is the point on particle
+        Vector3<T>       ptA, ptB;
+        const Vector3<T> r = v_b2a[Z] > 0 ? Vector3<T>(0, 0, -1) : Vector3<T>(0, 0, 1);
+        ptB                = convexB.support(q_b2a << r);
         transform(q_b2a, v_b2a, ptB);
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        if(ptB[Z] < T(0))
+        {
+            ptA = Vector3<T>(ptB[X], ptB[Y], T(0));
+            if(convexA.isInside(ptA))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case: vtable-free via ShapeData
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         Vector3<T> ptA, ptB;
         uint       nbIterGJK     = 0;
@@ -1305,40 +982,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const T    retryCA = min(T(10) * crustA, sdA.inscribedRadius);
-            const T    retryCB = min(T(10) * crustB, sdB.inscribedRadius);
-            Vector3<T> rptA, rptB;
-            uint       rIter     = 0;
-            T          retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
-                                                                          sdB,
-                                                                          v_b2a,
-                                                                          q_b2a,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_b2a, v_b2a, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = v_b2a.normalized();
-                snapshot.contactPoint  = T(0.5) * v_b2a;
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            // transform(q_a2a, v_a2a, ptA);
-            transform(q_b2a, v_b2a, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        // transform(q_a2a, v_a2a, ptA);
+        transform(q_b2a, v_b2a, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information
@@ -1390,23 +1041,33 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const ShapeData<T>&  sdA,
             snapshot.contactVector = d_hat;
         }
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case (vtable-free via device_support_raw + params[] bounds check)
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        const Vector3<T> cB_local = q_a2w << (v_b2w - v_a2w);
-        Vector3<T>       ptA_local, normal_local;
-        computePanelContactLocal(cB_local, sdA, ptA_local, normal_local);
-        const Vector3<T> normal = q_a2w >> normal_local;
-        ptA                     = v_a2w + (q_a2w >> ptA_local);
-        ptB                     = (q_b2w >> device_support_raw(sdB, q_b2w << (-normal))) + v_b2w;
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        Vector3<T> r = q_a2w >> Vector3<T>(0, 0, 1);
+        r.normalize();
+        r *= copysign(T(1), r * (v_b2w - v_a2w));
+        ptB = (q_b2w >> device_support_raw(sdB, q_b2w << (-r))) + v_b2w;
+        if(r * (ptB - v_a2w) < T(0))
+        {
+            ptA                  = ((v_a2w - ptB) * r) * r + ptB;
+            const Vector3<T> loc = q_a2w << (ptA - v_a2w);
+            if(loc[X] >= -sdA.params[0] && loc[X] <= sdA.params[0] && loc[Y] >= -sdA.params[1]
+               && loc[Y] <= sdA.params[1])
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case: vtable-free GJK via ShapeData
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         uint nbIterGJK           = 0;
         snapshot.overlapDistance = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
@@ -1420,43 +1081,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const ShapeData<T>&  sdA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const T    retryCA = min(T(10) * crustA, sdA.inscribedRadius);
-            const T    retryCB = min(T(10) * crustB, sdB.inscribedRadius);
-            Vector3<T> rptA, rptB;
-            uint       rIter     = 0;
-            T          retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
-                                                                          sdB,
-                                                                          v_a2w,
-                                                                          v_b2w,
-                                                                          q_a2w,
-                                                                          q_b2w,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_a2w, v_a2w, rptA);
-                transform(q_b2w, v_b2w, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = (v_b2w - v_a2w).normalized();
-                snapshot.contactPoint  = T(0.5) * (v_a2w + v_b2w);
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            transform(q_a2w, v_a2w, ptA);
-            transform(q_b2w, v_b2w, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        transform(q_a2w, v_a2w, ptA);
+        transform(q_b2w, v_b2w, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     contactInfo.setSnapshot(snapshot);
@@ -1581,23 +1213,32 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
             snapshot.contactVector = d_hat;
         }
     }
-    // Flat-panel Case: rectangle / trapezoid / triangle via the same local closest-point rule.
-    else if(isPanelType(typeA))
+    // Rectangle-Particle Case
+    else if(typeA == ConvexType::RECTANGLE)
     {
-        const Vector3<T> cB_local = q_a2w << (v_b2w - v_a2w);
-        Vector3<T>       ptA_local, normal_local;
-        computePanelContactLocal(cB_local, convexA, ptA_local, normal_local);
-        const Vector3<T> normal = q_a2w >> normal_local;
-        ptA                     = v_a2w + (q_a2w >> ptA_local);
-        ptB                     = (q_b2w >> convexB.support(q_b2w << (-normal))) + v_b2w;
-        fillPanelContactSnapshot(ptA, ptB, normal, snapshot);
+        // ptA is the point on rectangle and ptB is the point on particle
+        Vector3<T> r = q_a2w >> Vector3<T>(0, 0, 1);
+        r.normalize();
+        r *= copysign(T(1), r * (v_b2w - v_a2w));
+        ptB = (q_b2w >> convexB.support(q_b2w << (-r))) + v_b2w;
+        if(r * (ptB - v_a2w) < T(0))
+        {
+            ptA = ((v_a2w - ptB) * r) * r + ptB;
+            if(convexA.isInside(q_a2w << (ptA - v_a2w)))
+            {
+                snapshot.contactPoint = T(0.5) * (ptA + ptB);
+                ptB -= ptA;
+                snapshot.overlapDistance = -norm(ptB);
+                snapshot.contactVector   = ptB / snapshot.overlapDistance;
+            }
+        }
     }
-    else if(isPanelType(typeB))
+    else if(typeB == ConvexType::RECTANGLE)
     {
-        GAbort("General wall collision detection is not implemented yet.");
+        GAbort("General-Rectangle collision detection is not implemented yet.");
     }
     // General Case: vtable-free via ShapeData
-    else if constexpr(GJKVARIANT != GJKType::SPHERE)
+    else
     {
         uint nbIterGJK           = 0;
         snapshot.overlapDistance = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
@@ -1611,43 +1252,14 @@ __HOSTDEVICE__ inline void closestPointsRigidBodies(const RigidBody<T>&  rbA,
                                                                                    ptA,
                                                                                    ptB,
                                                                                    nbIterGJK);
-        if(snapshot.overlapDistance < HIGHEPS<T>)
-        {
-            const T    retryCA = min(T(10) * crustA, sdA.inscribedRadius);
-            const T    retryCB = min(T(10) * crustB, sdB.inscribedRadius);
-            Vector3<T> rptA, rptB;
-            uint       rIter     = 0;
-            T          retryDist = computeClosestPoints_GJK<T, GJKVARIANT, GJKACC>(sdA,
-                                                                          sdB,
-                                                                          v_a2w,
-                                                                          v_b2w,
-                                                                          q_a2w,
-                                                                          q_b2w,
-                                                                          retryCA,
-                                                                          retryCB,
-                                                                          rptA,
-                                                                          rptB,
-                                                                          rIter);
-            if(retryDist >= HIGHEPS<T>)
-            {
-                transform(q_a2w, v_a2w, rptA);
-                transform(q_b2w, v_b2w, rptB);
-                snapshot.contactPoint  = T(0.5) * (rptA + rptB);
-                snapshot.contactVector = (rptB - rptA).normalized();
-            }
-            else
-            {
-                snapshot.contactVector = (v_b2w - v_a2w).normalized();
-                snapshot.contactPoint  = T(0.5) * (v_a2w + v_b2w);
-            }
+        if(fabs(snapshot.overlapDistance) < HIGHEPS<T>)
             snapshot.overlapDistance = -(crustA + crustB);
-        }
         else
-        {
-            transform(q_a2w, v_a2w, ptA);
-            transform(q_b2w, v_b2w, ptB);
-            fillGJKContactSnapshot(ptA, ptB, crustA, crustB, snapshot);
-        }
+            snapshot.overlapDistance -= crustA + crustB;
+        transform(q_a2w, v_a2w, ptA);
+        transform(q_b2w, v_b2w, ptB);
+        snapshot.contactPoint  = T(0.5) * (ptA + ptB);
+        snapshot.contactVector = (ptB - ptA).normalized();
     }
 
     // Set contact information

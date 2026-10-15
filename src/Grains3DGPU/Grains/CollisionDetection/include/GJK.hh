@@ -9,9 +9,8 @@
 /** @brief GJK sub-algorithm variant */
 enum class GJKType
 {
-    JOHNSON,      /**< Johnson's algorithm */
-    SIGNEDVOLUME, /**< Signed volume algorithm */
-    SPHERE        /**< Analytical sphere (+ rectangle) only -- no GJK */
+    JOHNSON,     /**< Johnson's algorithm */
+    SIGNEDVOLUME /**< Signed volume algorithm */
 };
 
 // =================================================================================================
