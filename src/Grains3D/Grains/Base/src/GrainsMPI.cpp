@@ -50,7 +50,7 @@ void GrainsMPI::Simulation( double time_interval )
   if ( m_processorIsActive )
   {
     double vmax = 0., vmean = 0. ;
-    list<Particle*>* newBufPart = new list<Particle*>;  
+
     bool forcestats = false;
     size_t timeoutputcounter = 0;    
 
@@ -141,52 +141,7 @@ void GrainsMPI::Simulation( double time_interval )
         m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision ); 
 
    
-        // Update clone particle position and velocity
-        m_wrapper->UpdateOrCreateClones_SendRecvLocal_GeoLoc( m_time,
-		m_allcomponents.getActiveParticles(),
-  		m_allcomponents.getParticlesInBufferzone(),
-  		m_allcomponents.getCloneParticles(),
-		m_allcomponents.getReferenceParticles(),
-		m_collision, true, false );
-
-
-        // Destroy out of domain clones
-        m_collision->DestroyOutOfDomainClones( m_time,
-		m_allcomponents.getActiveParticles(),
-		m_allcomponents.getCloneParticles(),
-		m_wrapper );      
-        SCT_get_elapsed_time( "Move" );
-      
-      
-        // Update particle activity
-        SCT_set_start( "UpdateParticleActivity" );
-        m_allcomponents.UpdateParticleActivity();
-        SCT_get_elapsed_time( "UpdateParticleActivity" );
-
-
-        // Update the particle & obstacles links with the grid
-        SCT_set_start( "LinkUpdate" );
-        m_collision->LinkUpdate( m_time, m_dt, 
-      		m_allcomponents.getActiveParticles() );  
-        m_allcomponents.updateParticleLists( m_time, newBufPart, m_wrapper ); 
-
-
-        // Create new clones
-        m_wrapper->UpdateOrCreateClones_SendRecvLocal_GeoLoc( m_time,
-		m_allcomponents.getActiveParticles(),
-  		newBufPart,
-  		m_allcomponents.getCloneParticles(),
-		m_allcomponents.getReferenceParticles(),
-		m_collision, false, false );
-        SCT_get_elapsed_time( "LinkUpdate" );
-
-
-        // Remove periodic clones that do not belong to the periodic subdomain
-	if ( GrainsExec::m_partialPer_is_active )
-	  m_collision->managePartialPeriodicity( m_time,
-		m_allcomponents.getActiveParticles(),
-		m_allcomponents.getCloneParticles(),
-		m_wrapper );      
+        synchronizeParticleStates();
 
       
         // Compute particle forces and torque
@@ -286,7 +241,7 @@ void GrainsMPI::Simulation( double time_interval )
       }
     } 
     
-    delete newBufPart; 
+
   }
 }
 
@@ -809,4 +764,38 @@ void GrainsMPI::read_timeouputfrequency( DOMNode* root )
       	"Write time on standard output every = " << m_timeoutputfreq << 
 	" time steps" << endl;
   }
+}
+
+
+// Refresh ownership, cell links and ghosts without integrating motion.
+void GrainsMPI::synchronizeParticleStates()
+{
+  std::list<Particle*> newBufferParticles;
+  m_wrapper->UpdateOrCreateClones_SendRecvLocal_GeoLoc(m_time,
+      m_allcomponents.getActiveParticles(),
+      m_allcomponents.getParticlesInBufferzone(),
+      m_allcomponents.getCloneParticles(),
+      m_allcomponents.getReferenceParticles(), m_collision, true, false);
+  m_collision->DestroyOutOfDomainClones(m_time,
+      m_allcomponents.getActiveParticles(), m_allcomponents.getCloneParticles(),
+      m_wrapper);
+  SCT_get_elapsed_time("Move");
+
+  SCT_set_start("UpdateParticleActivity");
+  m_allcomponents.UpdateParticleActivity();
+  SCT_get_elapsed_time("UpdateParticleActivity");
+
+  SCT_set_start("LinkUpdate");
+  m_collision->LinkUpdate(m_time, m_dt, m_allcomponents.getActiveParticles());
+  m_allcomponents.updateParticleLists(m_time, &newBufferParticles, m_wrapper);
+  m_wrapper->UpdateOrCreateClones_SendRecvLocal_GeoLoc(m_time,
+      m_allcomponents.getActiveParticles(), &newBufferParticles,
+      m_allcomponents.getCloneParticles(),
+      m_allcomponents.getReferenceParticles(), m_collision, false, false);
+  SCT_get_elapsed_time("LinkUpdate");
+
+  if (GrainsExec::m_partialPer_is_active)
+    m_collision->managePartialPeriodicity(m_time,
+        m_allcomponents.getActiveParticles(), m_allcomponents.getCloneParticles(),
+        m_wrapper);
 }

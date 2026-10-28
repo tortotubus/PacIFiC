@@ -11,6 +11,23 @@
 #include <iterator>
 #include <algorithm>
 
+void CompositeParticle::applyExternalState(Transform const& transform,
+    Quaternion const& orientation, Vector3 const& velocity,
+    Vector3 const& angularVelocity)
+{
+  Particle::applyExternalState(transform, orientation, velocity, angularVelocity);
+  setElementaryParticlesPosition();
+  for (auto* child : m_elementaryParticles) {
+    Quaternion q;
+    q.setQuaternion(child->getRigidBody()->getTransform()->getBasis());
+    child->setQuaternionRotation(q);
+    child->setTranslationalVelocity(velocity +
+        (angularVelocity ^ (*child->getPosition() - *getPosition())));
+    child->setAngularVelocity(angularVelocity);
+    child->initialize_transformWithCrust_to_notComputed();
+  }
+}
+
 
 // ----------------------------------------------------------------------------
 // Constructor with autonumbering as input parameter

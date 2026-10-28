@@ -353,6 +353,9 @@ class CompositeParticle : public Particle
 
 
   protected:
+    void applyExternalState( Transform const& transform,
+      Quaternion const& orientation, Vector3 const& velocity,
+      Vector3 const& angularVelocity ) override;
     /** @name Parameters */
     //@{
     size_t m_nbElemPart; /**< Number of elementary (glued) particles */

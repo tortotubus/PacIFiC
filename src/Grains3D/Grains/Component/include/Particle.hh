@@ -697,6 +697,12 @@ class Particle : public Component
 
 
   protected:
+    friend class Grains;
+    /** Apply a validated pose and velocities without integrating or clearing
+     * loads/contact history. The transform uses the current periodic image. */
+    virtual void applyExternalState( Transform const& transform,
+      Quaternion const& orientation, Vector3 const& velocity,
+      Vector3 const& angularVelocity );
     /**@name Parameters */
     //@{
     Particle* m_masterParticle; /**< master particle (the particle itself in

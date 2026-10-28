@@ -499,6 +499,12 @@ void Grains::moveParticlesAndObstacles( double const& dt_particle_vel,
       	dt_obstacle, m_collision );
 
 
+  synchronizeParticleStates();
+}
+
+
+void Grains::synchronizeParticleStates()
+{
   // In case of periodicity, update periodic clones and destroy periodic
   // clones that are out of the linked cell grid
   if ( m_periodic )

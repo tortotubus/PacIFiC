@@ -45,6 +45,7 @@ class GrainsMPI : virtual public Grains
   
    
   protected:
+    void synchronizeParticleStates() override;
     /**@name Methods */
     //@{
     /** @brief Attempts to insert a particle in the simulation

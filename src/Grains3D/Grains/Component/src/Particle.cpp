@@ -18,6 +18,18 @@
 
 using namespace std;
 
+void Particle::applyExternalState(Transform const& transform,
+    Quaternion const& orientation, Vector3 const& velocity,
+    Vector3 const& angularVelocity)
+{
+  m_geoRBWC->setTransform(transform);
+  m_torsor.setPoint(*m_geoRBWC->getCentre());
+  Particle::setQuaternionRotation(orientation);
+  Particle::setTranslationalVelocity(velocity);
+  Particle::setAngularVelocity(angularVelocity);
+  initialize_transformWithCrust_to_notComputed();
+}
+
 
 double Particle::m_fluidDensity = 0.;
 double Particle::m_fluidViscosity = 0.;

@@ -11,6 +11,8 @@
 #include "solvercomputingtime.hh"
 #include "computingtime.hh"
 #include "LinkedCell.hh"
+#include "ExternalParticleState.hh"
+#include <map>
 #include <list>
 #include <vector>
 #include <string>
@@ -100,6 +102,19 @@ class Grains : public ComputingTime, public SolverComputingTime
     @param time_interval runs the simulation on a time interval different than 
     	m_tend - m_tstart  */
     virtual void Simulation( double time_interval = 0. ) ;  	
+
+    /** Import a complete snapshot of active externally driven particles.
+     * Call after initialization, outside integration/contact evaluation, at the
+     * current simulation time. Does not advance time or evaluate contacts.
+     * Collective on the active MPI communicator: rank 0 supplies the snapshot,
+     * other ranks pass an empty vector. Inactive ranks must not call this API.
+     * Positions are unwrapped, initially on the primary-domain coordinate branch.
+     * Invalid batches throw std::invalid_argument collectively before mutation.
+     * Post-commit synchronization failures are fatal in MPI.
+     * Import history is session state and must be reestablished after restart.
+     */
+    void importExternalParticleStates(
+      std::vector<ExternalParticleState> const& states );
     //@}
     
     
@@ -118,6 +133,10 @@ class Grains : public ComputingTime, public SolverComputingTime
   
    
   protected:
+    /** Refresh collision bookkeeping after changing particle poses. */
+    virtual void synchronizeParticleStates();
+
+    std::map<int, ExternalParticleState> m_externalStateHistory;
     /** @name Parameters */
     //@{
     AllComponents m_allcomponents; /**< all components */
