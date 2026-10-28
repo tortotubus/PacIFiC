@@ -308,13 +308,14 @@ class Obstacle : public Component
     @param tagSecondComp tag of the other compoenent in case of a contact 
     force */
     void addForce( Point3 const& point, Vector3 const& force,
-    	int tagSecondComp );
+        int tagSecondComp, LoadSource source = LoadSource::Applied );
 
     /** @brief Adds a torque to the torsor
     @param torque torque 
     @param tagSecondComp tag of the other compoenent in case of a contact 
     torque */
-    void addTorque( Vector3 const& torque, int tagSecondComp );	
+    void addTorque( Vector3 const& torque, int tagSecondComp,
+      LoadSource source = LoadSource::Applied );
     
     /** @brief Returns whether to store the contact force for post-processing 
     @param othercomp the other component invovled in the contact */

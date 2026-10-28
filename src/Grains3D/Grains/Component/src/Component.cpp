@@ -9,6 +9,54 @@
 #include <algorithm>
 using namespace std;
 
+Torsor Component::getLoad(LoadSource source) const
+{
+  if (source != LoadSource::Applied)
+    return m_sourceLoads.at(static_cast<size_t>(source));
+  // Preserve compatibility with legacy total setters and restart readers.
+  Vector3 force = *m_torsor.getForce();
+  Vector3 torque = *m_torsor.getTorque();
+  for (auto const& load : m_sourceLoads) {
+    force -= *load.getForce();
+    Vector3 arm = *load.getPoint() - *m_torsor.getPoint();
+    torque -= *load.getTorque() + (arm ^ *load.getForce());
+  }
+  return Torsor(*m_torsor.getPoint(), force, torque);
+}
+
+Component::LoadBreakdown Component::getLoads() const
+{
+  LoadBreakdown loads;
+  for (size_t i = 0; i < loadSourceCount; ++i)
+    loads[i] = getLoad(static_cast<LoadSource>(i));
+  return loads;
+}
+
+void Component::setLoads(LoadBreakdown const& loads)
+{
+  Point3 point = *getPosition();
+  m_torsor.setToBodyForce(point, Vector3Null);
+  for (size_t i = 0; i < loadSourceCount; ++i) {
+    Torsor load = loads[i];
+    load.ChangeReferencePoint(point);
+    if (i < m_sourceLoads.size()) m_sourceLoads[i] = load;
+    m_torsor += load;
+  }
+}
+
+void Component::resetLoads(Point3 const& point, Vector3 const& gravity)
+{
+  m_torsor.setToBodyForce(point, gravity);
+  for (auto& load : m_sourceLoads) load.setToBodyForce(point, Vector3Null);
+  m_sourceLoads[static_cast<size_t>(LoadSource::Gravity)].setForce(gravity);
+}
+
+void Component::setLoadReferencePoint(Point3 const& point)
+{
+  m_torsor.setPoint(point);
+  for (auto& load : m_sourceLoads) load.setPoint(point);
+}
+
 
 size_t Component::m_nb = 0;
 size_t Component::m_sizeofContactMemory = 4 * sizeof( int )
@@ -65,8 +113,10 @@ Component::~Component()
 // Adds a force exerted at a point to the torsor (torsor adds torque
 // automatically)
 void Component::addForce( Point3 const& point, Vector3 const& force,
-	int tagSecondComp )
+	int tagSecondComp, LoadSource source )
 {
+  if (source != LoadSource::Applied)
+    m_sourceLoads.at(static_cast<size_t>(source)).addForce(point, force);
   m_torsor.addForce( point, force );
 }
 
@@ -76,8 +126,10 @@ void Component::addForce( Point3 const& point, Vector3 const& force,
 // ----------------------------------------------------------------------------
 // Adds a body force exerted at the center of mass of the component
 // (associated torque is 0)
-void Component::addBodyForce( Vector3 const& force )
+void Component::addBodyForce( Vector3 const& force, LoadSource source )
 {
+  if (source != LoadSource::Applied)
+    m_sourceLoads.at(static_cast<size_t>(source)).addForce(force);
   m_torsor.addForce( force );
 }
 
@@ -86,8 +138,10 @@ void Component::addBodyForce( Vector3 const& force )
 
 // ----------------------------------------------------------------------------
 // Adds a torque to the torsor
-void Component::addTorque( Vector3 const& torque, int tagSecondComp )
+void Component::addTorque( Vector3 const& torque, int tagSecondComp, LoadSource source )
 {
+  if (source != LoadSource::Applied)
+    m_sourceLoads.at(static_cast<size_t>(source)).addTorque(torque);
   m_torsor.addTorque( torque );
 }
 
@@ -459,7 +513,7 @@ Torsor const* Component::getTorsor()
 // Initializes the component's torsor
 void Component::InitializeForce( bool const& withWeight )
 {
-  m_torsor.setToBodyForce( *m_geoRBWC->getCentre(), Vector3Null );
+  resetLoads( *m_geoRBWC->getCentre(), Vector3Null );
 }
 
 

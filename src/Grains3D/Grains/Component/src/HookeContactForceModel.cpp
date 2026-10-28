@@ -146,13 +146,13 @@ bool HookeContactForceModel::computeForces( Component* p0_,
 
   // Component p0_
   ref_p0_->addForce( geometricPointOfContact, coef * ( delFN + delFT ), 
-  	tag_p1_ );
-  if ( m_kr ) ref_p0_->addTorque( delM * coef, tag_p1_ );
+        tag_p1_, Component::LoadSource::Contact );
+  if ( m_kr ) ref_p0_->addTorque( delM * coef, tag_p1_, Component::LoadSource::Contact );
     
   // Component p1_
   ref_p1_->addForce( geometricPointOfContact, coef * ( - delFN - delFT ),
-  	 tag_p0_ );
-  if ( m_kr ) ref_p1_->addTorque( - delM * coef, tag_p0_ );
+         tag_p0_, Component::LoadSource::Contact );
+  if ( m_kr ) ref_p1_->addTorque( - delM * coef, tag_p0_, Component::LoadSource::Contact );
     
   // Force postprocessing
   if ( GrainsExec::m_postprocess_forces_at_this_time )

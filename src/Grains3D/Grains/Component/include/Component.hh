@@ -11,6 +11,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <array>
 using namespace std;
 
 class BBox;
@@ -38,6 +39,22 @@ struct ContactInfos
 class Component
 {
   public:
+    /** Contributions to the total wrench, in world coordinates. Applied is
+     * the residual (including unclassified legacy/restart loads). */
+    enum class LoadSource { Contact, Gravity, Hydrodynamic, Applied };
+    static constexpr size_t loadSourceCount = 4;
+    using LoadBreakdown = std::array<Torsor, loadSourceCount>;
+
+    /** Return a source wrench with its explicit force-evaluation reference
+     * point, normally the centre of mass. Contact excludes all body loads. */
+    virtual Torsor getLoad(LoadSource source) const;
+    Torsor getContactLoad() const { return getLoad(LoadSource::Contact); }
+    LoadBreakdown getLoads() const;
+
+    /** Replace all source contributions and rebuild the integration total.
+     * Input wrenches must use world axes; moments are shifted to the current
+     * centre of mass. No inference of source categories is possible on restart. */
+    void setLoads(LoadBreakdown const& loads);
     /** @name Constructors */
     //@{
     /** @brief Destructor */
@@ -298,18 +315,20 @@ class Component
     @param tagSecondComp tag of the other compoenent in case of a contact 
     force */
     virtual void addForce( Point3 const& point, Vector3 const& force,
-    	int tagSecondComp );
+        int tagSecondComp, LoadSource source = LoadSource::Applied );
 
     /** @brief Adds a body force exerted at the center of mass of the component
     to the torsor (associated torque is 0)
     @param force force */
-    virtual void addBodyForce( Vector3 const& force );
+    virtual void addBodyForce( Vector3 const& force,
+      LoadSource source = LoadSource::Applied );
 
     /** @brief Adds a torque to the torsor
     @param torque torque 
     @param tagSecondComp tag of the other compoenent in case of a contact 
     torque */
-    virtual void addTorque( Vector3 const& torque, int tagSecondComp );
+    virtual void addTorque( Vector3 const& torque, int tagSecondComp,
+      LoadSource source = LoadSource::Applied );
 
     /** @brief Copies the center of mass of the component in a 1D array
     @param pos 1D array where center of mass is copied
@@ -470,6 +489,14 @@ class Component
     
     
   protected:
+    void resetLoads(Point3 const& point, Vector3 const& gravity);
+    /** Reattach force-evaluation moments to an imported body pose without
+     * changing their numerical values (matching total-load import semantics). */
+    void setLoadReferencePoint(Point3 const& point);
+
+    // Applied remains the residual of the legacy total minus these sources.
+    // This preserves source sums even when old APIs restore/replace totals.
+    std::array<Torsor, 3> m_sourceLoads;
     /** @name Constructors */
     //@{
     /** @brief Default constructor */

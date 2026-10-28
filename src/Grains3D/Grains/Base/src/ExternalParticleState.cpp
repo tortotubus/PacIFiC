@@ -33,6 +33,7 @@ double wrap(double value, double origin, double length)
 void Grains::importExternalParticleStates(
     std::vector<ExternalParticleState> const& input)
 {
+  constexpr int loadWidth = 6 * Component::loadSourceCount;
   if (m_wrapper && !m_processorIsActive)
     throw std::invalid_argument("External states: inactive MPI rank");
   MPI_Comm comm = m_wrapper ? m_wrapper->get_active_procs_comm() : MPI_COMM_NULL;
@@ -43,7 +44,7 @@ void Grains::importExternalParticleStates(
     error = "External states require an initialized 3D simulation";
   if (rank != 0 && !input.empty())
     error = "External states must be submitted only by active rank 0";
-  if (input.size() > static_cast<size_t>(INT_MAX / 13))
+  if (input.size() > static_cast<size_t>(INT_MAX / std::max(13, loadWidth)))
     error = "External state snapshot is too large";
   validateCollectively(error, comm, rank);
 
@@ -98,7 +99,7 @@ void Grains::importExternalParticleStates(
   validateCollectively(error, comm, rank);
 
   std::vector<int> owners(count, 0);
-  std::vector<double> loads(static_cast<size_t>(count) * 6, 0.);
+  std::vector<double> loads(static_cast<size_t>(count) * loadWidth, 0.);
   std::vector<std::pair<Particle*, Transform>> pending;
   for (Particle* p : *m_allcomponents.getActiveParticles()) {
     if (p->getTag() == 2) continue;
@@ -113,10 +114,9 @@ void Grains::importExternalParticleStates(
     }
     size_t i = found->second;
     ++owners[i];
-    for (int d = 0; d < 3; ++d) {
-      loads[6*i+d] = (*p->getForce())[d];
-      loads[6*i+3+d] = (*p->getTorque())[d];
-    }
+    auto breakdown = p->getLoads();
+    for (size_t source = 0; source < breakdown.size(); ++source)
+      breakdown[source].copyForceTorque(loads.data(), loadWidth*i + 6*source);
     auto const& s = states[i];
     Point3 previous = *p->getPosition();
     auto history = m_externalStateHistory.find(s.id);
@@ -159,7 +159,7 @@ void Grains::importExternalParticleStates(
     return;
   }
   if (comm != MPI_COMM_NULL)
-    MPI_Allreduce(MPI_IN_PLACE, loads.data(), count*6, MPI_DOUBLE, MPI_SUM, comm);
+    MPI_Allreduce(MPI_IN_PLACE, loads.data(), count*loadWidth, MPI_DOUBLE, MPI_SUM, comm);
 
   // Allocate the replacement history before committing live state.
   std::map<int, ExternalParticleState> nextHistory;
@@ -185,8 +185,14 @@ void Grains::importExternalParticleStates(
       p->applyExternalState(pose, s.orientation,
                             s.translationalVelocity, s.angularVelocity);
       size_t i = it->second;
-      p->setForce(Vector3(loads[6*i], loads[6*i+1], loads[6*i+2]));
-      p->setTorque(Vector3(loads[6*i+3], loads[6*i+4], loads[6*i+5]));
+      Component::LoadBreakdown breakdown;
+      for (size_t source = 0; source < breakdown.size(); ++source) {
+        size_t j = loadWidth*i + 6*source;
+        breakdown[source] = Torsor(*p->getPosition(),
+            Vector3(loads[j], loads[j+1], loads[j+2]),
+            Vector3(loads[j+3], loads[j+4], loads[j+5]));
+      }
+      p->setLoads(breakdown);
     };
     for (auto* p : *m_allcomponents.getActiveParticles()) updateImage(p);
     for (auto* p : *m_allcomponents.getCloneParticles()) updateImage(p);

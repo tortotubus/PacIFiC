@@ -4,6 +4,7 @@
 #include "GrainsMPIWrapper.hh"
 #include "Basic.hh"
 #include "Error.hh"
+#include "KinematicsDriver.hh"
 #include <fstream>
 #include <sstream>
 #include <list>
@@ -497,6 +498,7 @@ class AllComponents
   	simulation */	
     list<Particle*> m_ActiveParticles; /**< All active particles in the
   	simulation */
+    RigidBodyKinematicsDriver m_rigidBodyKinematicsDriver;
     list<Particle*> m_ParticlesInBufferzone; /**< Active particles in a
 	buffer zone */
     list<Particle*> m_CloneParticles; /**< Active particles that are parallel

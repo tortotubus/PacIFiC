@@ -34,8 +34,8 @@ void AppPRSHydroFT::ComputeForces( double time, double dt,
   {
     if ( (*particle)->getTag() < 2 )
     {
-      (*particle)->addBodyForce( m_PRSHydroForce[i] );
-      (*particle)->addTorque( m_PRSHydroTorque[i], 0 );
+      (*particle)->addBodyForce( m_PRSHydroForce[i], Component::LoadSource::Hydrodynamic );
+      (*particle)->addTorque( m_PRSHydroTorque[i], 0, Component::LoadSource::Hydrodynamic );
       i++;
     }
   }        

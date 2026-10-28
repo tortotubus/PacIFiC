@@ -23,7 +23,7 @@ void Particle::applyExternalState(Transform const& transform,
     Vector3 const& angularVelocity)
 {
   m_geoRBWC->setTransform(transform);
-  m_torsor.setPoint(*m_geoRBWC->getCentre());
+  setLoadReferencePoint(*m_geoRBWC->getCentre());
   Particle::setQuaternionRotation(orientation);
   Particle::setTranslationalVelocity(velocity);
   Particle::setAngularVelocity(angularVelocity);
@@ -1429,9 +1429,7 @@ int Particle::getCoordinationNumber() const
 // Initializes the particle torsor
 void Particle::InitializeForce( bool const& withWeight )
 {
-  if ( withWeight )
-    m_torsor.setToBodyForce( *m_geoRBWC->getCentre(), m_weight );
-  else m_torsor.setToBodyForce( *m_geoRBWC->getCentre(), Vector3Null );
+  resetLoads(*m_geoRBWC->getCentre(), withWeight ? m_weight : Vector3Null);
   m_contacting_component_IDs.clear();
   m_coordination_number = 0 ;
 }

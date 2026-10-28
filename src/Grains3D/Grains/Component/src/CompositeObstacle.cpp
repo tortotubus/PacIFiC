@@ -641,6 +641,7 @@ void CompositeObstacle::restoreState( list<struct ObstacleState*>& obsStates )
 // Initializes the composite obstacle's torsor
 void CompositeObstacle::InitializeForce( bool const& withWeight )
 {
+  Component::InitializeForce(false);
   for (list<Obstacle*>::iterator obstacle=m_obstacles.begin(); 
   	obstacle!=m_obstacles.end(); obstacle++)   
     (*obstacle)->InitializeForce( false );
@@ -670,6 +671,13 @@ Torsor const* CompositeObstacle::getTorsor()
 string CompositeObstacle::getObstacleType()
 {
   return ( m_ObstacleType ) ;
+}
+
+Torsor CompositeObstacle::getLoad(LoadSource source) const
+{
+  Torsor load(*getPosition());
+  for (auto* obstacle : m_obstacles) load += obstacle->getLoad(source);
+  return load;
 }
 
 

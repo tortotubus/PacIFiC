@@ -199,11 +199,8 @@ list<SimpleObstacle*> AllComponents::Move( double time,
   try 
   {
     // Particles motion
-    list<Particle*>::iterator particle;
-    for (particle=m_ActiveParticles.begin();
-      particle!=m_ActiveParticles.end(); particle++)
-      if ( (*particle)->getTag() != 2 && (*particle)->isIntegratedByGrains() )
-        (*particle)->Move( time, dt_particle_vel, dt_particle_disp );
+    m_rigidBodyKinematicsDriver.move(m_ActiveParticles, time,
+                                dt_particle_vel, dt_particle_disp);
 
     // Obstacles motion
     list<SimpleObstacle*> displacedObstacles;
@@ -266,11 +263,7 @@ list<SimpleObstacle*> AllComponents::Move( double time,
 void AllComponents::advanceParticlesVelocity( double time, 
     	double const& dt_particle_vel )
 {
-  list<Particle*>::iterator particle;
-  for (particle=m_ActiveParticles.begin();
-      particle!=m_ActiveParticles.end(); particle++)
-    if ( (*particle)->getTag() != 2 && (*particle)->isIntegratedByGrains() )
-      (*particle)->advanceVelocity( time, dt_particle_vel );
+  m_rigidBodyKinematicsDriver.advanceVelocity(m_ActiveParticles, time, dt_particle_vel);
 }
 
 

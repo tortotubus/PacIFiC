@@ -2568,46 +2568,30 @@ void GrainsMPIWrapper::ContactsFeatures( double& overlap_max,
 void GrainsMPIWrapper::sumObstaclesLoad( 
 	list<SimpleObstacle*> const& allMyObs ) const
 {
-  list<SimpleObstacle*>::const_iterator obstacle ;
-  int nobs = int(allMyObs.size()), i = 0 ;
-  Vector3 const* force = NULL; 
-  Vector3 const* torque = NULL; 
-  Vector3 collective_force, collective_torque; 
-  double* forcetorque = new double[6*nobs];
-  double* forcetorque_collective = new double[6*nobs];   
-
-  // Copy in a local buffer
-  for (obstacle=allMyObs.begin(),i=0; obstacle!=allMyObs.end(); obstacle++,i+=6)
-  {
-    force = (*obstacle)->getForce();
-    torque = (*obstacle)->getTorque();
-    forcetorque[i] = (*force)[X];
-    forcetorque[i+1] = (*force)[Y];    
-    forcetorque[i+2] = (*force)[Z]; 
-    forcetorque[i+3] = (*torque)[X];    
-    forcetorque[i+4] = (*torque)[Y];   
-    forcetorque[i+5] = (*torque)[Z];        
-  } 
-  
-  // Sum all contributions from other processes on the master
-  MPI_Allreduce( forcetorque, forcetorque_collective, 6 * nobs, MPI_DOUBLE, 
-  	MPI_SUM, m_MPI_COMM_activeProc ); 
-	
-  // Add all contributions from other processes on the master
-  for (obstacle=allMyObs.begin(),i=0; obstacle!=allMyObs.end(); obstacle++,i+=6)
-  {
-    collective_force[X] = forcetorque_collective[i] ;
-    collective_force[Y] = forcetorque_collective[i+1] ;    
-    collective_force[Z] = forcetorque_collective[i+2] ;    
-    collective_torque[X] = forcetorque_collective[i+3] ;
-    collective_torque[Y] = forcetorque_collective[i+4] ;    
-    collective_torque[Z] = forcetorque_collective[i+5] ;
-    (*obstacle)->setForce( collective_force );     
-    (*obstacle)->setTorque( collective_torque );           
-  }	     
-  
-  delete [] forcetorque;
-  delete [] forcetorque_collective;  
+  constexpr int width = 6 * Component::loadSourceCount;
+  int size = width * static_cast<int>(allMyObs.size());
+  std::vector<double> local(size), collective(size);
+  size_t offset = 0;
+  for (auto* obstacle : allMyObs) {
+    auto loads = obstacle->getLoads();
+    for (size_t source = 0; source < loads.size(); ++source)
+      loads[source].copyForceTorque(local.data(), offset + 6*source);
+    offset += width;
+  }
+  MPI_Allreduce(local.data(), collective.data(), size, MPI_DOUBLE, MPI_SUM,
+                m_MPI_COMM_activeProc);
+  offset = 0;
+  for (auto* obstacle : allMyObs) {
+    Component::LoadBreakdown loads;
+    for (size_t source = 0; source < loads.size(); ++source) {
+      size_t j = offset + 6*source;
+      loads[source] = Torsor(*obstacle->getPosition(),
+          Vector3(collective[j], collective[j+1], collective[j+2]),
+          Vector3(collective[j+3], collective[j+4], collective[j+5]));
+    }
+    obstacle->setLoads(loads);
+    offset += width;
+  }
 }
 
 

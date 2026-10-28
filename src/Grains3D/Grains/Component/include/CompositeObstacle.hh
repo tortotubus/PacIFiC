@@ -60,6 +60,7 @@ class CompositeObstacle : public Obstacle
     /** @brief Returns a pointer to the torsor exerted on the composite 
     obstacle */
     Torsor const* getTorsor();       
+    Torsor getLoad(LoadSource source) const override;
     
     /** @brief Returns the volume of the composite obstacle */
     double getVolume() const; 
