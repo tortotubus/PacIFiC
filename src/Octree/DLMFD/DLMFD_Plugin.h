@@ -98,15 +98,16 @@ event init (i = 0)
   }   
 
   // Define domain size
-# if ADAPTIVE 
-    foreach_dimension() FULL_DOMAIN.x = L0 ;
-# else
+//# if ADAPTIVE 
+//    foreach_dimension() FULL_DOMAIN.x = L0 ;
+//# else
     FULL_DOMAIN.x = L0 ;
     FULL_DOMAIN.y = L0 * (double)Dimensions.y / (double)Dimensions.x ;
 #   if dimension == 3
       FULL_DOMAIN.z = L0 * (double)Dimensions.z / (double)Dimensions.x ;
 #   endif
-# endif
+//# endif
+  foreach_dimension() vtk_shift_to_zero.x = 0.;
 
   // Output basic fluid and geometric parameters
   if ( pid() == 0 )
@@ -170,7 +171,7 @@ event init (i = 0)
     // Read restart time
     if ( pid() == 0 ) printf( "Read t and dt from time restart file\n" );
     read_t_restart( DUMP_DIR, &trestart, &dtrestart, 
-    	&imposed_periodicpressuredrop );  
+    	&imposed_periodicpressuredrop );
 
     // Re-initialize the VTK writer
 #   if PARAVIEW
@@ -408,15 +409,28 @@ event init (i = 0)
 
 	
   // Initialize the field u_previoustime to compute x-velocity change
-  foreach() u_previoustime[] = u.x[];
+  foreach() u_previoustime[] = u.VELOCITYCHANGE_COMPONENT[];
+
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we need to set the actual particle z position as if it
+  moves and the value of uback */
+# if SINGLE_SETTLING_STATIONARY_Z
+    if ( restarted_simu )
+      read_single_settling_stationary_restart( DUMP_DIR, &uback, &actualzpos );
+    else
+      actualzpos = allRigidBodies[0].g.center.z;    
+# endif   
   
   
   // By default:
-  // * do NOT DUMP the work fields used in the DLMFD sub-problem, the 
-  // field u_previoustime and the pressure field
+  // * u, p and pf are dumped (contrary to Basilisk, p and pf are dumped
+  // to guarantee arithmetic exact restart)
+  // * do NOT DUMP the work fields used in the DLMFD sub-problem and the 
+  // field u_previoustime
   // * DUMP the DLM_explicit field in the DLMFD sub-problem
   u_previoustime.nodump = true ;
-  p.nodump = true ;
   DLM_Flag.nodump = true;
   DLM_FlagMesh.nodump = true ;
   foreach_dimension()
@@ -472,6 +486,19 @@ void do_output( char const* mess )
   if ( pid() == 0 ) printf ( "Output data at %s %8.6f START\n", mess, t ); 
 
   scalar* dump_list = NULL;
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we shift the fluid and particle z velocity component by 
+  - uback such that at the post processing level all looks as if the particle 
+  moves. */
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] -= uback;    
+# endif
+
+# if SINGLE_SETTLING_SHIFT_TO_ZERO_Z
+    vtk_shift_to_zero.z = - allRigidBodies[0].g.center.z;
+# endif  
 
 # if LAMBDA2
     scalar l2[];
@@ -530,10 +557,15 @@ void do_output( char const* mess )
 # endif
 
   // Basilisk output for restart
+  // Reset fluid velocity to its value in the simulation
+# if SINGLE_SETTLING_STATIONARY_Z
+    foreach() u.z[] += uback;    
+# endif 
+
 # if DLM_ALPHA_COUPLING
-    dump_list = (scalar *){u, g, DLM_explicit};
+    dump_list = (scalar *){u, g, p, pf, DLM_explicit};
 # else
-    dump_list = (scalar *){u, g};    
+    dump_list = (scalar *){u, g, p, pf};    
 # endif     
   dump( FLUID_DUMP_FILENAME, dump_list );
       
@@ -541,10 +573,17 @@ void do_output( char const* mess )
   // B_SPLIT_EXPLICIT_ACCELERATION is on, we save the explication part of the 
   // particle split acceleration for restart purposes
 # if B_SPLIT_EXPLICIT_ACCELERATION
-    if ( pid() == 0 ) 
-      save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
+    save_explicit_splitAcceleration( DUMP_DIR, allRigidBodies, 
       	nbRigidBodies );
-# endif        
+# endif
+
+  /* In case of single settling particle kept stationary in the z direction 
+  through adjusting the incoming z velocity component denoted uback at the back
+  boundary condition, we save the value of uback and the actual z position of
+  the particle */
+# if SINGLE_SETTLING_STATIONARY_Z
+    save_single_settling_stationary_restart( DUMP_DIR, uback, actualzpos );
+# endif         
 
   // Granular solver output for both post-processing & restart
   event( "GranularSolver_saveResults" );
@@ -598,7 +637,7 @@ event last_output_data (t = end)
 # endif 
 
   do_output( mess );    
-  output_dlmfd_perf ( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
+  output_dlmfd_perf( &DLMFD_UzawaTiming, &DLMFD_ConstructionTiming, i, 
   	&allDLMFDptscells );
   event( "Additional_user_last_output_data" );	       
 }	
@@ -622,9 +661,13 @@ event once_timestep_is_determined (i++)
 
   if ( pid() == 0 )
   {
-    printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
+#   if !PRODUCTION_LOG
+      printf( "\n****** ITER %d - TIME t=%8.5e to t+dt=%8.5e ******\n", 
     	i, t, t+dt );
-    printf( "   Time step = %8.5e\n", dt );
+      printf( "   Time step = %8.5e\n", dt );	    
+#   else
+      printf( "\nITER %d - t+dt=%8.5e\n", i, t+dt );
+#   endif
   }
   
   // We free dynamic features of rigid bodies from the previous time step
@@ -648,11 +691,15 @@ event once_timestep_is_determined (i++)
 # endif  
   
   /* Granular solver predictor */
-  if ( pid() == 0 ) printf( "   GS predictor step: " ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   GS predictor step: " );
+# endif   
   event( "GranularSolver_predictor" );  
 
   /* Construction of rigid bodies and their DLMFD features */
-  if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# if !PRODUCTION_LOG
+    if ( pid() == 0 ) printf( "   DLMFD RB construction\n" ); 
+# endif    
   DLMFD_construction();  
 }
 
@@ -705,17 +752,15 @@ void do_DLMFD( const int i )
   /* Update velocity in the granular solver */
   if ( pid() == 0 && nbParticles )
   { 
-    printf( "   GS velocity update in " );
+#   if !PRODUCTION_LOG
+      printf( "   GS velocity update in " );
+#   endif
     event( "GranularSolver_updateVelocity" );
   }    
 
   /* Save the forces acting on rigid bodies before adapting the mesh  */
   computeHydroForceTorque( allRigidBodies, nbRigidBodies, fdata, t + dt, dt, 
   	DLM_Flag, DLM_lambda, DLM_Index, FLUID_DENSITY, DLM_PeriodicRefCenter );
-  
-  /* Save all rigid body data */
-  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
-    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );     
 }
 
 
@@ -727,7 +772,7 @@ event after_viscous_term (i++)
 { 
 # if !DLMFD_PROB_AFTER_NAVIERSTOKES 
     do_DLMFD( i );
-# endif 
+# endif  
 }
 
 
@@ -740,7 +785,12 @@ event end_timestep (i++)
 //----------------------------------------------------------------------------
 {
   if ( pid() == 0 )
-    printf( "   NS solver: MGu_niter = %d, MGp_niter = %d\n", mgu.i, mgp.i );
+#   if !PRODUCTION_LOG  
+      printf( "   NS solver: MGu_niter = %d, MGpf_niter = %d, MGp_niter = %d\n",
+    	mgu.i, mgpf.i, mgp.i );
+#   else
+      printf( "NS(%d/%d/%d) - ", mgu.i, mgpf.i, mgp.i );
+#   endif
 
 # if DLMFD_PROB_AFTER_NAVIERSTOKES 
     do_DLMFD( i );
@@ -794,12 +844,71 @@ event end_timestep (i++)
 		imposed_periodicpressuredrop, flowrate );
 #   endif  
 # endif
-   
+
+
+  /* Correct fluid and rigid body z-velocity such that the rigid body remains
+  stationary in the z direction */
+# if SINGLE_SETTLING_STATIONARY_Z
+    double vz = allRigidBodies[0].U.z;
+    foreach() u.z[] -= vz;
+    uback -= vz;
+    allRigidBodies[0].U.z = 0.;
+    if ( pid() == 0 && nbParticles )
+    {
+#     if !PRODUCTION_LOG
+        printf( "   GS velocity update in " );
+#     endif
+        event( "GranularSolver_updateVelocity" );
+    }
+# endif             
+
   
   /* Fluid velocity change over the time step */
-  deltau = change( u.x, u_previoustime );
+  deltau = change( u.VELOCITYCHANGE_COMPONENT, u_previoustime );
   if ( pid() == 0 )
-    printf( "   Velocity change = %8.5e\n", deltau );       
+#   if !PRODUCTION_LOG      
+      printf( "   Velocity change = %8.5e\n", deltau );
+#   else
+      printf( "Dv = %8.5e\n", deltau );
+#   endif 
+    
+# if COMPUTE_AVGL2NORM_DIVU && !PRODUCTION_LOG
+    /* Average L2 norm of div(uf) */    
+    double L2normdivu = 0.;
+    foreach(reduction(+:L2normdivu)) 
+    {
+      double div = 0.;
+      foreach_dimension()
+        div += uf.x[1] - uf.x[];
+      L2normdivu += sq(div) * pow( Delta, dimension - 2 );
+    }
+    if ( pid() == 0 )
+      printf( "   Avg L2norm(div(uf)) = %8.5e\n", sqrt( L2normdivu 
+    	/ ( FULL_DOMAIN.x * FULL_DOMAIN.y 
+#     if dimension == 3  
+	* FULL_DOMAIN.z
+#     endif	 
+	) ) );
+# endif 
+
+  /* Save all rigid body data 
+  In case of single settling particle kept stationary in the z direction through
+  adjusting the incoming z velocity component denoted uback at the back boundary
+  condition, we shift the fluid and particle z velocity component by - uback
+  such that at the post processing level all looks as if the particle moves.
+  We also recompute its z vertical position with a 1st order Euler scheme */
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = - uback;
+    actualzpos += allRigidBodies[0].U.z * dt;
+    double zzz = allRigidBodies[0].g.center.z;
+    allRigidBodies[0].g.center.z = actualzpos;
+# endif     
+  if ( !RIGIDBODIES_AS_FIXED_OBSTACLES )
+    rigidbody_data( allRigidBodies, nbRigidBodies, t + dt, i, pdata );
+# if SINGLE_SETTLING_STATIONARY_Z
+    allRigidBodies[0].U.z = 0.;
+    allRigidBodies[0].g.center.z = zzz;
+# endif       
 }
 
 
@@ -815,12 +924,16 @@ event adapt (i++)
     int totalcell = totalcells();
     if ( pid() == 0 )
     {
-#     if dimension == 2  
-        printf( "   Quadtree grid cells: " );
+#     if !PRODUCTION_LOG 
+#       if dimension == 2  
+          printf( "   Quadtree grid cells: " );
+#       else
+          printf( "   Octree grid cells: " );
+#       endif
+        printf( "total = %d, ", totalcell );
 #     else
-        printf( "   Octree grid cells: " );
+        printf( "Grid(t=%d/", totalcell );
 #     endif
-      printf( "total = %d, ", totalcell );
     }
 
 # if LEVELDIFF_FLAG_U == 0
@@ -842,8 +955,12 @@ event adapt (i++)
     event( "Compute_cs" ); 
 # endif	
 
-    if ( pid() == 0 ) 
-      printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+    if ( pid() == 0 )
+#     if !PRODUCTION_LOG     
+        printf( "refined = %d, coarsened = %d\n", s.nf, s.nc );
+#     else
+        printf( "r=%d/c=%d)\n", s.nf, s.nc );
+#     endif	
 # endif
 
   // Compute the AABB of the local domain

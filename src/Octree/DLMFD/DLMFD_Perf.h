@@ -11,20 +11,17 @@ void output_dlmfd_perf( timing* Uzawa, timing* Construction, const int i,
 //----------------------------------------------------------------------------
 {
   double mpitimings[npe()];
-  
-  static unsigned int iii = 0 ; 
-  if ( iii == 0 )
-  {  
+  FILE* dlmfdperf = NULL;
+
+  if ( pid() == 0 )
+  {
     char buffer[80] = "";
     strcpy( buffer, RESULT_DIR );
     strcat( buffer, "/" );
     strcat( buffer, DLMFD_PERF_FILENAME );
     strcpy( dlmfd_perf_complete_name, buffer );
-    ++iii;     
-  }  
-  
-  static FILE* dlmfdperf;
-  dlmfdperf = fopen( dlmfd_perf_complete_name, "a" );
+    dlmfdperf = fopen( dlmfd_perf_complete_name, "w" );
+  }
 
   // Global timer/timings
   timing gns = timer_timing( perf.gt, i, perf.tnc, mpitimings );
@@ -228,5 +225,5 @@ void output_dlmfd_perf( timing* Uzawa, timing* Construction, const int i,
 	gns.max, 100. * gns.max / gns.real );
 # endif
   
-  fflush( dlmfdperf ); 
+  if ( pid() == 0 ) fclose( dlmfdperf );   
 }

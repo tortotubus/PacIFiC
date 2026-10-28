@@ -197,6 +197,26 @@
 #   define DLMFD_INTERIORPOINTS 1
 # endif
 
+# ifndef COMPUTE_AVGL2NORM_DIVU
+#   define COMPUTE_AVGL2NORM_DIVU 0
+# endif
+
+# ifndef VELOCITYCHANGE_COMPONENT
+#   define VELOCITYCHANGE_COMPONENT x
+# endif
+
+# ifndef PRODUCTION_LOG
+#   define PRODUCTION_LOG 0
+# endif
+
+# ifndef SINGLE_SETTLING_STATIONARY_Z
+#   define SINGLE_SETTLING_STATIONARY_Z 0
+# endif
+
+# ifndef SINGLE_SETTLING_SHIFT_TO_ZERO_Z
+#   define SINGLE_SETTLING_SHIFT_TO_ZERO_Z 0
+# endif
+
 # ifndef DLMFD_OPT
 #   define DLMFD_OPT 1     // use optimized version of DLMFD algorithm
 # endif
@@ -586,6 +606,10 @@ dynUIarray deactivatedBPindices;
 dynPDBarray deactivatedIndexFieldValues;
 AABB local_domain;
 coord FULL_DOMAIN;
+# if SINGLE_SETTLING_STATIONARY_Z
+    double uback = 0., actualzpos = 0.;
+# endif
+coord vtk_shift_to_zero;
 
 
 

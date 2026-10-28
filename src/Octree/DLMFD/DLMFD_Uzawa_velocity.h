@@ -378,9 +378,11 @@ void DLMFD_Uzawa_velocity( const int i )
 
   if ( pid() == 0 )
   {
-    printf( "   DLMFD Uzawa: Points = %d, Cells = %d, ", allDLMFDpts, 
+#   if !PRODUCTION_LOG
+      printf( "   DLMFD Uzawa: Points = %d, Cells = %d, ", allDLMFDpts, 
     	allDLMFDcells );
-    fprintf( cellvstime, "%d \t %d \t %d \t %d \n", i, allDLMFDpts, 
+#   endif	
+    fprintf( cellvstime, "%d \t %d \t\t %d \t\t %d \n", i, allDLMFDpts, 
     	allDLMFDcells, total_number_of_cells );
     fflush( cellvstime );
   } 
@@ -1741,7 +1743,11 @@ void DLMFD_Uzawa_velocity( const int i )
   // Once algorithm has converged
   if ( pid() == 0 )
   {
-    printf( "niter = %d, Res = %8.5e\n", ki, sqrt(DLM_nr2) );
+#   if !PRODUCTION_LOG
+      printf( "niter = %d, Res = %8.5e\n", ki, sqrt(DLM_nr2) );
+#   else
+      printf( "Uzawa(%d) - ", ki );
+#   endif
     fprintf( converge,"%d \t %d \t \t %10.8e\n", i, ki, sqrt(DLM_nr2) );
     fflush( converge );
   }
