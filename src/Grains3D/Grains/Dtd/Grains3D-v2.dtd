@@ -1,0 +1,428 @@
+<!-- Grains3D v2: self-contained vocabulary for standalone (Standard/MPI) and
+fluid-coupled (CoupledFluid) 3D simulation inputs. No external entities.
+
+Usage: <!DOCTYPE Grains3D SYSTEM "Grains3D-v2.dtd">
+
+Sources: Grains.cpp, GrainsMPI.cpp, GrainsCoupledWithFluid.cpp, the geometry,
+contact, obstacle, insertion-window and postprocessing readers. -->
+
+<!ELEMENT Grains3D (Construction, Forces, Simulation)>
+<!ATTLIST Grains3D Type (Standard|MPI|CoupledFluid) "Standard">
+
+<!-- Construction: singleton children except the particle/obstacle lists. -->
+
+<!ELEMENT Construction (LinkedCell | Origin | Periodicity | PartialPeriodicity | DomainDecomposition | Verbosity | ContactForceModels | CollisionDetectionAlgorithm | Particles | CompositeParticles | Obstacles | Reload)*>
+
+<!ELEMENT LinkedCell EMPTY>
+<!ATTLIST LinkedCell
+  MX CDATA #REQUIRED
+  MY CDATA #REQUIRED
+  MZ CDATA #REQUIRED
+  CellSizeFactor CDATA #IMPLIED>
+
+<!ELEMENT Origin EMPTY>
+<!ATTLIST Origin
+  OX CDATA #REQUIRED
+  OY CDATA #REQUIRED
+  OZ CDATA #REQUIRED>
+
+<!ELEMENT Periodicity EMPTY>
+<!ATTLIST Periodicity
+  PX CDATA #IMPLIED
+  PY CDATA #IMPLIED
+  PZ CDATA #IMPLIED
+  Extension CDATA #IMPLIED
+  Directions CDATA #IMPLIED
+  RestrictBoxMotion (True|False) #IMPLIED>
+
+<!ELEMENT PartialPeriodicity EMPTY>
+<!ATTLIST PartialPeriodicity
+  Comp (Lower|Larger) #REQUIRED
+  Dir (X|Y|Z) #REQUIRED
+  Limit CDATA #REQUIRED>
+
+<!ELEMENT DomainDecomposition EMPTY>
+<!ATTLIST DomainDecomposition
+  NX CDATA #REQUIRED
+  NY CDATA #REQUIRED
+  NZ CDATA #REQUIRED>
+
+<!ELEMENT Verbosity EMPTY>
+<!ATTLIST Verbosity
+  Level (0|1|2) #REQUIRED>
+
+<!ELEMENT Reload EMPTY>
+<!ATTLIST Reload
+  Type (new|same) #REQUIRED
+  Velocity (Reset|NoReset) #IMPLIED
+  Filename CDATA #IMPLIED>
+
+<!-- Reload Type=new requires Filename; Type=same uses RestartFile/Name. -->
+
+<!ELEMENT CollisionDetectionAlgorithm (CollisionDetection | BoundingVolume)*>
+
+<!ELEMENT CollisionDetection EMPTY>
+<!ATTLIST CollisionDetection
+  Type (GJK|GJK_SV|SQ) #IMPLIED
+  Tolerance CDATA #IMPLIED
+  Acceleration (ON|OFF) #IMPLIED
+  History (ON|OFF) #IMPLIED>
+
+<!ELEMENT BoundingVolume EMPTY>
+<!ATTLIST BoundingVolume
+  Type (OFF|OBB|OBC) #REQUIRED>
+
+<!-- Contacts: parameter order is unrestricted as in the readers; require
+exactly one law per Default/ContactForceModel and each law's mandatory values. -->
+
+<!ELEMENT ContactForceModels (Default | ContactForceModel)*>
+
+<!ELEMENT Default (Hooke | HookeMemory | Hertz | HertzMemory)>
+
+<!ELEMENT ContactForceModel (Material, (Hooke | HookeMemory | Hertz | HertzMemory))>
+
+<!ELEMENT Material (#PCDATA)>
+<!ATTLIST Material
+  materialA CDATA #IMPLIED
+  materialB CDATA #IMPLIED>
+
+<!-- Material contains a name in particles/obstacles; contact pairs require
+materialA and materialB instead. Contact-law requirements:
+Hooke: kn,muc,en,kr; HookeMemory: kn,muc,en,kt;
+Hertz: Es,en,muc,kr; HertzMemory: Es,en,muc.
+Other listed parameters are optional according to their respective readers. -->
+
+<!ELEMENT Hooke (kn | muc | en | etat | kr)*>
+<!ELEMENT HookeMemory (kn | muc | en | etat | mur | etarpf | kt | epst)*>
+<!ELEMENT Hertz (Es | en | muc | kr | Gs)*>
+<!ELEMENT HertzMemory (Es | en | muc | Gs | mur | etarpf | epst)*>
+
+<!ELEMENT kn (#PCDATA)>
+<!ELEMENT muc (#PCDATA)>
+<!ELEMENT en (#PCDATA)>
+<!ELEMENT etat (#PCDATA)>
+<!ELEMENT kr (#PCDATA)>
+<!ELEMENT mur (#PCDATA)>
+<!ELEMENT etarpf (#PCDATA)>
+<!ELEMENT kt (#PCDATA)>
+<!ELEMENT epst (#PCDATA)>
+<!ELEMENT Es (#PCDATA)>
+<!ELEMENT Gs (#PCDATA)>
+
+<!-- Geometry. Box is empty with LX/LY/LZ for a shape, or has two Points
+for an insertion lattice. Convex always requires a crust thickness. -->
+
+<!ELEMENT Convex (Sphere | Box | Polyhedron | Cylinder | Cone | Superquadric | TrapezoidalPrism | SpheroCylinder | SpheroCyl | SpheroCylindricalPrism | TruncatedCone)>
+<!ATTLIST Convex CrustThickness CDATA #REQUIRED>
+
+<!ELEMENT Sphere EMPTY>
+<!ATTLIST Sphere Radius CDATA #REQUIRED>
+
+<!ELEMENT Polyhedron EMPTY>
+<!ATTLIST Polyhedron Name CDATA #REQUIRED>
+
+<!ELEMENT Cylinder EMPTY>
+<!ATTLIST Cylinder
+  Radius CDATA #REQUIRED
+  Height CDATA #REQUIRED
+  Direction (X|Y|Z) #IMPLIED
+  Filling (X|Y|Z) #IMPLIED>
+
+<!ELEMENT Cone EMPTY>
+<!ATTLIST Cone Radius CDATA #REQUIRED Height CDATA #REQUIRED>
+
+<!ELEMENT Superquadric EMPTY>
+<!ATTLIST Superquadric a CDATA #REQUIRED b CDATA #REQUIRED c CDATA #REQUIRED n1 CDATA #REQUIRED n2 CDATA #REQUIRED>
+
+<!ELEMENT TrapezoidalPrism EMPTY>
+<!ATTLIST TrapezoidalPrism W CDATA #REQUIRED A CDATA #REQUIRED B CDATA #REQUIRED H CDATA #REQUIRED>
+
+<!ELEMENT SpheroCylinder EMPTY>
+<!ATTLIST SpheroCylinder Radius CDATA #REQUIRED Height CDATA #REQUIRED>
+
+<!ELEMENT SpheroCyl EMPTY>
+<!ATTLIST SpheroCyl Radius CDATA #REQUIRED Height CDATA #REQUIRED>
+
+<!ELEMENT SpheroCylindricalPrism EMPTY>
+<!ATTLIST SpheroCylindricalPrism Radius CDATA #REQUIRED Length CDATA #REQUIRED Height CDATA #REQUIRED>
+
+<!ELEMENT TruncatedCone EMPTY>
+<!ATTLIST TruncatedCone BottomRadius CDATA #REQUIRED TopRadius CDATA #REQUIRED Height CDATA #REQUIRED>
+
+<!ELEMENT Box (Point, Point)?>
+<!ATTLIST Box LX CDATA #IMPLIED LY CDATA #IMPLIED LZ CDATA #IMPLIED>
+
+<!ELEMENT Point EMPTY>
+<!ATTLIST Point X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+
+<!ELEMENT Centre EMPTY>
+<!ATTLIST Centre X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+
+<!ELEMENT BottomCentre EMPTY>
+<!ATTLIST BottomCentre X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+
+<!ELEMENT RelativePosition EMPTY>
+<!ATTLIST RelativePosition X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+
+<!ELEMENT Translation EMPTY>
+<!ATTLIST Translation X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+
+<!ELEMENT AngularPosition (#PCDATA)>
+<!ATTLIST AngularPosition Type (Identity|Matrix) #REQUIRED>
+
+<!ELEMENT Status EMPTY>
+<!ATTLIST Status ToFluid CDATA #REQUIRED>
+
+<!ELEMENT Particles (Particle+)>
+
+<!ELEMENT Particle (Convex | Centre | AngularPosition | Material | RelativePosition)*>
+<!ATTLIST Particle Number CDATA #IMPLIED Density CDATA #IMPLIED>
+
+<!-- Particle Number is required in Particles but not ElementaryParticles;
+RelativePosition is required for elementary particles. AngularPosition and
+Convex are required for each particle; Density/Material may use code defaults. -->
+
+<!ELEMENT CompositeParticles (CompositeParticle+)>
+
+<!ELEMENT CompositeParticle (Volume | Material | Centre | AngularPosition | MomentOfInertiaTensor | ElementaryParticles)*>
+<!ATTLIST CompositeParticle Number CDATA #REQUIRED Density CDATA #IMPLIED SpecificShape CDATA #IMPLIED>
+
+<!ELEMENT Volume EMPTY>
+<!ATTLIST Volume Value CDATA #REQUIRED>
+
+<!ELEMENT MomentOfInertiaTensor (Ixx | Ixy | Ixz | Iyy | Iyz | Izz)*>
+
+<!ELEMENT Ixx EMPTY>
+<!ATTLIST Ixx Value CDATA #REQUIRED>
+
+<!ELEMENT Ixy EMPTY>
+<!ATTLIST Ixy Value CDATA #REQUIRED>
+
+<!ELEMENT Ixz EMPTY>
+<!ATTLIST Ixz Value CDATA #REQUIRED>
+
+<!ELEMENT Iyy EMPTY>
+<!ATTLIST Iyy Value CDATA #REQUIRED>
+
+<!ELEMENT Iyz EMPTY>
+<!ATTLIST Iyz Value CDATA #REQUIRED>
+
+<!ELEMENT Izz EMPTY>
+<!ATTLIST Izz Value CDATA #REQUIRED>
+
+<!ELEMENT ElementaryParticles (Particle+)>
+
+<!ELEMENT Obstacles (Obstacle | Composite | CylindricalShell | TruncatedConicalShell | BoxShell | RoughWall)+>
+
+<!ELEMENT Composite (Obstacle | Composite | CylindricalShell | TruncatedConicalShell | BoxShell | RoughWall)+>
+<!ATTLIST Composite name CDATA #REQUIRED>
+
+<!-- Obstacle is also an empty ForceTorqueObstacles selector. Constructed
+obstacles require name, Type, and geometry; selectors require ObstacleName.
+STL obstacles use File/Translation instead of Convex. -->
+
+<!ELEMENT Obstacle (Convex | Centre | AngularPosition | Material | Status | File | Translation)*>
+<!ATTLIST Obstacle name CDATA #IMPLIED ObstacleName CDATA #IMPLIED Type (Standard|STL) #IMPLIED>
+
+<!ELEMENT CylindricalShell (Geometry | Centre | BottomCentre | AngularPosition | Material | Status)*>
+<!ATTLIST CylindricalShell name CDATA #REQUIRED>
+
+<!ELEMENT TruncatedConicalShell (Geometry | Centre | BottomCentre | AngularPosition | Material | Status)*>
+<!ATTLIST TruncatedConicalShell name CDATA #REQUIRED>
+
+<!ELEMENT BoxShell (Geometry | Centre | BottomCentre | AngularPosition | Material | Status)*>
+<!ATTLIST BoxShell name CDATA #REQUIRED>
+
+<!ELEMENT RoughWall (Geometry | Centre | BottomCentre | AngularPosition | Material | Status)*>
+<!ATTLIST RoughWall name CDATA #REQUIRED>
+
+<!ELEMENT Geometry (Roughness | Periodicity | Box)*>
+<!ATTLIST Geometry Height CDATA #IMPLIED Radius CDATA #IMPLIED Width CDATA #IMPLIED N CDATA #IMPLIED CrustThickness CDATA #IMPLIED ElementaryObstacle CDATA #IMPLIED LargeRadius CDATA #IMPLIED SmallRadius CDATA #IMPLIED LX CDATA #IMPLIED LY CDATA #IMPLIED LZ CDATA #IMPLIED>
+
+<!ELEMENT Roughness EMPTY>
+<!ATTLIST Roughness Radius CDATA #REQUIRED Shift CDATA #REQUIRED NX CDATA #REQUIRED NY CDATA #REQUIRED CrustThickness CDATA #REQUIRED RandMag CDATA #REQUIRED>
+
+<!-- Forces and simulation. TimeStep uses dt standalone, and all three of
+mindt/maxdt/ndt coupled. GeometricallyMove is the standalone spelling;
+GeometricallyDisplace is the coupled spelling. -->
+
+<!ELEMENT Forces (Gravity | Brownian | PRSHydro)*>
+
+<!ELEMENT Gravity EMPTY>
+<!ATTLIST Gravity GX CDATA #REQUIRED GY CDATA #REQUIRED GZ CDATA #REQUIRED>
+
+<!ELEMENT Brownian EMPTY>
+<!ATTLIST Brownian Magnitude CDATA #IMPLIED>
+
+<!ELEMENT PRSHydro EMPTY>
+
+<!ELEMENT Simulation (TimeInterval | TimeStep | TimeIntegration | RestartFile | TimeSave | TimeOutput | MovingObstacles | ParticleInsertion | ObstacleLoadings | InsertionWindowMotion | PostProcessing)*>
+
+<!ELEMENT TimeInterval EMPTY>
+<!ATTLIST TimeInterval Start CDATA #REQUIRED End CDATA #REQUIRED>
+
+<!ELEMENT TimeStep EMPTY>
+<!ATTLIST TimeStep dt CDATA #IMPLIED mindt CDATA #IMPLIED maxdt CDATA #IMPLIED ndt CDATA #IMPLIED>
+
+<!ELEMENT TimeIntegration EMPTY>
+<!ATTLIST TimeIntegration Type (FirstOrderExplicit|SecondOrderExplicit|SecondOrderLeapFrog|SecondOrderAdamsBashforth) #REQUIRED>
+
+<!ELEMENT RestartFile EMPTY>
+<!ATTLIST RestartFile Name CDATA #REQUIRED WritingMode (Text|Hybrid) #IMPLIED SingleFile (True|False) #IMPLIED Clones (True|False) #IMPLIED>
+
+<!ELEMENT TimeSave EMPTY>
+<!ATTLIST TimeSave Start CDATA #REQUIRED End CDATA #REQUIRED Every CDATA #REQUIRED>
+
+<!ELEMENT TimeOutput EMPTY>
+<!ATTLIST TimeOutput Every CDATA #REQUIRED>
+
+<!ELEMENT MovingObstacles EMPTY>
+<!ATTLIST MovingObstacles LinkUpdateEvery CDATA #IMPLIED GeometricallyMove (True|False) #IMPLIED GeometricallyDisplace (True|False) #IMPLIED>
+
+<!-- Insertion: choose one ParticlePosition strategy. File angular positions
+require Name; UserDefined random seeds require Value. -->
+
+<!ELEMENT ParticleInsertion (Mode | Order | InitialAngularPosition | RandomGeneratorSeed | Frequency | ForceInsertion | GeometricOverlap | ParticlePosition | InitialVelocity)*>
+
+<!ELEMENT Mode EMPTY>
+<!ATTLIST Mode Type (InitialTime|OverTime) #REQUIRED>
+
+<!ELEMENT Order EMPTY>
+<!ATTLIST Order Type (Ordered|Random) #REQUIRED>
+
+<!ELEMENT InitialAngularPosition EMPTY>
+<!ATTLIST InitialAngularPosition Type (Fixed|Random|File) #REQUIRED Name CDATA #IMPLIED>
+
+<!ELEMENT RandomGeneratorSeed EMPTY>
+<!ATTLIST RandomGeneratorSeed Type (Default|Random|UserDefined) #REQUIRED Value CDATA #IMPLIED>
+
+<!ELEMENT Frequency EMPTY>
+<!ATTLIST Frequency TryEvery CDATA #REQUIRED NbAttempts CDATA #IMPLIED>
+
+<!ELEMENT ForceInsertion EMPTY>
+<!ATTLIST ForceInsertion Value (True|False) #REQUIRED>
+
+<!ELEMENT GeometricOverlap EMPTY>
+<!ATTLIST GeometricOverlap Value (BV|GJK) #REQUIRED>
+
+<!ELEMENT ParticlePosition (File | StructuredArray | CylinderArray | Windows)>
+
+<!ELEMENT File EMPTY>
+<!ATTLIST File Name CDATA #REQUIRED>
+
+<!ELEMENT StructuredArray (Box | Number)*>
+
+<!ELEMENT Number EMPTY>
+<!ATTLIST Number NX CDATA #REQUIRED NY CDATA #REQUIRED NZ CDATA #REQUIRED>
+
+<!ELEMENT CylinderArray (BottomCentre | Cylinder | Filling)*>
+
+<!ELEMENT Filling EMPTY>
+<!ATTLIST Filling RelStartCoord CDATA #IMPLIED From (Bottom|Top) #IMPLIED>
+
+<!ELEMENT Windows (Window+)>
+
+<!ELEMENT Window ((Point, Point?) | (BottomCentre, (Cylinder | Annulus)))>
+<!ATTLIST Window Type (Box|Cylinder|Annulus|Line|Point) #IMPLIED Name CDATA #IMPLIED>
+
+<!ELEMENT Annulus EMPTY>
+<!ATTLIST Annulus RadiusExt CDATA #REQUIRED RadiusInt CDATA #REQUIRED Height CDATA #REQUIRED Direction (X|Y|Z) #REQUIRED>
+
+<!ELEMENT InitialVelocity (TranslationalVelocity | AngularVelocity | Translational | Angular)*>
+<!ATTLIST InitialVelocity Mode (Constant|Random|Zero) #REQUIRED>
+
+<!ELEMENT TranslationalVelocity EMPTY>
+<!ATTLIST TranslationalVelocity VX CDATA #REQUIRED VY CDATA #REQUIRED VZ CDATA #REQUIRED>
+
+<!-- AngularVelocity uses RX/RY/RZ for insertion and WX/WY/WZ for rotation. -->
+
+<!ELEMENT AngularVelocity EMPTY>
+<!ATTLIST AngularVelocity RX CDATA #IMPLIED RY CDATA #IMPLIED RZ CDATA #IMPLIED WX CDATA #IMPLIED WY CDATA #IMPLIED WZ CDATA #IMPLIED>
+
+<!ELEMENT Translational EMPTY>
+<!ATTLIST Translational
+  Amplitude CDATA #REQUIRED>
+
+<!ELEMENT Angular EMPTY>
+<!ATTLIST Angular Amplitude CDATA #REQUIRED>
+
+<!-- Obstacle motion: exactly one motion payload per loading. Type=Force
+supports ConstantTranslation and MultiSinTranslation with Property; velocity
+uses the other motion forms. InsertionWindowMotion uses ObstacleLoading entries
+whose ObstacleName identifies a named window; ConstantRotation is forbidden. -->
+
+<!ELEMENT ObstacleLoadings (ObstacleLoading+)>
+
+<!ELEMENT InsertionWindowMotion (ObstacleLoading+)>
+
+<!ELEMENT ObstacleLoading (TimeInterval, (ConstantTranslation | SinTranslation | CrenelTranslation | SSDCyclicTranslation | ConstantRotation | MultiSinTranslation))>
+<!ATTLIST ObstacleLoading ObstacleName CDATA #REQUIRED Type (Force|Velocity) #IMPLIED>
+
+<!ELEMENT ConstantTranslation (TranslationalVelocity | (Amplitude, Property))>
+
+<!ELEMENT SinTranslation (Direction, Parameters)>
+
+<!ELEMENT CrenelTranslation (Direction, Parameters)>
+
+<!ELEMENT SSDCyclicTranslation (Direction, Parameters)>
+
+<!ELEMENT ConstantRotation (AngularVelocity, RotationCenter?)>
+
+<!ELEMENT RotationCenter EMPTY>
+<!ATTLIST RotationCenter CX CDATA #REQUIRED CY CDATA #REQUIRED CZ CDATA #REQUIRED>
+
+<!ELEMENT MultiSinTranslation (Direction | Amplitude | Period | PhaseShift | Property)*>
+
+<!ELEMENT Direction EMPTY>
+<!ATTLIST Direction VX CDATA #IMPLIED VY CDATA #IMPLIED VZ CDATA #IMPLIED K (X|Y|Z) #IMPLIED L (X|Y|Z) #IMPLIED>
+
+<!ELEMENT Parameters EMPTY>
+<!ATTLIST Parameters Amplitude CDATA #IMPLIED Period CDATA #IMPLIED PhaseShift CDATA #IMPLIED MaxStress CDATA #IMPLIED>
+
+<!ELEMENT Amplitude EMPTY>
+<!ATTLIST Amplitude AX CDATA #REQUIRED AY CDATA #REQUIRED AZ CDATA #REQUIRED>
+
+<!ELEMENT Period EMPTY>
+<!ATTLIST Period PX CDATA #REQUIRED PY CDATA #REQUIRED PZ CDATA #REQUIRED>
+
+<!ELEMENT PhaseShift EMPTY>
+<!ATTLIST PhaseShift PhiX CDATA #REQUIRED PhiY CDATA #REQUIRED PhiZ CDATA #REQUIRED>
+
+<!ELEMENT Property EMPTY>
+<!ATTLIST Property Vmax CDATA #REQUIRED Mass CDATA #IMPLIED>
+
+<!-- Output: PostProcessing is the block read by the current code. -->
+
+<!ELEMENT PostProcessing (Domain | Writers | ForceTorqueObstacles | ForceStats)*>
+
+<!ELEMENT Domain (Point, Point)>
+
+<!ELEMENT Writers (Paraview | RawData)*>
+
+<!ELEMENT Paraview EMPTY>
+<!ATTLIST Paraview
+  RootName CDATA #REQUIRED
+  Directory CDATA #REQUIRED
+  InitialCycleNumber CDATA #IMPLIED
+  WritingMode (Text|Binary) #IMPLIED
+  ForceNetwork (True|False) #IMPLIED
+  Obstacle (True|False) #IMPLIED
+  MPIIO (True|False) #IMPLIED
+  PerType (True|False) #IMPLIED
+  UseGlyphWheneverPossible (True|False) #IMPLIED
+  NbPtsPerSphereQuarter CDATA #IMPLIED
+  NbPtsPerDiscPer CDATA #IMPLIED
+  NbPtsPerCylPer CDATA #IMPLIED
+  NbPtsPerConePer CDATA #IMPLIED
+  NbPtsPerSQQuarter CDATA #IMPLIED
+  NbPtsPerSCQuarter CDATA #IMPLIED
+  NbPtsPerSCPHalf CDATA #IMPLIED>
+
+<!ELEMENT RawData EMPTY>
+<!ATTLIST RawData Name CDATA #REQUIRED WritingMode (Text|Binary) #IMPLIED>
+
+<!ELEMENT ForceTorqueObstacles (Obstacle+)>
+<!ATTLIST ForceTorqueObstacles Every CDATA #REQUIRED Directory CDATA #REQUIRED>
+
+<!ELEMENT ForceStats EMPTY>
+<!ATTLIST ForceStats Every CDATA #REQUIRED Directory CDATA #REQUIRED>
