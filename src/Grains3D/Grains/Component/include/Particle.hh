@@ -59,6 +59,25 @@ struct VelocityInfosNm1
 class Particle : public Component
 {
   public:
+    /** @brief Authority responsible for time integration, independent of
+    particle activity, memory ownership, and MPI ownership. */
+    enum class KinematicDriver { Grains, External };
+
+    /** @brief Selects who integrates this particle. External authority leaves
+    contact evaluation and force accumulation enabled. Configure reference
+    particles before cloning; existing instances must be configured separately.
+    External model/driver bindings are supplied by the coupling layer.
+    This does not reset integrator history or import external state. Authority
+    is not serialized: configure reload references before reconstructing their
+    instances. */
+    void setKinematicDriver( KinematicDriver d ) { m_KinematicDriver = d; }
+
+    /** @brief Returns the particle's time-integration authority. */
+    KinematicDriver getKinematicDriver() const { return m_KinematicDriver; }
+
+    /** @brief Whether Grains3D may integrate this particle's motion. */
+    bool isIntegratedByGrains() const { return m_KinematicDriver == KinematicDriver::Grains; }
+
     /**@name Constructors & Destructor */
     //@{
     /** @brief Constructor with autonumbering as input parameter
@@ -741,6 +760,7 @@ class Particle : public Component
 
 
   private:
+    KinematicDriver m_KinematicDriver = KinematicDriver::Grains;
     /**@name Constructors  */
     //@{
     /** @brief Default constructor */

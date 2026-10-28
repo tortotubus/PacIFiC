@@ -122,7 +122,8 @@ void AllComponents::AddReferenceParticle( Particle* particle, size_t const &n )
 
   // Check whether such a type of particle already exists
   for (i=0;i<ntypes && !exist;++i)
-    if ( particle->equalType( m_ReferenceParticles[i] ) ) 
+    if ( particle->getKinematicDriver() == m_ReferenceParticles[i]->getKinematicDriver() &&
+         particle->equalType( m_ReferenceParticles[i] ) )
     {
       exist = true;
       i0 = i;
@@ -201,7 +202,7 @@ list<SimpleObstacle*> AllComponents::Move( double time,
     list<Particle*>::iterator particle;
     for (particle=m_ActiveParticles.begin();
       particle!=m_ActiveParticles.end(); particle++)
-      if ( (*particle)->getTag() != 2 )
+      if ( (*particle)->getTag() != 2 && (*particle)->isIntegratedByGrains() )
         (*particle)->Move( time, dt_particle_vel, dt_particle_disp );
 
     // Obstacles motion
@@ -268,7 +269,7 @@ void AllComponents::advanceParticlesVelocity( double time,
   list<Particle*>::iterator particle;
   for (particle=m_ActiveParticles.begin();
       particle!=m_ActiveParticles.end(); particle++)
-    if ( (*particle)->getTag() != 2 )
+    if ( (*particle)->getTag() != 2 && (*particle)->isIntegratedByGrains() )
       (*particle)->advanceVelocity( time, dt_particle_vel );
 }
 

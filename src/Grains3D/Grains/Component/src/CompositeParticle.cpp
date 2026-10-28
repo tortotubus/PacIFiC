@@ -837,6 +837,7 @@ void CompositeParticle::Move( double time,
 	double const& dt_particle_vel, 
     	double const& dt_particle_disp )
 {
+  if ( !isIntegratedByGrains() ) return;
   // Move the composite particle
   Particle::Move( time, dt_particle_vel, dt_particle_disp );
 

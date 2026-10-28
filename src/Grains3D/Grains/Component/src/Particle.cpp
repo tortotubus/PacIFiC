@@ -80,6 +80,7 @@ Particle::Particle( Particle const& other, bool const& autonumbering )
   , m_weight( other.m_weight )
   , m_specific_composite_shape( other.m_specific_composite_shape )  
 {
+  m_KinematicDriver = other.m_KinematicDriver;
   if ( autonumbering )
   {
     Particle::m_maxID++;
@@ -269,6 +270,7 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 
   // Particle class
   m_GeomType = ParticleRef->m_GeomType;
+  m_KinematicDriver = ParticleRef->m_KinematicDriver;
 
   // Rigid body shape
   m_geoRBWC = new RigidBodyWithCrust( *ParticleRef->m_geoRBWC );
@@ -333,6 +335,7 @@ Particle::Particle( int const& id_, Particle const* ParticleRef,
 
   // Particle class
   m_GeomType = ParticleRef->m_GeomType;
+  m_KinematicDriver = ParticleRef->m_KinematicDriver;
 
   // Rigid body shape
   m_geoRBWC = new RigidBodyWithCrust( *(ParticleRef->m_geoRBWC) );
@@ -439,6 +442,7 @@ void Particle::Move( double time,
 	double const& dt_particle_vel, 
     	double const& dt_particle_disp )
 {
+  if ( !isIntegratedByGrains() ) return;
   try 
   {
     // Time integration of Newton's law and kinematic equations
@@ -467,6 +471,7 @@ void Particle::Move( double time,
 // Advances velocity over dt_particle_vel
 void Particle::advanceVelocity( double time, double const& dt_particle_vel )
 {
+  if ( !isIntegratedByGrains() ) return;
   m_kinematics->advanceVelocity( this, dt_particle_vel );
 }
 
@@ -974,6 +979,8 @@ void Particle::readAdditionalFeatures( istream& fileIn )
 void Particle::read2014( istream& fileIn, vector<Particle*> const*
   	referenceParticles )
 {
+  // Authority is configuration inherited from the reference, not restart data.
+  m_KinematicDriver = (*referenceParticles)[m_GeomType]->m_KinematicDriver;
   // ID number
   // Note: the geometric type of particle m_GeomType is read and set prior
   // to constructing the particle
@@ -1034,6 +1041,7 @@ void Particle::read2014( istream& fileIn, vector<Particle*> const*
 void Particle::read2014_binary( istream& fileIn, vector<Particle*> const*
   	referenceParticles )
 {
+  m_KinematicDriver = (*referenceParticles)[m_GeomType]->m_KinematicDriver;
   // ID number
   // Note: the geometric type of particle m_GeomType is read and set prior
   // to constructing the particle
