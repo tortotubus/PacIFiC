@@ -327,7 +327,6 @@ class CompositeObstacle : public Obstacle
 
 
   protected:
-    std::vector<Component*> interactionChildren() const override;
     /** @name Methods */
     //@{  
     /** @brief Computes center of mass position */

@@ -353,7 +353,6 @@ class CompositeParticle : public Particle
 
 
   protected:
-    std::vector<Component*> interactionChildren() const override;
     void applyExternalState( Transform const& transform,
       Quaternion const& orientation, Vector3 const& velocity,
       Vector3 const& angularVelocity ) override;

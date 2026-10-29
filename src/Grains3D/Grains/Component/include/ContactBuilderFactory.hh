@@ -32,7 +32,6 @@ class ContactBuilderFactory
     static void restoreMaterials(MaterialState const& state);
     static void writeMaterials(std::ostream& out);
     static void readMaterials(std::istream& in);
-    static bool hasContactForceModel(std::string const& first, std::string const& second);
 
     /** @name Static methods */
     //@{

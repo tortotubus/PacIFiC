@@ -417,11 +417,3 @@ void ContactBuilderFactory::readMaterials(std::istream& in)
   if (!in) throw std::invalid_argument("Invalid material registry");
   restoreMaterials(state);
 }
-
-bool ContactBuilderFactory::hasContactForceModel(std::string const& first, std::string const& second)
-{
-  auto a=m_materials.find(first), b=m_materials.find(second);
-  if (a==m_materials.end() || b==m_materials.end()) return false;
-  auto law=m_contactForceModels.find(a->second|b->second);
-  return law!=m_contactForceModels.end() && law->second;
-}

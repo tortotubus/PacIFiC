@@ -7,7 +7,6 @@
 #include "GrainsExec.hh"
 #include "RigidBodyWithCrust.hh"
 #include <algorithm>
-#include <stdexcept>
 using namespace std;
 
 Torsor Component::getLoad(LoadSource source) const
@@ -1103,23 +1102,4 @@ bool Component::doBVolumeOverlap( Component const* othercomp ) const
     BVCheck = isContactBVolume( *m_geoRBWC, *othercomp->m_geoRBWC );
   
   return ( BVCheck );  
-}
-
-Component::InteractionState Component::captureInteractionState() const
-{
-  InteractionState state;
-  state.total=m_torsor; state.sources=m_sourceLoads;
-  state.contacts=m_contactMap; state.collisions=m_collisionHistory.captureState();
-  for (auto* child:interactionChildren()) state.children.push_back(child->captureInteractionState());
-  return state;
-}
-
-void Component::restoreInteractionState(InteractionState const& state, bool reanchor)
-{
-  auto children=interactionChildren();
-  if (children.size()!=state.children.size()) throw std::invalid_argument("Interaction state topology differs");
-  m_torsor=state.total; m_sourceLoads=state.sources;
-  m_contactMap=state.contacts; m_collisionHistory.restoreState(state.collisions);
-  if (reanchor) setLoadReferencePoint(*getPosition());
-  for (size_t i=0;i<children.size();++i) children[i]->restoreInteractionState(state.children[i],reanchor);
 }

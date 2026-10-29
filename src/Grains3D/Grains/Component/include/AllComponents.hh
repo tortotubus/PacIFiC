@@ -60,7 +60,6 @@ class AllComponents
     void adoptReferenceParticle(std::unique_ptr<Particle> particle);
     /** Adopt a particle already inserted into the collision grid. */
     void adoptActiveParticle(std::unique_ptr<Particle> particle, bool distributed);
-    bool hasImposedObstacleMotion() const;
 
     /** @name Constructors & Destructor */
     //@{

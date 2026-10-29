@@ -12,7 +12,6 @@
 #include <map>
 #include <set>
 #include <array>
-#include <vector>
 using namespace std;
 
 class BBox;
@@ -45,22 +44,6 @@ class Component
     enum class LoadSource { Contact, Gravity, Hydrodynamic, Applied };
     static constexpr size_t loadSourceCount = 4;
     using LoadBreakdown = std::array<Torsor, loadSourceCount>;
-
-    /** Exact force/contact state for synchronization; contains values, no aliases
-     * into live component storage. Composite snapshots include their children.
-     */
-    struct InteractionState {
-      Torsor total;
-      std::array<Torsor,3> sources;
-      std::map<std::tuple<int,int,int>, std::tuple<bool,Vector3,Vector3,Vector3>> contacts;
-      CollisionHistory::State collisions;
-      std::set<int> touching;
-      int coordination=0;
-      std::vector<InteractionState> children;
-    };
-    virtual InteractionState captureInteractionState() const;
-    virtual void restoreInteractionState(InteractionState const& state,
-                                         bool reanchor=false);
 
     /** Return a source wrench with its explicit force-evaluation reference
      * point, normally the centre of mass. Contact excludes all body loads. */
@@ -506,7 +489,6 @@ class Component
     
     
   protected:
-    virtual std::vector<Component*> interactionChildren() const { return {}; }
     void resetLoads(Point3 const& point, Vector3 const& gravity);
     /** Reattach force-evaluation moments to an imported body pose without
      * changing their numerical values (matching total-load import semantics). */

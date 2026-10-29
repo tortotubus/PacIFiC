@@ -64,10 +64,6 @@ class Particle : public Component
     virtual void applyExternalState( Transform const& transform,
       Quaternion const& orientation, Vector3 const& velocity,
       Vector3 const& angularVelocity );
-    InteractionState captureInteractionState() const override;
-    void restoreInteractionState(InteractionState const& state, bool reanchor=false) override;
-    /** Copy complete kinematics/integrator history without changing geometry. */
-    void copyIntegrationState(Particle const& source);
 
     /** @brief Authority responsible for time integration, independent of
     particle activity, memory ownership, and MPI ownership. */

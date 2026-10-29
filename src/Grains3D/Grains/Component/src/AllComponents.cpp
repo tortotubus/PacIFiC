@@ -2506,12 +2506,6 @@ void AllComponents::reserveReferenceParticles(size_t additional)
   m_NbRemainingParticlesToInsert.reserve(m_NbRemainingParticlesToInsert.size()+additional);
 }
 
-bool AllComponents::hasImposedObstacleMotion() const
-{
-  return !m_AllImposedVelocitiesOnObstacles.empty() ||
-         !m_AllImposedForcesOnObstacles.empty();
-}
-
 void AllComponents::adoptReferenceParticle(std::unique_ptr<Particle> particle)
 {
   reserveReferenceParticles(1);

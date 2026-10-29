@@ -1353,8 +1353,3 @@ void CompositeParticle::write_OBJ( ostream& f, size_t const& group_number,
     f << endl;
   } 
 }
-
-std::vector<Component*> CompositeParticle::interactionChildren() const
-{
-  return std::vector<Component*>(m_elementaryParticles.begin(),m_elementaryParticles.end());
-}
