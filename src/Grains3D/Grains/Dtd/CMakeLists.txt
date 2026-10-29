@@ -2,6 +2,13 @@
 set(CONVEX_DTD "Convex.dtd")
 set(CONTACT_DTD "Contact.dtd")
 
+# Self-contained, opt-in 3D schema; installed by the parent Dtd directory rule.
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Grains3D-v2.dtd"
+  "${CMAKE_CURRENT_BINARY_DIR}/Grains3D-v2.dtd"
+  COPYONLY
+)
+
 # Generate the configured DTD into the build dir (or wherever you want)
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/Contact.dtd.in"

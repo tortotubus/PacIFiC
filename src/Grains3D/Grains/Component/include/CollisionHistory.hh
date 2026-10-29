@@ -23,6 +23,10 @@ using namespace solid;
 class CollisionHistory
 {
     public:
+        using State = std::map<int, Vector3>;
+        State captureState() const { return m_collisionMap; }
+        void restoreState(State const& state) { m_collisionMap = state; }
+
 		/**@name Constructors */
 		//@{
 		/** @brief Default constructor */

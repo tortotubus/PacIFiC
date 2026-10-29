@@ -1980,3 +1980,22 @@ void Particle::setCouplingFactor()
 {
   m_kinematics->setCouplingFactor( m_density );  
 }
+
+Component::InteractionState Particle::captureInteractionState() const
+{
+  auto state=Component::captureInteractionState();
+  state.touching=m_contacting_component_IDs; state.coordination=m_coordination_number;
+  return state;
+}
+
+void Particle::restoreInteractionState(InteractionState const& state, bool reanchor)
+{
+  Component::restoreInteractionState(state,reanchor);
+  m_contacting_component_IDs=state.touching; m_coordination_number=state.coordination;
+}
+
+void Particle::copyIntegrationState(Particle const& source)
+{
+  auto* copy=source.m_kinematics->clone();
+  delete m_kinematics; m_kinematics=copy;
+}

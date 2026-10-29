@@ -59,6 +59,16 @@ struct VelocityInfosNm1
 class Particle : public Component
 {
   public:
+    /** Apply a validated pose and velocities without integrating or clearing
+     * loads/contact history. The transform uses the current periodic image. */
+    virtual void applyExternalState( Transform const& transform,
+      Quaternion const& orientation, Vector3 const& velocity,
+      Vector3 const& angularVelocity );
+    InteractionState captureInteractionState() const override;
+    void restoreInteractionState(InteractionState const& state, bool reanchor=false) override;
+    /** Copy complete kinematics/integrator history without changing geometry. */
+    void copyIntegrationState(Particle const& source);
+
     /** @brief Authority responsible for time integration, independent of
     particle activity, memory ownership, and MPI ownership. */
     enum class KinematicDriver { Grains, External };
@@ -66,7 +76,7 @@ class Particle : public Component
     /** @brief Selects who integrates this particle. External authority leaves
     contact evaluation and force accumulation enabled. Configure reference
     particles before cloning; existing instances must be configured separately.
-    External model/driver bindings are supplied by the coupling layer.
+    External model bindings are registered with the simulation.
     This does not reset integrator history or import external state. Authority
     is not serialized: configure reload references before reconstructing their
     instances. */
@@ -697,12 +707,6 @@ class Particle : public Component
 
 
   protected:
-    friend class Grains;
-    /** Apply a validated pose and velocities without integrating or clearing
-     * loads/contact history. The transform uses the current periodic image. */
-    virtual void applyExternalState( Transform const& transform,
-      Quaternion const& orientation, Vector3 const& velocity,
-      Vector3 const& angularVelocity );
     /**@name Parameters */
     //@{
     Particle* m_masterParticle; /**< master particle (the particle itself in

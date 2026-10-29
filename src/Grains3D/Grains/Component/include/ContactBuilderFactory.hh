@@ -23,6 +23,17 @@ class Obstacle;
 class ContactBuilderFactory
 {
   public:
+    struct MaterialState {
+      int nextValue;
+      std::map<std::string,int> materials;
+      std::map<std::string,bool> obstaclesOnly;
+    };
+    static MaterialState captureMaterials();
+    static void restoreMaterials(MaterialState const& state);
+    static void writeMaterials(std::ostream& out);
+    static void readMaterials(std::istream& in);
+    static bool hasContactForceModel(std::string const& first, std::string const& second);
+
     /** @name Static methods */
     //@{
     /** @brief Returns the contact associated to a couple of materials

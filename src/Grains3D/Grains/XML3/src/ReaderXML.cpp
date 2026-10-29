@@ -439,17 +439,15 @@ string ReaderXML::getNodeName(DOMNode const *root) {
 }
 
 /**
- * @brief Return the “next” node according to legacy semantics.
- *
- * Legacy behavior returns the second entry (`item(1)`) of `getChildNodes()`.
- * This is not a general sibling traversal; it is an index-based selection.
+ * @brief Return the first element child, skipping whitespace and comments.
  *
  * @param root Parent node.
- * @return The second child node, or null if missing.
+ * @return The first element child, or null if missing.
  */
 DOMNode *ReaderXML::getNodeNext(DOMNode *root) {
-  DOMNodeList *nodes = root ? root->getChildNodes() : nullptr;
-  return nodes ? nodes->item(1) : nullptr;
+  for (DOMNode* node=root?root->getFirstChild():nullptr;node;node=node->getNextSibling())
+    if (node->getNodeType()==DOMNode::ELEMENT_NODE) return node;
+  return nullptr;
 }
 
 // ----------------------------------------------------------------------------

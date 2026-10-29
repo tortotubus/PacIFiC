@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string>
 #include <algorithm>
+#include <limits>
 using namespace std;
 
 
@@ -171,16 +172,20 @@ bool Cell::contains( Particle* particle_ )
 // Returns the cell ijk indices that contains a point
 void Cell::GetCell( Point3 const& position, int* id )
 {	
-  // We use floor instead of int. If x < m_LC_local_origin[X]
-  // then int returns 0 while floor returns -1, and -1 is the correct value
-  // as the position is out of the LinkedCell
-  // Rem: floor returns a double that we recast into an int
-  id[X] = int( floor( ( position[X] - Cell::m_LC_local_origin[X] ) 
-  	/ Cell::m_edge_X ) );
-  id[Y] = int( floor( ( position[Y] - Cell::m_LC_local_origin[Y] ) 
-  	/ Cell::m_edge_Y ) );
-  id[Z] = int( floor( ( position[Z] - Cell::m_LC_local_origin[Z] ) 
-  	/ Cell::m_edge_Z ) );	  
+  const double edges[3] = {m_edge_X, m_edge_Y, m_edge_Z};
+  for (int d=0; d<3; ++d) {
+    double coordinate = (position[d]-m_LC_local_origin[d])/edges[d];
+    // The same partition face must map to the same side on both ranks.
+    // Subtraction of a shifted local origin can otherwise produce 0.999...,
+    // leaving an exactly-on-face particle classified as a ghost on both ranks.
+    const double nearest = std::round(coordinate);
+    const double tolerance = 8.*std::numeric_limits<double>::epsilon()
+        * std::max({1.,std::abs(coordinate),std::abs(position[d]/edges[d]),
+                    std::abs(m_LC_local_origin[d]/edges[d])});
+    if (std::abs(coordinate-nearest)<=tolerance) coordinate=nearest;
+    // Floor preserves negative indices for points outside the local grid.
+    id[d] = static_cast<int>(std::floor(coordinate));
+  }
 }
 
 

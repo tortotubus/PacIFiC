@@ -111,7 +111,7 @@ class AppCollision : public App
     /** @brief Adds a contact point to the contact statistics
     @param time physical time 
     @param contactPoint contact point */
-    void addToContactsFeatures( double time, PointContact const& contactPoint );
+    virtual void addToContactsFeatures( double time, PointContact const& contactPoint );
   
     /** @brief Returns a pointer to a simple obstacle based on its ID number
     @param num obstacle number */

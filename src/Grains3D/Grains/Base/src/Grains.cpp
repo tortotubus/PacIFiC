@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "Grains.hh"
 #include "ContactBuilderFactory.hh"
 #include "LinkedCell.hh"
@@ -69,6 +70,7 @@ Grains::Grains()
 // Destructor
 Grains::~Grains()
 {
+  m_externalModels.reset();
   if ( m_InsertionLattice ) delete m_InsertionLattice;
   list<App*>::iterator app;
   for (app=m_allApp.begin(); app!=m_allApp.end(); app++) delete *app;
@@ -131,6 +133,12 @@ void Grains::do_before_time_stepping( DOMElement* rootElement )
       m_allcomponents.setRandomMotion( m_RandomMotionCoefTrans,
 	m_RandomMotionCoefRot );
 
+    registerPendingExternalModels();
+    if (hasExternalModels()) {
+      m_allcomponents.computeWeight(m_time,m_dt);
+      m_allcomponents.InitializeForces(m_time,m_dt,true);
+    }
+
     // Writing results for postprocessing
     m_allcomponents.PostProcessing_start( m_time, m_dt, m_collision,
   	m_insertion_windows, m_rank, m_nprocs, m_wrapper );
@@ -165,12 +173,12 @@ void Grains::do_before_time_stepping( DOMElement* rootElement )
 
     // Next time of writing results
     m_timeSave = m_save.begin();
-    while ( *m_timeSave - m_time < 0.01 * m_dt && m_timeSave != m_save.end() )
+    while ( m_timeSave != m_save.end() && *m_timeSave - m_time < 0.01 * m_dt )
       m_timeSave++;
       
     // In case of SecondOrderLeapFrog, initialize acceleration
     if ( GrainsExec::m_TIScheme == "SecondOrderLeapFrog" && 
-    	!GrainsExec::m_isReloaded )
+        !GrainsExec::m_isReloaded && !hasExternalModels() )
     {
       computeParticlesForceAndTorque();
       m_allcomponents.setAllContactMapCumulativeFeaturesToZero();
@@ -273,6 +281,8 @@ void Grains::do_after_time_stepping()
 // Runs the simulation over the prescribed time interval
 void Grains::Simulation( double time_interval )
 {
+  if (hasExternalModels()) { simulateExternalModels(time_interval); return; }
+
   double vmax = 0., vmean = 0. ;
   bool forcestats = false;
 
@@ -982,6 +992,10 @@ void Grains::Construction( DOMElement* rootElement )
     }
 
 
+    // Parse external geometry before materials/contact laws and grid sizing.
+    double externalRadius=readExternalModels(root);
+    if (externalRadius>0.) bnewpart=true;
+
     // Contact force models
     DOMNode* contact = ReaderXML::getNode( root, "ContactForceModels" );
     if ( contact )
@@ -1019,7 +1033,7 @@ void Grains::Construction( DOMElement* rootElement )
     	"Set up the linked cell grid" << endl;
 
     // Maximum circumscribed radius of particles
-    double maxR = m_allcomponents.getCircumscribedRadiusMax();
+    double maxR = std::max(m_allcomponents.getCircumscribedRadiusMax(),externalRadius);
     if ( maxR < 1.e-12 ) maxR = 1.e16;
     else if ( m_rank == 0 )
       cout << GrainsExec::m_shift9 << "Maximum circumscribed particle radius = "

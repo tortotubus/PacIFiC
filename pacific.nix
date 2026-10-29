@@ -12,6 +12,7 @@
   petsc,
   hypre,
   xercesc,
+  eigen,
   makeWrapper,
   gtest,
   cudaToolkit ? null,
@@ -35,6 +36,7 @@ stdenv.mkDerivation {
   ++ lib.optionals (cudaNvcc != null) [ cudaNvcc ];
 
   buildInputs = [
+    eigen
     gtest
     xercesc
     zlib

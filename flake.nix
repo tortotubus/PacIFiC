@@ -91,6 +91,9 @@
             shellHook = ''
               export PETSC_DIR="${pkgs.petsc}"
               export HYPRE_DIR="${pkgs.hypre}"
+              # Avoid relocatable Eigen configs reached through the system profile,
+              # which may expose share/eigen3 without its corresponding headers.
+              export Eigen3_ROOT="${pkgs.eigen}"
             ''
             + pkgs.lib.optionalString (cudaToolkit != null) ''
               export CUDA_PATH="${cudaToolkit}"

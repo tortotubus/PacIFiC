@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "GrainsMPIWrapper.hh"
 #include "GrainsExec.hh"
 #include "GrainsCoupledWithFluid.hh"
@@ -122,6 +123,9 @@ void GrainsCoupledWithFluid::do_after_time_stepping()
 // Runs the simulation over the prescribed time interval
 void GrainsCoupledWithFluid::Simulation( double time_interval )
 {
+  if (hasExternalModels())
+    throw std::logic_error("Registered external models require advanceExternalModels()");
+
   list<App*>::iterator app;
   
   // Compute the number of granular time steps

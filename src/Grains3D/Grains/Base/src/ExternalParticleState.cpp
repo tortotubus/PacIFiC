@@ -33,6 +33,14 @@ double wrap(double value, double origin, double length)
 void Grains::importExternalParticleStates(
     std::vector<ExternalParticleState> const& input)
 {
+  if (isExternalModelStepActive())
+    throw std::logic_error("Live state import is forbidden during adapter trial evaluation");
+  importParticleStates(input, true);
+}
+
+void Grains::importParticleStates(
+    std::vector<ExternalParticleState> const& input, bool commit)
+{
   constexpr int loadWidth = 6 * Component::loadSourceCount;
   if (m_wrapper && !m_processorIsActive)
     throw std::invalid_argument("External states: inactive MPI rank");
@@ -154,6 +162,7 @@ void Grains::importExternalParticleStates(
   for (int n : owners)
     if (n != 1) error = "External particle ID has no unique physical owner";
   validateCollectively(error, comm, rank);
+  if (!commit) return;
   if (states.empty()) {
     m_externalStateHistory.clear();
     return;

@@ -11,6 +11,7 @@ Build-Depends:
  mpi-default-dev,
  libhdf5-mpi-dev,
  libxerces-c-dev,
+ libeigen3-dev (>= 3.3),
  zlib1g-dev,
  petsc-dev
 Standards-Version: 4.6.2

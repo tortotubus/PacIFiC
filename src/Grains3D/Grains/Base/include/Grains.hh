@@ -12,6 +12,9 @@
 #include "computingtime.hh"
 #include "LinkedCell.hh"
 #include "ExternalParticleState.hh"
+#include "ExternalModel.hh"
+
+class ExternalModelRegistry;
 #include <map>
 #include <list>
 #include <vector>
@@ -115,6 +118,24 @@ class Grains : public ComputingTime, public SolverComputingTime
      */
     void importExternalParticleStates(
       std::vector<ExternalParticleState> const& states );
+
+    /** Collective registration after initialization. Only active rank 0 supplies
+     * a model; other active ranks pass nullptr. Grains owns registered models
+     * and particles. Registration is forbidden during a coupled step.
+     */
+    void registerExternalModel(std::string const& name,
+      std::unique_ptr<ExternalModel> model);
+
+    /** Advance one explicit synchronized substep. Only root runs external models;
+     * all active ranks participate. Each model receives its own beginning-of-step
+     * contact loads and returns only its bound particle states. Internally driven
+     * particles follow the configured integrator, including leapfrog's split kick.
+     * Fixed subcycling is repeated calls with the same dt. Any failed substep
+     * invalidates coupling; restart with a new simulation rather than retrying.
+     * Obstacles are fixed and noncontact forcing is held constant over the step.
+     */
+    void advanceExternalModels(double dt);
+    bool hasExternalModels() const;
     //@}
     
     
@@ -133,6 +154,16 @@ class Grains : public ComputingTime, public SolverComputingTime
   
    
   protected:
+    friend class ExternalModelSession;
+    void adoptExternalParticle(std::unique_ptr<Particle> particle);
+    double readExternalModels(DOMNode* construction);
+    void registerPendingExternalModels();
+    void simulateExternalModels(double timeInterval);
+    std::vector<std::pair<std::string,std::unique_ptr<ExternalModel>>> m_pendingExternalModels;
+    bool isExternalModelStepActive() const;
+    std::shared_ptr<ExternalModelRegistry> m_externalModels;
+    void importParticleStates(std::vector<ExternalParticleState> const& states,
+                             bool commit);
     /** Refresh collision bookkeeping after changing particle poses. */
     virtual void synchronizeParticleStates();
 

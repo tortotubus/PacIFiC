@@ -70,8 +70,8 @@ class ReaderXML
     @param root node */
     static string getNodeName( DOMNode const* root );
 
-    /** @brief Returns the next node wrt to a node
-    @param root previous node */
+    /** @brief Returns the first element child, skipping whitespace and comments
+    @param root parent node */
     static DOMNode* getNodeNext( DOMNode* root );
 
     /** @brief Returns the scalar value xxx of the node "<root>xxx</root>"

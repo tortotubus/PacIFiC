@@ -1,3 +1,5 @@
+#include <iomanip>
+#include <stdexcept>
 #include "GrainsExec.hh"
 #include "ContactBuilderFactory.hh"
 #include "ContactForceModel.hh"
@@ -384,4 +386,42 @@ void ContactBuilderFactory::set_materialsForObstaclesOnly_reload(
   for (particle=referenceParticles->begin();
   	particle!=referenceParticles->end();particle++)
     m_materialsForObstaclesOnly[(*particle)->getMaterial()] = false ;
+}
+
+ContactBuilderFactory::MaterialState ContactBuilderFactory::captureMaterials()
+{ return {m_value,m_materials,m_materialsForObstaclesOnly}; }
+
+void ContactBuilderFactory::restoreMaterials(MaterialState const& state)
+{
+  m_value=state.nextValue; m_materials=state.materials;
+  m_materialsForObstaclesOnly=state.obstaclesOnly;
+}
+
+void ContactBuilderFactory::writeMaterials(std::ostream& out)
+{
+  out << m_value << ' ' << m_materials.size() << ' ';
+  for (auto const& material:m_materials)
+    out << std::quoted(material.first) << ' ' << material.second << ' '
+        << m_materialsForObstaclesOnly.at(material.first) << ' ';
+}
+
+void ContactBuilderFactory::readMaterials(std::istream& in)
+{
+  MaterialState state; size_t count;
+  in >> state.nextValue >> count;
+  for (size_t i=0;i<count;++i) {
+    std::string name; int id; bool obstacle;
+    in >> std::quoted(name) >> id >> obstacle;
+    state.materials[name]=id; state.obstaclesOnly[name]=obstacle;
+  }
+  if (!in) throw std::invalid_argument("Invalid material registry");
+  restoreMaterials(state);
+}
+
+bool ContactBuilderFactory::hasContactForceModel(std::string const& first, std::string const& second)
+{
+  auto a=m_materials.find(first), b=m_materials.find(second);
+  if (a==m_materials.end() || b==m_materials.end()) return false;
+  auto law=m_contactForceModels.find(a->second|b->second);
+  return law!=m_contactForceModels.end() && law->second;
 }

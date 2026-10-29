@@ -1,4 +1,5 @@
 #include "ConvexBuilderFactory.hh"
+#include <stdexcept>
 #include "Box.hh"
 #include "Cylinder.hh"
 #include "Disc.hh"
@@ -19,7 +20,7 @@
 // Construct a convex with an XML node as an input parameter
 Convex* ConvexBuilderFactory::create( DOMNode* root )
 {
-  assert( root != NULL );
+  if (!root) throw std::invalid_argument("Missing Convex XML element");
 
   Convex* convex = NULL;
 
@@ -44,7 +45,9 @@ Convex* ConvexBuilderFactory::create( DOMNode* root )
   else if ( type == "TruncatedCone" ) 
     convex = new TruncatedCone( element );         
     
-  assert( convex != NULL );
+  if (!convex) throw std::invalid_argument(
+      "Convex requires a supported shape element; found: " +
+      (type.empty() ? std::string("<none>") : type));
 
   return ( convex );
 }

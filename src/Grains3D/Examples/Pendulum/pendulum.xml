@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<!DOCTYPE Grains3D SYSTEM "../../Grains/Dtd/Grains3D-v2.dtd">
+<Grains3D Type="Standard">
+  <Construction>
+    <LinkedCell MX="10" MY="10" MZ="10" CellSizeFactor="1"/> 
+    <ContactForceModels>
+      <ContactForceModel>
+        <Material materialA="pendulum" materialB="pendulum"/>
+        <HookeMemory><kn>100000</kn><muc>0.5</muc><en>0.8</en><etat>0</etat><mur>0</mur><etarpf>0</etarpf><kt>1000</kt><epst>1e-10</epst></HookeMemory>
+      </ContactForceModel>
+    </ContactForceModels>
+    <ExternalModels>
+      <Pendulum Name="pendulum1" N="30" L="1">
+        <Anchor X="5" Y="5" Z="5"/>
+        <Direction X="-1" Y="0" Z="0"/>
+        <Density>2500</Density>
+        <CrustThickness>0.0025</CrustThickness>
+        <Radius>0.01</Radius>
+        <Material>pendulum</Material>
+        <BendingRigidity>0.1</BendingRigidity>
+        <DampingRigidity>0.01</DampingRigidity>
+      </Pendulum>      
+      <Pendulum Name="pendulum2" N="30" L="1">
+        <Anchor X="5.5" Y="5" Z="4.5"/>
+        <Direction X="0" Y="0" Z="-1"/>
+        <Density>2500</Density>
+        <CrustThickness>0.0025</CrustThickness>
+        <Radius>0.01</Radius>
+        <Material>pendulum</Material>
+        <BendingRigidity>0.1</BendingRigidity>
+        <DampingRigidity>0.01</DampingRigidity>
+      </Pendulum>
+    </ExternalModels> 
+  </Construction>
+  <Forces><Gravity GX="0" GY="-9.81" GZ="0"/></Forces>
+  <Simulation>
+    <TimeInterval Start="0" End="2.5"/>
+    <TimeStep dt="0.0002"/>
+    <TimeIntegration Type="SecondOrderLeapFrog"/>
+    <RestartFile Name="./restart" WritingMode="Text"/>
+    <TimeSave Start="0" End="10" Every="0.01"/>
+    <PostProcessing>
+      <Writers>
+        <Paraview RootName="pendulum" Directory="." WritingMode="Text"
+                  PerType="False" UseGlyphWheneverPossible="False"
+                  Obstacle="True" NbPtsPerSphereQuarter="8"/>
+      </Writers>
+    </PostProcessing>
+  </Simulation>
+</Grains3D>

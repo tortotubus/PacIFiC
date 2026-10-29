@@ -41,6 +41,7 @@ jobs:
               openmpi-bin \
               libopenmpi-dev \
               libxerces-c-dev \
+              libeigen3-dev \
               zlib1g-dev \
               libhdf5-openmpi-dev \
               petsc-dev
@@ -51,6 +52,7 @@ jobs:
               pkg-config \
               open-mpi \
               xerces-c \
+              eigen \
               zlib \
               hdf5-mpi \
               petsc

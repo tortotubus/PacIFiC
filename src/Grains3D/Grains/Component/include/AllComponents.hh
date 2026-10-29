@@ -5,6 +5,7 @@
 #include "Basic.hh"
 #include "Error.hh"
 #include "KinematicsDriver.hh"
+#include <memory>
 #include <fstream>
 #include <sstream>
 #include <list>
@@ -54,6 +55,13 @@ enum CloneInReload
 class AllComponents
 {
   public:
+    /** Reserve and adopt distinct reference types without geometry deduplication. */
+    void reserveReferenceParticles(size_t additional);
+    void adoptReferenceParticle(std::unique_ptr<Particle> particle);
+    /** Adopt a particle already inserted into the collision grid. */
+    void adoptActiveParticle(std::unique_ptr<Particle> particle, bool distributed);
+    bool hasImposedObstacleMotion() const;
+
     /** @name Constructors & Destructor */
     //@{
     /** @brief Default constructor */

@@ -174,13 +174,6 @@
       }
     },
     {
-      "name": "Mac OS X (ARM)",
-      "configurePreset": "Mac OS X (ARM)",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
       "name": "Debug",
       "configurePreset": "Debug",
       "output": {

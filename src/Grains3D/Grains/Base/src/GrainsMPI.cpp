@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "GrainsMPI.hh"
 #include "ContactBuilderFactory.hh"
 #include "LinkedCell.hh"
@@ -47,6 +48,8 @@ void GrainsMPI::initialOutputMessage()
 // Runs the simulation over the prescribed time interval
 void GrainsMPI::Simulation( double time_interval )
 {
+  if (hasExternalModels()) { simulateExternalModels(time_interval); return; }
+
   if ( m_processorIsActive )
   {
     double vmax = 0., vmean = 0. ;

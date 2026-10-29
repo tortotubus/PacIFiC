@@ -993,3 +993,8 @@ double CompositeObstacle::getEquivalentSphereRadius() const
 {
   return ( pow( ( 0.75 / PI ) * m_volume, 1. / 3. ) );
 }
+
+std::vector<Component*> CompositeObstacle::interactionChildren() const
+{
+  return std::vector<Component*>(m_obstacles.begin(),m_obstacles.end());
+}

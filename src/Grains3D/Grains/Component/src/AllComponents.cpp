@@ -2499,3 +2499,32 @@ void AllComponents::setParticlesCouplingFactor()
   	particle!=m_ActiveParticles.end();particle++) 
     (*particle)->setCouplingFactor(); 
 }
+
+void AllComponents::reserveReferenceParticles(size_t additional)
+{
+  m_ReferenceParticles.reserve(m_ReferenceParticles.size()+additional);
+  m_NbRemainingParticlesToInsert.reserve(m_NbRemainingParticlesToInsert.size()+additional);
+}
+
+bool AllComponents::hasImposedObstacleMotion() const
+{
+  return !m_AllImposedVelocitiesOnObstacles.empty() ||
+         !m_AllImposedForcesOnObstacles.empty();
+}
+
+void AllComponents::adoptReferenceParticle(std::unique_ptr<Particle> particle)
+{
+  reserveReferenceParticles(1);
+  m_ReferenceParticles.push_back(particle.get());
+  m_NbRemainingParticlesToInsert.push_back(0);
+  particle.release();
+}
+
+void AllComponents::adoptActiveParticle(std::unique_ptr<Particle> particle, bool distributed)
+{
+  auto* body=particle.get();
+  m_ActiveParticles.push_back(body);
+  particle.release();
+  if (distributed && body->getTag()==1) m_ParticlesInBufferzone.push_back(body);
+  if (distributed && body->getTag()==2) m_CloneParticles.push_back(body);
+}
