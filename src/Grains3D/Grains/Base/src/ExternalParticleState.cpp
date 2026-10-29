@@ -1,4 +1,4 @@
-#include "Grains.hh"
+#include "ExternalModelInternal.hh"
 #include <algorithm>
 #include <cmath>
 #include <climits>
@@ -34,8 +34,9 @@ void Grains::importExternalParticleStates(
     std::vector<ExternalParticleState> const& input)
 {
   if (isExternalModelStepActive())
-    throw std::logic_error("Live state import is forbidden during adapter trial evaluation");
+    throw std::logic_error("Live state import is forbidden during external model callbacks");
   importParticleStates(input, true);
+  if (m_externalModels) m_externalModels->contactsReady = false;
 }
 
 void Grains::importParticleStates(

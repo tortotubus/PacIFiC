@@ -226,6 +226,26 @@ if(PACIFIC_BUILD_TESTS)
       set_tests_properties(grains3d.external_model_${mode} PROPERTIES PROCESSORS 2 TIMEOUT 60)
     endforeach()
   endif()
+  if(PACIFIC_USE_MPI)
+    foreach(scheme FirstOrderExplicit SecondOrderExplicit SecondOrderAdamsBashforth)
+      add_test(NAME grains3d.external_model_mpi_${scheme}
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:grains3d_external_model_test>
+          ${MPIEXEC_POSTFLAGS} --mpi --scheme=${scheme})
+      set_tests_properties(grains3d.external_model_mpi_${scheme} PROPERTIES PROCESSORS 2 TIMEOUT 60)
+    endforeach()
+  endif()
+  foreach(scheme SecondOrderLeapFrog FirstOrderExplicit SecondOrderExplicit SecondOrderAdamsBashforth)
+    add_test(NAME grains3d.native_step_${scheme}
+      COMMAND grains3d_external_model_test --native --scheme=${scheme})
+    if(PACIFIC_USE_MPI)
+      add_test(NAME grains3d.native_step_mpi_${scheme}
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:grains3d_external_model_test>
+          ${MPIEXEC_POSTFLAGS} --native --mpi --scheme=${scheme})
+      set_tests_properties(grains3d.native_step_mpi_${scheme} PROPERTIES PROCESSORS 2 TIMEOUT 60)
+    endif()
+  endforeach()
   add_executable(grains3d_load_driver_test ../Tests/LoadsAndKinematicsDriver.cpp)
   target_link_libraries(grains3d_load_driver_test PRIVATE Grains3D)
   add_test(NAME grains3d.loads_and_kinematics_driver COMMAND grains3d_load_driver_test)

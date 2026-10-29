@@ -14,7 +14,7 @@
 #include "ExternalParticleState.hh"
 #include "ExternalModel.hh"
 
-class ExternalModelRegistry;
+
 #include <map>
 #include <list>
 #include <vector>
@@ -132,7 +132,8 @@ class Grains : public ComputingTime, public SolverComputingTime
      * particles follow the configured integrator, including leapfrog's split kick.
      * Fixed subcycling is repeated calls with the same dt. Any failed substep
      * invalidates coupling; restart with a new simulation rather than retrying.
-     * Obstacles are fixed and noncontact forcing is held constant over the step.
+     * Obstacles, body forces, contact history and MPI ownership use the normal
+     * Grains lifecycle. A failed step can leave live forces or kinematics changed.
      */
     void advanceExternalModels(double dt);
     bool hasExternalModels() const;
@@ -154,14 +155,17 @@ class Grains : public ComputingTime, public SolverComputingTime
   
    
   protected:
-    friend class ExternalModelSession;
+    struct ExternalModelData;
+    class ModelRegistration;
     void adoptExternalParticle(std::unique_ptr<Particle> particle);
     double readExternalModels(DOMNode* construction);
     void registerPendingExternalModels();
-    void simulateExternalModels(double timeInterval);
+    /** Advance one step after the simulation clock has reached its endpoint. */
+    void advanceParticleStep();
+    std::vector<ExternalParticleState> advanceModelBatches(double startTime, double dt);
     std::vector<std::pair<std::string,std::unique_ptr<ExternalModel>>> m_pendingExternalModels;
     bool isExternalModelStepActive() const;
-    std::shared_ptr<ExternalModelRegistry> m_externalModels;
+    std::shared_ptr<ExternalModelData> m_externalModels;
     void importParticleStates(std::vector<ExternalParticleState> const& states,
                              bool commit);
     /** Refresh collision bookkeeping after changing particle poses. */

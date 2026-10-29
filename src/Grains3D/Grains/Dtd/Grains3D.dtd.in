@@ -40,7 +40,7 @@
 <!ELEMENT Grains3D (Construction, Forces, Simulation)>
 <!ATTLIST Grains3D Type (Standard|MPI) "Standard">
 
-  <!ELEMENT Construction (LinkedCell, Origin?, Periodicity?, DomainDecomposition?, MPI?, ContactForceModels, CollisionDetectionAlgorithm?, Particles?, Obstacles?, Reload?)>
+  <!ELEMENT Construction (LinkedCell, Origin?, Periodicity?, DomainDecomposition?, MPI?, ContactForceModels, CollisionDetectionAlgorithm?, Particles?, ExternalModels?, Obstacles?, Reload?)>
     <!ELEMENT LinkedCell EMPTY>
     <!ATTLIST LinkedCell MX CDATA #REQUIRED>
     <!ATTLIST LinkedCell MY CDATA #REQUIRED>
@@ -191,9 +191,9 @@
           <!ATTLIST TranslationalVelocity VZ CDATA #REQUIRED>
 	<!ELEMENT SinTranslation (Direction, Parameters)>
           <!ELEMENT Direction EMPTY>
-          <!ATTLIST Direction VX CDATA #REQUIRED>
-          <!ATTLIST Direction VY CDATA #REQUIRED>
-          <!ATTLIST Direction VZ CDATA #REQUIRED>
+          <!ATTLIST Direction VX CDATA #IMPLIED>
+          <!ATTLIST Direction VY CDATA #IMPLIED>
+          <!ATTLIST Direction VZ CDATA #IMPLIED>
 	  <!ELEMENT Parameters (Amplitude, Period, PhaseShift) >
 	  <!ATTLIST Parameters Amplitude CDATA #REQUIRED>
 	  <!ATTLIST Parameters Period CDATA #REQUIRED>	  		
@@ -218,3 +218,21 @@
 	<!ATTLIST ForceTorqueObstacles Directory CDATA #REQUIRED>
 	<!ELEMENT Obstacle EMPTY> 
 	<!ATTLIST Obstacle ObstacleName CDATA #REQUIRED>  
+
+<!-- Pendulum generates N spherocylinders at Anchor + unit(Direction)*(i-0.5)*L/N,
+     i=1..N initially, with cylinder height L/N and cap radius Radius.
+     Implicit pinned bending-rod dynamics; intra-model contact
+     is excluded. Optional rigidities are nonnegative and default to zero. -->
+<!ELEMENT ExternalModels (Pendulum+)>
+<!ELEMENT Pendulum (Anchor, Direction, Density, CrustThickness, Radius, Material, BendingRigidity?, DampingRigidity?)>
+<!ELEMENT BendingRigidity (#PCDATA)>
+<!ELEMENT DampingRigidity (#PCDATA)>
+<!ATTLIST Pendulum Name CDATA #REQUIRED N CDATA #REQUIRED L CDATA #REQUIRED>
+<!ELEMENT Anchor EMPTY>
+<!ATTLIST Anchor X CDATA #REQUIRED Y CDATA #REQUIRED Z CDATA #REQUIRED>
+<!ELEMENT Density (#PCDATA)>
+<!ELEMENT CrustThickness (#PCDATA)>
+<!ELEMENT Radius (#PCDATA)>
+<!-- Direction uses X/Y/Z in Pendulum and VX/VY/VZ in obstacle motion.
+     Each reader requires the coordinate attributes appropriate to its context. -->
+<!ATTLIST Direction X CDATA #IMPLIED Y CDATA #IMPLIED Z CDATA #IMPLIED>

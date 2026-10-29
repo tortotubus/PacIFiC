@@ -1066,6 +1066,9 @@ void LinkedCell::ComputeForces( double time, double dt,
     for( neighborp=neighborparticles.begin();
     	neighborp!=neighborparticles.end(); neighborp++ )
     {
+      int a = reference->getID(), b = (*neighborp)->getID();
+      if (m_excludedContactPairs.count({std::min(a,b), std::max(a,b)}))
+        continue;
       if ( (*neighborp)->isCompositeParticle() )
       {
         if ( (*neighborp)->doBVolumeOverlap( reference ) )

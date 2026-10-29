@@ -281,7 +281,7 @@ void Grains::do_after_time_stepping()
 // Runs the simulation over the prescribed time interval
 void Grains::Simulation( double time_interval )
 {
-  if (hasExternalModels()) { simulateExternalModels(time_interval); return; }
+  const double end = time_interval > 0. ? std::min(m_tend, m_time + time_interval) : m_tend;
 
   double vmax = 0., vmean = 0. ;
   bool forcestats = false;
@@ -296,7 +296,7 @@ void Grains::Simulation( double time_interval )
 
   // Simulation: time marching algorithm
   cout << "Time \t TO \tend \tParticles \tIn \tOut" << endl;
-  while ( m_tend - m_time > 0.01 * m_dt )
+  while ( end - m_time > 0.01 * m_dt )
   {
     try
     {
@@ -354,41 +354,7 @@ void Grains::Simulation( double time_interval )
       SCT_get_elapsed_time( "ParticlesInsertion" );
 
 
-      if ( GrainsExec::m_TIScheme == "SecondOrderLeapFrog" )
-      {
-        // We implement the kick-drift-kick version of the LeapFrog scheme
-
-	// Move particles and obstacles
-	// Update particle velocity over dt/2 and particle position over dt,
-	// obstacle velocity and position over dt
-	// v_i+1/2 = v_i + a_i * dt / 2
-	// x_i+1 = x_i + v_i+1/2 * dt
-        moveParticlesAndObstacles( 0.5 * m_dt, m_dt, m_dt );
-	
-        // Compute particle forces and torque
-	// Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)
-	SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndTorque();
-        SCT_get_elapsed_time( "ComputeForces" );	
-	
-	// Update particle velocity over dt/2
-	// v_i+1 = v_i+1/2 + a_i+1 * dt / 2 
-	m_allcomponents.advanceParticlesVelocity( m_time, 0.5 * m_dt );
-      }
-      else
-      {
-        // Compute particle forces and torque
-	// Compute f_i and a_i as a function of (x_i,v_i) 
-	SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndTorque();
-        SCT_get_elapsed_time( "ComputeForces" );
-      
-        // Move particles and obstacles
-	// x_i+1 = x_i + g(v_i,v_i-1,a_i,dt)
-	// v_i+1 = v_i + g(a_i,a_i-1,dt)
-        moveParticlesAndObstacles( m_dt, m_dt, m_dt );
-      }
-
+      advanceParticleStep();
 
       // Compute and write force & torque exerted on obstacles
       m_allcomponents.computeObstaclesLoad( m_time, m_dt ); 

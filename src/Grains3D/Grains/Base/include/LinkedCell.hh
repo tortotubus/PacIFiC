@@ -10,6 +10,8 @@ class MPINeighbors;
 class GrainsMPIWrapper;
 
 #include <vector>
+#include <set>
+#include <algorithm>
 using namespace std;
 
 
@@ -24,7 +26,12 @@ using namespace std;
 // ============================================================================
 class LinkedCell : public AppCollision
 {
+  std::set<std::pair<int, int>> m_excludedContactPairs;
   public:
+    /** Exclude a pair of physical IDs, including all their MPI/periodic images. */
+    void excludeContactPair(int a, int b) {
+      m_excludedContactPairs.emplace(std::min(a,b), std::max(a,b));
+    }
     /** @name Contructors & Destructor */
     //@{
     /** @brief Default constructor */

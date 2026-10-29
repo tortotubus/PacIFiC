@@ -48,7 +48,7 @@ void GrainsMPI::initialOutputMessage()
 // Runs the simulation over the prescribed time interval
 void GrainsMPI::Simulation( double time_interval )
 {
-  if (hasExternalModels()) { simulateExternalModels(time_interval); return; }
+  const double end = time_interval > 0. ? std::min(m_tend, m_time + time_interval) : m_tend;
 
   if ( m_processorIsActive )
   {
@@ -66,7 +66,7 @@ void GrainsMPI::Simulation( double time_interval )
     SCT_insert_app( "OutputResults" );
 
     // Simulation: time marching algorithm
-    while ( m_tend - m_time > 0.01 * m_dt )
+    while ( end - m_time > 0.01 * m_dt )
     {
       try
       {
@@ -134,32 +134,7 @@ void GrainsMPI::Simulation( double time_interval )
         SCT_get_elapsed_time( "ParticlesInsertion" );
 
       
-        // Move particles and obstacles
-        // Update particle velocity over dt/2 and particle position over dt,
-        // obstacle velocity and position over dt
-        // v_i+1/2 = v_i + a_i * dt / 2
-        // x_i+1 = x_i + v_i+1/2 * dt
-        // Solve Newton's law and move particles
-        SCT_set_start( "Move" );
-        m_allcomponents.Move( m_time, 0.5 * m_dt, m_dt, m_dt, m_collision ); 
-
-   
-        synchronizeParticleStates();
-
-      
-        // Compute particle forces and torque
-        // Compute f_i+1 and a_i+1 as a function of (x_i+1,v_i+1/2)
-        SCT_set_start( "ComputeForces" );
-        computeParticlesForceAndTorque();
-        SCT_get_elapsed_time( "ComputeForces" );
-
-
-        // Update particle velocity over dt/2
-        // v_i+1 = v_i+1/2 + a_i+1 * dt / 2 
-        SCT_set_start( "Move" );      
-        m_allcomponents.advanceParticlesVelocity( m_time, 0.5 * m_dt );
-        SCT_add_elapsed_time( "Move" );
-
+        advanceParticleStep();
 
         // Compute and write force & torque exerted on obstacles
         m_allcomponents.computeObstaclesLoad( m_time, m_dt, m_wrapper ); 
