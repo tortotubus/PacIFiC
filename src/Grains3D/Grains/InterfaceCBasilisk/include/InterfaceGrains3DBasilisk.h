@@ -15,6 +15,7 @@ extern "C" {
   
   void Simu_Grains( const double dt_fluid );
   
+  // Returned transfer buffers are owned by the caller and must be freed with free().
   char* GrainsToBasilisk( int* pstrsize );
 
   void SetInitialTime( double tinit );
@@ -34,6 +35,7 @@ extern "C" {
   
   void NumberOfReferenceRigidBodiesInBasilisk( size_t* nrefRB );
   
+  // Returned transfer buffers are owned by the caller and must be freed with free().
   char* GrainsToBasiliskReference( int* pstrsize );    
 
 #ifdef __cplusplus

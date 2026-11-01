@@ -8,6 +8,8 @@
 #include <iostream>
 #include <cstring>
 #include <string>
+#include <cstdlib>
+#include <new>
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +72,8 @@ extern "C" {
     // We remove the formatting and separate each entry by " "
     string buff;
     *pstrsize = int(iss.str().size()) + 1;    
-    char* pstr = new char [*pstrsize];
+    char* pstr = static_cast<char*>( std::malloc(*pstrsize ));
+    if ( !pstr ) throw std::bad_alloc();
     int pos = 0;
     while ( iss >> buff )
     {
@@ -174,7 +177,8 @@ extern "C" {
     // We remove the formatting and separate each entry by " "
     string buff;
     *pstrsize = int(iss.str().size()) + 1;    
-    char* pstr = new char [*pstrsize];
+    char* pstr = static_cast<char*>( std::malloc( *pstrsize ) );
+    if ( !pstr ) throw std::bad_alloc();
     int pos = 0;
     while ( iss >> buff )
     {
