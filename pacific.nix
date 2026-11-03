@@ -12,6 +12,7 @@
   petsc,
   hypre,
   xercesc,
+  libxml2,
   eigen,
   makeWrapper,
   gtest,
@@ -39,6 +40,7 @@ stdenv.mkDerivation {
     eigen
     gtest
     xercesc
+    libxml2
     zlib
     (hdf5-mpi.override { mpi = openmpi; })
     openmpi
