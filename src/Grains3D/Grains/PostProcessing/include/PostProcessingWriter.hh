@@ -6,7 +6,7 @@
 #include <string>
 using std::list;
 using std::string;
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "LinkedCell.hh"
 
 class Particle;
@@ -36,7 +36,7 @@ class PostProcessingWriter
     @param dn XML node
     @param rank_ process rank 
     @param nbranks_ number of processes */
-    PostProcessingWriter( DOMNode* dn, int const& rank_, int const& nbranks_);
+    PostProcessingWriter( grains::xml::OptionalElement dn, int const& rank_, int const& nbranks_);
 
     /** @brief Destructor */
     virtual ~PostProcessingWriter();

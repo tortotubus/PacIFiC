@@ -2,7 +2,8 @@
 #define _RECTANGLE_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 class Transform;
 
@@ -41,7 +42,7 @@ class Rectangle : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Rectangle( DOMNode* root );
+    Rectangle( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~Rectangle();

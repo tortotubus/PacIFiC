@@ -1,6 +1,8 @@
 #ifndef _COMPOSITEPARTICLE_HH_
 #define _COMPOSITEPARTICLE_HH_
 
+#include "Xml.hh"
+
 #include "Particle.hh"
 #include "RigidBody.hh"
 #include "PointContact.hh"
@@ -27,7 +29,7 @@ class CompositeParticle : public Particle
     Autonumbering is set to false
     @param root XML node
     @param pc particle class */
-    CompositeParticle( DOMNode* root, int const& pc );
+    CompositeParticle( grains::xml::OptionalElement root, int const& pc );
 
     /** @brief Constructor with input parameters. Autonumbering
     is set to false and numbering is set with the parameter id_

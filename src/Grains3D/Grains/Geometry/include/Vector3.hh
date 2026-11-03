@@ -2,7 +2,7 @@
 #define _VECTOR3_HH_
 
 #include "Group3.hh"
-#include "WriterXML.hh"
+#include "Basic.hh"
 
 class Quaternion;
 

@@ -34,17 +34,17 @@ Rectangle::Rectangle( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Rectangle::Rectangle( DOMNode* root )
+Rectangle::Rectangle( grains::xml::OptionalElement root )
 {
-  m_LX =  ReaderXML::getNodeAttr_Double( root, "LX" );
-  m_LY =  ReaderXML::getNodeAttr_Double( root, "LY" );
-  if ( ReaderXML::hasNodeAttr( root, "ParaviewWidth" ) )
-    m_ParaviewWidth = ReaderXML::getNodeAttr_Double( root, "ParaviewWidth" );
+  m_LX =  grains::xml::requireElement(root).requireAttribute<double>("LX");
+  m_LY =  grains::xml::requireElement(root).requireAttribute<double>("LY");
+  if ( grains::xml::hasAttribute(root, "ParaviewWidth") )
+    m_ParaviewWidth = grains::xml::requireElement(root).requireAttribute<double>("ParaviewWidth");
   else m_ParaviewWidth = 2 * LOWEPS;
   m_ParaviewWidth_type = RVE_CENTERED;
-  if ( ReaderXML::hasNodeAttr( root, "ParaviewExpand" ) )
+  if ( grains::xml::hasAttribute(root, "ParaviewExpand") )
   {
-    string sexp = ReaderXML::getNodeAttr_String( root, "ParaviewExpand" );
+    string sexp = grains::xml::requireElement(root).attributeOr<std::string>("ParaviewExpand", std::string{});
     if ( sexp == "Z+" ) m_ParaviewWidth_type = RVE_ZPLUS;
     else if ( sexp == "Z-" ) m_ParaviewWidth_type = RVE_ZMINUS;
   }

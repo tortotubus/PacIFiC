@@ -2,7 +2,8 @@
 #define _BVOLUME_HH_
 
 #include "Transform.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 enum BVolumeType {
   typeAABB,

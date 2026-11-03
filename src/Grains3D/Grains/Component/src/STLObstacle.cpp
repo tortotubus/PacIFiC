@@ -65,11 +65,11 @@ STLObstacle::STLObstacle( const string &s, string const& filename )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-STLObstacle::STLObstacle( DOMNode *root )
+STLObstacle::STLObstacle( grains::xml::OptionalElement root )
   : SimpleObstacle( "" )
 {
   m_ObstacleType = "STLObstacle";
-  assert( root != NULL );
+  assert( root.has_value() );
 
   // The STL obstacle does not have a shape per se, its shape is made
   // of the STL triangles. Hence we defines its shape by a point
@@ -78,37 +78,37 @@ STLObstacle::STLObstacle( DOMNode *root )
   m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform(), true,
   	EPSILON );
   
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
   
   // Material
-  DOMNode* materiau_ = ReaderXML::getNode( root, "Material" );
-  m_materialName = ReaderXML::getNodeValue_String( materiau_ );
+  grains::xml::OptionalElement materiau_ = grains::xml::requireElement(root).getChild("Material");
+  m_materialName = grains::xml::requireElement(materiau_).text();
   ContactBuilderFactory::defineMaterial( m_materialName, true );
 
   // Obstacle to transfer to the fluid
-  DOMNode* status = ReaderXML::getNode( root, "Status" );
+  grains::xml::OptionalElement status = grains::xml::requireElement(root).getChild("Status");
   if ( status )
-    m_transferToFluid = ReaderXML::getNodeAttr_Int( status, "ToFluid" );
+    m_transferToFluid = grains::xml::requireElement(status).requireAttribute<int>("ToFluid");
 
   // m_obstacleBox = TO DO
   m_LinkUpdate_frequency = 1;
   m_LinkUpdate_counter = 0; 
   
   // File name
-  DOMNode* file_ = ReaderXML::getNode( root, "File" ); 
-  string filename = ReaderXML::getNodeAttr_String( file_, "Name" ); 
+  grains::xml::OptionalElement file_ = grains::xml::requireElement(root).getChild("File");
+  string filename = grains::xml::requireElement(file_).attributeOr<std::string>("Name", std::string{});
   
   // Read STL file and construct the triangulation
   readSTL( filename );
   
   // Translation of the STL obstacle to adjust its position
-  DOMNode* translat = ReaderXML::getNode( root, "Translation" );  
+  grains::xml::OptionalElement translat = grains::xml::requireElement(root).getChild("Translation");
   if ( translat )
   {
     Vector3 STLTranslation;
-    STLTranslation[X] = ReaderXML::getNodeAttr_Double( translat, "X" );
-    STLTranslation[Y] = ReaderXML::getNodeAttr_Double( translat, "Y" );
-    STLTranslation[Z] = ReaderXML::getNodeAttr_Double( translat, "Z" );
+    STLTranslation[X] = grains::xml::requireElement(translat).requireAttribute<double>("X");
+    STLTranslation[Y] = grains::xml::requireElement(translat).requireAttribute<double>("Y");
+    STLTranslation[Z] = grains::xml::requireElement(translat).requireAttribute<double>("Z");
     list<STLVertex*>::iterator il;
     for (il = m_allSTLVertices.begin(); il != m_allSTLVertices.end(); ++il)  
     {

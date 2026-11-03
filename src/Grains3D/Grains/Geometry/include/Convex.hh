@@ -7,8 +7,8 @@
 #include "OBC.hh"
 #include "Transform.hh"
 #include "Point3.hh"
-#include "ReaderXML.hh"
-#include "WriterXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <vector>
 #include <list>
 using namespace std;

@@ -1,6 +1,8 @@
 #ifndef _PARAVIEWPOSTPROCESSINGWRITER_HH_
 #define _PARAVIEWPOSTPROCESSINGWRITER_HH_
 
+#include "Xml.hh"
+
 #include "PostProcessingWriter.hh"
 #include <iostream>
 #include <fstream>
@@ -29,7 +31,7 @@ class ParaviewPostProcessingWriter : public PostProcessingWriter
     @param rank_ process rank 
     @param nbranks_ number of processes 
     @param verbose outputs writer features if true */
-    ParaviewPostProcessingWriter( DOMNode* dn, int const& rank_, 
+    ParaviewPostProcessingWriter( grains::xml::OptionalElement dn, int const& rank_,
     	int const& nbranks_, bool const& verbose = true );
   
     /** @brief Constructor with input parameters 

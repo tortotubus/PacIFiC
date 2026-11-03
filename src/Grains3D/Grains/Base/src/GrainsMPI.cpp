@@ -228,15 +228,15 @@ void GrainsMPI::Simulation( double time_interval )
 
 // ----------------------------------------------------------------------------
 // Reads data for MPI simulations and creates and sets the MPI wrapper
-void GrainsMPI::readDomainDecomposition( DOMNode* root,
+void GrainsMPI::readDomainDecomposition( grains::xml::OptionalElement root,
   	double const& lx, double const& ly, double const& lz )
 {
   // Domain decomposition
   int nx, ny, nz = 1;
-  DOMNode* decomp = ReaderXML::getNode( root, "DomainDecomposition" );
-  nx = ReaderXML::getNodeAttr_Int( decomp, "NX" );
-  ny = ReaderXML::getNodeAttr_Int( decomp, "NY" );
-  if ( m_dimension == 3 ) nz = ReaderXML::getNodeAttr_Int( decomp, "NZ" ); 
+  grains::xml::OptionalElement decomp = grains::xml::requireElement(root).getChild("DomainDecomposition");
+  nx = grains::xml::requireElement(decomp).requireAttribute<int>("NX");
+  ny = grains::xml::requireElement(decomp).requireAttribute<int>("NY");
+  if ( m_dimension == 3 ) nz = grains::xml::requireElement(decomp).requireAttribute<int>("NZ");
 
   // MPI wrapper
   m_wrapper = new GrainsMPIWrapper( nx, ny, nz, m_periodicity[X], 
@@ -246,9 +246,9 @@ void GrainsMPI::readDomainDecomposition( DOMNode* root,
   m_processorIsActive = m_wrapper->isActive();
   m_rank = m_wrapper->get_rank();
   m_nprocs = m_wrapper->get_total_number_of_active_processes();
-  DOMNode* mpiNode = ReaderXML::getNode( root, "Verbosity" );
+  grains::xml::OptionalElement mpiNode = grains::xml::requireElement(root).getChild("Verbosity");
   GrainsExec::m_MPI_verbose = 
-  	ReaderXML::getNodeAttr_Int( mpiNode, "Level" );
+        grains::xml::requireElement(mpiNode).requireAttribute<int>("Level");
 
   if ( m_processorIsActive )
   {      
@@ -732,12 +732,12 @@ void GrainsMPI::checkClonesReload()
 
 // ----------------------------------------------------------------------------
 // Reads time output frequency in MPI */
-void GrainsMPI::read_timeouputfrequency( DOMNode* root )
+void GrainsMPI::read_timeouputfrequency( grains::xml::OptionalElement root )
 {
-  DOMNode* nTOF = ReaderXML::getNode( root, "TimeOutput" );
+  grains::xml::OptionalElement nTOF = grains::xml::requireElement(root).getChild("TimeOutput");
   if ( nTOF )
   {
-    m_timeoutputfreq = ReaderXML::getNodeAttr_Int( nTOF, "Every" );
+    m_timeoutputfreq = grains::xml::requireElement(nTOF).requireAttribute<int>("Every");
     if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Write time on standard output every = " << m_timeoutputfreq << 
 	" time steps" << endl;

@@ -32,7 +32,7 @@ SimpleObstacle::SimpleObstacle( const string &s )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-SimpleObstacle::SimpleObstacle( DOMNode *root )
+SimpleObstacle::SimpleObstacle( grains::xml::OptionalElement root )
   : Obstacle( "", true )
   , m_transferToFluid( false )
 {
@@ -41,20 +41,20 @@ SimpleObstacle::SimpleObstacle( DOMNode *root )
   Obstacle::m_totalNbSingleObstacles++;
 
   // Name
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
 
   // Convex - Position & Orientation
   m_geoRBWC = new RigidBodyWithCrust( root );
 
   // Material
-  DOMNode* materiau_ = ReaderXML::getNode( root, "Material" );
-  m_materialName = ReaderXML::getNodeValue_String( materiau_ );
+  grains::xml::OptionalElement materiau_ = grains::xml::requireElement(root).getChild("Material");
+  m_materialName = grains::xml::requireElement(materiau_).text();
   ContactBuilderFactory::defineMaterial( m_materialName, true );
 
   // Obstacle to transfer to the fluid
-  DOMNode* status = ReaderXML::getNode( root, "Status" );
+  grains::xml::OptionalElement status = grains::xml::requireElement(root).getChild("Status");
   if ( status )
-    m_transferToFluid = ReaderXML::getNodeAttr_Int( status, "ToFluid" );
+    m_transferToFluid = grains::xml::requireElement(status).requireAttribute<int>("ToFluid");
 
   m_obstacleBox = Component::BoundingBox();
   m_LinkUpdate_frequency = 1;

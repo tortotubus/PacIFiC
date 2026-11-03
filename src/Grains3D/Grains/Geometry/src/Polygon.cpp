@@ -119,10 +119,10 @@ Polygon* Polygon::create( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Creates a polygon from an XML node
-Polygon* Polygon::create( DOMNode* root ) 
+Polygon* Polygon::create( grains::xml::OptionalElement root )
 {
   // Read polygon file name and open the corresponding file
-  string fichpoly = ReaderXML::getNodeAttr_String( root, "Name" );
+  string fichpoly = grains::xml::requireElement(root).attributeOr<std::string>("Name", std::string{});
   ifstream PolyIN( fichpoly.c_str() );
   if ( PolyIN.is_open() ) 
     GrainsExec::m_additionalDataFiles.insert( fichpoly );

@@ -15,7 +15,6 @@ using namespace std;
 #include "CompositeParticle.hh"
 #include "Obstacle.hh"
 #include "SimpleObstacle.hh"
-#include "WriterXML.hh"
 
 
 class App;

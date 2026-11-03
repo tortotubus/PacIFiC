@@ -2,7 +2,8 @@
 #define GRAINS_PENDULUM_HH
 
 #include "ExternalModel.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include "Particle.hh"
 
 /** Pinned, inextensible bending rod with one contact spherocylinder per link.
@@ -10,7 +11,7 @@
  */
 class Pendulum final : public ExternalModel {
 public:
-  explicit Pendulum(DOMNode* node);
+  explicit Pendulum(grains::xml::OptionalElement node);
   ~Pendulum() override;
   void initialize(Registration& registration) override;
   std::vector<ExternalParticleState> advance(double time, double dt,

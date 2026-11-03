@@ -34,13 +34,13 @@ Superquadric::Superquadric( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Superquadric::Superquadric( DOMNode* root )
+Superquadric::Superquadric( grains::xml::OptionalElement root )
 {
-  m_a  = ReaderXML::getNodeAttr_Double(root, "a");
-  m_b  = ReaderXML::getNodeAttr_Double(root, "b");
-  m_c  = ReaderXML::getNodeAttr_Double(root, "c");
-  m_n1 = ReaderXML::getNodeAttr_Double(root, "n1");
-  m_n2 = ReaderXML::getNodeAttr_Double(root, "n2");
+  m_a  = grains::xml::requireElement(root).requireAttribute<double>("a");
+  m_b  = grains::xml::requireElement(root).requireAttribute<double>("b");
+  m_c  = grains::xml::requireElement(root).requireAttribute<double>("c");
+  m_n1 = grains::xml::requireElement(root).requireAttribute<double>("n1");
+  m_n2 = grains::xml::requireElement(root).requireAttribute<double>("n2");
 }
 
 

@@ -34,7 +34,7 @@ TrilobeCylinder::TrilobeCylinder( bool const& autonumbering )
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter. This constructor is
 // expected to be used for reference composite particles
-TrilobeCylinder::TrilobeCylinder( DOMNode* root, int const& pc )
+TrilobeCylinder::TrilobeCylinder( grains::xml::OptionalElement root, int const& pc )
   : CompositeParticle( false )
 {
   m_specific_composite_shape = "TrilobeCylinder";
@@ -53,34 +53,34 @@ TrilobeCylinder::TrilobeCylinder( DOMNode* root, int const& pc )
   	m_geoRBWC->getConvex() );
 
   // Particle density
-  if ( ReaderXML::hasNodeAttr( root, "Density" ) )
-    m_density = ReaderXML::getNodeAttr_Double( root, "Density" );
+  if ( grains::xml::hasAttribute(root, "Density") )
+    m_density = grains::xml::requireElement(root).requireAttribute<double>("Density");
 
   // Height (of the cylinder only), radius, mass, weight and crust thickness
-  DOMNode* nGeometry = ReaderXML::getNode( root, "Geometry" );
-  m_radius = ReaderXML::getNodeAttr_Double( nGeometry, "Radius" ); 
-  m_height = ReaderXML::getNodeAttr_Double( nGeometry, "Height" );
-  m_armLength = ReaderXML::getNodeAttr_Double( nGeometry, "ArmLength" ); 
+  grains::xml::OptionalElement nGeometry = grains::xml::requireElement(root).getChild("Geometry");
+  m_radius = grains::xml::requireElement(nGeometry).requireAttribute<double>("Radius");
+  m_height = grains::xml::requireElement(nGeometry).requireAttribute<double>("Height");
+  m_armLength = grains::xml::requireElement(nGeometry).requireAttribute<double>("ArmLength");
   m_mass = m_density * ( 6. * m_armLength * m_radius
   	+ ( 3. * PI / 2. - sqrt( 3. ) ) * m_radius * m_radius ) * m_height;	
   computeWeight();
   double crust_thickness = 
-  	ReaderXML::getNodeAttr_Double( nGeometry, "CrustThickness" );
+        grains::xml::requireElement(nGeometry).requireAttribute<double>("CrustThickness");
   m_geoRBWC->setCrustThickness( crust_thickness ); 
 
   // Material
-  DOMNode* nmaterial = ReaderXML::getNode( root, "Material" );
+  grains::xml::OptionalElement nmaterial = grains::xml::requireElement(root).getChild("Material");
   if ( nmaterial )
   {
-    m_materialName = ReaderXML::getNodeValue_String( nmaterial );
+    m_materialName = grains::xml::requireElement(nmaterial).text();
     ContactBuilderFactory::defineMaterial( m_materialName, false );
   }
   
   // Paraview
-  DOMNode* npar = ReaderXML::getNode( root, "Paraview" );
+  grains::xml::OptionalElement npar = grains::xml::requireElement(root).getChild("Paraview");
   if ( npar )
   {
-    string spar = ReaderXML::getNodeAttr_String( npar, "Minimize" );
+    string spar = grains::xml::requireElement(npar).attributeOr<std::string>("Minimize", std::string{});
     if ( spar == "True" ) m_minParaview = true;
   }  
 

@@ -4,7 +4,7 @@
 #include "Polytope.hh"
 #include "Basic.hh"
 #include "IndexArray.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include <string>
 using namespace std;
 
@@ -105,7 +105,7 @@ class Polygon : public Polytope
 
     /** @brief Creates a polygon from an XML node
     @param root XML node */
-    static Polygon* create( DOMNode* root );
+    static Polygon* create( grains::xml::OptionalElement root );
     //@}
   
 

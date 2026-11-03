@@ -122,10 +122,10 @@ Polyhedron* Polyhedron::create( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Creates a polyhedron from an XML node
-Polyhedron* Polyhedron::create( DOMNode* root )
+Polyhedron* Polyhedron::create( grains::xml::OptionalElement root )
 {
   // Read polyhedron file name and open the corresponding file
-  string fichpoly = ReaderXML::getNodeAttr_String( root, "Name" ); 
+  string fichpoly = grains::xml::requireElement(root).attributeOr<std::string>("Name", std::string{});
   ifstream PolyIN( fichpoly.c_str() );
   if ( PolyIN.is_open() ) 
     GrainsExec::m_additionalDataFiles.insert( fichpoly );

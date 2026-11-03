@@ -30,7 +30,7 @@ Dendrite::Dendrite( bool const& autonumbering )
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter. This constructor is
 // expected to be used for reference composite particles
-Dendrite::Dendrite( DOMNode* root, int const& pc )
+Dendrite::Dendrite( grains::xml::OptionalElement root, int const& pc )
   : CompositeParticle( false )
 {
   m_specific_composite_shape = "Dendrite";
@@ -49,28 +49,28 @@ Dendrite::Dendrite( DOMNode* root, int const& pc )
   	m_geoRBWC->getConvex() );
 
   // Particle density
-  if ( ReaderXML::hasNodeAttr( root, "Density" ) )
-    m_density = ReaderXML::getNodeAttr_Double( root, "Density" );
+  if ( grains::xml::hasAttribute(root, "Density") )
+    m_density = grains::xml::requireElement(root).requireAttribute<double>("Density");
 
   // Height (of the cylinder only), radius, mass, weight and crust thickness
-  DOMNode* nGeometry = ReaderXML::getNode( root, "Geometry" );
+  grains::xml::OptionalElement nGeometry = grains::xml::requireElement(root).getChild("Geometry");
 
-  m_armWidth = ReaderXML::getNodeAttr_Double( nGeometry, "ArmWidth" );
-  m_armLength = ReaderXML::getNodeAttr_Double( nGeometry, "ArmLength" );
-  m_depth = ReaderXML::getNodeAttr_Double( nGeometry, "Depth" );
+  m_armWidth = grains::xml::requireElement(nGeometry).requireAttribute<double>("ArmWidth");
+  m_armLength = grains::xml::requireElement(nGeometry).requireAttribute<double>("ArmLength");
+  m_depth = grains::xml::requireElement(nGeometry).requireAttribute<double>("Depth");
 
   m_mass = m_density * ( ( 6. * m_armWidth * m_armLength * m_depth ) 
   	+ 1.5 * ( m_armWidth * m_armWidth * m_depth ) );
   computeWeight();
   double crust_thickness =
-  	ReaderXML::getNodeAttr_Double( nGeometry, "CrustThickness" );
+        grains::xml::requireElement(nGeometry).requireAttribute<double>("CrustThickness");
   m_geoRBWC->setCrustThickness( crust_thickness );
 
   // Material
-  DOMNode* nmaterial = ReaderXML::getNode( root, "Material" );
+  grains::xml::OptionalElement nmaterial = grains::xml::requireElement(root).getChild("Material");
   if ( nmaterial )
   {
-    m_materialName = ReaderXML::getNodeValue_String( nmaterial );
+    m_materialName = grains::xml::requireElement(nmaterial).text();
     ContactBuilderFactory::defineMaterial( m_materialName, false );
   }
 

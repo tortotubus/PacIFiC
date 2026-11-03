@@ -14,15 +14,15 @@ EAPPLI GrainsBuilderFactory::m_context = UNDEFINED;
 
 // ----------------------------------------------------------------------------
 // Creates and returns a standard Grains application
-Grains* GrainsBuilderFactory::create( DOMElement* root )
+Grains* GrainsBuilderFactory::create( grains::xml::OptionalElement root )
 {
   // Preconditions
-  assert( root != NULL );
+  assert( root.has_value() );
 
   Grains* grains = NULL;
 
-  string type   = ReaderXML::getNodeName( root );
-  string option = ReaderXML::getNodeAttr_String( root, "Type" );
+  string type   = grains::xml::requireElement(root).name();
+  string option = grains::xml::requireElement(root).attributeOr<std::string>("Type", std::string{});
 
   m_context = DIM_2;
   if ( type == "Grains3D" ) m_context = DIM_3;  
@@ -46,16 +46,16 @@ Grains* GrainsBuilderFactory::create( DOMElement* root )
 // ----------------------------------------------------------------------------
 // Creates and returns a GrainsCoupledWithFluid application
 GrainsCoupledWithFluid* GrainsBuilderFactory::createCoupledWithFluid( 
-	DOMElement* root, double fluid_density_ )
+        grains::xml::OptionalElement root, double fluid_density_ )
 {
   // Preconditions
-  assert( root != NULL );
+  assert( root.has_value() );
 
   GrainsCoupledWithFluid* grains = NULL;
 
   // Construction de l'application
-  string type   = ReaderXML::getNodeName( root );
-  string option = ReaderXML::getNodeAttr_String( root, "Type" );
+  string type   = grains::xml::requireElement(root).name();
+  string option = grains::xml::requireElement(root).attributeOr<std::string>("Type", std::string{});
 
   m_context = DIM_2;
   if ( type == "Grains3D" ) m_context = DIM_3;

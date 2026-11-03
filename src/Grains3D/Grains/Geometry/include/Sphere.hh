@@ -3,7 +3,8 @@
 
 #include "Convex.hh"
 #include "Point3.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 using namespace solid;
 
 
@@ -30,7 +31,7 @@ class Sphere : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Sphere( DOMNode* root );
+    Sphere( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~Sphere();

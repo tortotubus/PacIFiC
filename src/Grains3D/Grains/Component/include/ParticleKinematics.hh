@@ -2,7 +2,7 @@
 #define _PARTICLEKINEMATICS_HH_
 
 #include "Kinematics.hh"
-#include "WriterXML.hh"
+#include "Basic.hh"
 #include "Vector3.hh"
 #include "Quaternion.hh"
 using namespace solid;

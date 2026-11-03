@@ -1,6 +1,8 @@
 #ifndef _OBSTACLEIMPOSEDFORCE_HH_
 #define _OBSTACLEIMPOSEDFORCE_HH_
 
+#include "Xml.hh"
+
 #include "Vector3.hh"
 #include "ObstacleImposedVelocity.hh"
 using namespace solid;
@@ -34,7 +36,7 @@ class ObstacleImposedForce
     @param dt time step magnitude
     @param rank MPI rank 
     @param error error in reading the XML node */
-    ObstacleImposedForce( DOMNode* root, double dt, int rank, size_t& error );
+    ObstacleImposedForce( grains::xml::OptionalElement root, double dt, int rank, size_t& error );
 
     /** @brief Destructor */
     ~ObstacleImposedForce();

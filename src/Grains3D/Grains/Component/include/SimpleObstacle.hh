@@ -6,7 +6,8 @@
 #include <set>
 using namespace std;
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 class Particle;
 class App;
@@ -33,7 +34,7 @@ class SimpleObstacle : public Obstacle
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    SimpleObstacle( DOMNode* root );
+    SimpleObstacle( grains::xml::OptionalElement root );
     
     /** @brief Constructor with input parameters
     @param name obstacle name 

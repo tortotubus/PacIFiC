@@ -97,7 +97,7 @@ void Grains::initialOutputMessage()
 
 // ----------------------------------------------------------------------------
 // Tasks to perform before time-stepping
-void Grains::do_before_time_stepping( DOMElement* rootElement )
+void Grains::do_before_time_stepping( grains::xml::OptionalElement rootElement )
 {
   // Read the input file
   Construction( rootElement );
@@ -517,45 +517,45 @@ void Grains::synchronizeParticleStates()
 // ----------------------------------------------------------------------------
 // Construction of the simulation: linked cell, particles & obstacles, domain
 // decomposition
-void Grains::Construction( DOMElement* rootElement )
+void Grains::Construction( grains::xml::OptionalElement rootElement )
 {
-  assert( rootElement != NULL );
-  DOMNode* root = ReaderXML::getNode( rootElement, "Construction" );
+  assert( rootElement.has_value() );
+  grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Construction");
 
   bool bnewpart = false, bnewobst = false, b2024 = false;
   string restart;
   size_t npart;
 
   // Domain size: origin, max coordinates and periodicity
-  DOMNode* domain = ReaderXML::getNode( root, "LinkedCell" );
-  double mx = ReaderXML::getNodeAttr_Double( domain, "MX" );
-  double my = ReaderXML::getNodeAttr_Double( domain, "MY" );
-  double mz = ReaderXML::getNodeAttr_Double( domain, "MZ" );
+  grains::xml::OptionalElement domain = grains::xml::requireElement(root).getChild("LinkedCell");
+  double mx = grains::xml::requireElement(domain).requireAttribute<double>("MX");
+  double my = grains::xml::requireElement(domain).requireAttribute<double>("MY");
+  double mz = grains::xml::requireElement(domain).requireAttribute<double>("MZ");
 
-  DOMNode* domain_origin = ReaderXML::getNode( root, "Origin" );
+  grains::xml::OptionalElement domain_origin = grains::xml::requireElement(root).getChild("Origin");
   double ox = 0., oy = 0., oz = 0. ;
   if ( domain_origin )
   {
-    ox = ReaderXML::getNodeAttr_Double( domain_origin, "OX" );
-    oy = ReaderXML::getNodeAttr_Double( domain_origin, "OY" );
-    oz = ReaderXML::getNodeAttr_Double( domain_origin, "OZ" );
+    ox = grains::xml::requireElement(domain_origin).requireAttribute<double>("OX");
+    oy = grains::xml::requireElement(domain_origin).requireAttribute<double>("OY");
+    oz = grains::xml::requireElement(domain_origin).requireAttribute<double>("OZ");
   }
   App::set_dimensions( mx, my, mz, ox, oy, oz );
 
   m_periodicity.reserve(3);
   for (size_t i=0;i<3;++i) m_periodicity.push_back(false);
   int perx = 0, pery = 0, perz = 0;
-  DOMNode* nPeriodicity = ReaderXML::getNode( root, "Periodicity" );
+  grains::xml::OptionalElement nPeriodicity = grains::xml::requireElement(root).getChild("Periodicity");
   if ( nPeriodicity )
   {
-    perx = ReaderXML::getNodeAttr_Int( nPeriodicity, "PX" );
+    perx = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PX");
     if ( perx != 1 ) perx = 0;
     m_periodicity[X] = perx;
-    pery = ReaderXML::getNodeAttr_Int( nPeriodicity, "PY" );
+    pery = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PY");
     if ( pery != 1 ) pery = 0;
     m_periodicity[Y] = pery;
     if ( m_dimension == 3 )
-      perz = ReaderXML::getNodeAttr_Int( nPeriodicity, "PZ" );
+      perz = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PZ");
     if ( perz != 1 ) perz = 0;
     m_periodicity[Z] = perz;
   }
@@ -565,16 +565,14 @@ void Grains::Construction( DOMElement* rootElement )
 
 
   // Partial periodicity
-  DOMNode* nPartialPeriodicity = ReaderXML::getNode( root, 
-  	"PartialPeriodicity" );
+  grains::xml::OptionalElement nPartialPeriodicity = grains::xml::requireElement(root).getChild("PartialPeriodicity");
   if ( nPartialPeriodicity )
   {
     LargerLowerOp comp = LLO_UNDEF;
     Direction dir = NONE;
     double limit;
     
-    string scompop = ReaderXML::getNodeAttr_String( nPartialPeriodicity, 
-    	"Comp" );
+    string scompop = grains::xml::requireElement(nPartialPeriodicity).attributeOr<std::string>("Comp", std::string{});
     if ( scompop == "Lower" ) comp = LLO_LOWER;
     else if ( scompop == "Larger" ) comp = LLO_LARGER;
     else if ( m_rank == 0 )
@@ -584,7 +582,7 @@ void Grains::Construction( DOMElement* rootElement )
 	      << " unknown in PartialPeriodicity!" << endl;
       grainsAbort();
     }
-    string sdir = ReaderXML::getNodeAttr_String( nPartialPeriodicity, "Dir" );
+    string sdir = grains::xml::requireElement(nPartialPeriodicity).attributeOr<std::string>("Dir", std::string{});
     if ( sdir == "X" ) dir = X;
     else if ( sdir == "Y" ) dir = Y;
     else if ( sdir == "Z" ) dir = Z;    
@@ -596,7 +594,7 @@ void Grains::Construction( DOMElement* rootElement )
       grainsAbort();
     }
     
-    limit = ReaderXML::getNodeAttr_Double( nPartialPeriodicity, "Limit" );
+    limit = grains::xml::requireElement(nPartialPeriodicity).requireAttribute<double>("Limit");
     GrainsExec::setPartialPeriodicity( comp, dir, limit );
     GrainsExec::m_partialPer_is_active = true;                    
   }	   
@@ -622,8 +620,8 @@ void Grains::Construction( DOMElement* rootElement )
 
 
     // Collision detection
-    DOMNode* collision = 
-	ReaderXML::getNode( root, "CollisionDetectionAlgorithm" );
+    grains::xml::OptionalElement collision =
+        grains::xml::requireElement(root).getChild("CollisionDetectionAlgorithm");
     if ( !collision )
     {
       if ( m_rank == 0 )
@@ -636,15 +634,15 @@ void Grains::Construction( DOMElement* rootElement )
     }
     else 
     {
-      DOMNode* collisionAlg = 
-	ReaderXML::getNode( collision, "CollisionDetection" );
+      grains::xml::OptionalElement collisionAlg =
+        grains::xml::requireElement(collision).getChild("CollisionDetection");
       if ( collisionAlg )
       {
         // Method
-	if ( ReaderXML::hasNodeAttr( collisionAlg, "Type" ) )
+        if ( grains::xml::hasAttribute(collisionAlg, "Type") )
 	{
           string nCollisionAlg = 
-		ReaderXML::getNodeAttr_String( collisionAlg, "Type" );
+                grains::xml::requireElement(collisionAlg).attributeOr<std::string>("Type", std::string{});
           if ( nCollisionAlg == "GJK" ) GrainsExec::m_colDetGJK_SV = false;
           else if ( nCollisionAlg == "GJK_SV" ) 
 	    GrainsExec::m_colDetGJK_SV = true;
@@ -666,10 +664,10 @@ void Grains::Construction( DOMElement* rootElement )
 	}
 
         // Tolerance
-	if ( ReaderXML::hasNodeAttr( collisionAlg, "Tolerance" ) )
+        if ( grains::xml::hasAttribute(collisionAlg, "Tolerance") )
 	{
           double tol = 
-	  	ReaderXML::getNodeAttr_Double( collisionAlg, "Tolerance" );
+                grains::xml::requireElement(collisionAlg).requireAttribute<double>("Tolerance");
           if ( tol < 1e-10 )
           {
             if ( m_rank == 0 )
@@ -682,10 +680,10 @@ void Grains::Construction( DOMElement* rootElement )
 	}
         
         // Acceleration
-	if ( ReaderXML::hasNodeAttr( collisionAlg, "Acceleration" ) )
+        if ( grains::xml::hasAttribute(collisionAlg, "Acceleration") )
 	{
           string acc = 
-		ReaderXML::getNodeAttr_String( collisionAlg, "Acceleration" );
+                grains::xml::requireElement(collisionAlg).attributeOr<std::string>("Acceleration", std::string{});
           if ( acc == "ON" )
             GrainsExec::m_colDetAcceleration = true;
           else if ( acc == "OFF" )
@@ -700,10 +698,10 @@ void Grains::Construction( DOMElement* rootElement )
 	}
 
         // History
-	if ( ReaderXML::hasNodeAttr( collisionAlg, "History" ) )
+        if ( grains::xml::hasAttribute(collisionAlg, "History") )
 	{
           string hist = 
-	  	ReaderXML::getNodeAttr_String( collisionAlg, "History" );
+                grains::xml::requireElement(collisionAlg).attributeOr<std::string>("History", std::string{});
           if ( hist == "ON" )
             GrainsExec::m_colDetWithHistory = true;
           else if ( hist == "OFF" )
@@ -740,10 +738,10 @@ void Grains::Construction( DOMElement* rootElement )
 
 
       // Bounding volume
-      DOMNode* bVolumeAlg = ReaderXML::getNode( collision, "BoundingVolume" );
+      grains::xml::OptionalElement bVolumeAlg = grains::xml::requireElement(collision).getChild("BoundingVolume");
       if ( bVolumeAlg )
       {
-        string nBVtype = ReaderXML::getNodeAttr_String( bVolumeAlg, "Type" );
+        string nBVtype = grains::xml::requireElement(bVolumeAlg).attributeOr<std::string>("Type", std::string{});
         if ( nBVtype == "OBB" )
           GrainsExec::m_colDetBoundingVolume = 1;
         else if ( nBVtype == "OBC" )
@@ -771,14 +769,14 @@ void Grains::Construction( DOMElement* rootElement )
 
 
     // Reload
-    DOMNode* reload = ReaderXML::getNode( root, "Reload" );
+    grains::xml::OptionalElement reload = grains::xml::requireElement(root).getChild("Reload");
     if ( reload )
     {
       m_restart = true;
       GrainsExec::m_isReloaded = m_restart;
 
       // Restart mode
-      string reload_type = ReaderXML::getNodeAttr_String( reload, "Type" );
+      string reload_type = grains::xml::requireElement(reload).attributeOr<std::string>("Type", std::string{});
       if ( reload_type == "new" || reload_type == "same" )
         GrainsExec::m_ReloadType = reload_type ;
 
@@ -787,13 +785,12 @@ void Grains::Construction( DOMElement* rootElement )
       // If the mode is "same", the restart file is the same as the output file
       // and is determined by searching the RFTable file
       if ( GrainsExec::m_ReloadType == "new" )
-        restart  = ReaderXML::getNodeAttr_String( reload, "Filename" );
+        restart  = grains::xml::requireElement(reload).attributeOr<std::string>("Filename", std::string{});
       else
       {
-        DOMNode* rootSimu = ReaderXML::getNode( rootElement, "Simulation" );
-        DOMNode* fileRestartOutput = ReaderXML::getNode( rootSimu,
-		"RestartFile" );
-        restart = ReaderXML::getNodeAttr_String( fileRestartOutput, "Name" );
+        grains::xml::OptionalElement rootSimu = grains::xml::requireElement(rootElement).getDescendant("Simulation");
+        grains::xml::OptionalElement fileRestartOutput = grains::xml::requireElement(rootSimu).getChild("RestartFile");
+        restart = grains::xml::requireElement(fileRestartOutput).attributeOr<std::string>("Name", std::string{});
         restart = GrainsExec::restartFileName_AorB( restart, "_RFTable.txt" );
         GrainsExec::m_reloadFile_suffix =
             restart.substr( restart.size()-1, 1 );
@@ -830,13 +827,13 @@ void Grains::Construction( DOMElement* rootElement )
       simulLoad.close();      
 
       // Whether to reset velocity to 0
-      string reset = ReaderXML::getNodeAttr_String( reload, "Velocity" );
+      string reset = grains::xml::requireElement(reload).attributeOr<std::string>("Velocity", std::string{});
       m_allcomponents.resetKinematics( reset );
     }
 
 
     // Particles
-    DOMNode* particles = ReaderXML::getNode( root, "Particles" );
+    grains::xml::OptionalElement particles = grains::xml::requireElement(root).getChild("Particles");
     if ( particles )
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
@@ -844,13 +841,12 @@ void Grains::Construction( DOMElement* rootElement )
       bnewpart = true;
       int nbPC = int( m_allcomponents.getReferenceParticles()->size() );
 
-      DOMNodeList* allParticles = ReaderXML::getNodes( rootElement,
-      	"Particle" );
+      std::vector<grains::xml::Element>  allParticles = grains::xml::requireElement(rootElement).getDescendants("Particle");
 
-      for (XMLSize_t i=0; i<allParticles->getLength(); i++)
+      for (std::size_t i=0; i<allParticles.size(); i++)
       {
-        DOMNode* nParticle = allParticles->item( i );
-        int nb = ReaderXML::getNodeAttr_Int( nParticle, "Number" );
+        grains::xml::OptionalElement nParticle = allParticles.at( i );
+        int nb = grains::xml::requireElement(nParticle).requireAttribute<int>("Number");
         
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
@@ -873,8 +869,8 @@ void Grains::Construction( DOMElement* rootElement )
     }
 
     // Composite particles
-    DOMNode* nCompositeParticles =
-    	ReaderXML::getNode( root, "CompositeParticles" );
+    grains::xml::OptionalElement nCompositeParticles =
+        grains::xml::requireElement(root).getChild("CompositeParticles");
     if ( nCompositeParticles )
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
@@ -882,21 +878,19 @@ void Grains::Construction( DOMElement* rootElement )
       bnewpart = true;
       int nbPC  = int(m_allcomponents.getReferenceParticles()->size());
 
-      DOMNodeList* allCompParticles = ReaderXML::getNodes( rootElement,
-          "CompositeParticle");
+      std::vector<grains::xml::Element>  allCompParticles = grains::xml::requireElement(rootElement).getDescendants("CompositeParticle");
 
-      for (XMLSize_t i=0; i<allCompParticles->getLength(); i++)
+      for (std::size_t i=0; i<allCompParticles.size(); i++)
       {
-        DOMNode* nCompParticle = allCompParticles->item( i );
-        size_t nb = ReaderXML::getNodeAttr_Int( nCompParticle, "Number" );
+        grains::xml::OptionalElement nCompParticle = allCompParticles.at( i );
+        size_t nb = grains::xml::requireElement(nCompParticle).requireAttribute<int>("Number");
 
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
         Particle* particleRef = NULL;
 	string sshape = "none";
-	if ( ReaderXML::hasNodeAttr( nCompParticle, "SpecificShape" )  )
-	  sshape = ReaderXML::getNodeAttr_String( nCompParticle, 
-	  	"SpecificShape" );
+        if ( grains::xml::hasAttribute(nCompParticle, "SpecificShape")  )
+          sshape = grains::xml::requireElement(nCompParticle).attributeOr<std::string>("SpecificShape", std::string{});
 	if ( sshape == "TrilobeCylinder" )
 	  particleRef = new TrilobeCylinder( nCompParticle, nbPC+int(i) );
 	else if ( sshape == "QuadrilobeCylinder" )
@@ -928,17 +922,17 @@ void Grains::Construction( DOMElement* rootElement )
 
 
     // Obstacles
-    DOMNode* obstacles = ReaderXML::getNode( root, "Obstacles" );
+    grains::xml::OptionalElement obstacles = grains::xml::requireElement(root).getChild("Obstacles");
     if ( obstacles )
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Reading new obstacles" << endl;
       bnewobst = true;
 
-      DOMNodeList* allCompObstacles = ReaderXML::getNodes( obstacles );
-      for (XMLSize_t i=0; i<allCompObstacles->getLength(); i++)
+      std::vector<grains::xml::Element>  allCompObstacles = grains::xml::requireElement(obstacles).getChildren();
+      for (std::size_t i=0; i<allCompObstacles.size(); i++)
       {
-        DOMNode* nCompObs = allCompObstacles->item( i );
+        grains::xml::OptionalElement nCompObs = allCompObstacles.at( i );
         Obstacle *obstacle = ObstacleBuilderFactory::create( nCompObs );
         m_allcomponents.AddObstacle( obstacle );
       }
@@ -963,7 +957,7 @@ void Grains::Construction( DOMElement* rootElement )
     if (externalRadius>0.) bnewpart=true;
 
     // Contact force models
-    DOMNode* contact = ReaderXML::getNode( root, "ContactForceModels" );
+    grains::xml::OptionalElement contact = grains::xml::requireElement(root).getChild("ContactForceModels");
     if ( contact )
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
@@ -1007,9 +1001,9 @@ void Grains::Construction( DOMElement* rootElement )
 
     // Scaling coefficient of linked cell size
     double LC_coef = 1.;
-    DOMNode* nLC = ReaderXML::getNode( root, "LinkedCell" );
-    if ( ReaderXML::hasNodeAttr( nLC, "CellSizeFactor" ) )
-      LC_coef = ReaderXML::getNodeAttr_Double( nLC, "CellSizeFactor" );
+    grains::xml::OptionalElement nLC = grains::xml::requireElement(root).getChild("LinkedCell");
+    if ( grains::xml::hasAttribute(nLC, "CellSizeFactor") )
+      LC_coef = grains::xml::requireElement(nLC).requireAttribute<double>("CellSizeFactor");
     if ( LC_coef < 1. ) LC_coef = 1.;
     else if ( m_rank == 0 )
       cout << GrainsExec::m_shift9 << "Cell size factor = " << LC_coef << endl;
@@ -1032,12 +1026,12 @@ void Grains::Construction( DOMElement* rootElement )
 
 // ----------------------------------------------------------------------------
 // External force definition
-void Grains::Forces( DOMElement* rootElement )
+void Grains::Forces( grains::xml::OptionalElement rootElement )
 {
   if ( m_processorIsActive )
   {
-    assert( rootElement != NULL );
-    DOMNode* root = ReaderXML::getNode( rootElement, "Forces" );
+    assert( rootElement.has_value() );
+    grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Forces");
 
     // Output message
     if ( m_rank == 0 ) cout << GrainsExec::m_shift3 << "Forces" << endl;
@@ -1047,15 +1041,12 @@ void Grains::Forces( DOMElement* rootElement )
     if ( root )
     {
       // Gravity
-      DOMNode* nGravity = ReaderXML::getNode( root, "Gravity" );
+      grains::xml::OptionalElement nGravity = grains::xml::requireElement(root).getChild("Gravity");
       if ( nGravity )
       {
-        GrainsExec::m_vgravity[X] = ReaderXML::getNodeAttr_Double(
-      		nGravity, "GX" );
-        GrainsExec::m_vgravity[Y] = ReaderXML::getNodeAttr_Double(
-      		nGravity, "GY" );
-        GrainsExec::m_vgravity[Z] = ReaderXML::getNodeAttr_Double(
-      		nGravity, "GZ" );
+        GrainsExec::m_vgravity[X] = grains::xml::requireElement(nGravity).requireAttribute<double>("GX");
+        GrainsExec::m_vgravity[Y] = grains::xml::requireElement(nGravity).requireAttribute<double>("GY");
+        GrainsExec::m_vgravity[Z] = grains::xml::requireElement(nGravity).requireAttribute<double>("GZ");
         if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << "Gravity = " <<
 		GrainsExec::m_vgravity << endl;
       }
@@ -1067,7 +1058,7 @@ void Grains::Forces( DOMElement* rootElement )
       }
       
       // Brownian force
-      DOMNode* nAppBrownian = ReaderXML::getNode( root, "Brownian" );
+      grains::xml::OptionalElement nAppBrownian = grains::xml::requireElement(root).getChild("Brownian");
       if ( nAppBrownian )
       {
         size_t error = 0;
@@ -1100,12 +1091,12 @@ void Grains::Forces( DOMElement* rootElement )
 // ----------------------------------------------------------------------------
 // Additional features of the simulation: time features, insertion,
 // post-processing
-void Grains::AdditionalFeatures( DOMElement* rootElement )
+void Grains::AdditionalFeatures( grains::xml::OptionalElement rootElement )
 {
   if ( m_processorIsActive )
   {
-    assert( rootElement != NULL );
-    DOMNode* root = ReaderXML::getNode( rootElement, "Simulation" );
+    assert( rootElement.has_value() );
+    grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Simulation");
 
 
     // Output message
@@ -1122,11 +1113,11 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Time interval
-    DOMNode* nTimeInterval = ReaderXML::getNode( root, "TimeInterval" );
+    grains::xml::OptionalElement nTimeInterval = grains::xml::requireElement(root).getChild("TimeInterval");
     if ( nTimeInterval )
     {
-      m_tstart = ReaderXML::getNodeAttr_Double( nTimeInterval, "Start" );
-      m_tend = ReaderXML::getNodeAttr_Double( nTimeInterval, "End" );
+      m_tstart = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("Start");
+      m_tend = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("End");
       if ( GrainsExec::m_ReloadType == "same" ) m_tstart = m_time;
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << "Time interval = ["
       	<< m_tstart << "," << m_tend << "]" << endl;
@@ -1139,10 +1130,10 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
     }
 
     // Time step
-    DOMNode* nTimeStep = ReaderXML::getNode( root, "TimeStep" );
+    grains::xml::OptionalElement nTimeStep = grains::xml::requireElement(root).getChild("TimeStep");
     if ( nTimeStep )
     {
-      m_dt = ReaderXML::getNodeAttr_Double( nTimeStep, "dt" );
+      m_dt = grains::xml::requireElement(nTimeStep).requireAttribute<double>("dt");
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Time step magnitude = " << m_dt << endl;
     }
@@ -1157,36 +1148,32 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
     read_timeouputfrequency( root );
 
     // Time integrator
-    DOMNode* nTimeIntegration = ReaderXML::getNode( root, "TimeIntegration" );
+    grains::xml::OptionalElement nTimeIntegration = grains::xml::requireElement(root).getChild("TimeIntegration");
     if ( nTimeIntegration )
-      GrainsExec::m_TIScheme = ReaderXML::getNodeAttr_String( nTimeIntegration,
-    		"Type" );
+      GrainsExec::m_TIScheme = grains::xml::requireElement(nTimeIntegration).attributeOr<std::string>("Type", std::string{});
     if ( GrainsExec::m_TIScheme != "SecondOrderLeapFrog" )
       m_allcomponents.setTimeIntegrationScheme();
     if ( m_rank == 0 ) cout << GrainsExec::m_shift6 <<
       	"Time integration scheme = " << GrainsExec::m_TIScheme << endl;
 
     // Restart file and writing mode
-    DOMNode* nRestartFile = ReaderXML::getNode( root, "RestartFile" );
+    grains::xml::OptionalElement nRestartFile = grains::xml::requireElement(root).getChild("RestartFile");
     if ( nRestartFile )
     {
-      m_fileSave = ReaderXML::getNodeAttr_String( nRestartFile, "Name" );
+      m_fileSave = grains::xml::requireElement(nRestartFile).attributeOr<std::string>("Name", std::string{});
       if ( GrainsExec::m_ReloadType == "new" ) clearResultXmlFiles();
       GrainsExec::m_SaveDirectory = GrainsExec::extractRoot( m_fileSave );
-      string wmode = ReaderXML::getNodeAttr_String( nRestartFile,
-      	"WritingMode" );
+      string wmode = grains::xml::requireElement(nRestartFile).attributeOr<std::string>("WritingMode", std::string{});
       if ( wmode == "Hybrid" ) GrainsExec::m_writingModeHybrid = true ;
-      if ( ReaderXML::hasNodeAttr( nRestartFile, "SingleFile" ) )
+      if ( grains::xml::hasAttribute(nRestartFile, "SingleFile") )
       {
-        string wsf = ReaderXML::getNodeAttr_String( nRestartFile,
-      		"SingleFile" );
+        string wsf = grains::xml::requireElement(nRestartFile).attributeOr<std::string>("SingleFile", std::string{});
         if ( wsf == "True" && m_nprocs > 1 ) 
 	  GrainsExec::m_SaveMPIInASingleFile = true ;
       }
-      if ( ReaderXML::hasNodeAttr( nRestartFile, "Clones" ) )
+      if ( grains::xml::hasAttribute(nRestartFile, "Clones") )
       {
-        string wclones = ReaderXML::getNodeAttr_String( nRestartFile,
-      		"Clones" );
+        string wclones = grains::xml::requireElement(nRestartFile).attributeOr<std::string>("Clones", std::string{});
         if ( wclones == "All" ) m_clonesInReloadFile = CIR_ALL;
 	else if ( wclones == "NoPer" ) m_clonesInReloadFile = CIR_NOPERIODIC;
 	else m_clonesInReloadFile = CIR_NONE;
@@ -1217,12 +1204,12 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Output data frequency
-    DOMNode* nTimeSave = ReaderXML::getNode( root, "TimeSave" );
+    grains::xml::OptionalElement nTimeSave = grains::xml::requireElement(root).getChild("TimeSave");
     if ( nTimeSave )
     {
-      double startSave = ReaderXML::getNodeAttr_Double( nTimeSave, "Start" );
-      double endSave = ReaderXML::getNodeAttr_Double( nTimeSave, "End" );
-      double dtSave = ReaderXML::getNodeAttr_Double( nTimeSave, "Every" );
+      double startSave = grains::xml::requireElement(nTimeSave).requireAttribute<double>("Start");
+      double endSave = grains::xml::requireElement(nTimeSave).requireAttribute<double>("End");
+      double dtSave = grains::xml::requireElement(nTimeSave).requireAttribute<double>("Every");
       if ( dtSave < m_dt ) dtSave = m_dt;
       for (double t=startSave; t-endSave < 0.01 * m_dt; t+=dtSave)
         m_save.push_back(t);
@@ -1238,22 +1225,19 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Moving obstacles
-    DOMNode* nMovingObstacles = ReaderXML::getNode( root,
-    	"MovingObstacles" );
+    grains::xml::OptionalElement nMovingObstacles = grains::xml::requireElement(root).getChild("MovingObstacles");
     int ObstacleUpdateFreq = 1;
     bool geomMoveObstacles = true;
     if ( nMovingObstacles )
     {
       // Linked cell grid update frequency
-      if ( ReaderXML::hasNodeAttr( nMovingObstacles, "LinkUpdateEvery" ) )
-        ObstacleUpdateFreq = ReaderXML::getNodeAttr_Int( nMovingObstacles,
-      		"LinkUpdateEvery" );
+      if ( grains::xml::hasAttribute(nMovingObstacles, "LinkUpdateEvery") )
+        ObstacleUpdateFreq = grains::xml::requireElement(nMovingObstacles).requireAttribute<int>("LinkUpdateEvery");
 
       // Whether moving obstacles are geometrically moving
-      if ( ReaderXML::hasNodeAttr( nMovingObstacles, "GeometricallyMove" ) )
+      if ( grains::xml::hasAttribute(nMovingObstacles, "GeometricallyMove") )
       {
-        string disp = ReaderXML::getNodeAttr_String( nMovingObstacles,
-     		"GeometricallyMove" );
+        string disp = grains::xml::requireElement(nMovingObstacles).attributeOr<std::string>("GeometricallyMove", std::string{});
         if ( disp == "False" )
 	{
 	  geomMoveObstacles = false;
@@ -1276,17 +1260,17 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Particle insertion
-    DOMNode* nInsertion = ReaderXML::getNode( root, "ParticleInsertion" );
+    grains::xml::OptionalElement nInsertion = grains::xml::requireElement(root).getChild("ParticleInsertion");
     if ( nInsertion )
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << "Particle insertion"
       	<< endl;
 
       // Insertion mode
-      DOMNode* nMode = ReaderXML::getNode( nInsertion, "Mode" );
+      grains::xml::OptionalElement nMode = grains::xml::requireElement(nInsertion).getChild("Mode");
       if ( nMode )
       {
-        string type = ReaderXML::getNodeAttr_String( nMode, "Type" );
+        string type = grains::xml::requireElement(nMode).attributeOr<std::string>("Type", std::string{});
 	if ( type == "InitialTime" ) m_insertion_mode = IM_INITIALTIME;
 	else if ( type == "OverTime" ) m_insertion_mode = IM_OVERTIME;
       }
@@ -1296,10 +1280,10 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Insertion order
-      DOMNode* nOrder = ReaderXML::getNode( nInsertion, "Order" );
+      grains::xml::OptionalElement nOrder = grains::xml::requireElement(nInsertion).getChild("Order");
       if ( nOrder )
       {
-        string type = ReaderXML::getNodeAttr_String( nOrder, "Type" );
+        string type = grains::xml::requireElement(nOrder).attributeOr<std::string>("Type", std::string{});
 	if ( type == "Random" ) m_insertion_order = PM_RANDOM;
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Order = " <<
@@ -1308,17 +1292,16 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Initial angular position
-      DOMNode* nInitAngPos = ReaderXML::getNode( nInsertion,
-      	"InitialAngularPosition" );
+      grains::xml::OptionalElement nInitAngPos = grains::xml::requireElement(nInsertion).getChild("InitialAngularPosition");
       if ( nInitAngPos )
       {
-        string type = ReaderXML::getNodeAttr_String( nInitAngPos, "Type" );
+        string type = grains::xml::requireElement(nInitAngPos).attributeOr<std::string>("Type", std::string{});
 	if ( type == "Random" ) m_init_angpos = IAP_RANDOM;
 	else if ( type == "File" ) 
 	{
 	  m_init_angpos = IAP_FILE;
 	  m_angular_position = 
-	    ReaderXML::getNodeAttr_String( nInitAngPos, "Name" );
+            grains::xml::requireElement(nInitAngPos).attributeOr<std::string>("Name", std::string{});
 	}
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Initial angular"
@@ -1329,15 +1312,15 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Random generator seed
-      DOMNode* nRGS = ReaderXML::getNode( nInsertion, "RandomGeneratorSeed" );
+      grains::xml::OptionalElement nRGS = grains::xml::requireElement(nInsertion).getChild("RandomGeneratorSeed");
       int seed = 0;
       if ( nRGS )
       {
-        string type = ReaderXML::getNodeAttr_String( nRGS, "Type" );
+        string type = grains::xml::requireElement(nRGS).attributeOr<std::string>("Type", std::string{});
 	if ( type == "UserDefined" )
 	{
 	  m_randomseed = RGS_UDEF;
-	  seed = ReaderXML::getNodeAttr_Int( nRGS, "Value" );
+          seed = grains::xml::requireElement(nRGS).requireAttribute<int>("Value");
 	  srand( (unsigned int)( seed ) );
 	}
 	else if ( type == "Random" )
@@ -1355,15 +1338,14 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Insertion attempt frequency
-      DOMNode* nFrequency = ReaderXML::getNode( nInsertion,
-      	"Frequency" );
+      grains::xml::OptionalElement nFrequency = grains::xml::requireElement(nInsertion).getChild("Frequency");
       if ( nFrequency )
       {
         m_insertion_frequency = size_t(
-		ReaderXML::getNodeAttr_Int( nFrequency, "TryEvery" ));
-	if ( ReaderXML::hasNodeAttr( nFrequency, "NbAttempts" ) )
+                grains::xml::requireElement(nFrequency).requireAttribute<int>("TryEvery"));
+        if ( grains::xml::hasAttribute(nFrequency, "NbAttempts") )
 	  m_insertion_attempts = size_t(
-		ReaderXML::getNodeAttr_Int( nFrequency, "NbAttempts" ));
+                grains::xml::requireElement(nFrequency).requireAttribute<int>("NbAttempts"));
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Insertion "
       	"frequency = " << m_insertion_frequency << " Number of attemtps = "
@@ -1371,12 +1353,10 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Force insertion
-      DOMNode* nForceInsertion = ReaderXML::getNode( nInsertion,
-      	"ForceInsertion" );
+      grains::xml::OptionalElement nForceInsertion = grains::xml::requireElement(nInsertion).getChild("ForceInsertion");
       if ( nForceInsertion )
       {
-        string value = ReaderXML::getNodeAttr_String( nForceInsertion,
-		"Value" );
+        string value = grains::xml::requireElement(nForceInsertion).attributeOr<std::string>("Value", std::string{});
 	if ( value == "True" ) m_force_insertion = true;
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Force insertion = " <<
@@ -1384,12 +1364,10 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Geometric overlap test
-      DOMNode* nGeometricOverlap = ReaderXML::getNode( nInsertion,
-      	"GeometricOverlap" );
+      grains::xml::OptionalElement nGeometricOverlap = grains::xml::requireElement(nInsertion).getChild("GeometricOverlap");
       if ( nGeometricOverlap )
       {
-        string value = ReaderXML::getNodeAttr_String( nGeometricOverlap,
-		"Value" );
+        string value = grains::xml::requireElement(nGeometricOverlap).attributeOr<std::string>("Value", std::string{});
 	if ( value == "BV" ) GrainsExec::m_InsertionWithBVonly = true;
       }
       if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "Geometric overlap "
@@ -1400,41 +1378,41 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
       // Particle positions via an external file OR a structured array OR a
       // collection of insertion windows, in this order of priority
       // Remark: these 3 modes cannot be combined
-      DOMNode* nPosition = ReaderXML::getNode( nInsertion, "ParticlePosition" );
+      grains::xml::OptionalElement nPosition = grains::xml::requireElement(nInsertion).getChild("ParticlePosition");
       if ( nPosition )
       {
         if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << "Particle positions"
       		<< endl;
 
         // Fixed particle positions via an external file
-        DOMNode* nFile = ReaderXML::getNode( nPosition, "File" );
+        grains::xml::OptionalElement nFile = grains::xml::requireElement(nPosition).getChild("File");
         if ( nFile )
         {
-          m_position = ReaderXML::getNodeAttr_String( nFile, "Name" );
+          m_position = grains::xml::requireElement(nFile).attributeOr<std::string>("Name", std::string{});
           if ( m_rank == 0 ) cout << GrainsExec::m_shift9 << "External file = "
 		<< m_position << endl;
         }
         else
         {
           // Fixed particle positions via a structured array
-	  DOMNode* nStruct = ReaderXML::getNode( nPosition, "StructuredArray" );
+          grains::xml::OptionalElement nStruct = grains::xml::requireElement(nPosition).getChild("StructuredArray");
 	  if ( nStruct )
 	  {
 	    m_InsertionLattice = new struct InsertionLattice;
 	    Point3 ptA, ptB;
 
-            DOMNode* nBox = ReaderXML::getNode( nStruct, "Box" );
+            grains::xml::OptionalElement nBox = grains::xml::requireElement(nStruct).getChild("Box");
             if ( nBox )
             {
-              DOMNodeList* points = ReaderXML::getNodes( nBox );
-              DOMNode* pointA = points->item( 0 );
-              DOMNode* pointB = points->item( 1 );
-              ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-              ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-              ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-              ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-              ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-              ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+              std::vector<grains::xml::Element>  points = grains::xml::requireElement(nBox).getChildren();
+              grains::xml::OptionalElement pointA = points.at( 0 );
+              grains::xml::OptionalElement pointB = points.at( 1 );
+              ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+              ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+              ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
+              ptB[X] = grains::xml::requireElement(pointB).requireAttribute<double>("X");
+              ptB[Y] = grains::xml::requireElement(pointB).requireAttribute<double>("Y");
+              ptB[Z] = grains::xml::requireElement(pointB).requireAttribute<double>("Z");
 	      m_InsertionLattice->box.setAsBox( ptA, ptB );
             }
 	    else
@@ -1444,15 +1422,12 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
               grainsAbort();
 	    }
 
-            DOMNode* nNumber = ReaderXML::getNode( nStruct, "Number" );
+            grains::xml::OptionalElement nNumber = grains::xml::requireElement(nStruct).getChild("Number");
 	    if ( nNumber )
 	    {
-              m_InsertionLattice->NX = ReaderXML::getNodeAttr_Int( nNumber,
-	      	"NX" );
-              m_InsertionLattice->NY = ReaderXML::getNodeAttr_Int( nNumber,
-	      	"NY" );
-              m_InsertionLattice->NZ = ReaderXML::getNodeAttr_Int( nNumber,
-	      	"NZ" );
+              m_InsertionLattice->NX = grains::xml::requireElement(nNumber).requireAttribute<int>("NX");
+              m_InsertionLattice->NY = grains::xml::requireElement(nNumber).requireAttribute<int>("NY");
+              m_InsertionLattice->NZ = grains::xml::requireElement(nNumber).requireAttribute<int>("NZ");
 	    }
 	    else
 	    {
@@ -1480,7 +1455,7 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	  }
 	  else
 	  {
-	    DOMNode* nCyl = ReaderXML::getNode( nPosition, "CylinderArray" );
+            grains::xml::OptionalElement nCyl = grains::xml::requireElement(nPosition).getChild("CylinderArray");
 	    if ( nCyl )
 	    {
 	      m_InsertionLattice = new struct InsertionLattice;
@@ -1488,12 +1463,12 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	      double radius, height;
 	      string axisdir_str, fill_dir;
 	      
-	      DOMNode* nbc = ReaderXML::getNode( nCyl, "BottomCentre" );
+              grains::xml::OptionalElement nbc = grains::xml::requireElement(nCyl).getChild("BottomCentre");
 	      if ( nbc )
 	      {
-                ptBC[X] = ReaderXML::getNodeAttr_Double( nbc, "X" );
-                ptBC[Y] = ReaderXML::getNodeAttr_Double( nbc, "Y" );
-                ptBC[Z] = ReaderXML::getNodeAttr_Double( nbc, "Z" );
+                ptBC[X] = grains::xml::requireElement(nbc).requireAttribute<double>("X");
+                ptBC[Y] = grains::xml::requireElement(nbc).requireAttribute<double>("Y");
+                ptBC[Z] = grains::xml::requireElement(nbc).requireAttribute<double>("Z");
 	      }
 	      else
 	      {
@@ -1502,17 +1477,13 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
                 grainsAbort();
 	      }
 	            
-              DOMNode* cylGeom = ReaderXML::getNode( nCyl, "Cylinder" );
+              grains::xml::OptionalElement cylGeom = grains::xml::requireElement(nCyl).getChild("Cylinder");
 	      if ( cylGeom )
 	      {
-                radius = ReaderXML::getNodeAttr_Double( cylGeom, 
-	      		"Radius" );
-                height = ReaderXML::getNodeAttr_Double( cylGeom, 
-	      		"Height" );
-                axisdir_str = ReaderXML::getNodeAttr_String( cylGeom, 
-	      		"Direction" );
-		fill_dir = ReaderXML::getNodeAttr_String( cylGeom, 
-	      		"Filling" );	
+                radius = grains::xml::requireElement(cylGeom).requireAttribute<double>("Radius");
+                height = grains::xml::requireElement(cylGeom).requireAttribute<double>("Height");
+                axisdir_str = grains::xml::requireElement(cylGeom).attributeOr<std::string>("Direction", std::string{});
+                fill_dir = grains::xml::requireElement(cylGeom).attributeOr<std::string>("Filling", std::string{});
 	      }
 	      else
 	      {
@@ -1536,15 +1507,14 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	      m_InsertionLattice->box.setAsCylinder( ptBC, radius, height, 
 	      	axisdir_str );
 		
-              DOMNode* fillStrat = ReaderXML::getNode( nCyl, "Filling" );
+              grains::xml::OptionalElement fillStrat = grains::xml::requireElement(nCyl).getChild("Filling");
 	      m_InsertionLattice->FillingRelStart = 0.;
 	      m_InsertionLattice->FillingFrom = "Bottom";
 	      if ( fillStrat )
 	      {
-                if ( ReaderXML::hasNodeAttr( fillStrat, "RelStartCoord" ) )
+                if ( grains::xml::hasAttribute(fillStrat, "RelStartCoord") )
 		  m_InsertionLattice->FillingRelStart = 
-		  	ReaderXML::getNodeAttr_Double( 
-		  		fillStrat, "RelStartCoord" );
+                        grains::xml::requireElement(fillStrat).requireAttribute<double>("RelStartCoord");
 			
 		if ( m_InsertionLattice->FillingRelStart < 0. || 
 			m_InsertionLattice->FillingRelStart > 1. )
@@ -1555,10 +1525,9 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
                   grainsAbort();	      
 	        }			
                 
-		if ( ReaderXML::hasNodeAttr( fillStrat, "From" ) )
+                if ( grains::xml::hasAttribute(fillStrat, "From") )
 		  m_InsertionLattice->FillingFrom = 
-		  	ReaderXML::getNodeAttr_String( 
-		  		fillStrat, "From" );
+                        grains::xml::requireElement(fillStrat).attributeOr<std::string>("From", std::string{});
 		if ( m_InsertionLattice->FillingFrom != "Bottom" &&
 			m_InsertionLattice->FillingFrom != "Top" ) 
 		  m_InsertionLattice->FillingFrom = "Bottom";	
@@ -1584,15 +1553,15 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 	    {
 	      // Random particle positions from a collection of insertion 
 	      // windows
-	      DOMNode* nWindows = ReaderXML::getNode( nPosition, "Windows" );
+              grains::xml::OptionalElement nWindows = grains::xml::requireElement(nPosition).getChild("Windows");
               if ( nWindows )
 	      {
 	        if ( m_rank == 0 )
 	          cout << GrainsExec::m_shift9 << "Insertion windows" << endl;
-	        DOMNodeList* allWindows = ReaderXML::getNodes( nWindows );
-                for (XMLSize_t i=0; i<allWindows->getLength(); i++)
+                std::vector<grains::xml::Element>  allWindows = grains::xml::requireElement(nWindows).getChildren();
+                for (std::size_t i=0; i<allWindows.size(); i++)
 	        {
-	          DOMNode* nWindow = allWindows->item( i );
+                  grains::xml::OptionalElement nWindow = allWindows.at( i );
                   Window iwindow;
 		  bool ok = iwindow.readWindow( nWindow, 
 			GrainsExec::m_shift12, m_rank );
@@ -1630,55 +1599,45 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
       if ( m_rank == 0 )
         cout << GrainsExec::m_shift6 << "Particle initial velocity: ";
 
-      DOMNode* nInitVit = ReaderXML::getNode( nInsertion, "InitialVelocity" );
+      grains::xml::OptionalElement nInitVit = grains::xml::requireElement(nInsertion).getChild("InitialVelocity");
       if ( nInitVit )
       {
         string sInitVitmode =
-	    ReaderXML::getNodeAttr_String( nInitVit, "Mode" );
+            grains::xml::requireElement(nInitVit).attributeOr<std::string>("Mode", std::string{});
 
         if ( sInitVitmode == "Constant" )
         {
 	  m_initvit_mode = IV_CONSTANT;
 
-          DOMNode* nVitTransInit = ReaderXML::getNode( nInitVit,
-	  	"TranslationalVelocity" );
+          grains::xml::OptionalElement nVitTransInit = grains::xml::requireElement(nInitVit).getChild("TranslationalVelocity");
           if ( nVitTransInit )
           {
-            m_InitVtrans[X] = ReaderXML::getNodeAttr_Double( nVitTransInit,
-	      	"VX" );
-            m_InitVtrans[Y] = ReaderXML::getNodeAttr_Double( nVitTransInit,
-	      	"VY" );
-            m_InitVtrans[Z] = ReaderXML::getNodeAttr_Double( nVitTransInit,
-	      	"VZ" );
+            m_InitVtrans[X] = grains::xml::requireElement(nVitTransInit).requireAttribute<double>("VX");
+            m_InitVtrans[Y] = grains::xml::requireElement(nVitTransInit).requireAttribute<double>("VY");
+            m_InitVtrans[Z] = grains::xml::requireElement(nVitTransInit).requireAttribute<double>("VZ");
           }
 
-          DOMNode* nVitRotInit = ReaderXML::getNode( nInitVit,
-	    	"AngularVelocity" );
+          grains::xml::OptionalElement nVitRotInit = grains::xml::requireElement(nInitVit).getChild("AngularVelocity");
           if ( nVitRotInit )
           {
-            m_InitVrot[X] = ReaderXML::getNodeAttr_Double( nVitRotInit,
-	      	"RX" );
-            m_InitVrot[Y] = ReaderXML::getNodeAttr_Double( nVitRotInit,
-	      	"RY" );
-            m_InitVrot[Z] = ReaderXML::getNodeAttr_Double( nVitRotInit,
-	      	"RZ" );
+            m_InitVrot[X] = grains::xml::requireElement(nVitRotInit).requireAttribute<double>("RX");
+            m_InitVrot[Y] = grains::xml::requireElement(nVitRotInit).requireAttribute<double>("RY");
+            m_InitVrot[Z] = grains::xml::requireElement(nVitRotInit).requireAttribute<double>("RZ");
           }
         }
         else if ( sInitVitmode == "Random" )
         {
 	  m_initvit_mode = IV_RANDOM;
 
-	  DOMNode* nRandomTrans = ReaderXML::getNode( nInitVit,
-		"Translational" );
+          grains::xml::OptionalElement nRandomTrans = grains::xml::requireElement(nInitVit).getChild("Translational");
 	  if ( nRandomTrans )
 	    m_RandomMotionCoefTrans =
-		ReaderXML::getNodeAttr_Double( nRandomTrans, "Amplitude" );
+                grains::xml::requireElement(nRandomTrans).requireAttribute<double>("Amplitude");
 
-	  DOMNode* nRandomRot = ReaderXML::getNode( nInitVit,
-	    	"Angular" );
+          grains::xml::OptionalElement nRandomRot = grains::xml::requireElement(nInitVit).getChild("Angular");
 	  if ( nRandomRot )
 	    m_RandomMotionCoefRot =
-	 	ReaderXML::getNodeAttr_Double( nRandomRot, "Amplitude" ) ;
+                grains::xml::requireElement(nRandomRot).requireAttribute<double>("Amplitude") ;
         }
         else m_initvit_mode = IV_ZERO;
       }
@@ -1719,18 +1678,18 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Obstacle loadings
-    DOMNode* nObstacleLoadings = ReaderXML::getNode( root, "ObstacleLoadings" );
+    grains::xml::OptionalElement nObstacleLoadings = grains::xml::requireElement(root).getChild("ObstacleLoadings");
     size_t error = 0;
     if ( nObstacleLoadings )
     {
       if ( m_rank == 0 )
         cout << GrainsExec::m_shift6 << "Obstacle loadings" << endl;
 
-      DOMNodeList* allOLs = ReaderXML::getNodes( nObstacleLoadings );
-      for (XMLSize_t i=0; i<allOLs->getLength(); i++)
+      std::vector<grains::xml::Element>  allOLs = grains::xml::requireElement(nObstacleLoadings).getChildren();
+      for (std::size_t i=0; i<allOLs.size(); i++)
       {
-        DOMNode* nOL = allOLs->item( i );
-	string type = ReaderXML::getNodeAttr_String( nOL, "Type" );
+        grains::xml::OptionalElement nOL = allOLs.at( i );
+        string type = grains::xml::requireElement(nOL).attributeOr<std::string>("Type", std::string{});
 	if ( m_rank == 0 )
           cout << GrainsExec::m_shift9 << "Type = " << type << endl;
 
@@ -1762,17 +1721,16 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
     
     
     // Insertion windows motion
-    DOMNode* nIWMotion = ReaderXML::getNode( root,
-    	"InsertionWindowMotion" );
+    grains::xml::OptionalElement nIWMotion = grains::xml::requireElement(root).getChild("InsertionWindowMotion");
     if ( nIWMotion )
     {
       if ( m_rank == 0 )
         cout << GrainsExec::m_shift6 << "Insertion Window Motion" << endl;
 
-      DOMNodeList* allIWMs = ReaderXML::getNodes( nIWMotion );
-      for (XMLSize_t i=0; i<allIWMs->getLength(); i++)
+      std::vector<grains::xml::Element>  allIWMs = grains::xml::requireElement(nIWMotion).getChildren();
+      for (std::size_t i=0; i<allIWMs.size(); i++)
       {
-        DOMNode* nIWM = allIWMs->item( i );
+        grains::xml::OptionalElement nIWM = allIWMs.at( i );
 	ObstacleImposedVelocity* motion = new ObstacleImposedVelocity(
 	  	nIWM, m_dt, m_rank, error );
 	if ( error != 0 || motion->getType() == "ConstantRotation" ) 
@@ -1788,8 +1746,7 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
     // Post-processing writers
-    DOMNode* nPostProcessing = ReaderXML::getNode( root,
-    	"PostProcessing" );
+    grains::xml::OptionalElement nPostProcessing = grains::xml::requireElement(root).getChild("PostProcessing");
     if ( nPostProcessing )
     {
       if ( m_rank == 0 )
@@ -1798,24 +1755,22 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
       // Post-processing subdomain
       PostProcessingWriter::allocate_PostProcessingWindow( m_nprocs );
 
-      DOMNode* nPostProcessingDomain = ReaderXML::getNode( nPostProcessing,
-      	"Domain" );
+      grains::xml::OptionalElement nPostProcessingDomain = grains::xml::requireElement(nPostProcessing).getChild("Domain");
       if ( nPostProcessingDomain )
       {
-        DOMNodeList* nWindowPoints = ReaderXML::getNodes(
-		nPostProcessingDomain );
+        std::vector<grains::xml::Element>  nWindowPoints = grains::xml::requireElement(nPostProcessingDomain).getChildren();
 
- 	DOMNode* pointA = nWindowPoints->item( 0 );
- 	DOMNode* pointB = nWindowPoints->item( 1 );
+        grains::xml::OptionalElement pointA = nWindowPoints.at( 0 );
+        grains::xml::OptionalElement pointB = nWindowPoints.at( 1 );
 	Point3 ptA, ptB;
 
  	Window PPWindow;
- 	ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-	ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-	ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-	ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-	ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-	ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+        ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+        ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+        ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
+        ptB[X] = grains::xml::requireElement(pointB).requireAttribute<double>("X");
+        ptB[Y] = grains::xml::requireElement(pointB).requireAttribute<double>("Y");
+        ptB[Z] = grains::xml::requireElement(pointB).requireAttribute<double>("Z");
 	PPWindow.setAsBox( ptA, ptB );
 
 	double Ox, Oy, Oz, lx, ly, lz;
@@ -1863,13 +1818,13 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Post-processing writers
-      DOMNode* nWriters = ReaderXML::getNode( nPostProcessing, "Writers" );
+      grains::xml::OptionalElement nWriters = grains::xml::requireElement(nPostProcessing).getChild("Writers");
       if ( nWriters )
       {
-        DOMNodeList* allPPW = ReaderXML::getNodes( nWriters );
-        for (XMLSize_t i=0; i<allPPW->getLength(); i++)
+        std::vector<grains::xml::Element>  allPPW = grains::xml::requireElement(nWriters).getChildren();
+        for (std::size_t i=0; i<allPPW.size(); i++)
         {
-          DOMNode* nPPW = allPPW->item( i );
+          grains::xml::OptionalElement nPPW = allPPW.at( i );
           PostProcessingWriter* ppw =
 	  	PostProcessingWriterBuilderFactory::create(
       		nPPW, m_rank, m_nprocs );
@@ -1889,21 +1844,18 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
 
 
       // Total Force & torque on obstacles
-      DOMNode* nForceTorqueObstacles = ReaderXML::getNode( nPostProcessing,
-      	"ForceTorqueObstacles" );
+      grains::xml::OptionalElement nForceTorqueObstacles = grains::xml::requireElement(nPostProcessing).getChild("ForceTorqueObstacles");
       if ( nForceTorqueObstacles )
       {
-        int FToutputFreq = ReaderXML::getNodeAttr_Int( nForceTorqueObstacles,
-		"Every" );
-        string ppObsdir = ReaderXML::getNodeAttr_String( nForceTorqueObstacles,
-		"Directory" );
+        int FToutputFreq = grains::xml::requireElement(nForceTorqueObstacles).requireAttribute<int>("Every");
+        string ppObsdir = grains::xml::requireElement(nForceTorqueObstacles).attributeOr<std::string>("Directory", std::string{});
         list<string> allppObsName;
-        DOMNodeList* allppObs = ReaderXML::getNodes( nForceTorqueObstacles );
-        for (XMLSize_t i=0; i<allppObs->getLength(); i++)
+        std::vector<grains::xml::Element>  allppObs = grains::xml::requireElement(nForceTorqueObstacles).getChildren();
+        for (std::size_t i=0; i<allppObs.size(); i++)
         {
-          DOMNode* nppObs = allppObs->item( i );
+          grains::xml::OptionalElement nppObs = allppObs.at( i );
           allppObsName.push_back(
-		ReaderXML::getNodeAttr_String( nppObs, "ObstacleName" ) );
+                grains::xml::requireElement(nppObs).attributeOr<std::string>("ObstacleName", std::string{}) );
         }
         m_allcomponents.setOutputObstaclesLoadParameters( ppObsdir,
         	FToutputFreq, allppObsName );
@@ -1931,14 +1883,12 @@ void Grains::AdditionalFeatures( DOMElement* rootElement )
       
       
       // Force statistics (for now macro stress tensor in the whole domain)
-      DOMNode* nForceStats = ReaderXML::getNode( nPostProcessing,
-      	"ForceStats" );
+      grains::xml::OptionalElement nForceStats = grains::xml::requireElement(nPostProcessing).getChild("ForceStats");
       if ( nForceStats )
       {
         size_t FSoutputFreq = size_t( 
-		ReaderXML::getNodeAttr_Int( nForceStats, "Every" ) );
-        string ppObsdir = ReaderXML::getNodeAttr_String( nForceStats,
-		"Directory" );
+                grains::xml::requireElement(nForceStats).requireAttribute<int>("Every") );
+        string ppObsdir = grains::xml::requireElement(nForceStats).attributeOr<std::string>("Directory", std::string{});
         m_collision->setForceStatsParameters( ppObsdir, FSoutputFreq );		
 
 	if ( m_rank == 0 )
@@ -2513,7 +2463,7 @@ bool Grains::isModePredictor()
 
 // ----------------------------------------------------------------------------
 // Reads data for MPI simulations and creates and sets the MPI wrapper
-void Grains::readDomainDecomposition( DOMNode* root,
+void Grains::readDomainDecomposition( grains::xml::OptionalElement root,
   	double const& lx, double const& ly, double const& lz )
 {
   // Nothing to do in serial mode
@@ -2673,5 +2623,5 @@ void Grains::checkClonesReload()
 
 // ----------------------------------------------------------------------------
 // Reads time output frequency in MPI */
-void Grains::read_timeouputfrequency( DOMNode* root )
+void Grains::read_timeouputfrequency( grains::xml::OptionalElement root )
 {}

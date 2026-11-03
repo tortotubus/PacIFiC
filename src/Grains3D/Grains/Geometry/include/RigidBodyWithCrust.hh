@@ -2,8 +2,8 @@
 #define _RIGIDBODYWITHCRUST_HH_
 
 #include "RigidBody.hh"
-#include "ReaderXML.hh"
-#include "WriterXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include "Error.hh"
 
 class PointContact;
@@ -46,7 +46,7 @@ class RigidBodyWithCrust : public RigidBody
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    RigidBodyWithCrust( DOMNode* root );
+    RigidBodyWithCrust( grains::xml::OptionalElement root );
 
     /** Destructor */
     virtual ~RigidBodyWithCrust() ;

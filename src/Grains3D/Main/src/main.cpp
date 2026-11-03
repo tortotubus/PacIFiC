@@ -1,10 +1,12 @@
+#include "SimulationXml.hh"
 
 
 #include <mpi.h> 
 
 #include "Grains.hh"
 #include "GrainsBuilderFactory.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 // #include "Version.hh"
 
 #include <filesystem>
@@ -151,9 +153,8 @@ int main(int argc, char *argv[]) {
     filename_exe = GrainsBuilderFactory::init(opt.input_xml, rank, nprocs);
 
     // Creates the Grains application
-    ReaderXML::initialize();
-    DOMElement *rootNode = ReaderXML::getRoot(filename_exe);
-    string option = ReaderXML::getNodeAttr_String(rootNode, "Type");
+    grains::xml::OptionalElement rootNode = grains::xml::readSimulationFile(filename_exe).root();
+    string option = grains::xml::requireElement(rootNode).attributeOr<std::string>("Type", std::string{});
 
     Grains *grains = NULL;
     grains = GrainsBuilderFactory::create(rootNode);
@@ -172,8 +173,6 @@ int main(int argc, char *argv[]) {
 
     // Tasks to perform before time-stepping
     grains->do_before_time_stepping(rootNode);
-    ReaderXML::terminate();
-
     if (rank0 && !opt.keep_temp && !filename_exe.empty()) {
       std::error_code ec;
       fs::remove(filename_exe, ec);

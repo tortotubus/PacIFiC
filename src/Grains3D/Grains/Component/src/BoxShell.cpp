@@ -9,29 +9,28 @@
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-BoxShell::BoxShell( DOMNode* root ) :
+BoxShell::BoxShell( grains::xml::OptionalElement root ) :
   CompositeObstacle( "shell" )
 {    
-  assert( root != NULL );
+  assert( root.has_value() );
   
   // Type
   m_type = "BoxShell";
 
   // Name
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
   
   // Geometry
-  DOMNode* nGeom = ReaderXML::getNode( root, "Geometry" );
-  m_lx = ReaderXML::getNodeAttr_Double( nGeom, "LX" );
-  m_ly = ReaderXML::getNodeAttr_Double( nGeom, "LY" );
-  m_lz = ReaderXML::getNodeAttr_Double( nGeom, "LZ" );
-  m_shellWidth = ReaderXML::getNodeAttr_Double( nGeom, "Width" );
-  double crust_thickness = ReaderXML::getNodeAttr_Double( nGeom, 
-  	"CrustThickness" );
+  grains::xml::OptionalElement nGeom = grains::xml::requireElement(root).getChild("Geometry");
+  m_lx = grains::xml::requireElement(nGeom).requireAttribute<double>("LX");
+  m_ly = grains::xml::requireElement(nGeom).requireAttribute<double>("LY");
+  m_lz = grains::xml::requireElement(nGeom).requireAttribute<double>("LZ");
+  m_shellWidth = grains::xml::requireElement(nGeom).requireAttribute<double>("Width");
+  double crust_thickness = grains::xml::requireElement(nGeom).requireAttribute<double>("CrustThickness");
   m_box = false;
-  if ( ReaderXML::hasNodeAttr( nGeom, "ElementaryObstacle" ) )
+  if ( grains::xml::hasAttribute(nGeom, "ElementaryObstacle") )
   {
-    string selem = ReaderXML::getNodeAttr_String( nGeom, "ElementaryObstacle" );
+    string selem = grains::xml::requireElement(nGeom).attributeOr<std::string>("ElementaryObstacle", std::string{});
     if ( selem == "Box" ) m_box = true;
   }   
 
@@ -42,15 +41,15 @@ BoxShell::BoxShell( DOMNode* root ) :
   m_geoRBWC->setCrustThickness( crust_thickness );  
 
   // Material
-  DOMNode* materiau_ = ReaderXML::getNode( root, "Material" );
-  m_materialName = ReaderXML::getNodeValue_String( materiau_ );
+  grains::xml::OptionalElement materiau_ = grains::xml::requireElement(root).getChild("Material");
+  m_materialName = grains::xml::requireElement(materiau_).text();
   ContactBuilderFactory::defineMaterial( m_materialName, true );
 
   // Obstacle to transfer to the fluid
   bool transferToFluid = false;
-  DOMNode* status = ReaderXML::getNode( root, "Status" );
+  grains::xml::OptionalElement status = grains::xml::requireElement(root).getChild("Status");
   if ( status )
-    transferToFluid = ReaderXML::getNodeAttr_Int( status, "ToFluid" );
+    transferToFluid = grains::xml::requireElement(status).requireAttribute<int>("ToFluid");
 
   // Create elementary box obstacles 
   Vector3 zerotranslation;    

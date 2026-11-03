@@ -29,10 +29,10 @@ Cylinder::Cylinder( istream &fileIn )
 
 // -----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Cylinder::Cylinder( DOMNode* root )
+Cylinder::Cylinder( grains::xml::OptionalElement root )
 {
-  m_radius = ReaderXML::getNodeAttr_Double( root, "Radius" );
-  m_halfHeight = ReaderXML::getNodeAttr_Double( root, "Height") / 2.;
+  m_radius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
+  m_halfHeight = grains::xml::requireElement(root).requireAttribute<double>("Height") / 2.;
 }
 
 

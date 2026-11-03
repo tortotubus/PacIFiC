@@ -9,9 +9,9 @@
 // Creates a post-processing writer from an XML node, the process
 // rank and the number of processus
 PostProcessingWriter* PostProcessingWriterBuilderFactory::create(
-	DOMNode* nPPW, int const& rank_, int const& nbranks_ )
+        grains::xml::OptionalElement nPPW, int const& rank_, int const& nbranks_ )
 {
-  string PPWName = ReaderXML::getNodeName(nPPW);
+  string PPWName = grains::xml::requireElement(nPPW).name();
   PostProcessingWriter* ppw = NULL;
 
   if ( PPWName == "Paraview" )

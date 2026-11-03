@@ -2,7 +2,8 @@
 #define _GRAINSCOUPLEDWITHFLUID_HH_
 
 #include "Grains.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include "AppPRSHydroFT.hh"
 #include <list>
 #include <string>
@@ -35,7 +36,7 @@ class GrainsCoupledWithFluid : virtual public Grains
     //@{
     /** @brief Tasks to perform before time-stepping 
     @param rootElement XML root */
-    virtual void do_before_time_stepping( DOMElement* rootElement );
+    virtual void do_before_time_stepping( grains::xml::OptionalElement rootElement );
 
     /** @brief Tasks to perform after time-stepping */
     virtual void do_after_time_stepping();
@@ -170,16 +171,16 @@ class GrainsCoupledWithFluid : virtual public Grains
     /** @brief Construction of the simulation: linked cell, particles &
     obstacles, domain decomposition 
     @param rootElement XML root */
-    virtual void Construction( DOMElement* rootElement );
+    virtual void Construction( grains::xml::OptionalElement rootElement );
 
     /** @brief Additional features of the simulation: time features, insertion,
     post-processing
     @param rootElement XML root */
-    virtual void AdditionalFeatures( DOMElement* rootElement );
+    virtual void AdditionalFeatures( grains::xml::OptionalElement rootElement );
 
     /** @brief External force definition
     @param rootElement XML root */
-    virtual void Forces( DOMElement* rootElement );
+    virtual void Forces( grains::xml::OptionalElement rootElement );
     //@}    
     
     

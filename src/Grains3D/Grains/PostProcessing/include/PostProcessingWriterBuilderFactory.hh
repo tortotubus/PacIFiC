@@ -1,7 +1,8 @@
 #ifndef _POSTPROCESSINGWRITERBUILDERFACTORY_HH_
 #define _POSTPROCESSINGWRITERBUILDERFACTORY_HH_
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <string>
 using std::string;
 class PostProcessingWriter;
@@ -24,7 +25,7 @@ class PostProcessingWriterBuilderFactory
     @param nPPW XMl noeud
     @param rank_ process rank 
     @param nbranks_ number of processes */
-    static PostProcessingWriter* create( DOMNode* nPPW,
+    static PostProcessingWriter* create( grains::xml::OptionalElement nPPW,
   	int const& rank_, int const& nbranks_ );
     //@}
 

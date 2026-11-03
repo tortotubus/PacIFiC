@@ -3,7 +3,8 @@
 
 #include "Grains.hh"
 #include "GrainsCoupledWithFluid.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief Space dimension of the simulation */
@@ -29,12 +30,12 @@ class GrainsBuilderFactory
     //@{
     /** @brief Creates and returns a standard Grains application
     @param root XML root ("<Grains3D>" or "<Graind2D>") */
-    static Grains* create( DOMElement* root );
+    static Grains* create( grains::xml::OptionalElement root );
     
     /** @brief Creates and returns a GrainsCoupledWithFluid application
     @param root XML root ("<Grains3D>" or "<Graind2D>")
     @param fluid_density_ fluid density */
-    static GrainsCoupledWithFluid* createCoupledWithFluid( DOMElement* root,
+    static GrainsCoupledWithFluid* createCoupledWithFluid( grains::xml::OptionalElement root,
     	double fluid_density_ );      
 
     /** @brief Returns the space dimension of the simulation */

@@ -1,6 +1,8 @@
 #ifndef _RAWDATAPOSTPROCESSINGWRITER_HH_
 #define _RAWDATAPOSTPROCESSINGWRITER_HH_
 
+#include "Xml.hh"
+
 #include "PostProcessingWriter.hh"
 #include <iostream>
 #include <fstream>
@@ -25,7 +27,7 @@ class RawDataPostProcessingWriter : public PostProcessingWriter
     @param rank_ process rank 
     @param nbranks_ number of processes 
     @param verbose outputs writer features if true */
-    RawDataPostProcessingWriter( DOMNode* dn, int const& rank_, 
+    RawDataPostProcessingWriter( grains::xml::OptionalElement dn, int const& rank_,
     	int const& nbranks_, bool const& verbose = true );
 
     /** @brief Destructor */

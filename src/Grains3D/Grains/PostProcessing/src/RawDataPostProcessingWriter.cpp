@@ -17,16 +17,16 @@ RawDataPostProcessingWriter::RawDataPostProcessingWriter()
 
 // ----------------------------------------------------------------------------
 // Constructor with XML node, rank and number of processes as input parameters
-RawDataPostProcessingWriter::RawDataPostProcessingWriter( DOMNode* dn,
+RawDataPostProcessingWriter::RawDataPostProcessingWriter( grains::xml::OptionalElement dn,
 	int const& rank_, int const& nbranks_, bool const& verbose )
   : PostProcessingWriter( dn, rank_, nbranks_ )
   , m_binary( false )
   , m_ndigits( 6 )  
 { 
-  m_filerootname = ReaderXML::getNodeAttr_String( dn, "Name" );
-  if ( ReaderXML::hasNodeAttr( dn, "WritingMode" ) )
+  m_filerootname = grains::xml::requireElement(dn).attributeOr<std::string>("Name", std::string{});
+  if ( grains::xml::hasAttribute(dn, "WritingMode") )
   { 
-    string sm_binary = ReaderXML::getNodeAttr_String( dn, "WritingMode" );
+    string sm_binary = grains::xml::requireElement(dn).attributeOr<std::string>("WritingMode", std::string{});
     if ( sm_binary == "Binary" ) m_binary = true;
   }  
  

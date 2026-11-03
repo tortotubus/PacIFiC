@@ -47,7 +47,7 @@ void GrainsPostProcessing::initialOutputMessage()
 
 // ----------------------------------------------------------------------------
 // Tasks to perform before time-stepping 
-void GrainsPostProcessing::do_before_time_stepping( DOMElement* rootElement )
+void GrainsPostProcessing::do_before_time_stepping( grains::xml::OptionalElement rootElement )
 {
   // Read the input file
   Construction( rootElement );
@@ -621,45 +621,45 @@ void GrainsPostProcessing::Simulation( double time_interval )
 // ----------------------------------------------------------------------------
 // Construction of the simulation: linked cell, particles & obstacles, domain 
 // decomposition 
-void GrainsPostProcessing::Construction( DOMElement* rootElement )
+void GrainsPostProcessing::Construction( grains::xml::OptionalElement rootElement )
 {
-  assert( rootElement != NULL );
-  DOMNode* root = ReaderXML::getNode( rootElement, "Construction" );
+  assert( rootElement.has_value() );
+  grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Construction");
 
   bool b2024 = false;
   string restart;
   size_t npart;
 
   // Domain size: origin, max coordinates and periodicity
-  DOMNode* domain = ReaderXML::getNode( root, "LinkedCell" );
-  double mx = ReaderXML::getNodeAttr_Double( domain, "MX" );
-  double my = ReaderXML::getNodeAttr_Double( domain, "MY" );
-  double mz = ReaderXML::getNodeAttr_Double( domain, "MZ" );
+  grains::xml::OptionalElement domain = grains::xml::requireElement(root).getChild("LinkedCell");
+  double mx = grains::xml::requireElement(domain).requireAttribute<double>("MX");
+  double my = grains::xml::requireElement(domain).requireAttribute<double>("MY");
+  double mz = grains::xml::requireElement(domain).requireAttribute<double>("MZ");
   
-  DOMNode* domain_origin = ReaderXML::getNode( root, "Origin" );
+  grains::xml::OptionalElement domain_origin = grains::xml::requireElement(root).getChild("Origin");
   double ox = 0., oy = 0., oz = 0. ;
   if ( domain_origin )
   {
-    ox = ReaderXML::getNodeAttr_Double( domain_origin, "OX" );
-    oy = ReaderXML::getNodeAttr_Double( domain_origin, "OY" );
-    oz = ReaderXML::getNodeAttr_Double( domain_origin, "OZ" ); 
+    ox = grains::xml::requireElement(domain_origin).requireAttribute<double>("OX");
+    oy = grains::xml::requireElement(domain_origin).requireAttribute<double>("OY");
+    oz = grains::xml::requireElement(domain_origin).requireAttribute<double>("OZ");
   }   
   App::set_dimensions( mx, my, mz, ox, oy, oz );
   
   m_periodicity.reserve(3);
   for (size_t i=0;i<3;++i) m_periodicity.push_back(false);
   int perx = 0, pery = 0, perz = 0;
-  DOMNode* nPeriodicity = ReaderXML::getNode( root, "Periodicity" );
+  grains::xml::OptionalElement nPeriodicity = grains::xml::requireElement(root).getChild("Periodicity");
   if ( nPeriodicity )
   {
-    perx = ReaderXML::getNodeAttr_Int( nPeriodicity, "PX" );
+    perx = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PX");
     if ( perx != 1 ) perx = 0;
     m_periodicity[X] = perx;
-    pery = ReaderXML::getNodeAttr_Int( nPeriodicity, "PY" );
+    pery = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PY");
     if ( pery != 1 ) pery = 0; 
     m_periodicity[Y] = pery;       
     if ( m_dimension == 3 ) 
-      perz = ReaderXML::getNodeAttr_Int( nPeriodicity, "PZ" );
+      perz = grains::xml::requireElement(nPeriodicity).requireAttribute<int>("PZ");
     if ( perz != 1 ) perz = 0;
     m_periodicity[Z] = perz;              
   }
@@ -694,14 +694,14 @@ void GrainsPostProcessing::Construction( DOMElement* rootElement )
 
 
     // Reload
-    DOMNode* reload = ReaderXML::getNode( root, "Reload" );
+    grains::xml::OptionalElement reload = grains::xml::requireElement(root).getChild("Reload");
     if ( reload ) 
     {
       m_restart = true;
 
       // Restart mode is new, not read in XML file
       GrainsExec::m_ReloadType = "new" ;
-      restart  = ReaderXML::getNodeAttr_String( reload, "Filename" );	
+      restart  = grains::xml::requireElement(reload).attributeOr<std::string>("Filename", std::string{});
       restart = GrainsExec::fullResultFileName( restart, false );
       
       // Extract the reload directory from the reload file
@@ -731,7 +731,7 @@ void GrainsPostProcessing::Construction( DOMElement* rootElement )
       simulLoad.close(); 
 
       // Whether to reset velocity to 0
-      string reset = ReaderXML::getNodeAttr_String( reload, "Velocity" );
+      string reset = grains::xml::requireElement(reload).attributeOr<std::string>("Velocity", std::string{});
       m_allcomponents.resetKinematics( reset );
     }          
    
@@ -758,9 +758,9 @@ void GrainsPostProcessing::Construction( DOMElement* rootElement )
 	
     // Scaling coefficient of linked cell size
     double LC_coef = 1.;
-    DOMNode* nLC = ReaderXML::getNode( root, "LinkedCell" );
-    if ( ReaderXML::hasNodeAttr( nLC, "CellSizeFactor" ) ) 
-      LC_coef = ReaderXML::getNodeAttr_Double( nLC, "CellSizeFactor" );
+    grains::xml::OptionalElement nLC = grains::xml::requireElement(root).getChild("LinkedCell");
+    if ( grains::xml::hasAttribute(nLC, "CellSizeFactor") )
+      LC_coef = grains::xml::requireElement(nLC).requireAttribute<double>("CellSizeFactor");
     if ( LC_coef < 1. ) LC_coef = 1.;    
     else if ( m_rank == 0 ) 
       cout << GrainsExec::m_shift9 << "Cell size factor = " << LC_coef << endl;
@@ -783,12 +783,12 @@ void GrainsPostProcessing::Construction( DOMElement* rootElement )
 
 // ----------------------------------------------------------------------------
 // External force definition
-void GrainsPostProcessing::Forces( DOMElement* rootElement )
+void GrainsPostProcessing::Forces( grains::xml::OptionalElement rootElement )
 {
   if ( m_processorIsActive )
   {
-    assert( rootElement != NULL );
-    DOMNode* root = ReaderXML::getNode( rootElement, "Forces" );
+    assert( rootElement.has_value() );
+    grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Forces");
 
     // Output message
     if ( m_rank == 0 ) cout << GrainsExec::m_shift3 << "Forces" << endl;
@@ -798,15 +798,12 @@ void GrainsPostProcessing::Forces( DOMElement* rootElement )
     if ( root ) 
     {
       // Gravity
-      DOMNode* nGravity = ReaderXML::getNode( root, "Gravity" );
+      grains::xml::OptionalElement nGravity = grains::xml::requireElement(root).getChild("Gravity");
       if( nGravity )
       {
-        GrainsExec::m_vgravity[X] = ReaderXML::getNodeAttr_Double( 
-      		nGravity, "GX" );
-        GrainsExec::m_vgravity[Y] = ReaderXML::getNodeAttr_Double(
-      		nGravity, "GY" );
-        GrainsExec::m_vgravity[Z] = ReaderXML::getNodeAttr_Double(
-      		nGravity, "GZ" );
+        GrainsExec::m_vgravity[X] = grains::xml::requireElement(nGravity).requireAttribute<double>("GX");
+        GrainsExec::m_vgravity[Y] = grains::xml::requireElement(nGravity).requireAttribute<double>("GY");
+        GrainsExec::m_vgravity[Z] = grains::xml::requireElement(nGravity).requireAttribute<double>("GZ");
         if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << "Gravity = " <<
 		GrainsExec::m_vgravity << endl;
       }
@@ -841,12 +838,12 @@ void GrainsPostProcessing::Forces( DOMElement* rootElement )
 // ----------------------------------------------------------------------------
 // Additional features of the simulation: time features, insertion,
 // post-processing
-void GrainsPostProcessing::AdditionalFeatures( DOMElement* rootElement )
+void GrainsPostProcessing::AdditionalFeatures( grains::xml::OptionalElement rootElement )
 {
   if ( m_processorIsActive )
   {
-    assert( rootElement != NULL );
-    DOMNode* root = ReaderXML::getNode( rootElement, "Simulation" );    
+    assert( rootElement.has_value() );
+    grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Simulation");
     
 
     // Check that Simulation node exists
@@ -863,13 +860,11 @@ void GrainsPostProcessing::AdditionalFeatures( DOMElement* rootElement )
     
     
     // Post-processing
-    DOMNode* nPostProcessing = ReaderXML::getNode( root, 
-    	"PostProcessing" );
+    grains::xml::OptionalElement nPostProcessing = grains::xml::requireElement(root).getChild("PostProcessing");
     if ( nPostProcessing )
     {
       // Global porosity
-      DOMNode* nGlobalPoro = ReaderXML::getNode( nPostProcessing, 
-    	"GlobalPorosity" );
+      grains::xml::OptionalElement nGlobalPoro = grains::xml::requireElement(nPostProcessing).getChild("GlobalPorosity");
       if ( nGlobalPoro ) 
       {
         cout << GrainsExec::m_shift6 << "Global porosity" 
@@ -877,18 +872,15 @@ void GrainsPostProcessing::AdditionalFeatures( DOMElement* rootElement )
 	m_global_porosity = new struct GlobalPorosity;	 
 
         // Domain features
-        DOMNode* nWindow = ReaderXML::getNode( nGlobalPoro, "Window" ); 
+        grains::xml::OptionalElement nWindow = grains::xml::requireElement(nGlobalPoro).getChild("Window");
 	bool ok = m_global_porosity->domain.readWindow( nWindow, 
 		GrainsExec::m_shift9, m_rank );
 	if ( !ok ) grainsAbort();
 	
 	// Number of intervals in each direction for numerical integration
-	m_global_porosity->nintervals[0] = size_t(ReaderXML::getNodeAttr_Int( 
-		nGlobalPoro, "N0" ));
-	m_global_porosity->nintervals[1] = size_t(ReaderXML::getNodeAttr_Int( 
-		nGlobalPoro, "N1" ));
-	m_global_porosity->nintervals[2] = size_t(ReaderXML::getNodeAttr_Int( 
-		nGlobalPoro, "N2" ));
+        m_global_porosity->nintervals[0] = size_t(grains::xml::requireElement(nGlobalPoro).requireAttribute<int>("N0"));
+        m_global_porosity->nintervals[1] = size_t(grains::xml::requireElement(nGlobalPoro).requireAttribute<int>("N1"));
+        m_global_porosity->nintervals[2] = size_t(grains::xml::requireElement(nGlobalPoro).requireAttribute<int>("N2"));
 	cout << GrainsExec::m_shift9 << "Discretization = " 
 		<< m_global_porosity->nintervals[0] << " x "
 		<< m_global_porosity->nintervals[1] << " x "
@@ -896,8 +888,7 @@ void GrainsPostProcessing::AdditionalFeatures( DOMElement* rootElement )
       }
       
       // Free surface (in Z only for now)
-      DOMNode* nFreeSurface = ReaderXML::getNode( nPostProcessing, 
-    	"FreeSurface" );
+      grains::xml::OptionalElement nFreeSurface = grains::xml::requireElement(nPostProcessing).getChild("FreeSurface");
       if ( nFreeSurface ) 
       {
         cout << GrainsExec::m_shift6 << "Free surface" 
@@ -905,26 +896,20 @@ void GrainsPostProcessing::AdditionalFeatures( DOMElement* rootElement )
 	m_free_surface = new struct FreeSurface;
 	
         // Domain features
-        DOMNode* nWindow = ReaderXML::getNode( nFreeSurface, "Window" ); 
+        grains::xml::OptionalElement nWindow = grains::xml::requireElement(nFreeSurface).getChild("Window");
 	bool ok = m_free_surface->domain.readWindow( nWindow, 
 		GrainsExec::m_shift9, m_rank );
 	if ( !ok ) grainsAbort();
 	
 	// Additional features
-	m_free_surface->n0 = size_t(ReaderXML::getNodeAttr_Int( 
-		nFreeSurface, "N0" ));
+        m_free_surface->n0 = size_t(grains::xml::requireElement(nFreeSurface).requireAttribute<int>("N0"));
 	m_free_surface->n1 = 0;
 	if ( m_free_surface->domain.getType() != WINDOW_LINE )	
-	  m_free_surface->n1 = size_t(ReaderXML::getNodeAttr_Int( 
-		nFreeSurface, "N1" ));
-	m_free_surface->dl = ReaderXML::getNodeAttr_Double( 
-		nFreeSurface, "Step" );		
-	m_free_surface->min_height = ReaderXML::getNodeAttr_Double( 
-		nFreeSurface, "MinHeight" );
-	m_free_surface->filename = ReaderXML::getNodeAttr_String( 
-		nFreeSurface, "RootName" );
-	m_free_surface->nlevels = size_t(ReaderXML::getNodeAttr_Int( 
-		nFreeSurface, "Levels" ));		
+          m_free_surface->n1 = size_t(grains::xml::requireElement(nFreeSurface).requireAttribute<int>("N1"));
+        m_free_surface->dl = grains::xml::requireElement(nFreeSurface).requireAttribute<double>("Step");
+        m_free_surface->min_height = grains::xml::requireElement(nFreeSurface).requireAttribute<double>("MinHeight");
+        m_free_surface->filename = grains::xml::requireElement(nFreeSurface).attributeOr<std::string>("RootName", std::string{});
+        m_free_surface->nlevels = size_t(grains::xml::requireElement(nFreeSurface).requireAttribute<int>("Levels"));
 	m_free_surface->filename += ".vtu";		
       }      
     }

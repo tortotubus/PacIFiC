@@ -36,7 +36,7 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter()
 
 // ----------------------------------------------------------------------------
 // Constructor with XML node, rank and number of processes as input parameters
-ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
+ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( grains::xml::OptionalElement dn,
 	int const& rank_, int const& nbranks_, bool const& verbose )
   : PostProcessingWriter( dn, rank_, nbranks_ )
   , m_ParaviewCycleNumber( 0 )
@@ -52,74 +52,72 @@ ParaviewPostProcessingWriter::ParaviewPostProcessingWriter( DOMNode* dn,
   , OFFSET( 0 )
 {
   // General parameters
-  m_ParaviewFilename = ReaderXML::getNodeAttr_String( dn, "RootName" );
-  m_ParaviewFilename_dir = ReaderXML::getNodeAttr_String( dn, "Directory" );
-  if ( ReaderXML::hasNodeAttr( dn, "InitialCycleNumber" ) )
-    m_ParaviewCycleNumber = ReaderXML::getNodeAttr_Int( dn, 
-  	"InitialCycleNumber" );
-  string sm_binary = ReaderXML::getNodeAttr_String( dn, "WritingMode" );
+  m_ParaviewFilename = grains::xml::requireElement(dn).attributeOr<std::string>("RootName", std::string{});
+  m_ParaviewFilename_dir = grains::xml::requireElement(dn).attributeOr<std::string>("Directory", std::string{});
+  if ( grains::xml::hasAttribute(dn, "InitialCycleNumber") )
+    m_ParaviewCycleNumber = grains::xml::requireElement(dn).requireAttribute<int>("InitialCycleNumber");
+  string sm_binary = grains::xml::requireElement(dn).attributeOr<std::string>("WritingMode", std::string{});
   if ( sm_binary == "Binary" ) m_binary = true;
-  if ( ReaderXML::hasNodeAttr( dn, "ForceNetwork" ) ) 
+  if ( grains::xml::hasAttribute(dn, "ForceNetwork") )
   {
-    string sm_network = ReaderXML::getNodeAttr_String( dn, "ForceNetwork" );
+    string sm_network = grains::xml::requireElement(dn).attributeOr<std::string>("ForceNetwork", std::string{});
     if ( sm_network == "True" ) m_network = true;
   }
-  if ( ReaderXML::hasNodeAttr( dn, "Obstacle" ) )
+  if ( grains::xml::hasAttribute(dn, "Obstacle") )
   { 
-    string sm_obstacle = ReaderXML::getNodeAttr_String( dn, "Obstacle" );
+    string sm_obstacle = grains::xml::requireElement(dn).attributeOr<std::string>("Obstacle", std::string{});
     if ( sm_obstacle == "False" ) m_postProcessObstacle = false; 
   }
-  if ( ReaderXML::hasNodeAttr( dn, "MPIIO" ) && m_nprocs > 1 )
+  if ( grains::xml::hasAttribute(dn, "MPIIO") && m_nprocs > 1 )
   { 
-    string sm_onefile = ReaderXML::getNodeAttr_String( dn, "MPIIO" );
+    string sm_onefile = grains::xml::requireElement(dn).attributeOr<std::string>("MPIIO", std::string{});
     if ( sm_onefile == "True" ) m_mpiio_singlefile = true; 
   } 
-  if ( ReaderXML::hasNodeAttr( dn, "PerType" ) )
+  if ( grains::xml::hasAttribute(dn, "PerType") )
   { 
-    string sm_pertype = ReaderXML::getNodeAttr_String( dn, "PerType" );
+    string sm_pertype = grains::xml::requireElement(dn).attributeOr<std::string>("PerType", std::string{});
     if ( sm_pertype == "False" ) m_pertype = false; 
   }
       
   // Parameters specific to polyhedral reconstruction
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSphereQuarter" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerSphereQuarter") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSphereQuarter" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerSphereQuarter");
     Sphere::SetvisuNodeNbPerQar( nnn );
   }  
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerDiscPer" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerDiscPer") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerDiscPer" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerDiscPer");
     Disc::SetvisuNodeNbOverPer( nnn );
   }
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerCylPer" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerCylPer") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerCylPer" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerCylPer");
     Cylinder::SetvisuNodeNbOverPer( nnn );
   }
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerConePer" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerConePer") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerConePer" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerConePer");
     Cone::SetvisuNodeNbOverPer( nnn );
   } 
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSQQuarter" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerSQQuarter") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSQQuarter" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerSQQuarter");
     Superquadric::SetvisuNodeNbPerQar( nnn );
   }
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSCQuarter" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerSCQuarter") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSCQuarter" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerSCQuarter");
     SpheroCylinder::SetvisuNodeNbPerQar( nnn );
   }
-  if ( ReaderXML::hasNodeAttr( dn, "NbPtsPerSCPHalf" ) )
+  if ( grains::xml::hasAttribute(dn, "NbPtsPerSCPHalf") )
   { 
-    int nnn = ReaderXML::getNodeAttr_Int( dn, "NbPtsPerSCPHalf" );
+    int nnn = grains::xml::requireElement(dn).requireAttribute<int>("NbPtsPerSCPHalf");
     SpheroCylindricalPrism::SetvisuNodeNbOverHalfPer( nnn );
   }
-  if ( ReaderXML::hasNodeAttr( dn, "UseGlyphWheneverPossible" ) )
+  if ( grains::xml::hasAttribute(dn, "UseGlyphWheneverPossible") )
   { 
-    string sglyph = ReaderXML::getNodeAttr_String( dn, 
-    	"UseGlyphWheneverPossible" );
+    string sglyph = grains::xml::requireElement(dn).attributeOr<std::string>("UseGlyphWheneverPossible", std::string{});
     if ( sglyph == "False" ) m_useGlyphWheneverPossible = false;
   }            
 

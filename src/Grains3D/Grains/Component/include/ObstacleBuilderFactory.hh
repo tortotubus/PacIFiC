@@ -1,7 +1,8 @@
 #ifndef _OBSTACLEBUILDERFACTORY_HH_
 #define _OBSTACLEBUILDERFACTORY_HH_
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <iostream>
 using namespace std;
 
@@ -22,7 +23,7 @@ class ObstacleBuilderFactory
     //@{
     /** @brief Creates an obstacle from an XML node
     @param root XML node */
-    static Obstacle* create( DOMNode* root );
+    static Obstacle* create( grains::xml::OptionalElement root );
 
     /** @brief Creates and reloads an obstacle from a stream
     @param tag obstacle type

@@ -125,7 +125,7 @@ Particle::Particle( Particle const& other, bool const& autonumbering )
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter. This constructor is
 // expected to be used for reference particles
-Particle::Particle( DOMNode* root, int const& pc )
+Particle::Particle( grains::xml::OptionalElement root, int const& pc )
   : Component()
   , m_masterParticle( this )
   , m_kinematics( NULL )
@@ -157,14 +157,14 @@ Particle::Particle( DOMNode* root, int const& pc )
   m_kinematics->setCouplingFactor( m_density );	
 
   // Particle density
-  if ( ReaderXML::hasNodeAttr( root, "Density" ) )
-    m_density = ReaderXML::getNodeAttr_Double( root, "Density" );
+  if ( grains::xml::hasAttribute(root, "Density") )
+    m_density = grains::xml::requireElement(root).requireAttribute<double>("Density");
 
   // Material
-  DOMNode* material_ = ReaderXML::getNode( root, "Material" );
+  grains::xml::OptionalElement material_ = grains::xml::requireElement(root).getChild("Material");
   if ( material_ )
   {
-    m_materialName = ReaderXML::getNodeValue_String( material_ );
+    m_materialName = grains::xml::requireElement(material_).text();
     ContactBuilderFactory::defineMaterial( m_materialName, false );
   }
 

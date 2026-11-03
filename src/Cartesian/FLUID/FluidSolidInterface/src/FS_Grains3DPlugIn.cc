@@ -1,9 +1,11 @@
+#include "SimulationXml.hh"
 #include <FS_Grains3DPlugIn.hh>
 #include <MAC_Communicator.hh>
 #include <MAC_Exec.hh>
 #include "GrainsBuilderFactory.hh"
 #include "GrainsCoupledWithFluid.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <MAC_Error.hh>
 #include <filesystem>
 #include <sstream>
@@ -42,9 +44,6 @@ FS_Grains3DPlugIn::FS_Grains3DPlugIn( string const& insertion_file_,
   
   if ( m_Grains3D_active_on_this_rank )
   { 
-    // Initialize XML reader
-    ReaderXML::initialize();
-
     // Create an input file with the XML requirements from simulation_file
     // Only done by the master process 0
     string simulation_file_exe = 
@@ -52,15 +51,12 @@ FS_Grains3DPlugIn::FS_Grains3DPlugIn( string const& insertion_file_,
         m_Grains3D_parallel_mode ? m_nb_ranks : 1 );
 
     // Create the Grains3D coupled to the fluid application
-    DOMElement* rootNode = ReaderXML::getRoot( simulation_file_exe );
+    grains::xml::OptionalElement rootNode = grains::xml::readSimulationFile(simulation_file_exe).root();
     m_Grains3D = GrainsBuilderFactory::createCoupledWithFluid( rootNode,
         fluid_density );
     m_Grains3D->setFluidCorrectedAcceleration( correct_particle_acceleration );
     if ( b_restart ) m_Grains3D->setReloadSame() ;
     m_Grains3D->do_before_time_stepping( rootNode );
-
-    // Finalize XML reader
-    ReaderXML::terminate(); 
 
     // Delete input file with XML requirements, done by master process only
     if ( m_my_rank == m_is_master ) 

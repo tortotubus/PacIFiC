@@ -26,10 +26,10 @@ Cone::Cone( istream& fileIn )
 
 // -----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Cone::Cone( DOMNode* root )
+Cone::Cone( grains::xml::OptionalElement root )
 {
-  m_bottomRadius = ReaderXML::getNodeAttr_Double( root, "Radius" );
-  m_quarterHeight = ReaderXML::getNodeAttr_Double( root, "Height") / 4.;
+  m_bottomRadius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
+  m_quarterHeight = grains::xml::requireElement(root).requireAttribute<double>("Height") / 4.;
   m_sinAngle = m_bottomRadius / sqrt( m_bottomRadius * m_bottomRadius 
   	+ 16. * m_quarterHeight * m_quarterHeight ); 
 }

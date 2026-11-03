@@ -6,7 +6,7 @@
 #include "Point3.hh"
 #include "PointContact.hh"
 #include "Vector3.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include <map>
 using namespace std;
 
@@ -215,7 +215,7 @@ class HookeMemoryContactForceModel : public ContactForceModel
     //@{
     /** @brief Reads and returns contact parameter map from an XML node
     @param root XML node */
-    static map<string,double> defineParameters( DOMNode* & root );
+    static map<string,double> defineParameters( grains::xml::OptionalElement root );
     //@}
 
 

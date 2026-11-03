@@ -24,7 +24,7 @@ PostProcessingWriter::PostProcessingWriter( int const& rank_,
 
 // ----------------------------------------------------------------------------
 // Constructor with XML node, rank and number of processes as input parameters
-PostProcessingWriter::PostProcessingWriter( DOMNode* dn, int const& rank_, 
+PostProcessingWriter::PostProcessingWriter( grains::xml::OptionalElement dn, int const& rank_,
 	int const& nbranks_ )
   : m_rank( rank_ )
   , m_nprocs( nbranks_ )

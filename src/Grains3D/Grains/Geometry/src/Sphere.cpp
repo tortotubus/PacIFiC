@@ -30,9 +30,9 @@ Sphere::Sphere( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Sphere::Sphere( DOMNode* root )
+Sphere::Sphere( grains::xml::OptionalElement root )
 {
-  m_radius = ReaderXML::getNodeAttr_Double(root, "Radius");
+  m_radius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
 }
 
 

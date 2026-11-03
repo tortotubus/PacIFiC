@@ -486,7 +486,7 @@ void Transform::readTransform2014_binary( istream& StreamIN )
 // Initialization of the transformation from an XML node
 // The origin of the transformation is imposed at (0,0,0)
 // The matrix must be a rotation matrix, we do not allow stretching/scaling
-void Transform::load( DOMNode* root )
+void Transform::load( grains::xml::OptionalElement root )
 {
   // Initialization of the 1D array containing all the transformation
   // coefficients ordered as Mxx, Mxy, Mxz, Myx, Myy, Myz, Mzx, Mzy, Mzz,
@@ -497,22 +497,22 @@ void Transform::load( DOMNode* root )
 		  0., 0., 0.};
 
   // Origin
-  DOMNode* cpos = ReaderXML::getNode( root, "Centre" );
+  grains::xml::OptionalElement cpos = grains::xml::requireElement(root).getChild("Centre");
   if ( cpos ) 
   {
-    t[9] = ReaderXML::getNodeAttr_Double(cpos, "X");
-    t[10] = ReaderXML::getNodeAttr_Double(cpos, "Y");
-    t[11] = ReaderXML::getNodeAttr_Double(cpos, "Z");
+    t[9] = grains::xml::requireElement(cpos).requireAttribute<double>("X");
+    t[10] = grains::xml::requireElement(cpos).requireAttribute<double>("Y");
+    t[11] = grains::xml::requireElement(cpos).requireAttribute<double>("Z");
   }
 
   // Rotation matrix
   // We only allow rotation matrices, stretching/scaling is prohibited
-  DOMNode* angpos = ReaderXML::getNode( root, "AngularPosition" ); 
-  assert( angpos != NULL );   
-  string mode = ReaderXML::getNodeAttr_String( angpos, "Type" );
+  grains::xml::OptionalElement angpos = grains::xml::requireElement(root).getChild("AngularPosition");
+  assert( angpos.has_value() );
+  string mode = grains::xml::requireElement(angpos).attributeOr<std::string>("Type", std::string{});
   if ( mode == "Matrix" ) 
   {
-    string values = ReaderXML::getNodeValue_String( angpos );
+    string values = grains::xml::requireElement(angpos).text();
     istringstream inValues( values.c_str() ); 
     inValues >> t[0] >> t[1] >> t[2] 
 	>> t[3] >> t[4] >> t[5] 

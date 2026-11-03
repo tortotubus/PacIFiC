@@ -2,7 +2,8 @@
 #define _TRUNCATEDCONE_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class TruncatedCone.
@@ -29,7 +30,7 @@ class TruncatedCone : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    TruncatedCone( DOMNode* root );
+    TruncatedCone( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~TruncatedCone();

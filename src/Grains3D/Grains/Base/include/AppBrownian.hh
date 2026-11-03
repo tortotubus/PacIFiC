@@ -2,7 +2,8 @@
 #define _APPBROWNIAN_HH_
 
 #include "App.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <vector>
 using namespace std;
 
@@ -22,7 +23,7 @@ class AppBrownian : public App
     @param root XML node 
     @param rank process rank 
     @param error returned value, 0 is OK, non zero is error */
-    AppBrownian( DOMNode* root, int rank, size_t& error );
+    AppBrownian( grains::xml::OptionalElement root, int rank, size_t& error );
 
     /** @brief Destructor */
     ~AppBrownian();

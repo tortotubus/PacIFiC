@@ -152,7 +152,7 @@ void GrainsTestDev::initialOutputMessage()
 
 // ----------------------------------------------------------------------------
 // Tasks to perform before time-stepping 
-void GrainsTestDev::do_before_time_stepping( DOMElement* rootElement )
+void GrainsTestDev::do_before_time_stepping( grains::xml::OptionalElement rootElement )
 {
   Grains::do_before_time_stepping( rootElement );       
 }
@@ -178,7 +178,7 @@ void GrainsTestDev::do_after_time_stepping()
 // ----------------------------------------------------------------------------
 // Construction of the simulation: linked cell, particles & obstacles, domain 
 // decomposition
-void GrainsTestDev::Construction( DOMElement* rootElement )
+void GrainsTestDev::Construction( grains::xml::OptionalElement rootElement )
 {
   Grains::Construction( rootElement );
 }
@@ -188,7 +188,7 @@ void GrainsTestDev::Construction( DOMElement* rootElement )
 
 // ----------------------------------------------------------------------------
 // External force definition
-void GrainsTestDev::Forces( DOMElement* rootElement )
+void GrainsTestDev::Forces( grains::xml::OptionalElement rootElement )
 {
   Grains::Forces( rootElement );
 }
@@ -200,7 +200,7 @@ void GrainsTestDev::Forces( DOMElement* rootElement )
 // ----------------------------------------------------------------------------
 // Additional features of the simulation: time features, insertion, 
 // post-processing
-void GrainsTestDev::AdditionalFeatures( DOMElement* rootElement )
+void GrainsTestDev::AdditionalFeatures( grains::xml::OptionalElement rootElement )
 {
   Grains::AdditionalFeatures( rootElement );
 }

@@ -28,7 +28,7 @@ CompositeObstacle::CompositeObstacle( string const& s )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-CompositeObstacle::CompositeObstacle( DOMNode* root ) 
+CompositeObstacle::CompositeObstacle( grains::xml::OptionalElement root )
   : Obstacle( "obstacle", false )
   , m_type( "Standard" )  
 {
@@ -36,18 +36,18 @@ CompositeObstacle::CompositeObstacle( DOMNode* root )
   m_minCompositeObstacleID--;
   m_CompositeObstacle_id = m_minCompositeObstacleID;   
     
-  assert( root != NULL );
+  assert( root.has_value() );
 
   m_geoRBWC = new RigidBodyWithCrust( new PointC(), Transform(), true,
   	EPSILON );
 
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
 
   Obstacle *obstacle = NULL;
-  DOMNodeList* allObstacles = ReaderXML::getNodes(root);
-  for (XMLSize_t i=0; i<allObstacles->getLength(); i++) 
+  std::vector<grains::xml::Element>  allObstacles = grains::xml::requireElement(root).getChildren();
+  for (std::size_t i=0; i<allObstacles.size(); i++)
   {
-    obstacle = ObstacleBuilderFactory::create( allObstacles->item( i ) );
+    obstacle = ObstacleBuilderFactory::create( allObstacles.at( i ) );
     m_obstacles.push_back( obstacle );
   }
   computeVolumeCenterOfMass();

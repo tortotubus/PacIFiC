@@ -34,11 +34,11 @@ TruncatedCone::TruncatedCone( istream &fileIn )
 
 // -----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-TruncatedCone::TruncatedCone( DOMNode* root )
+TruncatedCone::TruncatedCone( grains::xml::OptionalElement root )
 {
-  m_bottomRadius = ReaderXML::getNodeAttr_Double( root, "BottomRadius" );
-  m_topRadius = ReaderXML::getNodeAttr_Double( root, "TopRadius" );
-  m_halfHeight = ReaderXML::getNodeAttr_Double( root, "Height") / 2.;
+  m_bottomRadius = grains::xml::requireElement(root).requireAttribute<double>("BottomRadius");
+  m_topRadius = grains::xml::requireElement(root).requireAttribute<double>("TopRadius");
+  m_halfHeight = grains::xml::requireElement(root).requireAttribute<double>("Height") / 2.;
   m_bottomHeight = ( 2. * m_halfHeight / 4. ) 
   	* ( m_bottomRadius * m_bottomRadius 
   	+ 2. * m_bottomRadius * m_topRadius + 3. * m_topRadius * m_topRadius )

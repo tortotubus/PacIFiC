@@ -1,6 +1,8 @@
 #ifndef _CONE_HH_
 #define _CONE_HH_
 
+#include "Xml.hh"
+
 #include "Convex.hh"
 
 
@@ -27,7 +29,7 @@ class Cone : public Convex {
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Cone( DOMNode* root );
+    Cone( grains::xml::OptionalElement root );
   
     /** @brief Destructor */
     ~Cone();

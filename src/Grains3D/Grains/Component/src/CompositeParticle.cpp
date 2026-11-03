@@ -42,7 +42,7 @@ CompositeParticle::CompositeParticle( bool const& autonumbering ):
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter. This constructor is
 // expected to be used for reference composite particles
-CompositeParticle::CompositeParticle( DOMNode* root, int const& pc )
+CompositeParticle::CompositeParticle( grains::xml::OptionalElement root, int const& pc )
   : Particle( false )
 {
   // Geometric type
@@ -59,20 +59,20 @@ CompositeParticle::CompositeParticle( DOMNode* root, int const& pc )
   	m_geoRBWC->getConvex() );
 
   // Particle density
-  if ( ReaderXML::hasNodeAttr( root, "Density" ) )
-    m_density = ReaderXML::getNodeAttr_Double( root, "Density" );
+  if ( grains::xml::hasAttribute(root, "Density") )
+    m_density = grains::xml::requireElement(root).requireAttribute<double>("Density");
 
   // Particle volume, mass and weight
-  DOMNode* nVolume = ReaderXML::getNode( root, "Volume" );
-  double vol = ReaderXML::getNodeAttr_Double( nVolume, "Value" );
+  grains::xml::OptionalElement nVolume = grains::xml::requireElement(root).getChild("Volume");
+  double vol = grains::xml::requireElement(nVolume).requireAttribute<double>("Value");
   m_mass = m_density * vol;
   computeWeight();
 
   // Material
-  DOMNode* material_ = ReaderXML::getNode( root, "Material" );
+  grains::xml::OptionalElement material_ = grains::xml::requireElement(root).getChild("Material");
   if ( material_ )
   {
-    m_materialName = ReaderXML::getNodeValue_String( material_ );
+    m_materialName = grains::xml::requireElement(material_).text();
     ContactBuilderFactory::defineMaterial( m_materialName, false );
   }
 
@@ -80,35 +80,35 @@ CompositeParticle::CompositeParticle( DOMNode* root, int const& pc )
   m_geoRBWC->getTransform()->load( root );
 
   // Moment of inertia tensor of the composite
-  DOMNode* nMomentOfInertiaTensor =
-  	ReaderXML::getNode( root, "MomentOfInertiaTensor" );
-  DOMNode* nIxx =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Ixx" );
-  m_inertia[0] = ReaderXML::getNodeAttr_Double( nIxx, "Value" );
-  DOMNode* nIxy =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Ixy" );
-  m_inertia[1] = ReaderXML::getNodeAttr_Double( nIxy, "Value" );
-  DOMNode* nIxz =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Ixz" );
-  m_inertia[2] = ReaderXML::getNodeAttr_Double( nIxz, "Value" );
-  DOMNode* nIyy =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Iyy" );
-  m_inertia[3] = ReaderXML::getNodeAttr_Double( nIyy, "Value" );
-  DOMNode* nIyz =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Iyz" );
-  m_inertia[4] = ReaderXML::getNodeAttr_Double( nIyz, "Value" );
-  DOMNode* nIzz =
-  	ReaderXML::getNode( nMomentOfInertiaTensor, "Izz" );
-  m_inertia[5] = ReaderXML::getNodeAttr_Double( nIzz, "Value" );
+  grains::xml::OptionalElement nMomentOfInertiaTensor =
+        grains::xml::requireElement(root).getChild("MomentOfInertiaTensor");
+  grains::xml::OptionalElement nIxx =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Ixx");
+  m_inertia[0] = grains::xml::requireElement(nIxx).requireAttribute<double>("Value");
+  grains::xml::OptionalElement nIxy =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Ixy");
+  m_inertia[1] = grains::xml::requireElement(nIxy).requireAttribute<double>("Value");
+  grains::xml::OptionalElement nIxz =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Ixz");
+  m_inertia[2] = grains::xml::requireElement(nIxz).requireAttribute<double>("Value");
+  grains::xml::OptionalElement nIyy =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Iyy");
+  m_inertia[3] = grains::xml::requireElement(nIyy).requireAttribute<double>("Value");
+  grains::xml::OptionalElement nIyz =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Iyz");
+  m_inertia[4] = grains::xml::requireElement(nIyz).requireAttribute<double>("Value");
+  grains::xml::OptionalElement nIzz =
+        grains::xml::requireElement(nMomentOfInertiaTensor).getChild("Izz");
+  m_inertia[5] = grains::xml::requireElement(nIzz).requireAttribute<double>("Value");
   BuildInertia();
 
   // Elementary particles
-  DOMNode* nElementaryParticles =
-  	ReaderXML::getNode( root, "ElementaryParticles" );
-  DOMNodeList* allElemParticles = ReaderXML::getNodes( nElementaryParticles );
+  grains::xml::OptionalElement nElementaryParticles =
+        grains::xml::requireElement(root).getChild("ElementaryParticles");
+  std::vector<grains::xml::Element>  allElemParticles = grains::xml::requireElement(nElementaryParticles).getChildren();
 
   // Number of elementary particles
-  m_nbElemPart = allElemParticles->getLength();
+  m_nbElemPart = allElemParticles.size();
 
   // Allocate containers that scale with the number of elementary particles
   Particle* ppp = NULL;
@@ -124,9 +124,9 @@ CompositeParticle::CompositeParticle( DOMNode* root, int const& pc )
   }
 
   // Read the elementary particles
-  for ( XMLSize_t i=0; i<m_nbElemPart; ++i )
+  for ( std::size_t i=0; i<m_nbElemPart; ++i )
   {
-    DOMNode* nElemParticle = allElemParticles->item( i );
+    grains::xml::OptionalElement nElemParticle = allElemParticles.at( i );
 
     // Construction of the elementary particle
     m_elementaryParticles[i] = new Particle( nElemParticle, pc );
@@ -138,14 +138,13 @@ CompositeParticle::CompositeParticle( DOMNode* root, int const& pc )
     m_elementaryParticles[i]->setDensity( m_density );
 
     // Initial relative position
-    DOMNode* nRelPos  = ReaderXML::getNode( nElemParticle,
-	"RelativePosition" );
+    grains::xml::OptionalElement nRelPos  = grains::xml::requireElement(nElemParticle).getChild("RelativePosition");
     m_InitialRelativePositions[i][X] =
-    	ReaderXML::getNodeAttr_Double( nRelPos, "X" );
+        grains::xml::requireElement(nRelPos).requireAttribute<double>("X");
     m_InitialRelativePositions[i][Y] =
-    	ReaderXML::getNodeAttr_Double( nRelPos, "Y" );
+        grains::xml::requireElement(nRelPos).requireAttribute<double>("Y");
     m_InitialRelativePositions[i][Z] =
-    	ReaderXML::getNodeAttr_Double( nRelPos, "Z" );
+        grains::xml::requireElement(nRelPos).requireAttribute<double>("Z");
     m_elementaryParticles[i]->setPosition( m_InitialRelativePositions[i] );
 
     // Set the composite as the master particle

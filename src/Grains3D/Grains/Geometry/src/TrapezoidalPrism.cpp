@@ -44,14 +44,14 @@ TrapezoidalPrism::TrapezoidalPrism( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-TrapezoidalPrism::TrapezoidalPrism( DOMNode* root )
+TrapezoidalPrism::TrapezoidalPrism( grains::xml::OptionalElement root )
 {
-  double width = ReaderXML::getNodeAttr_Double( root, "W" );
-  double a = ReaderXML::getNodeAttr_Double( root, "A" );
-  double b = ReaderXML::getNodeAttr_Double( root, "B" );
+  double width = grains::xml::requireElement(root).requireAttribute<double>("W");
+  double a = grains::xml::requireElement(root).requireAttribute<double>("A");
+  double b = grains::xml::requireElement(root).requireAttribute<double>("B");
   if ( a > b )
     cout << "Warning: In TrapezoidalPrism, B must be larger than A" << endl; 
-  double h = ReaderXML::getNodeAttr_Double( root, "H" );
+  double h = grains::xml::requireElement(root).requireAttribute<double>("H");
   m_extent = new double[5];
   m_extent[0] = 0.5 * width;
   m_extent[1] = 0.5 * a;  

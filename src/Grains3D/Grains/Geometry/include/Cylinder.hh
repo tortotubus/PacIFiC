@@ -5,7 +5,8 @@
 #include "BVolume.hh"
 #include "PointContact.hh"
 #include "Transform.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class Cylinder.
@@ -32,7 +33,7 @@ class Cylinder : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Cylinder( DOMNode* root );
+    Cylinder( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~Cylinder();

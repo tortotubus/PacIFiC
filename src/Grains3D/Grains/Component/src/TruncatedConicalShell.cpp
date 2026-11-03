@@ -8,50 +8,49 @@
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-TruncatedConicalShell::TruncatedConicalShell( DOMNode* root ) :
+TruncatedConicalShell::TruncatedConicalShell( grains::xml::OptionalElement root ) :
   CompositeObstacle( "shell" )
 {    
-  assert( root != NULL );
+  assert( root.has_value() );
   
   // Type
   m_type = "TruncatedConicalShell";
 
   // Name
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
   
   // Geometry
-  DOMNode* nGeom = ReaderXML::getNode( root, "Geometry" );
-  m_height = ReaderXML::getNodeAttr_Double( nGeom, "Height" );
-  m_innerLargeRadius = ReaderXML::getNodeAttr_Double( nGeom, "LargeRadius" );
-  m_innerSmallRadius = ReaderXML::getNodeAttr_Double( nGeom, "SmallRadius" );  
-  m_shellWidth = ReaderXML::getNodeAttr_Double( nGeom, "Width" );
-  m_nbBoxes = size_t(ReaderXML::getNodeAttr_Int( nGeom, "N" ));
-  double crust_thickness = ReaderXML::getNodeAttr_Double( nGeom, 
-  	"CrustThickness" ); 
+  grains::xml::OptionalElement nGeom = grains::xml::requireElement(root).getChild("Geometry");
+  m_height = grains::xml::requireElement(nGeom).requireAttribute<double>("Height");
+  m_innerLargeRadius = grains::xml::requireElement(nGeom).requireAttribute<double>("LargeRadius");
+  m_innerSmallRadius = grains::xml::requireElement(nGeom).requireAttribute<double>("SmallRadius");
+  m_shellWidth = grains::xml::requireElement(nGeom).requireAttribute<double>("Width");
+  m_nbBoxes = size_t(grains::xml::requireElement(nGeom).requireAttribute<int>("N"));
+  double crust_thickness = grains::xml::requireElement(nGeom).requireAttribute<double>("CrustThickness");
 
   // Angular position of the truncated conical shell
   m_geoRBWC->getTransform()->load( root );
   
   // Bottom centre position of the truncated conical shell
   Point3 BottomCentre;
-  DOMNode* npoint = ReaderXML::getNode( root, "BottomCentre" );
-  BottomCentre[X] = ReaderXML::getNodeAttr_Double( npoint, "X" );
-  BottomCentre[Y] = ReaderXML::getNodeAttr_Double( npoint, "Y" );
-  BottomCentre[Z] = ReaderXML::getNodeAttr_Double( npoint, "Z" );
+  grains::xml::OptionalElement npoint = grains::xml::requireElement(root).getChild("BottomCentre");
+  BottomCentre[X] = grains::xml::requireElement(npoint).requireAttribute<double>("X");
+  BottomCentre[Y] = grains::xml::requireElement(npoint).requireAttribute<double>("Y");
+  BottomCentre[Z] = grains::xml::requireElement(npoint).requireAttribute<double>("Z");
   
   // Crust thickness 
   m_geoRBWC->setCrustThickness( crust_thickness );  
 
   // Material
-  DOMNode* materiau_ = ReaderXML::getNode( root, "Material" );
-  m_materialName = ReaderXML::getNodeValue_String( materiau_ );
+  grains::xml::OptionalElement materiau_ = grains::xml::requireElement(root).getChild("Material");
+  m_materialName = grains::xml::requireElement(materiau_).text();
   ContactBuilderFactory::defineMaterial( m_materialName, true );
 
   // Obstacle to transfer to the fluid
   bool transferToFluid = false;
-  DOMNode* status = ReaderXML::getNode( root, "Status" );
+  grains::xml::OptionalElement status = grains::xml::requireElement(root).getChild("Status");
   if ( status )
-    transferToFluid = ReaderXML::getNodeAttr_Int( status, "ToFluid" );
+    transferToFluid = grains::xml::requireElement(status).requireAttribute<int>("ToFluid");
  
   double delta = 2. * PI / double(m_nbBoxes), angle, 
   	small_ly = 2. * ( m_innerSmallRadius + m_shellWidth ) *

@@ -13,17 +13,17 @@ using namespace std;
 
 // ----------------------------------------------------------------------------
 // Creates an obstacle from an XML node
-Obstacle* ObstacleBuilderFactory::create( DOMNode* root )
+Obstacle* ObstacleBuilderFactory::create( grains::xml::OptionalElement root )
 {
-  assert(root != NULL);
+  assert(root.has_value());
 
   Obstacle *obstacle = NULL;
 
-  string type = ReaderXML::getNodeName( root );
+  string type = grains::xml::requireElement(root).name();
 
   if ( type == "Obstacle" ) 
   {
-    type = ReaderXML::getNodeAttr_String( root, "Type" );
+    type = grains::xml::requireElement(root).attributeOr<std::string>("Type", std::string{});
 
     if ( type == "Standard" ) obstacle = new SimpleObstacle( root ); 
     else if ( type == "STL" ) obstacle = new STLObstacle( root );

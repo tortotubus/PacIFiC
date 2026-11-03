@@ -105,6 +105,9 @@ list(APPEND GRAINS3D_SOURCES
 )
 
 # XML3
+list(APPEND GRAINS3D_INCLUDE_DIRS
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/XML/include>"
+)
 list(APPEND GRAINS3D_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/XML3/include>")
 file(GLOB GRAINS3D_XML3_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/XML3/src/*.cpp"
@@ -114,6 +117,19 @@ list(APPEND GRAINS3D_SOURCES
   ${GRAINS3D_XML3_SOURCES}
 )
 
+# XML backend implementations are part of the shared core library.
+if(NOT TARGET LibXml2::LibXml2)
+  find_package(LibXml2 2.14 REQUIRED)
+endif()
+if(NOT TARGET XercesC::XercesC)
+  find_package(XercesC 3.0 REQUIRED)
+endif()
+find_package(Threads REQUIRED)
+list(APPEND GRAINS3D_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/XML/src/Libxml2Backend.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/XML/src/XercesBackend.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/XML/src/XercesRuntime.cpp"
+)
 
 
 #
@@ -127,6 +143,13 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN  OFF)
 
 add_library(Grains3D SHARED ${GRAINS3D_SOURCES})
 add_library(PacIFiC::Grains3D ALIAS Grains3D) 
+target_compile_features(Grains3D PUBLIC cxx_std_17)
+
+target_link_libraries(Grains3D PRIVATE
+  LibXml2::LibXml2
+  XercesC::XercesC
+  Threads::Threads
+)
 
 # Pendulum's implicit structural solver uses Eigen, kept out of public headers.
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
@@ -156,13 +179,11 @@ if (PACIFIC_USE_MPI)
     PUBLIC
       MPI::MPI_C
       ZLIB::ZLIB
-      XercesC::XercesC
   )
 else()
   target_link_libraries(Grains3D 
     PUBLIC
       ZLIB::ZLIB
-      XercesC::XercesC
   )
 endif()
 

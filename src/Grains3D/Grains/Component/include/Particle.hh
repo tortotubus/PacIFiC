@@ -6,8 +6,8 @@
 #include "PointContact.hh"
 #include "Vector3.hh"
 #include "Cell.hh"
-#include "ReaderXML.hh"
-#include "WriterXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 using namespace solid;
 
 
@@ -95,7 +95,7 @@ class Particle : public Component
     is set to false
     @param root XML node
     @param pc particle class */
-    Particle( DOMNode* root, int const& pc );
+    Particle( grains::xml::OptionalElement root, int const& pc );
 	
     /** @brief Constructor with input parameters. This
     constructor is expected to be used for reference particles. Autonumbering

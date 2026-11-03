@@ -44,7 +44,7 @@ void GrainsParameters::initialOutputMessage()
 
 // ----------------------------------------------------------------------------
 // Tasks to perform before time-stepping 
-void GrainsParameters::do_before_time_stepping( DOMElement* rootElement )
+void GrainsParameters::do_before_time_stepping( grains::xml::OptionalElement rootElement )
 {
   Construction( rootElement );
   Forces( rootElement );
@@ -65,25 +65,25 @@ void GrainsParameters::do_after_time_stepping()
 // ----------------------------------------------------------------------------
 // Construction of the simulation: linked cell, particles & obstacles, domain 
 // decomposition
-void GrainsParameters::Construction( DOMElement* rootElement )
+void GrainsParameters::Construction( grains::xml::OptionalElement rootElement )
 {
-  assert( rootElement != NULL );
-  DOMNode* root = ReaderXML::getNode( rootElement, "Construction" );
+  assert( rootElement.has_value() );
+  grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Construction");
 
   bool bnewpart = false, bnewobst = false;
 
   // Domain size: origin and max coordinates
-  DOMNode* domain = ReaderXML::getNode( root, "LinkedCell" );
-  double lx = ReaderXML::getNodeAttr_Double( domain, "MX" );
-  double ly = ReaderXML::getNodeAttr_Double( domain, "MY" );
-  double lz = ReaderXML::getNodeAttr_Double( domain, "MZ" );
-  DOMNode* domain_origin = ReaderXML::getNode( root, "Origin" );
+  grains::xml::OptionalElement domain = grains::xml::requireElement(root).getChild("LinkedCell");
+  double lx = grains::xml::requireElement(domain).requireAttribute<double>("MX");
+  double ly = grains::xml::requireElement(domain).requireAttribute<double>("MY");
+  double lz = grains::xml::requireElement(domain).requireAttribute<double>("MZ");
+  grains::xml::OptionalElement domain_origin = grains::xml::requireElement(root).getChild("Origin");
   double ox = 0., oy = 0., oz = 0. ;
   if ( domain_origin )
   {
-    ox = ReaderXML::getNodeAttr_Double( domain_origin, "OX" );
-    oy = ReaderXML::getNodeAttr_Double( domain_origin, "OY" );
-    oz = ReaderXML::getNodeAttr_Double( domain_origin, "OZ" ); 
+    ox = grains::xml::requireElement(domain_origin).requireAttribute<double>("OX");
+    oy = grains::xml::requireElement(domain_origin).requireAttribute<double>("OY");
+    oz = grains::xml::requireElement(domain_origin).requireAttribute<double>("OZ");
   }   
   App::set_dimensions( lx, ly, lz, ox, oy, oz );
 
@@ -100,7 +100,7 @@ void GrainsParameters::Construction( DOMElement* rootElement )
     
     
     // Particles 
-    DOMNode* particles = ReaderXML::getNode( root, "Particles" );
+    grains::xml::OptionalElement particles = grains::xml::requireElement(root).getChild("Particles");
     if ( particles ) 
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
@@ -108,13 +108,12 @@ void GrainsParameters::Construction( DOMElement* rootElement )
       bnewpart = true;
       int nbPC = int( m_allcomponents.getReferenceParticles()->size() );
 
-      DOMNodeList* allParticles = ReaderXML::getNodes( rootElement, 
-      	"Particle" );
+      std::vector<grains::xml::Element>  allParticles = grains::xml::requireElement(rootElement).getDescendants("Particle");
 
-      for (XMLSize_t i=0; i<allParticles->getLength(); i++) 
+      for (std::size_t i=0; i<allParticles.size(); i++)
       {
-        DOMNode* nParticle = allParticles->item( i );
-        size_t nb = ReaderXML::getNodeAttr_Int( nParticle, "Number" );
+        grains::xml::OptionalElement nParticle = allParticles.at( i );
+        size_t nb = grains::xml::requireElement(nParticle).requireAttribute<int>("Number");
 
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
@@ -130,8 +129,8 @@ void GrainsParameters::Construction( DOMElement* rootElement )
 
 
     // Composite particles
-    DOMNode* nCompositeParticles = 
-    	ReaderXML::getNode( root, "CompositeParticles" );
+    grains::xml::OptionalElement nCompositeParticles =
+        grains::xml::requireElement(root).getChild("CompositeParticles");
     if ( nCompositeParticles ) 
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
@@ -139,21 +138,19 @@ void GrainsParameters::Construction( DOMElement* rootElement )
       bnewpart = true;      
       int nbPC  = int(m_allcomponents.getReferenceParticles()->size());
 
-      DOMNodeList* allCompParticles = ReaderXML::getNodes( rootElement,
-          "CompositeParticle");
+      std::vector<grains::xml::Element>  allCompParticles = grains::xml::requireElement(rootElement).getDescendants("CompositeParticle");
 
-      for (XMLSize_t i=0; i<allCompParticles->getLength(); i++) 
+      for (std::size_t i=0; i<allCompParticles.size(); i++)
       {
-        DOMNode* nCompParticle = allCompParticles->item( i );
-        size_t nb = ReaderXML::getNodeAttr_Int( nCompParticle, "Number" );
+        grains::xml::OptionalElement nCompParticle = allCompParticles.at( i );
+        size_t nb = grains::xml::requireElement(nCompParticle).requireAttribute<int>("Number");
 
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
         Particle* particleRef = NULL;
 	string sshape = "none";
-	if ( ReaderXML::hasNodeAttr( nCompParticle, "SpecificShape" )  )
-	  sshape = ReaderXML::getNodeAttr_String( nCompParticle, 
-	  	"SpecificShape" );
+        if ( grains::xml::hasAttribute(nCompParticle, "SpecificShape")  )
+          sshape = grains::xml::requireElement(nCompParticle).attributeOr<std::string>("SpecificShape", std::string{});
 	if ( sshape == "TrilobeCylinder" )
 	  particleRef = new TrilobeCylinder( nCompParticle, nbPC+int(i) );
 	else if ( sshape == "QuadrilobeCylinder" )
@@ -173,17 +170,17 @@ void GrainsParameters::Construction( DOMElement* rootElement )
         
     
     // Obstacles 
-    DOMNode* obstacles = ReaderXML::getNode( root, "Obstacles" );
+    grains::xml::OptionalElement obstacles = grains::xml::requireElement(root).getChild("Obstacles");
     if ( obstacles ) 
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
       	"Reading new obstacles" << endl;      
       bnewobst = true;
 
-      DOMNodeList* allCompObstacles = ReaderXML::getNodes( obstacles );
-      for (XMLSize_t i=0; i<allCompObstacles->getLength(); i++) 
+      std::vector<grains::xml::Element>  allCompObstacles = grains::xml::requireElement(obstacles).getChildren();
+      for (std::size_t i=0; i<allCompObstacles.size(); i++)
       {
-        DOMNode* nCompObs = allCompObstacles->item( i );
+        grains::xml::OptionalElement nCompObs = allCompObstacles.at( i );
         Obstacle *obstacle = ObstacleBuilderFactory::create( nCompObs );
         m_allcomponents.AddObstacle( obstacle );
       }
@@ -194,7 +191,7 @@ void GrainsParameters::Construction( DOMElement* rootElement )
     
     
     // Contact force models
-    DOMNode* contact = ReaderXML::getNode( root, "ContactForceModels" );
+    grains::xml::OptionalElement contact = grains::xml::requireElement(root).getChild("ContactForceModels");
     if ( contact )
     { 
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
@@ -231,7 +228,7 @@ void GrainsParameters::Construction( DOMElement* rootElement )
 
 // ----------------------------------------------------------------------------
 // External force definition
-void GrainsParameters::Forces( DOMElement* rootElement )
+void GrainsParameters::Forces( grains::xml::OptionalElement rootElement )
 {}
 
 
@@ -240,12 +237,12 @@ void GrainsParameters::Forces( DOMElement* rootElement )
 // ----------------------------------------------------------------------------
 // Additional features of the simulation: time features, insertion, 
 // post-processing
-void GrainsParameters::AdditionalFeatures( DOMElement* rootElement )
+void GrainsParameters::AdditionalFeatures( grains::xml::OptionalElement rootElement )
 {
   if ( m_processorIsActive )
   {
-    assert( rootElement != NULL );
-    DOMNode* root = ReaderXML::getNode( rootElement, "Simulation" );    
+    assert( rootElement.has_value() );
+    grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Simulation");
     
     // Check that Simulation node exists
     if ( !root )
@@ -256,10 +253,10 @@ void GrainsParameters::AdditionalFeatures( DOMElement* rootElement )
     }
 
     // Time step
-    DOMNode* nTimeStep = ReaderXML::getNode( root, "TimeStep" );
+    grains::xml::OptionalElement nTimeStep = grains::xml::requireElement(root).getChild("TimeStep");
     if ( nTimeStep )
     {
-      m_dt = ReaderXML::getNodeAttr_Double( nTimeStep, "dt" );
+      m_dt = grains::xml::requireElement(nTimeStep).requireAttribute<double>("dt");
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
       	"Time step magnitude = " << m_dt << endl;
     }
@@ -271,8 +268,7 @@ void GrainsParameters::AdditionalFeatures( DOMElement* rootElement )
     }
 
     // Velocity relative
-    DOMNode* nodeVrel = ReaderXML::getNode( root, 
-    	"CollisionalRelativeVelocity" );
+    grains::xml::OptionalElement nodeVrel = grains::xml::requireElement(root).getChild("CollisionalRelativeVelocity");
     if ( !nodeVrel )
     {
       cout << GrainsExec::m_shift6 << "<CollisionalRelativeVelocity> node "
@@ -280,7 +276,7 @@ void GrainsParameters::AdditionalFeatures( DOMElement* rootElement )
       grainsAbort();
     }
     else
-      m_colRelVel = ReaderXML::getNodeAttr_Double( nodeVrel, "value" );
+      m_colRelVel = grains::xml::requireElement(nodeVrel).requireAttribute<double>("value");
   }
 }
 

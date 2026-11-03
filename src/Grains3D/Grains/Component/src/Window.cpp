@@ -51,16 +51,15 @@ Window::~Window()
 
 // ----------------------------------------------------------------------------
 // Reads a window from an XML node
-bool Window::readWindow( DOMNode* nWindow, string const& oshift,
+bool Window::readWindow( grains::xml::OptionalElement nWindow, string const& oshift,
     	int const& rank )
 {
   bool ok = true;
 
   // Insertion window type
   string iwindow_type = "Box";
-  if ( ReaderXML::hasNodeAttr( nWindow, "Type" ) )
-    iwindow_type = ReaderXML::getNodeAttr_String( nWindow,
-		  	"Type" );
+  if ( grains::xml::hasAttribute(nWindow, "Type") )
+    iwindow_type = grains::xml::requireElement(nWindow).attributeOr<std::string>("Type", std::string{});
 
   if ( iwindow_type == "Cylinder" )
     m_ftype = WINDOW_CYLINDER;
@@ -75,15 +74,14 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
   else m_ftype = WINDOW_NONE;
   
   // Insertion window name
-  if ( ReaderXML::hasNodeAttr( nWindow, "Name" ) )
-    m_name = ReaderXML::getNodeAttr_String( nWindow,
-		  	"Name" );    
+  if ( grains::xml::hasAttribute(nWindow, "Name") )
+    m_name = grains::xml::requireElement(nWindow).attributeOr<std::string>("Name", std::string{});
 
-  DOMNodeList* points = NULL;
-  DOMNode* pointA = NULL;
-  DOMNode* pointB = NULL;
-  DOMNode* cylGeom = NULL;
-  DOMNode* annGeom = NULL;
+  std::vector<grains::xml::Element>  points = {};
+  grains::xml::OptionalElement pointA = std::nullopt;
+  grains::xml::OptionalElement pointB = std::nullopt;
+  grains::xml::OptionalElement cylGeom = std::nullopt;
+  grains::xml::OptionalElement annGeom = std::nullopt;
   string axisdir_str = "W";
 
   if ( rank == 0 )
@@ -96,18 +94,18 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
   switch( m_ftype )
   {
     case WINDOW_BOX:
-      points = ReaderXML::getNodes( nWindow );
-      pointA = points->item( 0 );
-      pointB = points->item( 1 );
+      points = grains::xml::requireElement(nWindow).getChildren();
+      pointA = points.at( 0 );
+      pointB = points.at( 1 );
 
       m_radius = m_radius_int = m_height = 0. ;
       m_axisdir = NONE ;
-      m_ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      m_ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      m_ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      m_ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-      m_ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-      m_ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+      m_ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+      m_ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+      m_ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
+      m_ptB[X] = grains::xml::requireElement(pointB).requireAttribute<double>("X");
+      m_ptB[Y] = grains::xml::requireElement(pointB).requireAttribute<double>("Y");
+      m_ptB[Z] = grains::xml::requireElement(pointB).requireAttribute<double>("Z");
 
       if ( rank == 0 )
       {
@@ -121,16 +119,16 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
       break;
 
     case WINDOW_CYLINDER:
-      pointA = ReaderXML::getNode( nWindow, "BottomCentre" );
-      m_ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      m_ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      m_ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
+      pointA = grains::xml::requireElement(nWindow).getChild("BottomCentre");
+      m_ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+      m_ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+      m_ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
       m_ptB[X] = m_ptB[Y] = m_ptB[Z] = 0.;
-      cylGeom = ReaderXML::getNode( nWindow, "Cylinder" );
-      m_radius = ReaderXML::getNodeAttr_Double( cylGeom, "Radius" );
+      cylGeom = grains::xml::requireElement(nWindow).getChild("Cylinder");
+      m_radius = grains::xml::requireElement(cylGeom).requireAttribute<double>("Radius");
       m_radius_int = 0.;
-      m_height = ReaderXML::getNodeAttr_Double( cylGeom, "Height" );
-      axisdir_str = ReaderXML::getNodeAttr_String( cylGeom, "Direction" );
+      m_height = grains::xml::requireElement(cylGeom).requireAttribute<double>("Height");
+      axisdir_str = grains::xml::requireElement(cylGeom).attributeOr<std::string>("Direction", std::string{});
       if ( axisdir_str == "X" ) m_axisdir = X;
       else if ( axisdir_str == "Y" ) m_axisdir = Y;
       else if ( axisdir_str == "Z" ) m_axisdir = Z;
@@ -157,20 +155,16 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
       break;
 
     case WINDOW_ANNULUS:
-      pointA = ReaderXML::getNode( nWindow, "BottomCentre" );
-      m_ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      m_ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      m_ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
+      pointA = grains::xml::requireElement(nWindow).getChild("BottomCentre");
+      m_ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+      m_ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+      m_ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
       m_ptB[X] = m_ptB[Y] = m_ptB[Z] = 0.;
-      annGeom = ReaderXML::getNode( nWindow, "Annulus" );
-      m_radius = ReaderXML::getNodeAttr_Double( annGeom,
-	  	"RadiusExt" );
-      m_radius_int = ReaderXML::getNodeAttr_Double( annGeom,
-		"RadiusInt" );
-      m_height = ReaderXML::getNodeAttr_Double( annGeom,
-		"Height" );
-      axisdir_str = ReaderXML::getNodeAttr_String( annGeom,
-		"Direction" );
+      annGeom = grains::xml::requireElement(nWindow).getChild("Annulus");
+      m_radius = grains::xml::requireElement(annGeom).requireAttribute<double>("RadiusExt");
+      m_radius_int = grains::xml::requireElement(annGeom).requireAttribute<double>("RadiusInt");
+      m_height = grains::xml::requireElement(annGeom).requireAttribute<double>("Height");
+      axisdir_str = grains::xml::requireElement(annGeom).attributeOr<std::string>("Direction", std::string{});
       if ( axisdir_str == "X" ) m_axisdir = X;
       else if ( axisdir_str == "Y" ) m_axisdir = Y;
       else if ( axisdir_str == "Z" ) m_axisdir = Z;
@@ -199,18 +193,18 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
       break;
 
     case WINDOW_LINE:
-      points = ReaderXML::getNodes( nWindow );
-      pointA = points->item( 0 );
-      pointB = points->item( 1 );
+      points = grains::xml::requireElement(nWindow).getChildren();
+      pointA = points.at( 0 );
+      pointB = points.at( 1 );
 
       m_radius = m_radius_int = m_height = 0. ;
       m_axisdir = NONE ;
-      m_ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      m_ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      m_ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
-      m_ptB[X] = ReaderXML::getNodeAttr_Double( pointB, "X" );
-      m_ptB[Y] = ReaderXML::getNodeAttr_Double( pointB, "Y" );
-      m_ptB[Z] = ReaderXML::getNodeAttr_Double( pointB, "Z" );
+      m_ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+      m_ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+      m_ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
+      m_ptB[X] = grains::xml::requireElement(pointB).requireAttribute<double>("X");
+      m_ptB[Y] = grains::xml::requireElement(pointB).requireAttribute<double>("Y");
+      m_ptB[Z] = grains::xml::requireElement(pointB).requireAttribute<double>("Z");
 
       if ( rank == 0 )
       {
@@ -224,11 +218,11 @@ bool Window::readWindow( DOMNode* nWindow, string const& oshift,
       break;
       
     case WINDOW_POINT:
-      pointA = ReaderXML::getNode( nWindow, "Point" );;
+      pointA = grains::xml::requireElement(nWindow).getChild("Point");;
 
-      m_ptA[X] = ReaderXML::getNodeAttr_Double( pointA, "X" );
-      m_ptA[Y] = ReaderXML::getNodeAttr_Double( pointA, "Y" );
-      m_ptA[Z] = ReaderXML::getNodeAttr_Double( pointA, "Z" );
+      m_ptA[X] = grains::xml::requireElement(pointA).requireAttribute<double>("X");
+      m_ptA[Y] = grains::xml::requireElement(pointA).requireAttribute<double>("Y");
+      m_ptA[Z] = grains::xml::requireElement(pointA).requireAttribute<double>("Z");
 
       if ( rank == 0 )
       {

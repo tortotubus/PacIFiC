@@ -10,52 +10,51 @@
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-RoughWall::RoughWall( DOMNode* root ) :
+RoughWall::RoughWall( grains::xml::OptionalElement root ) :
   CompositeObstacle( "roughwall" )
 {    
-  assert( root != NULL );
+  assert( root.has_value() );
   m_nb_spheres = new size_t[2];
   
   // Type
   m_type = "RoughWall";  
 
   // Name
-  m_name = ReaderXML::getNodeAttr_String( root, "name" );
+  m_name = grains::xml::requireElement(root).attributeOr<std::string>("name", std::string{});
 
   // Position of the rough wall
   m_geoRBWC->getTransform()->load( root );
 
   // Material
-  DOMNode* materiau_ = ReaderXML::getNode( root, "Material" );
-  m_materialName = ReaderXML::getNodeValue_String( materiau_ );
+  grains::xml::OptionalElement materiau_ = grains::xml::requireElement(root).getChild("Material");
+  m_materialName = grains::xml::requireElement(materiau_).text();
   ContactBuilderFactory::defineMaterial( m_materialName, true );
 
   // Obstacle to transfer to the fluid
   bool transferToFluid = false;
-  DOMNode* status = ReaderXML::getNode( root, "Status" );
+  grains::xml::OptionalElement status = grains::xml::requireElement(root).getChild("Status");
   if ( status )
-    transferToFluid = ReaderXML::getNodeAttr_Int( status, "ToFluid" );
+    transferToFluid = grains::xml::requireElement(status).requireAttribute<int>("ToFluid");
  
   // Geometry
-  DOMNode* nGeom = ReaderXML::getNode( root, "Geometry" );
+  grains::xml::OptionalElement nGeom = grains::xml::requireElement(root).getChild("Geometry");
   
-  DOMNode* nRough = ReaderXML::getNode( nGeom, "Roughness" );  
-  m_radius = ReaderXML::getNodeAttr_Double( nRough, "Radius" );
-  m_shift = ReaderXML::getNodeAttr_Double( nRough, "Shift" );
-  m_nb_spheres[0] = size_t(ReaderXML::getNodeAttr_Int( nRough, "NX" ));
-  m_nb_spheres[1] = size_t(ReaderXML::getNodeAttr_Int( nRough, "NY" ));
-  double crust_thickness = ReaderXML::getNodeAttr_Double( nRough, 
-  	"CrustThickness" );
-  m_random_mag = ReaderXML::getNodeAttr_Double( nRough, "RandMag" );
+  grains::xml::OptionalElement nRough = grains::xml::requireElement(nGeom).getChild("Roughness");
+  m_radius = grains::xml::requireElement(nRough).requireAttribute<double>("Radius");
+  m_shift = grains::xml::requireElement(nRough).requireAttribute<double>("Shift");
+  m_nb_spheres[0] = size_t(grains::xml::requireElement(nRough).requireAttribute<int>("NX"));
+  m_nb_spheres[1] = size_t(grains::xml::requireElement(nRough).requireAttribute<int>("NY"));
+  double crust_thickness = grains::xml::requireElement(nRough).requireAttribute<double>("CrustThickness");
+  m_random_mag = grains::xml::requireElement(nRough).requireAttribute<double>("RandMag");
   
   m_periodic = false;
   m_restrict_box_geommotion = false;
-  DOMNode* nPer = ReaderXML::getNode( nGeom, "Periodicity" ); 
+  grains::xml::OptionalElement nPer = grains::xml::requireElement(nGeom).getChild("Periodicity");
   if ( nPer )
   {
     m_periodic = true; 
-    m_periodic_ext = ReaderXML::getNodeAttr_Double( nPer, "Extension" );
-    string sper =  ReaderXML::getNodeAttr_String( nPer, "Directions" );
+    m_periodic_ext = grains::xml::requireElement(nPer).requireAttribute<double>("Extension");
+    string sper =  grains::xml::requireElement(nPer).attributeOr<std::string>("Directions", std::string{});
     if ( sper == "X" ) m_periodic_directions.push_back( 0 );
     else if ( sper == "Y" ) m_periodic_directions.push_back( 1 );
     else if ( sper == "Z" ) m_periodic_directions.push_back( 2 );  
@@ -77,9 +76,9 @@ RoughWall::RoughWall( DOMNode* root ) :
     else
       cout << "WARNING: unknown periodic directions in RoughWall " <<
      	 m_name << endl;
-    if ( ReaderXML::hasNodeAttr( nPer, "RestrictBoxMotion" ) )
+    if ( grains::xml::hasAttribute(nPer, "RestrictBoxMotion") )
     {	 
-      string sres = ReaderXML::getNodeAttr_String( nPer, "RestrictBoxMotion" );
+      string sres = grains::xml::requireElement(nPer).attributeOr<std::string>("RestrictBoxMotion", std::string{});
       if ( sres == "True" ) m_restrict_box_geommotion = true;
     }
   }   
@@ -88,10 +87,10 @@ RoughWall::RoughWall( DOMNode* root ) :
   m_geoRBWC->setCrustThickness( crust_thickness ); 
   
   // Create the box obstacle (smooth wall)
-  DOMNode* nBox = ReaderXML::getNode( nGeom, "Box" );
-  double lx = ReaderXML::getNodeAttr_Double( nBox, "LX" );
-  double ly = ReaderXML::getNodeAttr_Double( nBox, "LY" );  
-  double lz = ReaderXML::getNodeAttr_Double( nBox, "LZ" );    
+  grains::xml::OptionalElement nBox = grains::xml::requireElement(nGeom).getChild("Box");
+  double lx = grains::xml::requireElement(nBox).requireAttribute<double>("LX");
+  double ly = grains::xml::requireElement(nBox).requireAttribute<double>("LY");
+  double lz = grains::xml::requireElement(nBox).requireAttribute<double>("LZ");
   string name = m_name + "_Box";	
   Box* box = new Box( lx, ly, lz );
   RigidBodyWithCrust* geoRBWC_box = new RigidBodyWithCrust( box, Transform(),

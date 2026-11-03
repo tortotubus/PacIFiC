@@ -29,10 +29,10 @@ SpheroCylinder::SpheroCylinder( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-SpheroCylinder::SpheroCylinder( DOMNode* root )
+SpheroCylinder::SpheroCylinder( grains::xml::OptionalElement root )
 {
-  m_radius = ReaderXML::getNodeAttr_Double( root, "Radius" );
-  m_height = ReaderXML::getNodeAttr_Double( root, "Height" );
+  m_radius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
+  m_height = grains::xml::requireElement(root).requireAttribute<double>("Height");
 }
 
 

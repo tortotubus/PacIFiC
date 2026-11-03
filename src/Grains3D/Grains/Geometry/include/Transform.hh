@@ -6,8 +6,7 @@
 #include "Vector3.hh"
 #include "Quaternion.hh"
 #include "Basic.hh"
-#include "ReaderXML.hh"
-#include "WriterXML.hh"
+#include "Xml.hh"
 
 
 class Transform;
@@ -205,7 +204,7 @@ class Transform
     //@{
     /** @brief Initialization of the transformation from an XML node
     @param root the XML root node */
-    void load( DOMNode* root );
+    void load( grains::xml::OptionalElement root );
     //@}
 
 

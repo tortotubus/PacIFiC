@@ -2,8 +2,8 @@
  * @file ReaderXML.cpp
  * @brief XML DOM reader utilities built on Xerces-C++ (DOM Level 3 LS).
  *
- * This translation unit provides the `ReaderXML` implementation and a small
- * amount of process-global Xerces lifetime management.
+ * This translation unit provides the `ReaderXML` implementation and uses the
+ * runtime guard shared with the new Xerces backend.
  *
  * The implementation intentionally preserves legacy behavior where it matters
  * (e.g., node search semantics and certain conversion routines), while using
@@ -36,64 +36,7 @@
 XERCES_CPP_NAMESPACE_USE
 using namespace std;
 
-// =====================================================================================
-// Shared Xerces init/term (so ReaderXML + WriterXML can both use Xerces safely)
-// =====================================================================================
-
-/**
- * @namespace grains_xml_internal
- * @brief Internal Xerces lifetime utilities shared across XML modules.
- *
- * Xerces requires a process-global `Initialize()` / `Terminate()` pairing.
- * This namespace provides a reference-counted acquire/release mechanism to
- * allow multiple translation units (e.g., ReaderXML and WriterXML) to share
- * Xerces safely.
- *
- * @note The symbols in this namespace are intended to remain stable if other
- *       translation units reference them via `extern`.
- */
-namespace grains_xml_internal {
-
-/** @brief Guards the refcount and Initialize/Terminate transitions. */
-static std::mutex g_mtx;
-
-/** @brief Number of active users of the Xerces runtime. */
-static int g_refcount = 0;
-
-/**
- * @brief Acquire the Xerces runtime.
- *
- * Increments a shared reference count and calls
- * `XMLPlatformUtils::Initialize()` on the 0→1 transition.
- *
- * @post Xerces is initialized for the process when this function returns.
- */
-void xerces_acquire() {
-  std::lock_guard<std::mutex> lock(g_mtx);
-  if (g_refcount++ == 0) {
-    XMLPlatformUtils::Initialize();
-  }
-}
-
-/**
- * @brief Release the Xerces runtime.
- *
- * Decrements a shared reference count and calls `XMLPlatformUtils::Terminate()`
- * on the 1→0 transition.
- *
- * @note A non-positive refcount is treated as a no-op to preserve defensive
- *       behavior under mismatched calls.
- */
-void xerces_release() {
-  std::lock_guard<std::mutex> lock(g_mtx);
-  if (g_refcount <= 0)
-    return;
-  if (--g_refcount == 0) {
-    XMLPlatformUtils::Terminate();
-  }
-}
-
-} // namespace grains_xml_internal
+#include "../../XML/src/XercesRuntime.hh"
 
 // =====================================================================================
 // TU-local state (replaces the old `static DOMBuilder* ReaderXML::m_parser`)

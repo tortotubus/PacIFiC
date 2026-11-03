@@ -1,3 +1,4 @@
+#include "SimulationXml.hh"
 /**
 # Coupling interface for Grains3D and Basilisk 
 */
@@ -13,7 +14,7 @@
 extern "C" {
 #endif
   
-  static GrainsCoupledWithFluid* grains = NULL;
+  static GrainsCoupledWithFluid* coupledGrains = NULL;
 
   
   void Init_Grains ( char const* inputfile, 
@@ -21,20 +22,15 @@ extern "C" {
 	const bool b_fluidcorrectedacc ) 
   {
     string simulation_file( inputfile );
-    
-    ReaderXML::initialize();
-        
     string simulation_file_exe = GrainsBuilderFactory::init( simulation_file, 
     	0, 1 );
   
-    DOMElement* rootNode = ReaderXML::getRoot( simulation_file_exe );
+    grains::xml::OptionalElement rootNode = grains::xml::readSimulationFile(simulation_file_exe).root();
     
-    grains = GrainsBuilderFactory::createCoupledWithFluid( rootNode, 
+    coupledGrains = GrainsBuilderFactory::createCoupledWithFluid( rootNode,
     	fluid_rho );
-    if ( b_restart ) grains->setReloadSame();
-    grains->do_before_time_stepping( rootNode );
-    ReaderXML::terminate();
-    
+    if ( b_restart ) coupledGrains->setReloadSame();
+    coupledGrains->do_before_time_stepping( rootNode );
     // REPLACED_EXEC_SCRIPTS
     
     // string cmd = "/bin/rm " + simulation_file_exe;
@@ -44,7 +40,7 @@ extern "C" {
     const bool removed = std::filesystem::remove(std::filesystem::path(simulation_file_exe), ec);
     
     if ( !b_fluidcorrectedacc )
-      grains->setFluidCorrectedAcceleration( b_fluidcorrectedacc ); 
+      coupledGrains->setFluidCorrectedAcceleration( b_fluidcorrectedacc );
          
     cout << "Construction of Grains completed" << endl;
   }
@@ -54,7 +50,7 @@ extern "C" {
 
   void Simu_Grains( const double dt_fluid ) 
   {
-    grains->Simulation( dt_fluid );	
+    coupledGrains->Simulation( dt_fluid );
   }
 
  
@@ -64,7 +60,7 @@ extern "C" {
   {
     // We use the interface function of PeliGRIFF
     istringstream iss;
-    grains->GrainsToFluid2( iss );
+    coupledGrains->GrainsToFluid2( iss );
 
     // We remove the formatting and separate each entry by " "
     string buff;
@@ -90,9 +86,9 @@ extern "C" {
   {
     static unsigned int ppcounter = 0;
     if ( !ppcounter ) 
-      grains->InitialPostProcessing( 6 );
+      coupledGrains->InitialPostProcessing( 6 );
     else
-      grains->doPostProcessing( 6 );
+      coupledGrains->doPostProcessing( 6 );
     ++ppcounter; 
   }  
 
@@ -101,7 +97,7 @@ extern "C" {
 
   void checkParaviewPostProcessing_Grains( char* solid_resDir )
   {    
-    grains->checkParaviewPostProcessing( "grains", solid_resDir, true );
+    coupledGrains->checkParaviewPostProcessing( "grains", solid_resDir, true );
   }
 
 
@@ -117,7 +113,7 @@ extern "C" {
         vecv[i][j] = arrayv[i][j];
 
     // We use the interface function of PeliGRIFF
-    grains->updateParticlesVelocity( vecv, false );
+    coupledGrains->updateParticlesVelocity( vecv, false );
   }  
 
 
@@ -125,7 +121,7 @@ extern "C" {
   
   void SetInitialCycleNumber( int cycle0 ) 
   {
-    grains->setInitialCycleNumber( cycle0 );
+    coupledGrains->setInitialCycleNumber( cycle0 );
   }
 
 
@@ -133,7 +129,7 @@ extern "C" {
   
   void SetInitialTime( double tinit ) 
   {
-    grains->setInitialTime( tinit );
+    coupledGrains->setInitialTime( tinit );
   } 
   
   
@@ -141,7 +137,7 @@ extern "C" {
      
   void NumberOfRigidBodiesInBasilisk( size_t* nparticles, size_t* nobstacles )
   {
-    grains->numberOfRBToFluid( nparticles, nobstacles );
+    coupledGrains->numberOfRBToFluid( nparticles, nobstacles );
   }
   
   
@@ -149,7 +145,7 @@ extern "C" {
   
   void NumberOfReferenceRigidBodiesInBasilisk( size_t* nrefRB )
   {
-    grains->numberOfReferenceRBToFluid( nrefRB );
+    coupledGrains->numberOfReferenceRBToFluid( nrefRB );
   }
 
 
@@ -159,7 +155,7 @@ extern "C" {
   {
     // We use the interface function of PeliGRIFF
     istringstream iss;
-    grains->GrainsToFluidReference( iss );
+    coupledGrains->GrainsToFluidReference( iss );
 
     // We remove the formatting and separate each entry by " "
     string buff;

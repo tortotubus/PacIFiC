@@ -30,11 +30,11 @@ SpheroCylindricalPrism::SpheroCylindricalPrism( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-SpheroCylindricalPrism::SpheroCylindricalPrism( DOMNode* root )
+SpheroCylindricalPrism::SpheroCylindricalPrism( grains::xml::OptionalElement root )
 {
-  m_radius = ReaderXML::getNodeAttr_Double( root, "Radius" );
-  m_length = ReaderXML::getNodeAttr_Double( root, "Length" );
-  m_height = ReaderXML::getNodeAttr_Double( root, "Height" );
+  m_radius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
+  m_length = grains::xml::requireElement(root).requireAttribute<double>("Length");
+  m_height = grains::xml::requireElement(root).requireAttribute<double>("Height");
 }
 
 

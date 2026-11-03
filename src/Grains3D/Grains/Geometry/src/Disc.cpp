@@ -24,9 +24,9 @@ Disc::Disc( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Disc::Disc( DOMNode* root )
+Disc::Disc( grains::xml::OptionalElement root )
 {
-  m_radius = ReaderXML::getNodeAttr_Double( root, "Radius" );
+  m_radius = grains::xml::requireElement(root).requireAttribute<double>("Radius");
 }
 
 

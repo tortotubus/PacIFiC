@@ -29,7 +29,7 @@ ObstacleImposedForce::ObstacleImposedForce()
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as input parameter
-ObstacleImposedForce::ObstacleImposedForce( DOMNode* root, double dt, 
+ObstacleImposedForce::ObstacleImposedForce( grains::xml::OptionalElement root, double dt,
 	int rank, size_t& error )
 {
   m_ObstacleName = "Undefined";
@@ -46,28 +46,28 @@ ObstacleImposedForce::ObstacleImposedForce( DOMNode* root, double dt,
   m_MultiSin_phase_shift = Vector3Null;
   m_vmaxzeroforce = 0.;  
 
-  m_ObstacleName = ReaderXML::getNodeAttr_String( root, "ObstacleName" );
+  m_ObstacleName = grains::xml::requireElement(root).attributeOr<std::string>("ObstacleName", std::string{});
   
-  DOMNode* nTimeInterval = ReaderXML::getNode( root, "TimeInterval" );
-  m_tstart = ReaderXML::getNodeAttr_Double( nTimeInterval, "Start" );
-  m_tend = ReaderXML::getNodeAttr_Double( nTimeInterval, "End" );
+  grains::xml::OptionalElement nTimeInterval = grains::xml::requireElement(root).getChild("TimeInterval");
+  m_tstart = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("Start");
+  m_tend = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("End");
   
   // Constant translation
-  if ( ReaderXML::getNode( root, "ConstantTranslation" ) )
+  if ( grains::xml::requireElement(root).getChild("ConstantTranslation") )
   {  
     m_type = "ConstantTranslation";
-    DOMNode* nCT = ReaderXML::getNode( root, "ConstantTranslation" );      
-    DOMNode* force = ReaderXML::getNode( nCT, "Amplitude" );
-    m_force_amplitude[X] = ReaderXML::getNodeAttr_Double( force, "AX" );
-    m_force_amplitude[Y] = ReaderXML::getNodeAttr_Double( force, "AY" );
-    m_force_amplitude[Z] = ReaderXML::getNodeAttr_Double( force, "AZ" ); 
+    grains::xml::OptionalElement nCT = grains::xml::requireElement(root).getChild("ConstantTranslation");
+    grains::xml::OptionalElement force = grains::xml::requireElement(nCT).getChild("Amplitude");
+    m_force_amplitude[X] = grains::xml::requireElement(force).requireAttribute<double>("AX");
+    m_force_amplitude[Y] = grains::xml::requireElement(force).requireAttribute<double>("AY");
+    m_force_amplitude[Z] = grains::xml::requireElement(force).requireAttribute<double>("AZ");
     m_direction = m_force_amplitude / Norm( m_force_amplitude ); 
     m_force = m_force_amplitude; 
-    DOMNode* property = ReaderXML::getNode( nCT, "Property" );
-    if ( ReaderXML::hasNodeAttr( property, "Mass" ) )
-      m_mass = ReaderXML::getNodeAttr_Double( property, "Mass" );
+    grains::xml::OptionalElement property = grains::xml::requireElement(nCT).getChild("Property");
+    if ( grains::xml::hasAttribute(property, "Mass") )
+      m_mass = grains::xml::requireElement(property).requireAttribute<double>("Mass");
     else m_automass = true;
-    m_vmaxzeroforce = ReaderXML::getNodeAttr_Double( property, "Vmax" );    
+    m_vmaxzeroforce = grains::xml::requireElement(property).requireAttribute<double>("Vmax");
     if ( rank == 0 )
     {
       cout << GrainsExec::m_shift12 << "Obstacle name = " << m_ObstacleName 
@@ -83,32 +83,29 @@ ObstacleImposedForce::ObstacleImposedForce( DOMNode* root, double dt,
       cout << GrainsExec::m_shift12 << "Vmax = " << m_vmaxzeroforce << endl;
     }
   } 
-  else if ( ReaderXML::getNode( root, "MultiSinTranslation" ) )
+  else if ( grains::xml::requireElement(root).getChild("MultiSinTranslation") )
   {
     m_type = "MultiSinTranslation";
-    DOMNode* nMS = ReaderXML::getNode( root, "MultiSinTranslation" );        
-    DOMNode* force = ReaderXML::getNode( nMS, "Amplitude" );
-    m_force_amplitude[X] = ReaderXML::getNodeAttr_Double( force, "AX" );
-    m_force_amplitude[Y] = ReaderXML::getNodeAttr_Double( force, "AY" );
-    m_force_amplitude[Z] = ReaderXML::getNodeAttr_Double( force, "AZ" ); 
+    grains::xml::OptionalElement nMS = grains::xml::requireElement(root).getChild("MultiSinTranslation");
+    grains::xml::OptionalElement force = grains::xml::requireElement(nMS).getChild("Amplitude");
+    m_force_amplitude[X] = grains::xml::requireElement(force).requireAttribute<double>("AX");
+    m_force_amplitude[Y] = grains::xml::requireElement(force).requireAttribute<double>("AY");
+    m_force_amplitude[Z] = grains::xml::requireElement(force).requireAttribute<double>("AZ");
     m_direction = m_force_amplitude / Norm( m_force_amplitude ); 
     m_force = m_force_amplitude;       
-    DOMNode* property = ReaderXML::getNode( nMS, "Property" );
-    if ( ReaderXML::hasNodeAttr( property, "Mass" ) )
-      m_mass = ReaderXML::getNodeAttr_Double( property, "Mass" );
+    grains::xml::OptionalElement property = grains::xml::requireElement(nMS).getChild("Property");
+    if ( grains::xml::hasAttribute(property, "Mass") )
+      m_mass = grains::xml::requireElement(property).requireAttribute<double>("Mass");
     else m_automass = true;
-    m_vmaxzeroforce = ReaderXML::getNodeAttr_Double( property, "Vmax" );       
-    DOMNode* nPer = ReaderXML::getNode( nMS, "Period" );
-    m_MultiSin_period[X] = ReaderXML::getNodeAttr_Double( nPer, "PX" );
-    m_MultiSin_period[Y] = ReaderXML::getNodeAttr_Double( nPer, "PY" );
-    m_MultiSin_period[Z] = ReaderXML::getNodeAttr_Double( nPer, "PZ" ); 
-    DOMNode* nPhaseShift = ReaderXML::getNode( nMS, "PhaseShift" );    
-    m_MultiSin_phase_shift[X] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiX" ) * PI / 180.;
-    m_MultiSin_phase_shift[Y] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiY" ) * PI / 180.;	
-    m_MultiSin_phase_shift[Z] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiZ" ) * PI / 180.;    
+    m_vmaxzeroforce = grains::xml::requireElement(property).requireAttribute<double>("Vmax");
+    grains::xml::OptionalElement nPer = grains::xml::requireElement(nMS).getChild("Period");
+    m_MultiSin_period[X] = grains::xml::requireElement(nPer).requireAttribute<double>("PX");
+    m_MultiSin_period[Y] = grains::xml::requireElement(nPer).requireAttribute<double>("PY");
+    m_MultiSin_period[Z] = grains::xml::requireElement(nPer).requireAttribute<double>("PZ");
+    grains::xml::OptionalElement nPhaseShift = grains::xml::requireElement(nMS).getChild("PhaseShift");
+    m_MultiSin_phase_shift[X] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiX") * PI / 180.;
+    m_MultiSin_phase_shift[Y] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiY") * PI / 180.;
+    m_MultiSin_phase_shift[Z] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiZ") * PI / 180.;
     if ( rank == 0 )
     {
       cout << GrainsExec::m_shift12 << "Obstacle name = " << m_ObstacleName 

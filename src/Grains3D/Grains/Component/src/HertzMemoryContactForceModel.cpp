@@ -255,50 +255,50 @@ bool HertzMemoryContactForceModel::computeForces( Component* p0_,
 
 // ----------------------------------------------------------------------------
 // Reads and returns contact parameter map from an XML node
-map<string,double> HertzMemoryContactForceModel::defineParameters( DOMNode* & root )
+map<string,double> HertzMemoryContactForceModel::defineParameters( grains::xml::OptionalElement root )
 {
   map<string,double> parameters;
 
-  DOMNode* parameter;
+  grains::xml::OptionalElement parameter;
   double value;
   
-  parameter = ReaderXML::getNode( root, "Es" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("Es");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["Es"] = value;
 
-  parameter = ReaderXML::getNode( root, "en" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("en");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["en"] = value;
 
-  parameter = ReaderXML::getNode( root, "muc" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("muc");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["muc"] = value; 
   
-  parameter = ReaderXML::getNode( root, "Gs" );
-  if ( parameter ) value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("Gs");
+  if ( parameter ) value = grains::xml::requireElement(parameter).value<double>();
   else value = parameters["Es"] / 4.;  
   parameters["Gs"] = value;
   
-  parameter = ReaderXML::getNode( root, "mur" );
+  parameter = grains::xml::requireElement(root).getChild("mur");
   if ( parameter )
   {
-    value = ReaderXML::getNodeValue_Double( parameter );
+    value = grains::xml::requireElement(parameter).value<double>();
     parameters["mur"] = value;
   }
   else parameters["mur"] = 0.;
   
-  parameter = ReaderXML::getNode(root, "etarpf");
+  parameter = grains::xml::requireElement(root).getChild("etarpf");
   if ( parameter )
   {
-    value = ReaderXML::getNodeValue_Double( parameter );
+    value = grains::xml::requireElement(parameter).value<double>();
     parameters["etarpf"] = value;
   }
   else parameters["etarpf"] = 0.;
   
-  parameter = ReaderXML::getNode( root, "epst" );
+  parameter = grains::xml::requireElement(root).getChild("epst");
   if ( parameter )
   {
-    value = ReaderXML::getNodeValue_Double( parameter );
+    value = grains::xml::requireElement(parameter).value<double>();
     parameters["epst"] = value;
   }
   else parameters["eps"] = 1.e-10;  

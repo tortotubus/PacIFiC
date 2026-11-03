@@ -49,12 +49,12 @@ Box::Box( istream& fileIn )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-Box::Box( DOMNode* root )
+Box::Box( grains::xml::OptionalElement root )
   : m_corners2D_XY( NULL )
 {
-  m_extent[X] = ReaderXML::getNodeAttr_Double( root, "LX" ) / 2.;
-  m_extent[Y] = ReaderXML::getNodeAttr_Double( root, "LY" ) / 2.;
-  m_extent[Z] = ReaderXML::getNodeAttr_Double( root, "LZ" ) / 2.;
+  m_extent[X] = grains::xml::requireElement(root).requireAttribute<double>("LX") / 2.;
+  m_extent[Y] = grains::xml::requireElement(root).requireAttribute<double>("LY") / 2.;
+  m_extent[Z] = grains::xml::requireElement(root).requireAttribute<double>("LZ") / 2.;
   if ( GrainsBuilderFactory::getContext() == DIM_2 ) m_extent[Z] = 0.;
   setCornersFaces(); 
 }

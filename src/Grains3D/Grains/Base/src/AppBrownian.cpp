@@ -5,13 +5,13 @@
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-AppBrownian::AppBrownian( DOMNode* root, int rank, size_t& error )
+AppBrownian::AppBrownian( grains::xml::OptionalElement root, int rank, size_t& error )
   : App()
   , m_mag( 0 )
 {
-  if ( ReaderXML::hasNodeAttr( root, "Magnitude" ) )
+  if ( grains::xml::hasAttribute(root, "Magnitude") )
   {
-    m_mag = ReaderXML::getNodeAttr_Double( root, "Magnitude" );
+    m_mag = grains::xml::requireElement(root).requireAttribute<double>("Magnitude");
     if ( rank == 0 ) cout << GrainsExec::m_shift6 
     	<< "AppBrownian Force magnitude = " << m_mag << endl;
     error = 0;

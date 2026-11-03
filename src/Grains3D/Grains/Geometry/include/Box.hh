@@ -2,7 +2,8 @@
 #define _BOX_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include "Vector3.hh"
 #include "Transform.hh"
 #include "Error.hh"
@@ -41,7 +42,7 @@ class Box : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Box( DOMNode* root );
+    Box( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~Box();

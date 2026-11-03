@@ -18,14 +18,14 @@
 
 // ----------------------------------------------------------------------------
 // Construct a convex with an XML node as an input parameter
-Convex* ConvexBuilderFactory::create( DOMNode* root )
+Convex* ConvexBuilderFactory::create( grains::xml::OptionalElement root )
 {
   if (!root) throw std::invalid_argument("Missing Convex XML element");
 
   Convex* convex = NULL;
 
-  DOMNode* element = ReaderXML::getNodeNext( root );
-  string   type    = ReaderXML::getNodeName( element );
+  grains::xml::OptionalElement element = grains::xml::requireElement(root).firstChild();
+  string   type    = grains::xml::requireElement(element).name();
 
   if ( type == "Box" ) convex = new Box( element );
   else if ( type == "Cylinder" ) convex = new Cylinder( element );

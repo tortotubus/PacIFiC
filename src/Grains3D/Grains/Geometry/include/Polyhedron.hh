@@ -4,7 +4,7 @@
 #include "Polytope.hh"
 #include "IndexArray.hh"
 #include "Basic.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 
 
@@ -125,7 +125,7 @@ class Polyhedron : public Polytope
 
     /** @brief Creates a polyhedron from an XML node
     @param root XML node */
-    static Polyhedron* create( DOMNode* root );
+    static Polyhedron* create( grains::xml::OptionalElement root );
     //@}
 
 

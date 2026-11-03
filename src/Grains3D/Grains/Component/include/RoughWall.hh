@@ -8,7 +8,8 @@
 #include <map>
 using namespace std;
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class RoughWall
@@ -24,7 +25,7 @@ class RoughWall : public CompositeObstacle
     //@{
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    RoughWall( DOMNode* root );
+    RoughWall( grains::xml::OptionalElement root );
 
     /** @brief Constructor with name as input parameter
     @param s obstacle name */

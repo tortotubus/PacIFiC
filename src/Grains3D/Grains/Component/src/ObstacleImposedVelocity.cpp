@@ -35,7 +35,7 @@ ObstacleImposedVelocity::ObstacleImposedVelocity()
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as input parameter
-ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root, 
+ObstacleImposedVelocity::ObstacleImposedVelocity( grains::xml::OptionalElement root,
 	double dt, int rank, size_t& error )
 {
   m_type = "Undefined";
@@ -57,21 +57,21 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     
   error = 0;   
     
-  m_ObstacleName = ReaderXML::getNodeAttr_String( root, "ObstacleName" );
+  m_ObstacleName = grains::xml::requireElement(root).attributeOr<std::string>("ObstacleName", std::string{});
   
-  DOMNode* nTimeInterval = ReaderXML::getNode( root, "TimeInterval" );
-  m_tstart = ReaderXML::getNodeAttr_Double( nTimeInterval, "Start" );
-  m_tend = ReaderXML::getNodeAttr_Double( nTimeInterval, "End" );
+  grains::xml::OptionalElement nTimeInterval = grains::xml::requireElement(root).getChild("TimeInterval");
+  m_tstart = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("Start");
+  m_tend = grains::xml::requireElement(nTimeInterval).requireAttribute<double>("End");
 
   // Constant translation
-  if ( ReaderXML::getNode( root, "ConstantTranslation" ) )
+  if ( grains::xml::requireElement(root).getChild("ConstantTranslation") )
   {
     m_type = "ConstantTranslation";
-    DOMNode* nVTranslation = ReaderXML::getNode( root, "ConstantTranslation" );
-    DOMNode* nTV = ReaderXML::getNode( nVTranslation, "TranslationalVelocity" );
-    m_translationalVelocity[X] = ReaderXML::getNodeAttr_Double( nTV, "VX" );
-    m_translationalVelocity[Y] = ReaderXML::getNodeAttr_Double( nTV, "VY" );    
-    m_translationalVelocity[Z] = ReaderXML::getNodeAttr_Double( nTV, "VZ" ); 
+    grains::xml::OptionalElement nVTranslation = grains::xml::requireElement(root).getChild("ConstantTranslation");
+    grains::xml::OptionalElement nTV = grains::xml::requireElement(nVTranslation).getChild("TranslationalVelocity");
+    m_translationalVelocity[X] = grains::xml::requireElement(nTV).requireAttribute<double>("VX");
+    m_translationalVelocity[Y] = grains::xml::requireElement(nTV).requireAttribute<double>("VY");
+    m_translationalVelocity[Z] = grains::xml::requireElement(nTV).requireAttribute<double>("VZ");
     if ( rank == 0 )
     {
       cout << GrainsExec::m_shift12 << "Obstacle name = " << m_ObstacleName 
@@ -84,19 +84,19 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     }   
   }
   // Sinusoidal translation  
-  else if ( ReaderXML::getNode( root, "SinTranslation" ) )
+  else if ( grains::xml::requireElement(root).getChild("SinTranslation") )
   {
     m_type = "SinTranslation";
-    DOMNode* nVTranslation = ReaderXML::getNode( root, "SinTranslation" ); 
-    DOMNode* nTV = ReaderXML::getNode( nVTranslation, "Direction" );
-    m_unit_vitRef[X] = ReaderXML::getNodeAttr_Double( nTV, "VX" );
-    m_unit_vitRef[Y] = ReaderXML::getNodeAttr_Double( nTV, "VY" );    
-    m_unit_vitRef[Z] = ReaderXML::getNodeAttr_Double( nTV, "VZ" ); 
+    grains::xml::OptionalElement nVTranslation = grains::xml::requireElement(root).getChild("SinTranslation");
+    grains::xml::OptionalElement nTV = grains::xml::requireElement(nVTranslation).getChild("Direction");
+    m_unit_vitRef[X] = grains::xml::requireElement(nTV).requireAttribute<double>("VX");
+    m_unit_vitRef[Y] = grains::xml::requireElement(nTV).requireAttribute<double>("VY");
+    m_unit_vitRef[Z] = grains::xml::requireElement(nTV).requireAttribute<double>("VZ");
     m_unit_vitRef.normalize();
-    DOMNode* nPar = ReaderXML::getNode( nVTranslation, "Parameters" );        
-    m_amplitude = ReaderXML::getNodeAttr_Double( nPar, "Amplitude" ); 
-    m_period = ReaderXML::getNodeAttr_Double( nPar, "Period" ); 
-    m_Sin_phase_shift = ReaderXML::getNodeAttr_Double( nPar, "PhaseShift" ) 
+    grains::xml::OptionalElement nPar = grains::xml::requireElement(nVTranslation).getChild("Parameters");
+    m_amplitude = grains::xml::requireElement(nPar).requireAttribute<double>("Amplitude");
+    m_period = grains::xml::requireElement(nPar).requireAttribute<double>("Period");
+    m_Sin_phase_shift = grains::xml::requireElement(nPar).requireAttribute<double>("PhaseShift")
     	* PI / 180.;
     if ( rank == 0 )
     {
@@ -120,18 +120,18 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     }             
   }
   // Sinusoidal translation  
-  else if ( ReaderXML::getNode( root, "CrenelTranslation" ) )
+  else if ( grains::xml::requireElement(root).getChild("CrenelTranslation") )
   {
     m_type = "CrenelTranslation";
-    DOMNode* nVTranslation = ReaderXML::getNode( root, "CrenelTranslation" ); 
-    DOMNode* nTV = ReaderXML::getNode( nVTranslation, "Direction" );
-    m_unit_vitRef[X] = ReaderXML::getNodeAttr_Double( nTV, "VX" );
-    m_unit_vitRef[Y] = ReaderXML::getNodeAttr_Double( nTV, "VY" );    
-    m_unit_vitRef[Z] = ReaderXML::getNodeAttr_Double( nTV, "VZ" ); 
+    grains::xml::OptionalElement nVTranslation = grains::xml::requireElement(root).getChild("CrenelTranslation");
+    grains::xml::OptionalElement nTV = grains::xml::requireElement(nVTranslation).getChild("Direction");
+    m_unit_vitRef[X] = grains::xml::requireElement(nTV).requireAttribute<double>("VX");
+    m_unit_vitRef[Y] = grains::xml::requireElement(nTV).requireAttribute<double>("VY");
+    m_unit_vitRef[Z] = grains::xml::requireElement(nTV).requireAttribute<double>("VZ");
     m_unit_vitRef.normalize();
-    DOMNode* nPar = ReaderXML::getNode( nVTranslation, "Parameters" );        
-    m_amplitude = ReaderXML::getNodeAttr_Double( nPar, "Amplitude" ); 
-    m_period = ReaderXML::getNodeAttr_Double( nPar, "Period" ); 
+    grains::xml::OptionalElement nPar = grains::xml::requireElement(nVTranslation).getChild("Parameters");
+    m_amplitude = grains::xml::requireElement(nPar).requireAttribute<double>("Amplitude");
+    m_period = grains::xml::requireElement(nPar).requireAttribute<double>("Period");
     if ( rank == 0 )
     {
       cout << GrainsExec::m_shift12 << "Obstacle name = " << m_ObstacleName 
@@ -150,12 +150,12 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     }             
   } 
   // Shear stress dependent cyclic translation  
-  else if ( ReaderXML::getNode( root, "SSDCyclicTranslation" ) )
+  else if ( grains::xml::requireElement(root).getChild("SSDCyclicTranslation") )
   {
     m_type = "SSDCyclicTranslation";
-    DOMNode* nVTranslation = ReaderXML::getNode( root, "SSDCyclicTranslation" );
-    DOMNode* nTV = ReaderXML::getNode( nVTranslation, "Direction" );
-    string sfirst = ReaderXML::getNodeAttr_String( nTV, "K" );
+    grains::xml::OptionalElement nVTranslation = grains::xml::requireElement(root).getChild("SSDCyclicTranslation");
+    grains::xml::OptionalElement nTV = grains::xml::requireElement(nVTranslation).getChild("Direction");
+    string sfirst = grains::xml::requireElement(nTV).attributeOr<std::string>("K", std::string{});
     if ( sfirst == "X" ) m_stressIndices.first = 0;
     else if ( sfirst == "Y" ) m_stressIndices.first = 1;
     else if ( sfirst == "Z" ) m_stressIndices.first = 2;
@@ -163,16 +163,16 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
       cout << "WARNING: unknown direction in SSDCyclicTranslation associated"
       	<< " to " << m_ObstacleName << endl;
     m_unit_vitRef[m_stressIndices.first] = 1.;
-    string ssecond = ReaderXML::getNodeAttr_String( nTV, "L" );
+    string ssecond = grains::xml::requireElement(nTV).attributeOr<std::string>("L", std::string{});
     if ( ssecond == "X" ) m_stressIndices.second = 0;
     else if ( ssecond == "Y" ) m_stressIndices.second = 1;
     else if ( ssecond == "Z" ) m_stressIndices.second = 2;
     else
       cout << "WARNING: unknown direction in SSDCyclicTranslation associated"
       	<< " to " << m_ObstacleName << endl;    
-    DOMNode* nPar = ReaderXML::getNode( nVTranslation, "Parameters" );        
-    m_amplitude = ReaderXML::getNodeAttr_Double( nPar, "Amplitude" ); 
-    m_stress_max = ReaderXML::getNodeAttr_Double( nPar, "MaxStress" );
+    grains::xml::OptionalElement nPar = grains::xml::requireElement(nVTranslation).getChild("Parameters");
+    m_amplitude = grains::xml::requireElement(nPar).requireAttribute<double>("Amplitude");
+    m_stress_max = grains::xml::requireElement(nPar).requireAttribute<double>("MaxStress");
     m_translationalVelocity[m_stressIndices.first] = m_amplitude;
     if ( rank == 0 )
     {
@@ -192,21 +192,21 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     }             
   }    
   // Constant rotation
-  else if ( ReaderXML::getNode( root, "ConstantRotation" ) )
+  else if ( grains::xml::requireElement(root).getChild("ConstantRotation") )
   {
     m_type = "ConstantRotation";
-    DOMNode* nVRotation = ReaderXML::getNode( root, "ConstantRotation" );
-    DOMNode* nRV = ReaderXML::getNode( nVRotation, "AngularVelocity" );
-    m_angularVelocity[X] = ReaderXML::getNodeAttr_Double( nRV, "WX" );
-    m_angularVelocity[Y] = ReaderXML::getNodeAttr_Double( nRV, "WY" );    
-    m_angularVelocity[Z] = ReaderXML::getNodeAttr_Double( nRV, "WZ" );
-    DOMNode* nRC = ReaderXML::getNode( nVRotation, "RotationCenter" );
+    grains::xml::OptionalElement nVRotation = grains::xml::requireElement(root).getChild("ConstantRotation");
+    grains::xml::OptionalElement nRV = grains::xml::requireElement(nVRotation).getChild("AngularVelocity");
+    m_angularVelocity[X] = grains::xml::requireElement(nRV).requireAttribute<double>("WX");
+    m_angularVelocity[Y] = grains::xml::requireElement(nRV).requireAttribute<double>("WY");
+    m_angularVelocity[Z] = grains::xml::requireElement(nRV).requireAttribute<double>("WZ");
+    grains::xml::OptionalElement nRC = grains::xml::requireElement(nVRotation).getChild("RotationCenter");
     if ( nRC )
     {
       m_rotationCenterIsCenterOfMass = false;
-      m_rotationCenter[X] = ReaderXML::getNodeAttr_Double( nRC, "CX" );
-      m_rotationCenter[Y] = ReaderXML::getNodeAttr_Double( nRC, "CY" );    
-      m_rotationCenter[Z] = ReaderXML::getNodeAttr_Double( nRC, "CZ" );      
+      m_rotationCenter[X] = grains::xml::requireElement(nRC).requireAttribute<double>("CX");
+      m_rotationCenter[Y] = grains::xml::requireElement(nRC).requireAttribute<double>("CY");
+      m_rotationCenter[Z] = grains::xml::requireElement(nRC).requireAttribute<double>("CZ");
     }      
     if ( rank == 0 )
     {
@@ -225,32 +225,29 @@ ObstacleImposedVelocity::ObstacleImposedVelocity( DOMNode* root,
     }   
   }
   // Multi-dimensional sinusoidal translation
-  else if ( ReaderXML::getNode( root, "MultiSinTranslation" ) )
+  else if ( grains::xml::requireElement(root).getChild("MultiSinTranslation") )
   {
     m_type = "MultiSinTranslation";
-    DOMNode* nMS = ReaderXML::getNode( root, "MultiSinTranslation" );    
-    DOMNode* nTV = ReaderXML::getNode( nMS, "Direction" );
-    m_unit_vitRef[X] = ReaderXML::getNodeAttr_Double( nTV, "VX" );
-    m_unit_vitRef[Y] = ReaderXML::getNodeAttr_Double( nTV, "VY" );    
-    m_unit_vitRef[Z] = ReaderXML::getNodeAttr_Double( nTV, "VZ" ); 
+    grains::xml::OptionalElement nMS = grains::xml::requireElement(root).getChild("MultiSinTranslation");
+    grains::xml::OptionalElement nTV = grains::xml::requireElement(nMS).getChild("Direction");
+    m_unit_vitRef[X] = grains::xml::requireElement(nTV).requireAttribute<double>("VX");
+    m_unit_vitRef[Y] = grains::xml::requireElement(nTV).requireAttribute<double>("VY");
+    m_unit_vitRef[Z] = grains::xml::requireElement(nTV).requireAttribute<double>("VZ");
     m_unit_vitRef.normalize();    
-    DOMNode* nPer = ReaderXML::getNode( nMS, "Period" );
-    m_MultiSin_period[X] = ReaderXML::getNodeAttr_Double( nPer, "PX" );
-    m_MultiSin_period[Y] = ReaderXML::getNodeAttr_Double( nPer, "PY" );
-    m_MultiSin_period[Z] = ReaderXML::getNodeAttr_Double( nPer, "PZ" ); 
-    DOMNode* nPhaseShift = ReaderXML::getNode( nMS, "PhaseShift" );    
-    m_MultiSin_phase_shift[X] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiX" ) * PI / 180.;
-    m_MultiSin_phase_shift[Y] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiY" ) * PI / 180.;	
-    m_MultiSin_phase_shift[Z] = ReaderXML::getNodeAttr_Double( nPhaseShift, 
-    	"PhiZ" ) * PI / 180.;
-    DOMNode* nAmp = ReaderXML::getNode( nMS, "Amplitude" );
-    m_MultiSin_amplitude[X] = ReaderXML::getNodeAttr_Double( nAmp, "AX" ) 
+    grains::xml::OptionalElement nPer = grains::xml::requireElement(nMS).getChild("Period");
+    m_MultiSin_period[X] = grains::xml::requireElement(nPer).requireAttribute<double>("PX");
+    m_MultiSin_period[Y] = grains::xml::requireElement(nPer).requireAttribute<double>("PY");
+    m_MultiSin_period[Z] = grains::xml::requireElement(nPer).requireAttribute<double>("PZ");
+    grains::xml::OptionalElement nPhaseShift = grains::xml::requireElement(nMS).getChild("PhaseShift");
+    m_MultiSin_phase_shift[X] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiX") * PI / 180.;
+    m_MultiSin_phase_shift[Y] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiY") * PI / 180.;
+    m_MultiSin_phase_shift[Z] = grains::xml::requireElement(nPhaseShift).requireAttribute<double>("PhiZ") * PI / 180.;
+    grains::xml::OptionalElement nAmp = grains::xml::requireElement(nMS).getChild("Amplitude");
+    m_MultiSin_amplitude[X] = grains::xml::requireElement(nAmp).requireAttribute<double>("AX")
     	* m_unit_vitRef[X];
-    m_MultiSin_amplitude[Y] = ReaderXML::getNodeAttr_Double( nAmp, "AY" ) 
+    m_MultiSin_amplitude[Y] = grains::xml::requireElement(nAmp).requireAttribute<double>("AY")
     	* m_unit_vitRef[Y];
-    m_MultiSin_amplitude[Z] = ReaderXML::getNodeAttr_Double( nAmp, "AZ" ) 
+    m_MultiSin_amplitude[Z] = grains::xml::requireElement(nAmp).requireAttribute<double>("AZ")
     	* m_unit_vitRef[Z];
     if ( rank == 0 )
     {

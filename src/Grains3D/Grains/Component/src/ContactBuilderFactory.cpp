@@ -1,3 +1,4 @@
+#include "Libxml2Backend.hh"
 #include <iomanip>
 #include <stdexcept>
 #include "GrainsExec.hh"
@@ -8,7 +9,6 @@
 #include "HookeMemoryContactForceModel.hh"
 #include "HertzMemoryContactForceModel.hh"
 #include "Particle.hh"
-#include "WriterXML.hh"
 #include <assert.h>
 
 map<string,int> ContactBuilderFactory::m_materials;
@@ -80,14 +80,14 @@ bool ContactBuilderFactory::checkContactForceModelsExist( string& matA,
 // ----------------------------------------------------------------------------
 // Creates the table (couple of materials)-(contact force model) from an XML
 // node
-void ContactBuilderFactory::define( DOMNode* root )
+void ContactBuilderFactory::define( grains::xml::OptionalElement root )
 {
-  assert(root != NULL);
+  assert(root.has_value());
 
-  DOMNodeList* allContacts = ReaderXML::getNodes(root);
-  for (XMLSize_t i=0; i<allContacts->getLength(); i++) {
-    DOMNode* contact = allContacts->item(i);
-    string   name    = ReaderXML::getNodeName(contact);
+  std::vector<grains::xml::Element>  allContacts = grains::xml::requireElement(root).getChildren();
+  for (std::size_t i=0; i<allContacts.size(); i++) {
+    grains::xml::OptionalElement contact = allContacts.at(i);
+    string   name    = grains::xml::requireElement(contact).name();
 
     int contactValue;
     if ( name == "Default" )
@@ -98,9 +98,9 @@ void ContactBuilderFactory::define( DOMNode* root )
     else
     {
       // Contact Pair
-      DOMNode* material = ReaderXML::getNode( contact, "Material" );
-      string matA = ReaderXML::getNodeAttr_String( material, "materialA" );
-      string matB = ReaderXML::getNodeAttr_String( material, "materialB" );
+      grains::xml::OptionalElement material = grains::xml::requireElement(contact).getChild("Material");
+      string matA = grains::xml::requireElement(material).attributeOr<std::string>("materialA", std::string{});
+      string matB = grains::xml::requireElement(material).attributeOr<std::string>("materialB", std::string{});
       contactValue = m_materials[matA] | m_materials[matB];
     }
     
@@ -123,18 +123,18 @@ void ContactBuilderFactory::define( DOMNode* root )
 // Reads and returns the contact parameters of the contact force model from
 // an XML node
 pair<ContactBuilderFactory::ContactFeatures,ContactForceModel*>
-	ContactBuilderFactory::defineParameters( DOMNode* root )
+        ContactBuilderFactory::defineParameters( grains::xml::OptionalElement root )
 {
   pair<ContactBuilderFactory::ContactFeatures,ContactForceModel*>
   	forceLaw;
-  DOMNodeList* allTags = ReaderXML::getNodes(root);
-  // Remark: allTags->getLength() = 2 because
+  std::vector<grains::xml::Element>  allTags = grains::xml::requireElement(root).getChildren();
+  // Remark: allTags.size() = 2 because
   // item(O) = Material
   // item(1) = HODCContactForceModel or other contact force model
-  for (XMLSize_t i=0; i<allTags->getLength(); i++)
+  for (std::size_t i=0; i<allTags.size(); i++)
   {
-    DOMNode* contact = allTags->item(i);
-    string   type    = ReaderXML::getNodeName(contact);
+    grains::xml::OptionalElement contact = allTags.at(i);
+    string   type    = grains::xml::requireElement(contact).name();
     if ( type == "Hooke" )
     {
       forceLaw.first.name   = Hooke;
@@ -211,40 +211,40 @@ void ContactBuilderFactory::reload( istream& file )
   	+ GrainsExec::extractFileName( xmlFile ) ;
 
   // Read the contact file
-  DOMNode* root = ReaderXML::getRoot( xmlFile );
+  grains::xml::OptionalElement root = grains::xml::Libxml2Backend{}.parseFile(xmlFile).root();
 
   if ( root )
   {
-    DOMNode* nmats = ReaderXML::getNode( root, "Materials" );
-    DOMNodeList* allmats = ReaderXML::getNodes( nmats );
-    for (XMLSize_t i=0; i<allmats->getLength(); i++)
+    grains::xml::OptionalElement nmats = grains::xml::requireElement(root).getChild("Materials");
+    std::vector<grains::xml::Element>  allmats = grains::xml::requireElement(nmats).getChildren();
+    for (std::size_t i=0; i<allmats.size(); i++)
     {
-      DOMNode* nmat = allmats->item(i);
-      int value = ReaderXML::getNodeAttr_Int( nmat, "value" );
-      string mat = ReaderXML::getNodeValue_String( nmat );
+      grains::xml::OptionalElement nmat = allmats.at(i);
+      int value = grains::xml::requireElement(nmat).requireAttribute<int>("value");
+      string mat = grains::xml::requireElement(nmat).text();
       m_materials[mat] = value;
       ContactBuilderFactory::m_value = value;
       ContactBuilderFactory::m_value <<= 1;
     }
 
-    DOMNode* contacts = ReaderXML::getNode( root, "ContactForceModels" );
-    DOMNodeList* allContacts = ReaderXML::getNodes( contacts );
-    for (XMLSize_t i=0; i<allContacts->getLength(); i++)
+    grains::xml::OptionalElement contacts = grains::xml::requireElement(root).getChild("ContactForceModels");
+    std::vector<grains::xml::Element>  allContacts = grains::xml::requireElement(contacts).getChildren();
+    for (std::size_t i=0; i<allContacts.size(); i++)
     {
-      DOMNode* contact = allContacts->item(i);
-      int type = ReaderXML::getNodeAttr_Int( contact, "type" );
-      int value = ReaderXML::getNodeAttr_Int( contact, "value" );
+      grains::xml::OptionalElement contact = allContacts.at(i);
+      int type = grains::xml::requireElement(contact).requireAttribute<int>("type");
+      int value = grains::xml::requireElement(contact).requireAttribute<int>("value");
 
       ContactBuilderFactory::ContactFeatures parameters;
       parameters.name = (ContactType)type;
 
-      DOMNode* parametersNode = ReaderXML::getNode( contact, "Parameters" );
-      DOMNodeList* allParameters = ReaderXML::getNodes( parametersNode );
-      for (XMLSize_t j=0; j<allParameters->getLength(); j++)
+      grains::xml::OptionalElement parametersNode = grains::xml::requireElement(contact).getChild("Parameters");
+      std::vector<grains::xml::Element>  allParameters = grains::xml::requireElement(parametersNode).getChildren();
+      for (std::size_t j=0; j<allParameters.size(); j++)
       {
-        DOMNode* parameter = allParameters->item(j);
-        string name = ReaderXML::getNodeAttr_String ( parameter, "name" );
-        double value_ = ReaderXML::getNodeValue_Double( parameter );
+        grains::xml::OptionalElement parameter = allParameters.at(j);
+        string name = grains::xml::requireElement(parameter).attributeOr<std::string>("name", std::string{});
+        double value_ = grains::xml::requireElement(parameter).value<double>();
         parameters.values[name] = value_;
       }
       m_contactParametres[value] = parameters;
@@ -286,45 +286,33 @@ void ContactBuilderFactory::save( ostream& file, const string& contactFile,
   
     if ( !counter )
     {
-      DOMElement* root = WriterXML::initialize( "GRAINS" );
-
-      DOMElement* nmats = WriterXML::createNode( root, "Materials" );
-      map<string,int>::const_iterator material;
-      for (material=m_materials.begin(); material!=m_materials.end(); 
-      	material++)
+      auto document = grains::xml::Libxml2Backend{}.createDocument( "GRAINS" );
+      const auto root = document.root();
+      const auto materials = root.appendChild( "Materials" );
+      for ( const auto& material : m_materials )
       {
-        DOMElement* materialNode = WriterXML::createNode( nmats, 
-		"Material" );
-        WriterXML::createNodeValue( materialNode, (*material).first );
-        WriterXML::createNodeAttr( materialNode, "value", (*material).second );
+        const auto materialNode = materials.appendChild( "Material" );
+        materialNode.appendText( material.first );
+        materialNode.setAttribute( "value", material.second );
       }
 
-      DOMElement* contacts = WriterXML::createNode( root, 
-      	"ContactForceModels" );
-      map<int,ContactBuilderFactory::ContactFeatures>::const_iterator contact;
-      for (contact=m_contactParametres.begin();
-    	contact!=m_contactParametres.end(); contact++)
+      const auto contacts = root.appendChild( "ContactForceModels" );
+      for ( const auto& contact : m_contactParametres )
       {
-        DOMElement* contactNode = WriterXML::createNode( contacts,
-      	"ContactForceModel" );
-        WriterXML::createNodeAttr( contactNode, "type", 
-		(*contact).second.name );
-        WriterXML::createNodeAttr( contactNode, "value", (*contact).first );
+        const auto contactNode = contacts.appendChild( "ContactForceModel" );
+        contactNode.setAttribute( "type", static_cast<int>(contact.second.name) );
+        contactNode.setAttribute( "value", contact.first );
 
-        DOMElement* valuesNode = WriterXML::createNode( contactNode,
-      	"Parameters" );
-        const map<string,double>& values = (*contact).second.values;
-        map<string,double>::const_iterator value;
-        for (value=values.begin(); value!=values.end(); value++)
+        const auto parameters = contactNode.appendChild( "Parameters" );
+        for ( const auto& value : contact.second.values )
         {
-          DOMElement* valueNode = WriterXML::createNode( valuesNode,
-		"Parameter" );
-          WriterXML::createNodeValue( valueNode, (*value).second );
-          WriterXML::createNodeAttr( valueNode, "name", (*value).first );
+          const auto parameter = parameters.appendChild( "Parameter" );
+          parameter.appendText( value.second );
+          parameter.setAttribute( "name", value.first );
         }
       }
 
-      WriterXML::terminate( xmlFile );
+      document.writeFile( xmlFile );
       ++counter;
     }
   }

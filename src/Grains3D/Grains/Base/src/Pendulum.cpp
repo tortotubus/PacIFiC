@@ -8,7 +8,6 @@
 #include <cmath>
 #include <stdexcept>
 #include <unordered_map>
-#include <xercesc/util/XMLString.hpp>
 
 namespace {
 std::string trim(std::string value)
@@ -17,11 +16,11 @@ std::string trim(std::string value)
   if (first==std::string::npos) return {};
   return value.substr(first,value.find_last_not_of(" \t\r\n")-first+1);
 }
-std::string required(DOMNode* node,char const* attribute)
+std::string required(grains::xml::OptionalElement node,char const* attribute)
 {
-  if (!ReaderXML::hasNodeAttr(node,attribute))
+  if (!grains::xml::hasAttribute(node, attribute))
     throw std::invalid_argument(std::string("Pendulum requires attribute ")+attribute);
-  auto value=trim(ReaderXML::getNodeAttr_String(node,attribute));
+  auto value=trim(grains::xml::requireElement(node).attributeOr<std::string>(attribute, std::string{}));
   if (value.empty()) throw std::invalid_argument("Pendulum attributes cannot be empty");
   return value;
 }
@@ -34,20 +33,16 @@ double number(std::string const& value,bool positive)
   } catch (std::exception const&) {}
   throw std::invalid_argument("Pendulum requires finite numbers and positive physical properties");
 }
-double attribute(DOMNode* node,char const* name)
+double attribute(grains::xml::OptionalElement node,char const* name)
 { return number(required(node,name),false); }
-std::vector<DOMNode*> elements(DOMNode* node)
+std::vector<grains::xml::Element> elements(grains::xml::OptionalElement node)
 {
-  std::vector<DOMNode*> result;
-  for (auto* child=node->getFirstChild();child;child=child->getNextSibling())
-    if (child->getNodeType()==DOMNode::ELEMENT_NODE) result.push_back(child);
-  return result;
+  return grains::xml::requireElement(node).getChildren();
 }
-std::string text(DOMNode* node)
+std::string text(grains::xml::OptionalElement node)
 {
   if (!elements(node).empty()) throw std::invalid_argument("Pendulum properties must contain text only");
-  auto* value=xercesc::XMLString::transcode(node->getTextContent());
-  auto result=trim(value?value:""); xercesc::XMLString::release(&value);
+  auto result=trim(grains::xml::requireElement(node).text());
   if (result.empty()) throw std::invalid_argument("Pendulum properties cannot be empty");
   return result;
 }
@@ -61,9 +56,9 @@ struct Pendulum::Dynamics {
 
 Pendulum::~Pendulum() = default;
 
-Pendulum::Pendulum(DOMNode* node)
+Pendulum::Pendulum(grains::xml::OptionalElement node)
 {
-  if (!node || ReaderXML::getNodeName(node)!="Pendulum")
+  if (!node || grains::xml::requireElement(node).name()!="Pendulum")
     throw std::invalid_argument("Expected Pendulum XML element");
   required(node,"Name");
   auto count=required(node,"N");
@@ -79,7 +74,7 @@ Pendulum::Pendulum(DOMNode* node)
   std::vector<std::string> names{"Anchor","Direction","Density","CrustThickness","Radius","Material"};
   if (fields.size()<names.size()) throw std::invalid_argument("Pendulum requires Anchor, Direction, Density, CrustThickness, Radius, Material");
   for (size_t i=0;i<names.size();++i)
-    if (ReaderXML::getNodeName(fields[i])!=names[i]) throw std::invalid_argument("Missing, duplicate, or out-of-order Pendulum property");
+    if (grains::xml::requireElement(fields[i]).name()!=names[i]) throw std::invalid_argument("Missing, duplicate, or out-of-order Pendulum property");
   m_anchor=Point3(attribute(fields[0],"X"),attribute(fields[0],"Y"),attribute(fields[0],"Z"));
   m_direction=Vector3(attribute(fields[1],"X"),attribute(fields[1],"Y"),attribute(fields[1],"Z"));
   double scale=std::max({std::abs(m_direction[X]),std::abs(m_direction[Y]),std::abs(m_direction[Z])});
@@ -90,7 +85,7 @@ Pendulum::Pendulum(DOMNode* node)
   size_t field=names.size();
   for (auto property : {std::make_pair("BendingRigidity",&m_bendingRigidity),
                         std::make_pair("DampingRigidity",&m_dampingRigidity)}) {
-    if (field<fields.size() && ReaderXML::getNodeName(fields[field])==property.first) {
+    if (field<fields.size() && grains::xml::requireElement(fields[field]).name()==property.first) {
       *property.second=number(text(fields[field++]),false);
       if (*property.second<0.) throw std::invalid_argument("Pendulum rigidities must be nonnegative");
     }

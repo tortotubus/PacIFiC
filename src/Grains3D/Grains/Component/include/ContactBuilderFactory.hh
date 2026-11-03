@@ -1,7 +1,8 @@
 #ifndef _CONTACTBUILDERFACTORY_HH_
 #define _CONTACTBUILDERFACTORY_HH_
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 #include <iostream>
 #include <map>
 #include <string>
@@ -44,7 +45,7 @@ class ContactBuilderFactory
     /** @brief Creates the table (couple of materials)-(contact force model)
     from an XML node
     @param root XML node */
-    static void define( DOMNode* root );
+    static void define( grains::xml::OptionalElement root );
 
     /** @brief Adds a material to the simulation
     @param material material name
@@ -123,7 +124,7 @@ class ContactBuilderFactory
     model from an XML node
     @param root XML node */
     static pair<ContactBuilderFactory::ContactFeatures,ContactForceModel*>
-  	defineParameters( DOMNode *root ) ;
+        defineParameters( grains::xml::OptionalElement root ) ;
     //@}
 
 

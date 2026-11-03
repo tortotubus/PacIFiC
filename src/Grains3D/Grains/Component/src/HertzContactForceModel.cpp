@@ -167,31 +167,31 @@ bool HertzContactForceModel::computeForces( Component* p0_,
 
 // ----------------------------------------------------------------------------
 // Reads and returns contact parameter map from an XML node
-map<string,double> HertzContactForceModel::defineParameters( DOMNode* & root )
+map<string,double> HertzContactForceModel::defineParameters( grains::xml::OptionalElement root )
 {
   map<string,double> parameters;
 
-  DOMNode* parameter;
+  grains::xml::OptionalElement parameter;
   double value;
   
-  parameter = ReaderXML::getNode( root, "Es" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("Es");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["Es"] = value;
 
-  parameter = ReaderXML::getNode( root, "en" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("en");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["en"] = value;
 
-  parameter = ReaderXML::getNode( root, "muc" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("muc");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["muc"] = value;
   
-  parameter = ReaderXML::getNode( root, "kr" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("kr");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["kr"] = value;  
   
-  parameter = ReaderXML::getNode( root, "Gs" );
-  if ( parameter ) value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("Gs");
+  if ( parameter ) value = grains::xml::requireElement(parameter).value<double>();
   else value = parameters["Es"] / 4.;  
   parameters["Gs"] = value;
   

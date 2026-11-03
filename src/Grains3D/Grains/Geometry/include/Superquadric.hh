@@ -2,7 +2,8 @@
 #define _SUPERQUADRIC_H_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class Superquadric.
@@ -33,7 +34,7 @@ class Superquadric : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Superquadric( DOMNode* root );
+    Superquadric( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~Superquadric();

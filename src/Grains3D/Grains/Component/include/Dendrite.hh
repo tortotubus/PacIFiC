@@ -1,6 +1,8 @@
 #ifndef _DENDRITE_HH_
 #define _DENDRITE_HH_
 
+#include "Xml.hh"
+
 #include "CompositeParticle.hh"
 
 
@@ -24,7 +26,7 @@ class Dendrite : public CompositeParticle
     Autonumbering is set to false
     @param root XML node
     @param pc particle class */
-    Dendrite( DOMNode* root, int const& pc );
+    Dendrite( grains::xml::OptionalElement root, int const& pc );
 
     /** @brief Constructor with input parameters. Autonumbering
     is set to false and numbering is set with the parameter id_

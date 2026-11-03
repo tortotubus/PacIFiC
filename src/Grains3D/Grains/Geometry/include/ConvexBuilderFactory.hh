@@ -7,7 +7,8 @@ class Convex;
 #include <string>
 using namespace std;
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class ConvexBuilderFactory.
@@ -29,7 +30,7 @@ class ConvexBuilderFactory
     //@{
     /** @brief Construct a convex with an XML node as an input parameter
     @param root XML node */
-    static Convex* create( DOMNode *root );
+    static Convex* create( grains::xml::OptionalElement root );
 
     /** @brief Construct a convex with a type and a input stream as input 
     parameters

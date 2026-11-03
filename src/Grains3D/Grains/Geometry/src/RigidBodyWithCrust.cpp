@@ -131,12 +131,12 @@ RigidBodyWithCrust::RigidBodyWithCrust( istream& fileIn, string type )
 
 // ----------------------------------------------------------------------------
 // Constructor with an XML node as an input parameter
-RigidBodyWithCrust::RigidBodyWithCrust( DOMNode* root )
+RigidBodyWithCrust::RigidBodyWithCrust( grains::xml::OptionalElement root )
 {
   // Convex
-  DOMNode* forme = ReaderXML::getNode( root, "Convex" );
+  grains::xml::OptionalElement forme = grains::xml::requireElement(root).getChild("Convex");
   m_convex = ConvexBuilderFactory::create( forme );
-  m_crustThickness = ReaderXML::getNodeAttr_Double( forme, "CrustThickness" );
+  m_crustThickness = grains::xml::requireElement(forme).requireAttribute<double>("CrustThickness");
   m_boundingVolume = m_convex->
 	computeBVolume( GrainsExec::m_colDetBoundingVolume );
   GrainsExec::setMinCrustThickness( m_crustThickness );

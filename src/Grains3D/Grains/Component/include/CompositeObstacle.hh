@@ -7,7 +7,8 @@
 #include <list>
 using namespace std;
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class CompositeObstacle
@@ -31,7 +32,7 @@ class CompositeObstacle : public Obstacle
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    CompositeObstacle( DOMNode* root );
+    CompositeObstacle( grains::xml::OptionalElement root );
 
     /** @brief Destructor */
     ~CompositeObstacle();

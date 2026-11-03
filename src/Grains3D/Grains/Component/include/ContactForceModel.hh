@@ -5,7 +5,7 @@
 #include "Point3.hh"
 #include "PointContact.hh"
 #include "Vector3.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "LinkedCell.hh"
 #include <list>
 #include <map>

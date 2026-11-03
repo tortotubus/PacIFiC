@@ -167,32 +167,32 @@ bool HookeContactForceModel::computeForces( Component* p0_,
 
 // ----------------------------------------------------------------------------
 // Reads and returns contact parameter map from an XML node
-map<string,double> HookeContactForceModel::defineParameters( DOMNode* & root )
+map<string,double> HookeContactForceModel::defineParameters( grains::xml::OptionalElement root )
 {
   map<string,double> parameters;
 
-  DOMNode* parameter;
+  grains::xml::OptionalElement parameter;
   double value;
   
-  parameter = ReaderXML::getNode( root, "kn" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("kn");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["kn"] = value;
   
-  parameter = ReaderXML::getNode( root, "muc" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("muc");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["muc"] = value;
   
-  parameter = ReaderXML::getNode( root, "en" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("en");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["en"] = value;
   
-  parameter = ReaderXML::getNode( root, "etat" );
-  if ( parameter ) value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("etat");
+  if ( parameter ) value = grains::xml::requireElement(parameter).value<double>();
   else value = - 1.;
   parameters["etat"] = value;
   
-  parameter = ReaderXML::getNode( root, "kr" );
-  value = ReaderXML::getNodeValue_Double( parameter );
+  parameter = grains::xml::requireElement(root).getChild("kr");
+  value = grains::xml::requireElement(parameter).value<double>();
   parameters["kr"] = value;
   
   return ( parameters );

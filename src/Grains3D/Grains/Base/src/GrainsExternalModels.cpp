@@ -60,27 +60,24 @@ void Grains::adoptExternalParticle(std::unique_ptr<Particle> particle) {
  * Standard/MPI runs. Output uses the normal simulation writers.
  * Particle adoption is deferred to registerPendingExternalModels().
  */
-double Grains::readExternalModels(DOMNode *construction) {
-  auto *models = ReaderXML::getNode(construction, "ExternalModels");
+double Grains::readExternalModels(grains::xml::OptionalElement construction) {
+  auto models = grains::xml::requireElement(construction).getChild("ExternalModels");
   if (!models)
     return 0.;
   if (m_dimension != 3 || m_restart)
     throw std::invalid_argument(
         "XML external models require a fresh 3D simulation");
   auto type =
-      ReaderXML::getNodeAttr_String(construction->getParentNode(), "Type");
+      grains::xml::requireElement(construction->parent()).attributeOr<std::string>("Type", std::string{});
   if (type != "Standard" && type != "MPI")
     throw std::invalid_argument(
         "XML external models support Standard and MPI simulations");
   std::set<std::string> names;
   double radius = 0.;
-  for (auto *node = models->getFirstChild(); node;
-       node = node->getNextSibling()) {
-    if (node->getNodeType() != DOMNode::ELEMENT_NODE)
-      continue;
-    if (ReaderXML::getNodeName(node) != "Pendulum")
+  for (const auto& node : models->getChildren()) {
+    if (grains::xml::requireElement(node).name() != "Pendulum")
       throw std::invalid_argument("Unknown external model type");
-    auto name = ReaderXML::getNodeAttr_String(node, "Name");
+    auto name = grains::xml::requireElement(node).attributeOr<std::string>("Name", std::string{});
     if (name.empty() || !names.insert(name).second)
       throw std::invalid_argument(
           "External model names must be unique and nonempty");

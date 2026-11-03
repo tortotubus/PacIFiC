@@ -23,3 +23,13 @@ if(PACIFIC_BUILD_THIRD_PARTY_PETSC)
     set(PACIFIC_PETSC_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "PETSc install prefix")
     add_subdirectory(petsc)
 endif()
+
+if (PACIFIC_BUILD_THIRD_PARTY_LIBXML2)
+    set(PACIFIC_LIBXML2_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "libxml2 install prefix")
+    add_subdirectory(libxml2)
+endif()
+
+if (PACIFIC_BUILD_THIRD_PARTY_EIGEN3)
+    set(PACIFIC_EIGEN3_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "Eigen3 install prefix")
+    add_subdirectory(eigen)
+endif()

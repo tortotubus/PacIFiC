@@ -1,6 +1,8 @@
 #ifndef _QUADRILOBECYLINDER_HH_
 #define _QUADRILOBECYLINDER_HH_
 
+#include "Xml.hh"
+
 #include "CompositeParticle.hh"
 
 
@@ -24,7 +26,7 @@ class QuadrilobeCylinder : public CompositeParticle
     Autonumbering is set to false
     @param root XML node
     @param pc particle class */
-    QuadrilobeCylinder( DOMNode* root, int const& pc );
+    QuadrilobeCylinder( grains::xml::OptionalElement root, int const& pc );
 
     /** @brief Constructor with input parameters. Autonumbering
     is set to false and numbering is set with the parameter id_

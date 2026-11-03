@@ -2,7 +2,8 @@
 #define _DISC_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief The class Disc.
@@ -28,7 +29,7 @@ class Disc : public Convex
 
     /** @brief Constructor with an XML node as an input parameter
     @param root XML node */
-    Disc( DOMNode* root );
+    Disc( grains::xml::OptionalElement root );
   
     /** @brief Destructor */
     ~Disc();

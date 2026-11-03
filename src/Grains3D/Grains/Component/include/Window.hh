@@ -1,6 +1,8 @@
 #ifndef _WINDOW_HH_
 #define _WINDOW_HH_
 
+#include "Xml.hh"
+
 #include "Basic.hh"
 #include "Point3.hh"
 #include "ObstacleKinematicsVelocity.hh"
@@ -50,7 +52,7 @@ class Window
     @param nWindow XML node
     @param oshift empty string to shift the output 
     @param rank process rank */
-    bool readWindow( DOMNode* nWindow, string const& oshift,
+    bool readWindow( grains::xml::OptionalElement nWindow, string const& oshift,
     	int const& rank );
     
     /** @brief Returns a point randomly selected within the window */

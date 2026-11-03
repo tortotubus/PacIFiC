@@ -22,7 +22,8 @@
 #include <iostream>
 using namespace std;
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 /** @brief Insertion mode */
@@ -96,7 +97,7 @@ class Grains : public ComputingTime, public SolverComputingTime
     //@{
     /** @brief Tasks to perform before time-stepping 
     @param rootElement XML root */
-    virtual void do_before_time_stepping( DOMElement* rootElement );
+    virtual void do_before_time_stepping( grains::xml::OptionalElement rootElement );
 
     /** @brief Tasks to perform after time-stepping */
     virtual void do_after_time_stepping();
@@ -158,7 +159,7 @@ class Grains : public ComputingTime, public SolverComputingTime
     struct ExternalModelData;
     class ModelRegistration;
     void adoptExternalParticle(std::unique_ptr<Particle> particle);
-    double readExternalModels(DOMNode* construction);
+    double readExternalModels(grains::xml::OptionalElement construction);
     void registerPendingExternalModels();
     /** Advance one step after the simulation clock has reached its endpoint. */
     void advanceParticleStep();
@@ -267,16 +268,16 @@ class Grains : public ComputingTime, public SolverComputingTime
     /** @brief Construction of the simulation: linked cell, particles &
     obstacles, domain decomposition 
     @param rootElement XML root */
-    virtual void Construction( DOMElement* rootElement );
+    virtual void Construction( grains::xml::OptionalElement rootElement );
 
     /** @brief Additional features of the simulation: time features, insertion,
     post-processing
     @param rootElement XML root */
-    virtual void AdditionalFeatures( DOMElement* rootElement );
+    virtual void AdditionalFeatures( grains::xml::OptionalElement rootElement );
 
     /** @brief External force definition
     @param rootElement XML root */
-    virtual void Forces( DOMElement* rootElement );
+    virtual void Forces( grains::xml::OptionalElement rootElement );
 
     /** @brief Returns a point randomly selected in one of the insertion 
     windows or in the list of positions. Note: list of positions has priority
@@ -306,7 +307,7 @@ class Grains : public ComputingTime, public SolverComputingTime
     @param ly global domain size in the Y direction
     @param lz global domain size in the Z direction  
     @param root XML node */
-    virtual void readDomainDecomposition( DOMNode* root,
+    virtual void readDomainDecomposition( grains::xml::OptionalElement root,
   	double const& lx, double const& ly, double const& lz ); 
   
     /** @brief Sets the linked cell grid
@@ -363,7 +364,7 @@ class Grains : public ComputingTime, public SolverComputingTime
     
     /** @brief Reads time output frequency in MPI 
     @param root XML node */
-    virtual void read_timeouputfrequency( DOMNode* root );            	
+    virtual void read_timeouputfrequency( grains::xml::OptionalElement root );
     //@}
   
 };

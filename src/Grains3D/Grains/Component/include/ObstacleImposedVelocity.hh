@@ -8,7 +8,8 @@ using namespace solid;
 #include <string>
 #include <iostream>
 using namespace std;
-#include "ReaderXML.hh"
+#include "Xml.hh"
+#include "Basic.hh"
 
 
 class ObstacleImposedVelocity;
@@ -40,7 +41,7 @@ class ObstacleImposedVelocity
     @param dt time step magnitude
     @param rank MPI rank 
     @param error error in reading the XML node */
-    ObstacleImposedVelocity( DOMNode* root, double dt, int rank, 
+    ObstacleImposedVelocity( grains::xml::OptionalElement root, double dt, int rank,
     	size_t& error );
 
     /** @brief Destructor */

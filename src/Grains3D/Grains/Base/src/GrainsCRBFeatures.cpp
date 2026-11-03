@@ -40,7 +40,7 @@ void GrainsCRBFeatures::initialOutputMessage()
 
 // ----------------------------------------------------------------------------
 // Tasks to perform before time-stepping 
-void GrainsCRBFeatures::do_before_time_stepping( DOMElement* rootElement )
+void GrainsCRBFeatures::do_before_time_stepping( grains::xml::OptionalElement rootElement )
 {
   Construction( rootElement );
   Forces( rootElement );
@@ -61,25 +61,25 @@ void GrainsCRBFeatures::do_after_time_stepping()
 // ----------------------------------------------------------------------------
 // Construction of the simulation: linked cell, particles & obstacles, domain 
 // decomposition
-void GrainsCRBFeatures::Construction( DOMElement* rootElement )
+void GrainsCRBFeatures::Construction( grains::xml::OptionalElement rootElement )
 {
-  assert( rootElement != NULL );
-  DOMNode* root = ReaderXML::getNode( rootElement, "Construction" );
+  assert( rootElement.has_value() );
+  grains::xml::OptionalElement root = grains::xml::requireElement(rootElement).getDescendant("Construction");
 
   bool bnewpart = false;
 
   // Domain size: origin and max coordinates
-  DOMNode* domain = ReaderXML::getNode( root, "LinkedCell" );
-  double lx = ReaderXML::getNodeAttr_Double( domain, "MX" );
-  double ly = ReaderXML::getNodeAttr_Double( domain, "MY" );
-  double lz = ReaderXML::getNodeAttr_Double( domain, "MZ" );
-  DOMNode* domain_origin = ReaderXML::getNode( root, "Origin" );
+  grains::xml::OptionalElement domain = grains::xml::requireElement(root).getChild("LinkedCell");
+  double lx = grains::xml::requireElement(domain).requireAttribute<double>("MX");
+  double ly = grains::xml::requireElement(domain).requireAttribute<double>("MY");
+  double lz = grains::xml::requireElement(domain).requireAttribute<double>("MZ");
+  grains::xml::OptionalElement domain_origin = grains::xml::requireElement(root).getChild("Origin");
   double ox = 0., oy = 0., oz = 0. ;
   if ( domain_origin )
   {
-    ox = ReaderXML::getNodeAttr_Double( domain_origin, "OX" );
-    oy = ReaderXML::getNodeAttr_Double( domain_origin, "OY" );
-    oz = ReaderXML::getNodeAttr_Double( domain_origin, "OZ" ); 
+    ox = grains::xml::requireElement(domain_origin).requireAttribute<double>("OX");
+    oy = grains::xml::requireElement(domain_origin).requireAttribute<double>("OY");
+    oz = grains::xml::requireElement(domain_origin).requireAttribute<double>("OZ");
   }   
   App::set_dimensions( lx, ly, lz, ox, oy, oz );
   
@@ -96,7 +96,7 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
     
     
     // Particles 
-    DOMNode* particles = ReaderXML::getNode( root, "Particles" );
+    grains::xml::OptionalElement particles = grains::xml::requireElement(root).getChild("Particles");
     if ( particles ) 
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
@@ -104,13 +104,12 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
       bnewpart = true;
       int nbPC = int( m_allcomponents.getReferenceParticles()->size() );
 
-      DOMNodeList* allParticles = ReaderXML::getNodes( rootElement, 
-      	"Particle" );
+      std::vector<grains::xml::Element>  allParticles = grains::xml::requireElement(rootElement).getDescendants("Particle");
 
-      for (XMLSize_t i=0; i<allParticles->getLength(); i++) 
+      for (std::size_t i=0; i<allParticles.size(); i++)
       {
-        DOMNode* nParticle = allParticles->item( i );
-        size_t nb = ReaderXML::getNodeAttr_Int( nParticle, "Number" );
+        grains::xml::OptionalElement nParticle = allParticles.at( i );
+        size_t nb = grains::xml::requireElement(nParticle).requireAttribute<int>("Number");
 
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
@@ -126,8 +125,8 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
 
 
     // Composite particles
-    DOMNode* nCompositeParticles = 
-    	ReaderXML::getNode( root, "CompositeParticles" );
+    grains::xml::OptionalElement nCompositeParticles =
+        grains::xml::requireElement(root).getChild("CompositeParticles");
     if ( nCompositeParticles ) 
     {
       if ( m_rank == 0 ) cout << GrainsExec::m_shift6 << 
@@ -135,21 +134,19 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
       bnewpart = true;      
       int nbPC  = int(m_allcomponents.getReferenceParticles()->size());
 
-      DOMNodeList* allCompParticles = ReaderXML::getNodes( rootElement,
-          "CompositeParticle");
+      std::vector<grains::xml::Element>  allCompParticles = grains::xml::requireElement(rootElement).getDescendants("CompositeParticle");
 
-      for (XMLSize_t i=0; i<allCompParticles->getLength(); i++) 
+      for (std::size_t i=0; i<allCompParticles.size(); i++)
       {
-        DOMNode* nCompParticle = allCompParticles->item( i );
-        size_t nb = ReaderXML::getNodeAttr_Int( nCompParticle, "Number" );
+        grains::xml::OptionalElement nCompParticle = allCompParticles.at( i );
+        size_t nb = grains::xml::requireElement(nCompParticle).requireAttribute<int>("Number");
 
         // Remark: reference particles' ID number is -1, which explains
         // auto_numbering = false in the constructor
         Particle* particleRef = NULL;
 	string sshape = "none";
-	if ( ReaderXML::hasNodeAttr( nCompParticle, "SpecificShape" )  )
-	  sshape = ReaderXML::getNodeAttr_String( nCompParticle, 
-	  	"SpecificShape" );
+        if ( grains::xml::hasAttribute(nCompParticle, "SpecificShape")  )
+          sshape = grains::xml::requireElement(nCompParticle).attributeOr<std::string>("SpecificShape", std::string{});
 	if ( sshape == "TrilobeCylinder" )
 	  particleRef = new TrilobeCylinder( nCompParticle, nbPC+int(i) );
 	else if ( sshape == "QuadrilobeCylinder" )
@@ -178,16 +175,15 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
     }  
     else
     {
-      DOMNode* nCompositeParticleFeatures = 
-    	ReaderXML::getNode( root, "CompositeParticleFeatures" );
+      grains::xml::OptionalElement nCompositeParticleFeatures =
+        grains::xml::requireElement(root).getChild("CompositeParticleFeatures");
       if ( nCompositeParticleFeatures )
       {
         if ( m_rank == 0 )
           cout << GrainsExec::m_shift6 << "Composite particle features" << endl;
 
         // Particle geometric type number
-	m_geomtypeID = ReaderXML::getNodeAttr_Int( nCompositeParticleFeatures, 
-      		"GeomTypeID" );
+        m_geomtypeID = grains::xml::requireElement(nCompositeParticleFeatures).requireAttribute<int>("GeomTypeID");
         if ( m_rank == 0 )
           cout << GrainsExec::m_shift9 << "Geometric type ID = " << 
 	  	m_geomtypeID << endl;
@@ -210,20 +206,18 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
 				
 	
 	// Output file name
-        DOMNode* nOutputFile = 
-		ReaderXML::getNode( nCompositeParticleFeatures, "OutputFile" ); 
-	m_outputfilename = ReaderXML::getNodeAttr_String( nOutputFile, 
-    		"Name" );
+        grains::xml::OptionalElement nOutputFile =
+                grains::xml::requireElement(nCompositeParticleFeatures).getChild("OutputFile");
+        m_outputfilename = grains::xml::requireElement(nOutputFile).attributeOr<std::string>("Name", std::string{});
         if ( m_rank == 0 )
           cout << GrainsExec::m_shift9 << "Output file name = " << 
 	  	m_outputfilename << endl;
 		
 	// Grid features
-        DOMNode* nGrid = 
-		ReaderXML::getNode( nCompositeParticleFeatures, "Grid" ); 
-	m_dimensionless_delta = ReaderXML::getNodeAttr_Double( nGrid, 
-		"NonDimDelta" );
-	m_Nmax = size_t(ReaderXML::getNodeAttr_Int( nGrid, "Nmax" ));		
+        grains::xml::OptionalElement nGrid =
+                grains::xml::requireElement(nCompositeParticleFeatures).getChild("Grid");
+        m_dimensionless_delta = grains::xml::requireElement(nGrid).requireAttribute<double>("NonDimDelta");
+        m_Nmax = size_t(grains::xml::requireElement(nGrid).requireAttribute<int>("Nmax"));
         if ( m_rank == 0 )
 	{
           cout << GrainsExec::m_shift9 << "Grid" << endl;
@@ -248,7 +242,7 @@ void GrainsCRBFeatures::Construction( DOMElement* rootElement )
 
 // ----------------------------------------------------------------------------
 // External force definition
-void GrainsCRBFeatures::Forces( DOMElement* rootElement )
+void GrainsCRBFeatures::Forces( grains::xml::OptionalElement rootElement )
 {}
 
 
@@ -257,7 +251,7 @@ void GrainsCRBFeatures::Forces( DOMElement* rootElement )
 // ----------------------------------------------------------------------------
 // Additional features of the simulation: time features, insertion, 
 // post-processing
-void GrainsCRBFeatures::AdditionalFeatures( DOMElement* rootElement )
+void GrainsCRBFeatures::AdditionalFeatures( grains::xml::OptionalElement rootElement )
 {}
 
 

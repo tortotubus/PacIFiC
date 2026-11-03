@@ -3,7 +3,7 @@
 
 #include "Vector3.hh"
 #include <iostream>
-#include "WriterXML.hh"
+#include "Basic.hh"
 
 using namespace solid;
 using namespace std;

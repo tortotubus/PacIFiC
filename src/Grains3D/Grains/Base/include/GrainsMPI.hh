@@ -1,6 +1,8 @@
 #ifndef _GRAINSMPI_HH_
 #define _GRAINSMPI_HH_
 
+#include "Xml.hh"
+
 #include "Grains.hh"
 
 
@@ -71,7 +73,7 @@ class GrainsMPI : virtual public Grains
     @param ly global domain size in the Y direction
     @param lz global domain size in the Z direction  
     @param root XML node */
-    virtual void readDomainDecomposition( DOMNode* root,
+    virtual void readDomainDecomposition( grains::xml::OptionalElement root,
   	double const& lx, double const& ly, double const& lz );	
     
     /** @brief Sets the linked cell grid
@@ -115,7 +117,7 @@ class GrainsMPI : virtual public Grains
     
     /** @brief Reads time output frequency in MPI 
     @param root XML node */
-    virtual void read_timeouputfrequency( DOMNode* root );
+    virtual void read_timeouputfrequency( grains::xml::OptionalElement root );
     //@}
     
     
