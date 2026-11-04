@@ -62,6 +62,7 @@ install(TARGETS Grains3D Grains3D_main
 # ---- 2. Install all public headers -------------------------------------------------
 install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Base/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/External/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Component/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Geometry/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Fluid/include/

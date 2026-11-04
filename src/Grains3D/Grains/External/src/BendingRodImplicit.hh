@@ -1,10 +1,14 @@
 #pragma once
-#include <vector>
 #include <Eigen/Dense>
+#include <vector>
+
 namespace GrainsRod {
+
 using real_t = double;
 using Vec3 = Eigen::Vector3d;
+
 enum class Boundary { Pinned, Free, PinnedRight };
+
 struct BendingRodImplicitConfig {
   int links = 14;
   real_t length = 1.0;
@@ -21,13 +25,9 @@ struct BendingRodImplicitConfig {
   real_t nonlinear_tolerance = 1e-9;
   int max_iterations = 20;
 };
-/** Adapted from the supplied ELFF BendingRodImplicit implementation.
- * Generalized-alpha integration on unit-tangent charts, with AutoDiff Newton
- * Jacobians. Forces are integrated nodal forces; torques are world-frame link
- * couples held constant during a step. Axial spin is constrained. No ELFF
- * runtime, mesh, checkpoint or force-density interface is required here.
- */
+
 class BendingRodImplicit {
+
 public:
   explicit BendingRodImplicit(const BendingRodImplicitConfig &config);
   std::vector<real_t> nodal_masses() const;
@@ -38,38 +38,50 @@ public:
     std::vector<Vec3> tangents;
     std::vector<Vec3> omega;
   };
-  void advance(real_t dt, const std::vector<Vec3>& nodal_forces,
-               const std::vector<Vec3>& link_torques);
+
+  void advance(real_t dt, const std::vector<Vec3> &nodal_forces,
+               const std::vector<Vec3> &link_torques);
+
   const Eigen::VectorXd &state() const { return state_; }
+
   void setState(const Eigen::VectorXd &state);
+
   Eigen::MatrixXd nodes(const Eigen::VectorXd &state) const;
+
   Eigen::MatrixXd velocities(const Eigen::VectorXd &state) const;
+
   StateParts unpack(const Eigen::VectorXd &state) const;
+
   Eigen::VectorXd initialState(const std::vector<Vec3> &tangents = {},
-                              const std::vector<Vec3> &angular_velocity = {},
-                              Vec3 center_of_mass = Vec3::Zero(),
-                              Vec3 center_velocity = Vec3::Zero()) const;
+                               const std::vector<Vec3> &angular_velocity = {},
+                               Vec3 center_of_mass = Vec3::Zero(),
+                               Vec3 center_velocity = Vec3::Zero()) const;
   Eigen::VectorXd rhs(real_t time, const Eigen::VectorXd &state,
                       const std::vector<Vec3> &nodal_forces = {}) const;
+
 private:
   Eigen::VectorXd integrateState(const Eigen::VectorXd &state, real_t dt,
-                                const std::vector<Vec3> &loads) const;
+                                 const std::vector<Vec3> &loads) const;
   int stateSize() const;
   bool isFree() const;
   real_t energy(const Eigen::VectorXd &state) const;
   void normalizeState(Eigen::VectorXd &state) const;
   static void validateNonnegative(real_t value, const char *name);
   std::vector<Vec3> broadcastLinkValues(const std::vector<Vec3> &supplied,
-                                      const Vec3 &fallback,
-                                      const char *name) const;
+                                        const Vec3 &fallback,
+                                        const char *name) const;
   int tangentOffset() const;
   int velocityOffset() const;
   int omegaOffset() const;
+
   std::vector<Vec3> jointTorques(const std::vector<Vec3> &tangents,
-                               const std::vector<Vec3> &omega) const;
-  std::vector<Vec3> angularAcceleration(const std::vector<Vec3> &tangents,
-                                      const std::vector<Vec3> &omega,
-                                      const std::vector<Vec3> &nodal_forces) const;
+                                 const std::vector<Vec3> &omega) const;
+
+  std::vector<Vec3>
+  angularAcceleration(const std::vector<Vec3> &tangents,
+                      const std::vector<Vec3> &omega,
+                      const std::vector<Vec3> &nodal_forces) const;
+
   std::vector<Vec3> applied_torques_;
   int n_;
   real_t length_;

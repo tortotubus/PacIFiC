@@ -7,12 +7,17 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
-// Keep the supplied diagnostic expressions, but propagate exceptions to Grains.
-#define ROD_ERROR(message) do { std::ostringstream diagnostic; diagnostic << message; \
-  throw std::runtime_error(diagnostic.str()); } while (false)
 #include <unsupported/Eigen/AutoDiff>
 
+#define ROD_ERROR(message)                                                     \
+  do {                                                                         \
+    std::ostringstream diagnostic;                                             \
+    diagnostic << message;                                                     \
+    throw std::runtime_error(diagnostic.str());                                \
+  } while (false)
+
 namespace GrainsRod {
+
 namespace {
 using Vec2 = Eigen::Vector2d;
 using Vec5 = Eigen::Matrix<real_t, 5, 1>;
@@ -63,12 +68,15 @@ Basis tangentBasis(const Vec3 &t) {
   b.col(1) = t.cross(b.col(0));
   return b;
 }
+
 template <typename T> using Vector2 = Eigen::Matrix<T, 2, 1>;
 template <typename T> using Vector3 = Eigen::Matrix<T, 3, 1>;
+
 template <typename T> struct Chart {
   Vector3<T> tangent, curvature;
   Eigen::Matrix<T, 3, 2> jacobian;
 };
+
 template <typename T>
 Chart<T> chart(const Vec3 &origin, const Basis &b, const Vector2<T> &u,
                const Vector2<T> &v) {
@@ -130,12 +138,13 @@ Vector3<T> jointTorque(const Vector3<T> &a, const Vector3<T> &b,
   const Vector3<T> relative = wb - wa;
   torque -= damping * (relative - mean * mean.dot(relative));
   return torque;
+
 }
+
 } // namespace
 
 BendingRodImplicit::BendingRodImplicit(const BendingRodImplicitConfig &config)
-    : n_(config.links),
-      length_(config.length), total_mass_(config.total_mass),
+    : n_(config.links), length_(config.length), total_mass_(config.total_mass),
       boundary_(config.boundary), pin_(config.pin),
       spectral_radius_(config.spectral_radius),
       tolerance_(config.nonlinear_tolerance),
@@ -148,13 +157,10 @@ BendingRodImplicit::BendingRodImplicit(const BendingRodImplicitConfig &config)
     ROD_ERROR("invalid generalized-alpha solver parameters");
   if (n_ < 1 || !(length_ > 0.0) || !(total_mass_ > 0.0) ||
       !std::isfinite(length_) || !std::isfinite(total_mass_)) {
-    ROD_ERROR(
-        "links, length, and total_mass must be positive");
+    ROD_ERROR("links, length, and total_mass must be positive");
   }
-  if (!std::isfinite(config.ei) || config.ei < 0.0 ||
-      !pin_.allFinite()) {
-    ROD_ERROR(
-        "beam parameters must be finite and nonnegative");
+  if (!std::isfinite(config.ei) || config.ei < 0.0 || !pin_.allFinite()) {
+    ROD_ERROR("beam parameters must be finite and nonnegative");
   }
   h_ = length_ / static_cast<real_t>(n_);
 
@@ -180,8 +186,7 @@ BendingRodImplicit::BendingRodImplicit(const BendingRodImplicitConfig &config)
   }
   for (real_t inertia : inertias_) {
     if (!std::isfinite(inertia) || inertia <= 0.0) {
-      ROD_ERROR(
-          "transverse inertias must be finite and positive");
+      ROD_ERROR("transverse inertias must be finite and positive");
     }
   }
 
@@ -189,7 +194,8 @@ BendingRodImplicit::BendingRodImplicit(const BendingRodImplicitConfig &config)
   bending_stiffness_ = configuredValues(config.bending_stiffness, joints,
                                         config.ei / h_, "bending_stiffness");
   bending_damping_ =
-      configuredValues(config.bending_damping, joints, config.damping_rigidity / h_, "bending_damping");
+      configuredValues(config.bending_damping, joints,
+                       config.damping_rigidity / h_, "bending_damping");
   for (int i = 0; i < joints; ++i) {
     validateNonnegative(bending_stiffness_[i], "bending_stiffness");
     validateNonnegative(bending_damping_[i], "bending_damping");
@@ -236,8 +242,7 @@ Eigen::VectorXd
 BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
                                    const std::vector<Vec3> &loads) const {
   if (!std::isfinite(dt) || dt <= 0)
-    ROD_ERROR(
-        "generalized-alpha timestep must be finite and positive");
+    ROD_ERROR("generalized-alpha timestep must be finite and positive");
   const auto parts = unpack(state);
   const auto physical =
       rhs(0, state, loads); // Validate loads, initialize history.
@@ -291,8 +296,7 @@ BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
     }
     return result;
   };
-  // Ambient tangent coordinates have a constant scalar mass matrix. Form
-  // the momentum residual directly, avoiding an inverse mass inside Newton.
+  
   std::vector<Vec3> external(n_, Vec3::Zero());
   for (int i = 0; i < n_; ++i) {
     for (int node = 0; node < static_cast<int>(loads.size()); ++node)
@@ -345,15 +349,13 @@ BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
     return result;
   };
 
-  // Start from constant-velocity positions
-
   Eigen::VectorXd x = -(0.5 - beta) / beta * dt * dt * old_acceleration;
   Eigen::VectorXd r = residual(x);
   const real_t threshold =
       tolerance_ * dt * (1.0 + velocity.lpNorm<Eigen::Infinity>());
   const real_t initial_residual = r.lpNorm<Eigen::Infinity>();
   int newton_updates = 0, backtracks = 0;
-  const char* failure_reason = "iteration limit";
+  const char *failure_reason = "iteration limit";
   bool converged = false;
   for (int iteration = 0; iteration <= max_iterations_; ++iteration) {
     if (!r.allFinite()) {
@@ -412,7 +414,8 @@ BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
       }
       const Vector2<AD> force =
           -dt * dt * left[i].jacobian.transpose() *
-          (external[i].cast<AD>() + applied_torques_[i].cast<AD>().cross(left[i].tangent));
+          (external[i].cast<AD>() +
+           applied_torques_[i].cast<AD>().cross(left[i].tangent));
       assemble(i, i, i, force);
     }
     for (int i = 1; i < n_; ++i) {
@@ -452,15 +455,14 @@ BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
     }
   }
   if (!converged) {
-    ROD_ERROR("BendingRodImplicit Newton failed: " << failure_reason
-            << " (dt=" << dt << ", links=" << n_
-            << ", updates=" << newton_updates << "/" << max_iterations_
-            << ", residual_evaluations=" << residual_evaluations
-            << ", backtracks=" << backtracks
-            << ", initial_residual=" << initial_residual
-            << ", residual=" << r.lpNorm<Eigen::Infinity>()
-            << ", tolerance=" << threshold
-            << "); reduce timestep");
+    ROD_ERROR("BendingRodImplicit Newton failed: "
+              << failure_reason << " (dt=" << dt << ", links=" << n_
+              << ", updates=" << newton_updates << "/" << max_iterations_
+              << ", residual_evaluations=" << residual_evaluations
+              << ", backtracks=" << backtracks
+              << ", initial_residual=" << initial_residual
+              << ", residual=" << r.lpNorm<Eigen::Infinity>()
+              << ", tolerance=" << threshold << "); reduce timestep");
   }
 
   const Eigen::VectorXd q = predictor + beta * x;
@@ -484,11 +486,12 @@ BendingRodImplicit::integrateState(const Eigen::VectorXd &state, real_t dt,
 }
 
 void BendingRodImplicit::advance(real_t dt, const std::vector<Vec3> &loads,
-                                const std::vector<Vec3> &torques) {
+                                 const std::vector<Vec3> &torques) {
   if (torques.size() != static_cast<size_t>(n_))
     ROD_ERROR("link torque count must match links");
   for (const auto &torque : torques)
-    if (!torque.allFinite()) ROD_ERROR("link torques must be finite");
+    if (!torque.allFinite())
+      ROD_ERROR("link torques must be finite");
   if (!std::isfinite(dt) || dt < 0 ||
       (!loads.empty() && loads.size() != static_cast<size_t>(n_) + 1))
     ROD_ERROR("invalid timestep or endpoint force count");
@@ -509,11 +512,12 @@ void BendingRodImplicit::advance(real_t dt, const std::vector<Vec3> &loads,
 }
 
 std::vector<real_t> BendingRodImplicit::nodal_masses() const {
-  std::vector<real_t> result(static_cast<size_t>(n_)+1,0);
-  for(int i=0;i<n_;++i) {
-    const real_t mass=masses_[boundary_==Boundary::PinnedRight ? n_-1-i : i];
-    result[i]+=mass/2;
-    result[i+1]+=mass/2;
+  std::vector<real_t> result(static_cast<size_t>(n_) + 1, 0);
+  for (int i = 0; i < n_; ++i) {
+    const real_t mass =
+        masses_[boundary_ == Boundary::PinnedRight ? n_ - 1 - i : i];
+    result[i] += mass / 2;
+    result[i + 1] += mass / 2;
   }
   return result;
 }
@@ -543,8 +547,7 @@ BendingRodImplicit::initialState(const std::vector<Vec3> &tangents,
   for (int i = 0; i < n_; ++i) {
     if (!tangent_values[i].allFinite() || !omega_values[i].allFinite() ||
         tangent_values[i].norm() == 0.0) {
-      ROD_ERROR(
-          "initial tangents and velocities must be finite");
+      ROD_ERROR("initial tangents and velocities must be finite");
     }
     const Vec3 tangent = tangent_values[i].normalized();
     state.segment<3>(tangentOffset() + 3 * i) = tangent;
@@ -694,8 +697,7 @@ int BendingRodImplicit::omegaOffset() const {
 BendingRodImplicit::StateParts
 BendingRodImplicit::unpack(const Eigen::VectorXd &state) const {
   if (state.size() != stateSize() || !state.allFinite()) {
-    ROD_ERROR(
-        "state has the wrong size or non-finite values");
+    ROD_ERROR("state has the wrong size or non-finite values");
   }
   StateParts parts;
   parts.tangents.reserve(static_cast<std::size_t>(n_));
@@ -725,22 +727,18 @@ BendingRodImplicit::jointTorques(const std::vector<Vec3> &tangents,
   for (int i = 1; i < n_; ++i) {
     const Vec3 cross = tangents[i - 1].cross(tangents[i]);
     const real_t sine = cross.norm();
-    const real_t cosine =
-        std::clamp(tangents[i - 1].dot(tangents[i]), -1.0, 1.0);
+    const real_t cosine = std::clamp(tangents[i - 1].dot(tangents[i]), -1.0, 1.0);
     Vec3 child_torque = Vec3::Zero();
     if (sine > 1e-12) {
-      child_torque -=
-          bending_stiffness_[i - 1] * std::atan2(sine, cosine) * cross / sine;
+      child_torque -= bending_stiffness_[i - 1] * std::atan2(sine, cosine) * cross / sine;
     }
     Vec3 mean_tangent = tangents[i - 1] + tangents[i];
     if (mean_tangent.squaredNorm() < 1e-20) {
       mean_tangent = tangents[i - 1];
     }
     mean_tangent.normalize();
-    const Mat3 bending_projector =
-        Mat3::Identity() - mean_tangent * mean_tangent.transpose();
-    child_torque -=
-        bending_damping_[i - 1] * bending_projector * (omega[i] - omega[i - 1]);
+    const Mat3 bending_projector = Mat3::Identity() - mean_tangent * mean_tangent.transpose();
+    child_torque -= bending_damping_[i - 1] * bending_projector * (omega[i] - omega[i - 1]);
     torque[i] += child_torque;
     torque[i - 1] -= child_torque;
   }
@@ -764,25 +762,17 @@ std::vector<Vec3> BendingRodImplicit::angularAcceleration(
     transform[i].bottomRightCorner<3, 3>() = Mat3::Identity();
     const Vec3 center = 0.5 * h_ * tangents[i];
     const Mat3 center_cross = crossMatrix(center);
-    const Mat3 center_inertia =
-        inertias_[i] *
-        (Mat3::Identity() - tangents[i] * tangents[i].transpose());
-    inertia[i].topLeftCorner<3, 3>() =
-        center_inertia - masses_[i] * center_cross * center_cross;
+    const Mat3 center_inertia = inertias_[i] * (Mat3::Identity() - tangents[i] * tangents[i].transpose());
+    inertia[i].topLeftCorner<3, 3>() = center_inertia - masses_[i] * center_cross * center_cross;
     inertia[i].topRightCorner<3, 3>() = masses_[i] * center_cross;
     inertia[i].bottomLeftCorner<3, 3>() = -masses_[i] * center_cross;
-    inertia[i].bottomRightCorner<3, 3>() = masses_[i] * Mat3::Identity();
-
+    inertia[i].bottomRightCorner<3, 3>() = masses_[i] * Mat3::Identity(); 
     const Vec3 centripetal = omega[i].cross(omega[i].cross(center));
     const Vec3 effective = masses_[i] * centripetal;
-    bias[i].head<3>() =
-        omega[i].cross(center_inertia * omega[i]) + center.cross(effective);
+    bias[i].head<3>() = omega[i].cross(center_inertia * omega[i]) + center.cross(effective);
     bias[i].tail<3>() = effective;
     bias[i].head<3>() -= applied_torques_[i];
     if (!nodal_forces.empty()) {
-      // Assign endpoint i+1 to the distal end of segment i. Node zero is
-      // applied at the proximal end of segment zero. Joint transmission
-      // carries these loads to the rest of the articulated chain.
       bias[i].head<3>() -= (h_ * tangents[i]).cross(nodal_forces[i + 1]);
       bias[i].tail<3>() -= nodal_forces[i + 1];
       if (i == 0)
