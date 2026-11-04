@@ -13,6 +13,7 @@
   hypre,
   xercesc,
   libxml2,
+  ncurses,
   eigen,
   makeWrapper,
   gtest,
@@ -41,6 +42,7 @@ stdenv.mkDerivation {
     gtest
     xercesc
     libxml2
+    ncurses
     zlib
     (hdf5-mpi.override { mpi = openmpi; })
     openmpi
