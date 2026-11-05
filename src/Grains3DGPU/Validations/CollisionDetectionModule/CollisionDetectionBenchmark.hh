@@ -789,7 +789,7 @@ private:
 
     // CDM-owned pair buffers resized by CDM internally; pre-allocated here
     GrainsMemBuffer<ContactInfo<T>, M> m_contactInfo;
-    GrainsMemBuffer<uint2, M>          m_pairList;
+    GrainsMemBuffer<IndexPair, M>      m_pairList;
     ComponentCounts                    m_counts;  ///< numParticles set in buildDeviceData
 
     std::unique_ptr<CollisionDetectionModule<T, M>> m_cdm;

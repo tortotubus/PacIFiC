@@ -1,7 +1,4 @@
 #include "GrainsPlatform.hh"
-#if GRAINS_CUDA_COMPILER
-#include <cub/cub.cuh>
-#endif
 #include <vector>
 
 #include "BodyTag.hh"
@@ -9,10 +6,15 @@
 #include "CollisionComputation.hh"
 #include "CollisionComputationCPU.hh"
 #include "CollisionComputationCUDA.hh"
+#include "CollisionFiltering.hh"
+#include "CollisionFilteringCUDA.hh"
 #include "CollisionDetectionModule.hh"
-#if GRAINS_CUDA_COMPILER
-#include "CollisionDetectionModule_Kernels.hh"
-#endif
+#include "CollisionShapeData.hh"
+#include "CollisionShapeDataCPU.hh"
+#include "CollisionShapeDataCUDA.hh"
+#include "ParticleSorting.hh"
+#include "ParticleSortingCPU.hh"
+#include "ParticleSortingCUDA.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 
@@ -55,25 +57,8 @@ CollisionDetectionModule<T, M>::CollisionDetectionModule(
     m_relPosition.initialize(estimatedPairs);
     m_relQuaternion.initialize(estimatedPairs);
     m_contactInfoLocal.initialize(estimatedPairs);
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
-    {
-        m_bvPassFlags.initialize(estimatedPairs);
-        m_bvPassPairIndices.initialize(estimatedPairs);
-        m_bvPassPairCountMapped.initialize(1);
-        *m_bvPassPairCountMapped.getData() = 0;
-        // Query CUB scratch size for DeviceSelect::Flagged over estimatedPairs elements
-        cub::CountingInputIterator<uint> countIter(0);
-        cub::DeviceSelect::Flagged(nullptr,
-                                   m_cubTempStorageBytes,
-                                   countIter,
-                                   (uint8_t*)nullptr,
-                                   (uint*)nullptr,
-                                   (int*)nullptr,
-                                   (int)estimatedPairs);
-        m_cubTempStorage.initialize(m_cubTempStorageBytes);
-    }
-#endif
+        m_filterBackend.state = grains::cuda::createCollisionFilterState<T>(estimatedPairs);
 
     // Always build the compact shape/BV tables so that toggling usePrebuiltShapes at
     // runtime (e.g. across benchmark iterations) never reads an uninitialized m_shapeData.
@@ -172,28 +157,8 @@ void CollisionDetectionModule<T, M>::resizePairBuffers(
     m_relPosition.resize(size);
     m_relQuaternion.resize(size);
     m_contactInfoLocal.resize(size);
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
-    {
-        m_bvPassFlags.resize(size);
-        m_bvPassPairIndices.resize(size);
-        // Re-query CUB scratch size for the new capacity
-        cub::CountingInputIterator<uint> countIter(0);
-        size_t                           newBytes = 0;
-        cub::DeviceSelect::Flagged(nullptr,
-                                   newBytes,
-                                   countIter,
-                                   (uint8_t*)nullptr,
-                                   (uint*)nullptr,
-                                   (int*)nullptr,
-                                   (int)size);
-        if(newBytes > m_cubTempStorageBytes)
-        {
-            m_cubTempStorageBytes = newBytes;
-            m_cubTempStorage.resize(m_cubTempStorageBytes);
-        }
-    }
-#endif
+        grains::cuda::resizeCollisionFilterState(*m_filterBackend.state, size);
 
     contactInfo.resize(size);
     pairList.resize(size);
@@ -255,8 +220,7 @@ void CollisionDetectionModule<T, M>::computeRelativeTransformations(
 // -------------------------------------------------------------------------------------------------
 // Builds compact ShapeData and BVData tables indexed by shapeId (not component slot).
 // Scans bodyTagsData to find nUniqueShapes and the representative slot for each shapeId.
-// DEVICE: uploads repSlots to GPU, launches two fill kernels (one thread per unique shape).
-// HOST:   calls buildShapeAndBVData (CPU loop over unique shapes).
+// Backends fill one entry per shape; the CUDA backend owns the temporary upload.
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::buildShapeAndBVData(const RigidBody<T>* const* rigidBodies,
                                                          const uint*                bodyTagsData,
@@ -287,47 +251,19 @@ void CollisionDetectionModule<T, M>::buildShapeAndBVData(const RigidBody<T>* con
     m_shapeData.initialize(nUniqueShapes);
     m_bvData.initialize(nUniqueShapes);
 
-#if GRAINS_CUDA_COMPILER
-    if constexpr(M == MemType::DEVICE)
-    {
-        // Upload repSlots to device
-        GrainsMemBuffer<uint, MemType::DEVICE> d_repSlots;
-        d_repSlots.initialize(nUniqueShapes);
-        cudaMemcpy(d_repSlots.getData(),
-                   repSlots.data(),
-                   nUniqueShapes * sizeof(uint),
-                   cudaMemcpyHostToDevice);
-
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nUniqueShapes,
-                                       GrainsParameters<T>::m_GPU,
-                                       numBlocks,
-                                       numThreads);
-        fillShapeData_Kernel<T><<<numBlocks, numThreads>>>(m_shapeData.getData(),
-                                                           rigidBodies,
-                                                           d_repSlots.getData(),
-                                                           nUniqueShapes);
-        fillBVData_Kernel<T><<<numBlocks, numThreads>>>(m_bvData.getData(),
-                                                        rigidBodies,
-                                                        d_repSlots.getData(),
-                                                        nUniqueShapes);
-        cudaDeviceSynchronize();
-    }
+    const ShapeTableView<T> view{m_shapeData.getData(),
+                                 m_bvData.getData(),
+                                 rigidBodies,
+                                 nUniqueShapes};
+    if constexpr(M == MemType::HOST)
+        grains::cpu::buildShapeTables(view, repSlots.data());
     else
-#endif
-
-    {
-        ::buildShapeAndBVData(m_shapeData.getData(),
-                              m_bvData.getData(),
-                              rigidBodies,
-                              repSlots.data(),
-                              nUniqueShapes);
-    }
+        grains::cuda::buildShapeTables(view, repSlots.data());
 }
 
 // -------------------------------------------------------------------------------------------------
 // Performs a narrow-phase GJK-based collision detection for each pair and writes contact info in
-// A-local frame. DEVICE BV-ON and composite paths use the compacted m_bvPassPairIndices list.
+// A-local frame. DEVICE BV-ON and composite paths use the backend-owned selected pair list.
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::detectCollisionsComponents(
     const RigidBody<T>* const*           rigidBodies,
@@ -340,21 +276,19 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponents(
     auto&       timer  = GP::m_cdmTimer;
     uint        count  = m_neighborList->getSize();
     const uint* active = nullptr;
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         if(config.boundingVolumeType != BoundingVolumeType::OFF || counts.numComposites > 0)
         {
-            filterPairsBV(rigidBodies,
-                          pairList,
-                          m_contactInfoLocal,
-                          bodyTags.getData(),
-                          counts.numComposites);
-            count  = static_cast<uint>(*m_bvPassPairCountMapped.getData());
-            active = m_bvPassPairIndices.getData();
+            const auto selected = filterPairsBV(rigidBodies,
+                                                pairList,
+                                                m_contactInfoLocal,
+                                                bodyTags.getData(),
+                                                counts.numComposites);
+            count               = selected.count;
+            active              = selected.indices;
         }
     }
-#endif
     const CollisionPairView<T>     pairs{pairList.getData(),
                                      rigidBodies,
                                      m_shapeData.getData(),
@@ -397,34 +331,33 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
     auto&       timer  = GP::m_cdmTimer;
     uint        count  = m_neighborList->getSize();
     const uint* active = nullptr;
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         if(config.boundingVolumeType != BoundingVolumeType::OFF || counts.numComposites > 0)
         {
+            SelectedPairIndices selected;
             if(config.useRelativeTransformations)
             {
                 if(config.boundingVolumeType != BoundingVolumeType::OFF)
                     computeRelativeTransformations(positions, orientations, pairList);
-                filterPairsBV(rigidBodies,
-                              pairList,
-                              contactInfo,
-                              bodyTags.getData(),
-                              counts.numComposites);
+                selected = filterPairsBV(rigidBodies,
+                                         pairList,
+                                         contactInfo,
+                                         bodyTags.getData(),
+                                         counts.numComposites);
             }
             else
-                filterPairsBV_global(rigidBodies,
-                                     positions,
-                                     orientations,
-                                     pairList,
-                                     contactInfo,
-                                     bodyTags.getData(),
-                                     counts.numComposites);
-            count  = static_cast<uint>(*m_bvPassPairCountMapped.getData());
-            active = m_bvPassPairIndices.getData();
+                selected = filterPairsBV_global(rigidBodies,
+                                                positions,
+                                                orientations,
+                                                pairList,
+                                                contactInfo,
+                                                bodyTags.getData(),
+                                                counts.numComposites);
+            count  = selected.count;
+            active = selected.indices;
         }
     }
-#endif
     const CollisionPairView<T>   pairs{pairList.getData(),
                                      rigidBodies,
                                      m_shapeData.getData(),
@@ -450,127 +383,43 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
 }
 
 // -------------------------------------------------------------------------------------------------
-// Launches a BV kernel to write flags, then uses CUB DeviceSelect::Flagged to compact passing
-// pair indices into m_bvPassPairIndices. Also serves as the composite-only filter when BV is
-// OFF. Only invoked on the DEVICE path.
+// Delegates relative-frame BV/composite filtering and compaction to the CUDA backend.
 template <typename T, MemType M>
-void CollisionDetectionModule<T, M>::filterPairsBV(
+SelectedPairIndices CollisionDetectionModule<T, M>::filterPairsBV(
     const RigidBody<T>* const*           rigidBodies,
     const GrainsMemBuffer<IndexPair, M>& pairList,
     GrainsMemBuffer<ContactInfo<T>, M>&  contactInfoLocal,
     const uint*                          bodyTags,
     uint                                 numComposites)
 {
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
-        auto& gt = GrainsParameters<T>::m_cdmTimer;
-        gt.start(CDMStage::BVFilter);
-
-        const uint nPairs = m_neighborList->getSize();
-        if(nPairs == 0)
-        {
-            *m_bvPassPairCountMapped.getData() = 0;
-            gt.stop(CDMStage::BVFilter);
-            return;
-        }
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nPairs, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-
-        // Step 1: BV pass/fail flags + no-contact sentinels for rejected pairs
-        const BoundingVolumeType bvType
-            = GrainsParameters<T>::m_collisionDetection.boundingVolumeType;
-        const bool usePrebuilt = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-        if(bvType == BoundingVolumeType::OBC)
-        {
-            if(usePrebuilt)
-                filterPairsBV_Kernel<T, BoundingVolumeType::OBC>
-                    <<<numBlocks, numThreads>>>(m_bvData.getData(),
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                m_relPosition.getData(),
-                                                m_relQuaternion.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-            else
-                filterPairsBV_Kernel<T, BoundingVolumeType::OBC>
-                    <<<numBlocks, numThreads>>>(rigidBodies,
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                m_relPosition.getData(),
-                                                m_relQuaternion.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-        }
-        else if(bvType == BoundingVolumeType::OBB)
-        {
-            if(usePrebuilt)
-                filterPairsBV_Kernel<T, BoundingVolumeType::OBB>
-                    <<<numBlocks, numThreads>>>(m_bvData.getData(),
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                m_relPosition.getData(),
-                                                m_relQuaternion.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-            else
-                filterPairsBV_Kernel<T, BoundingVolumeType::OBB>
-                    <<<numBlocks, numThreads>>>(rigidBodies,
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                m_relPosition.getData(),
-                                                m_relQuaternion.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-        }
-        else
-        {
-            // BV is OFF: composite-only filter -- relPosition/relQuaternion not used by the
-            // kernel. Prebuilt is identical for OFF, use regular kernel.
-            filterPairsBV_Kernel<T, BoundingVolumeType::OFF>
-                <<<numBlocks, numThreads>>>(rigidBodies,
-                                            pairList.getData(),
-                                            bodyTags,
-                                            numComposites,
-                                            nullptr,
-                                            nullptr,
-                                            contactInfoLocal.getData(),
-                                            m_bvPassFlags.getData(),
-                                            nPairs);
-        }
-        cudaDeviceSynchronize();
-
-        // Step 2: CUB compaction - select original pair indices where flag == 1
-        cub::CountingInputIterator<uint> countIter(0);
-        cub::DeviceSelect::Flagged(m_cubTempStorage.getData(),
-                                   m_cubTempStorageBytes,
-                                   countIter,
-                                   m_bvPassFlags.getData(),
-                                   m_bvPassPairIndices.getData(),
-                                   m_bvPassPairCountMapped.getDeviceData(),
-                                   (int)nPairs);
-        // CUB wrote the count directly into mapped pinned memory via the device alias;
-        // synchronize ensures the host-side read below sees the completed value.
-        cudaDeviceSynchronize();
-
-        gt.stop(CDMStage::BVFilter);
+        const auto&             config = GrainsParameters<T>::m_collisionDetection;
+        auto&                   timer  = GrainsParameters<T>::m_cdmTimer;
+        const BVPairView<T>     pairs{pairList.getData(),
+                                  rigidBodies,
+                                  m_bvData.getData(),
+                                  bodyTags,
+                                  contactInfoLocal.getData(),
+                                  m_neighborList->getSize(),
+                                  numComposites};
+        const RelativeBVView<T> view{pairs, m_relPosition.getData(), m_relQuaternion.getData()};
+        timer.start(CDMStage::BVFilter);
+        const auto selected = grains::cuda::filterRelativePairs(
+            *m_filterBackend.state,
+            view,
+            BVFilterOptions{config.boundingVolumeType, config.usePrebuiltShapes});
+        timer.stop(CDMStage::BVFilter);
+        return selected;
     }
-#endif
+    else
+        return {};  // HOST retains its inline narrow-phase BV checks.
 }
 
 // -------------------------------------------------------------------------------------------------
-// BV filter using world-frame positions/quaternions; computes relative transforms on-the-fly
-// inside filterPairsBV_Global_Kernel to avoid a separate pre-pass.
+// Delegates world-frame BV/composite filtering without a separate relative-transform pass.
 template <typename T, MemType M>
-void CollisionDetectionModule<T, M>::filterPairsBV_global(
+SelectedPairIndices CollisionDetectionModule<T, M>::filterPairsBV_global(
     const RigidBody<T>* const*               rigidBodies,
     const GrainsMemBuffer<Vector3<T>, M>&    positions,
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
@@ -579,103 +428,28 @@ void CollisionDetectionModule<T, M>::filterPairsBV_global(
     const uint*                              bodyTags,
     uint                                     numComposites)
 {
-#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
-        auto& gt = GrainsParameters<T>::m_cdmTimer;
-        gt.start(CDMStage::BVFilter);
-
-        const uint nPairs = m_neighborList->getSize();
-        if(nPairs == 0)
-        {
-            *m_bvPassPairCountMapped.getData() = 0;
-            gt.stop(CDMStage::BVFilter);
-            return;
-        }
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nPairs, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-
-        const BoundingVolumeType bvType
-            = GrainsParameters<T>::m_collisionDetection.boundingVolumeType;
-        const bool usePrebuilt = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-        if(bvType == BoundingVolumeType::OBC)
-        {
-            if(usePrebuilt)
-                filterPairsBV_Global_Kernel<T, BoundingVolumeType::OBC>
-                    <<<numBlocks, numThreads>>>(m_bvData.getData(),
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                positions.getData(),
-                                                orientations.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-            else
-                filterPairsBV_Global_Kernel<T, BoundingVolumeType::OBC>
-                    <<<numBlocks, numThreads>>>(rigidBodies,
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                positions.getData(),
-                                                orientations.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-        }
-        else if(bvType == BoundingVolumeType::OBB)
-        {
-            if(usePrebuilt)
-                filterPairsBV_Global_Kernel<T, BoundingVolumeType::OBB>
-                    <<<numBlocks, numThreads>>>(m_bvData.getData(),
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                positions.getData(),
-                                                orientations.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-            else
-                filterPairsBV_Global_Kernel<T, BoundingVolumeType::OBB>
-                    <<<numBlocks, numThreads>>>(rigidBodies,
-                                                pairList.getData(),
-                                                bodyTags,
-                                                numComposites,
-                                                positions.getData(),
-                                                orientations.getData(),
-                                                contactInfoLocal.getData(),
-                                                m_bvPassFlags.getData(),
-                                                nPairs);
-        }
-        else
-        {
-            filterPairsBV_Global_Kernel<T, BoundingVolumeType::OFF>
-                <<<numBlocks, numThreads>>>(rigidBodies,
-                                            pairList.getData(),
-                                            bodyTags,
-                                            numComposites,
-                                            positions.getData(),
-                                            orientations.getData(),
-                                            contactInfoLocal.getData(),
-                                            m_bvPassFlags.getData(),
-                                            nPairs);
-        }
-        cudaDeviceSynchronize();
-
-        cub::CountingInputIterator<uint> countIter(0);
-        cub::DeviceSelect::Flagged(m_cubTempStorage.getData(),
-                                   m_cubTempStorageBytes,
-                                   countIter,
-                                   m_bvPassFlags.getData(),
-                                   m_bvPassPairIndices.getData(),
-                                   m_bvPassPairCountMapped.getDeviceData(),
-                                   (int)nPairs);
-        cudaDeviceSynchronize();
-
-        gt.stop(CDMStage::BVFilter);
+        const auto&           config = GrainsParameters<T>::m_collisionDetection;
+        auto&                 timer  = GrainsParameters<T>::m_cdmTimer;
+        const BVPairView<T>   pairs{pairList.getData(),
+                                  rigidBodies,
+                                  m_bvData.getData(),
+                                  bodyTags,
+                                  contactInfoLocal.getData(),
+                                  m_neighborList->getSize(),
+                                  numComposites};
+        const GlobalBVView<T> view{pairs, positions.getData(), orientations.getData()};
+        timer.start(CDMStage::BVFilter);
+        const auto selected = grains::cuda::filterGlobalPairs(
+            *m_filterBackend.state,
+            view,
+            BVFilterOptions{config.boundingVolumeType, config.usePrebuiltShapes});
+        timer.stop(CDMStage::BVFilter);
+        return selected;
     }
-#endif
+    else
+        return {};
 }
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::transformContactInfo(
@@ -736,29 +510,12 @@ void CollisionDetectionModule<T, M>::sortParticles(GrainsMemBuffer<Vector3<T>, M
         // Rebuild master-slot lookup so composite queries stay valid after the reorder
         if(numComposites > 0)
         {
-            const uint nTotal = nObstacles + nParticles;
+            const uint           nTotal = nObstacles + nParticles;
+            const MasterSlotView view{bodyTags.getData(), masterSlot.getData(), nTotal};
             if constexpr(M == MemType::HOST)
-            {
-                for(uint cID = 0; cID < nTotal; ++cID)
-                {
-                    const uint tag = bodyTags[cID];
-                    if(isSubBody(tag) && getSubBodyLocalIdx(tag) == 0u)
-                        masterSlot[getCompositeIdx(tag)] = cID;
-                }
-            }
-#if GRAINS_CUDA_COMPILER
-            else if constexpr(M == MemType::DEVICE)
-            {
-                uint numThreads, numBlocks;
-                computeOptimalThreadsAndBlocks(nTotal,
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                rebuildMasterSlot_Kernel<<<numBlocks, numThreads>>>(masterSlot.getData(),
-                                                                    bodyTags.getData(),
-                                                                    nTotal);
-            }
-#endif
+                grains::cpu::rebuildMasterSlots(view);
+            else
+                grains::cuda::rebuildMasterSlots<T>(view);
         }
         gt.stop(CDMStage::Sort);
     }

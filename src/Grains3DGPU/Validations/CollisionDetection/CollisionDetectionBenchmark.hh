@@ -12,7 +12,6 @@
 #include "Box.hh"
 #include "CSVWriter.hh"
 #include "ComponentManagerCommon.hh"
-#include "ComponentManagerGPU_Kernels.hh"
 #include "GJK.hh"
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
@@ -221,8 +220,8 @@ public:
         // Create neighbor lists once per platform (they only depend on positions)
         std::unique_ptr<NeighborList<T, MemType::HOST>>   cpuNeighborList;
         std::unique_ptr<NeighborList<T, MemType::DEVICE>> gpuNeighborList;
-        const uint2*                                      cpuPairList  = nullptr;
-        const uint2*                                      gpuPairList  = nullptr;
+        const IndexPair*                                  cpuPairList  = nullptr;
+        const IndexPair*                                  gpuPairList  = nullptr;
         uint                                              cpuPairCount = 0;
         uint                                              gpuPairCount = 0;
 
@@ -345,7 +344,7 @@ private:
     // ---------------------------------------------------------------------------------------------
     /** @brief Run a single GJK configuration with timing */
     template <MemType M>
-    void runSingleConfiguration(const uint2*          pairList,
+    void runSingleConfiguration(const IndexPair*      pairList,
                                 uint                  pairCount,
                                 uint                  trialID,
                                 GJKRepresentationType representation,
@@ -703,7 +702,7 @@ private:
 
         // Get pair list
         uint                                  numContacts = neighborList->getSize();
-        GrainsMemBuffer<uint2, MemType::HOST> pairList(numContacts);
+        GrainsMemBuffer<IndexPair, MemType::HOST> pairList(numContacts);
         neighborList->getBuffer().copyTo(pairList);
 
         // Get contact info

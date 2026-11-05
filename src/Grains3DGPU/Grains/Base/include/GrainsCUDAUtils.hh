@@ -7,24 +7,7 @@
 #error "GrainsCUDAUtils.hh requires a CUDA compiler"
 #endif
 
-// Macro for outputting CUDA errors
-#define cudaErrCheck(ans) cudaAssert((ans), __FILE__, __LINE__);
-
-/** @brief Returns CUDA error.
-    @param code the error code
-    @param file the file name
-    @param line the line number
-    @param abort whether to abort the program */
-__HOST__ static INLINE void
-    cudaAssert(cudaError_t code, const char* file, int line, bool abort = false)
-{
-    if(code != cudaSuccess)
-    {
-        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if(abort)
-            exit(code);
-    }
-}
+#include "GrainsCUDAError.hh"
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Returns the available memory on the device in bytes */

@@ -3,6 +3,7 @@
 
 #include "BodyTag.hh"
 #include "CollisionDetectionCommon.hh"
+#include "CollisionFiltering.hh"
 
 struct NarrowPhaseOptions
 {
@@ -55,16 +56,10 @@ struct CollisionPairView
 
     __HOSTDEVICE__ bool accepts(uint pair) const
     {
-        if(numComposites > 0)
+        if(isIntraCompositePair(pairs[pair], bodyTags, numComposites))
         {
-            const IndexPair ids = pairs[pair];
-            const uint      a   = bodyTags[ids.x];
-            const uint      b   = bodyTags[ids.y];
-            if(isSubBody(a) && isSubBody(b) && getCompositeIdx(a) == getCompositeIdx(b))
-            {
-                contacts[pair].setOverlapDistance(T(1));
-                return false;
-            }
+            contacts[pair].setOverlapDistance(T(1));
+            return false;
         }
         return true;
     }

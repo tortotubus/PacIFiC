@@ -48,6 +48,7 @@
       "inherits": "Default",
       "binaryDir": "${sourceDir}/build/release_gpu",
       "cacheVariables": {
+        "PACIFIC_BUILD_DOCS": "ON",
         "PACIFIC_USE_CUDA": "ON",
         "GRAINS3D_GPU_CUDA_ARCHITECTURES": "75"
       }

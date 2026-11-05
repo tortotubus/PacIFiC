@@ -140,7 +140,12 @@ else()
   set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
   list(APPEND GRAINS3D_GPU_SOURCES
     CollisionDetection/src/CollisionComputationCUDA.cu
+    CollisionDetection/src/CollisionFilteringCUDA.cu
+    CollisionDetection/src/CollisionCompactionCUDA.cu
+    CollisionDetection/src/CollisionShapeDataCUDA.cu
     Component/src/ParticleIntegrationCUDA.cu
+    Component/src/ParticleSortingCUDA.cu
+    Component/src/ParticleSortCUDA.cu
     ContactForce/src/ForceComputationCUDA.cu
     ContactForce/src/ForceCompactionCUDA.cu
   )
@@ -148,6 +153,8 @@ endif()
 
 set_source_files_properties(
   CollisionDetection/src/CollisionComputationCPU.cpp
+  CollisionDetection/src/CollisionShapeDataCPU.cpp
+  Component/src/ParticleSortingCPU.cpp
   Component/src/ParticleIntegrationCPU.cpp
   ContactForce/src/ForceComputationCPU.cpp
   PROPERTIES LANGUAGE CXX

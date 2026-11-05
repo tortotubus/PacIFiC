@@ -29,7 +29,7 @@
 // =================================================================================================
 
 __global__ static void
-    bench_findOrInsert_kernel(ContactHashTableView view, uint2* keys, uint* out, int n)
+    bench_findOrInsert_kernel(ContactHashTableView view, IndexPair* keys, uint* out, int n)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= n)
@@ -93,10 +93,10 @@ private:
     /** @brief Generate random key set
         @param N Number of keys to generate
         @param seed Random seed (0 = deterministic)
-        @return Vector of uint2 keys */
-    std::vector<uint2> makeKeys(int N, unsigned seed = 0)
+        @return Vector of IndexPair keys */
+    std::vector<IndexPair> makeKeys(int N, unsigned seed = 0)
     {
-        std::vector<uint2> keys(N);
+        std::vector<IndexPair> keys(N);
         for(int i = 0; i < N; i++)
         {
             keys[i].x = i;
@@ -118,11 +118,11 @@ private:
         @param preload_keys Keys for pre-population
         @param capacity Table capacity
         @return Host execution time in milliseconds */
-    double runHostOnce(int                       N,
-                       const std::vector<uint2>& keys,
-                       int                       N_preload,
-                       const std::vector<uint2>& preload_keys,
-                       int                       capacity)
+    double runHostOnce(int                           N,
+                       const std::vector<IndexPair>& keys,
+                       int                           N_preload,
+                       const std::vector<IndexPair>& preload_keys,
+                       int                           capacity)
     {
         ContactHashTable<MemType::HOST> table(capacity);
 
@@ -153,29 +153,29 @@ private:
         @param preload_keys Keys for pre-population
         @param capacity Table capacity
         @return Pair of (kernel_ms, pipeline_ms) */
-    std::pair<float, float> runDeviceOnce(int                       N,
-                                          const std::vector<uint2>& keys,
-                                          int                       N_preload,
-                                          const std::vector<uint2>& preload_keys,
-                                          int                       capacity)
+    std::pair<float, float> runDeviceOnce(int                           N,
+                                          const std::vector<IndexPair>& keys,
+                                          int                           N_preload,
+                                          const std::vector<IndexPair>& preload_keys,
+                                          int                           capacity)
     {
         ContactHashTable<MemType::DEVICE> devTable(capacity);
         ContactHashTableView              view = devTable.getView();
 
-        uint2* d_keys         = nullptr;
+        IndexPair* d_keys         = nullptr;
         uint*  d_out          = nullptr;
-        uint2* d_preload_keys = nullptr;
+        IndexPair* d_preload_keys = nullptr;
         uint*  d_preload_out  = nullptr;
 
-        cudaMalloc(&d_keys, N * sizeof(uint2));
+        cudaMalloc(&d_keys, N * sizeof(IndexPair));
         cudaMalloc(&d_out, N * sizeof(uint));
-        cudaMalloc(&d_preload_keys, N_preload * sizeof(uint2));
+        cudaMalloc(&d_preload_keys, N_preload * sizeof(IndexPair));
         cudaMalloc(&d_preload_out, N_preload * sizeof(uint));
 
-        cudaMemcpy(d_keys, keys.data(), N * sizeof(uint2), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_keys, keys.data(), N * sizeof(IndexPair), cudaMemcpyHostToDevice);
         cudaMemcpy(d_preload_keys,
                    preload_keys.data(),
-                   N_preload * sizeof(uint2),
+                   N_preload * sizeof(IndexPair),
                    cudaMemcpyHostToDevice);
 
         // Pre-populate the table with N_preload entries
@@ -228,7 +228,7 @@ private:
         std::vector<uint> h_out(N);
         float             pipeline_ms = 0.0f;
         cudaEventRecord(start);
-        cudaMemcpy(d_keys, keys.data(), N * sizeof(uint2), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_keys, keys.data(), N * sizeof(IndexPair), cudaMemcpyHostToDevice);
         bench_findOrInsert_kernel<<<numBlocks, blockSize>>>(view, d_keys, d_out, N);
         cudaMemcpy(h_out.data(), d_out, N * sizeof(uint), cudaMemcpyDeviceToHost);
         cudaEventRecord(stop);

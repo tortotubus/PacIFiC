@@ -21,22 +21,26 @@ namespace grains::detail
             function(SignedVolume{}, std::true_type{});
     }
     template <typename Function>
-    void dispatchCollision(NarrowPhaseOptions options, Function&& function)
+    void dispatchBoundingVolume(BoundingVolumeType type, Function&& function)
     {
-        auto withBounds = [&](auto bounds) {
-            dispatchGJK(options, [&](auto variant, auto accelerated) {
-                function(variant, accelerated, bounds);
-            });
-        };
         using Off      = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OFF>;
         using Box      = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBB>;
         using Cylinder = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBC>;
-        if(options.boundingVolume == BoundingVolumeType::OBB)
-            withBounds(Box{});
-        else if(options.boundingVolume == BoundingVolumeType::OBC)
-            withBounds(Cylinder{});
+        if(type == BoundingVolumeType::OBB)
+            function(Box{});
+        else if(type == BoundingVolumeType::OBC)
+            function(Cylinder{});
         else
-            withBounds(Off{});
+            function(Off{});
+    }
+    template <typename Function>
+    void dispatchCollision(NarrowPhaseOptions options, Function&& function)
+    {
+        dispatchBoundingVolume(options.boundingVolume, [&](auto bounds) {
+            dispatchGJK(options, [&](auto variant, auto accelerated) {
+                function(variant, accelerated, bounds);
+            });
+        });
     }
 }
 #endif

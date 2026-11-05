@@ -6,6 +6,7 @@
 
 #include "BodyTag.hh"
 #include "CollisionDetectionCommon.hh"
+#include "CollisionFilteringCUDA.hh"
 #include "ContactInfo.hh"
 #include "GJK_ShapeData.hh"
 #include "GrainsMemBuffer.hh"
@@ -19,6 +20,19 @@
 #include "RigidBody.hh"
 #include "Torce.hh"
 #include "Vector3.hh"
+
+namespace grains::detail
+{
+    template <typename T, MemType M>
+    struct CollisionFilterStorage
+    {
+    };
+    template <typename T>
+    struct CollisionFilterStorage<T, MemType::DEVICE>
+    {
+        cuda::CollisionFilterStatePtr<T> state;
+    };
+}
 
 // =================================================================================================
 /** @brief The class CollisionDetectionModule.
@@ -58,19 +72,9 @@ private:
     GrainsMemBuffer<Quaternion<T>, M> m_relQuaternion;
     /** \brief Per-pair contact information in A-local frame (output of GJK) */
     GrainsMemBuffer<ContactInfo<T>, M> m_contactInfoLocal;
-    /** \brief Per-pair BV pass/fail flags written by filterPairsBV_Kernel */
-    GrainsMemBuffer<uint8_t, M> m_bvPassFlags;
-    /** \brief Compacted list of original pair indices that passed the BV filter */
-    GrainsMemBuffer<uint, M> m_bvPassPairIndices;
-    /** \brief Size-1 zero-copy mapped pinned buffer; CUB writes the passing-pair count directly
-        into this via the device alias; host reads it without any cudaMemcpy */
-#if GRAINS_CUDA_COMPILER
-    GrainsMemBuffer<int, MemType::MAPPED> m_bvPassPairCountMapped;
-#endif
-    /** \brief Scratch space for CUB DeviceSelect::Flagged */
-    GrainsMemBuffer<uint8_t, M> m_cubTempStorage;
-    /** \brief Byte size of the CUB scratch buffer */
-    size_t m_cubTempStorageBytes = 0;
+    /** \brief CUDA-owned filter flags, selected indices, mapped count and scratch.
+        HOST modules have no filter state or CUDA resource destruction. */
+    grains::detail::CollisionFilterStorage<T, M> m_filterBackend;
     /** \brief Number of unique shapes (= max shapeId+1 from bodyTags). */
     uint m_nUniqueShapes = 0;
     //@}
@@ -199,18 +203,18 @@ private:
     /** @brief Runs the BV pre-filter.
         Also used as the composite-only filter when BV is OFF but composites exist.
         Writes per-pair pass/fail flags, writes no-contact sentinels for rejected pairs, then
-        uses CUB DeviceSelect::Flagged to compact the passing pair indices into m_bvPassPairIndices
-        and writes the result count into m_bvPassPairCountMapped.
+        returns the selected original pair indices from the CUDA backend. The backend owns
+        all compaction buffers and the mapped count.
         @param rigidBodies      Raw pointer array of RigidBody*
         @param pairList         Pair list buffer
         @param contactInfoLocal Per-pair local ContactInfo buffer
         @param bodyTags         Raw device pointer to per-component body tags
         @param numComposites    Number of composites (0 = skip composite check) */
-    void filterPairsBV(const RigidBody<T>* const*           rigidBodies,
-                       const GrainsMemBuffer<IndexPair, M>& pairList,
-                       GrainsMemBuffer<ContactInfo<T>, M>&  contactInfoLocal,
-                       const uint*                          bodyTags,
-                       uint                                 numComposites);
+    SelectedPairIndices filterPairsBV(const RigidBody<T>* const*           rigidBodies,
+                                      const GrainsMemBuffer<IndexPair, M>& pairList,
+                                      GrainsMemBuffer<ContactInfo<T>, M>&  contactInfoLocal,
+                                      const uint*                          bodyTags,
+                                      uint                                 numComposites);
 
     /** @brief BV pre-filter using world-frame positions/quaternions directly, bypassing the
         computeRelativeTransformations pre-pass. Used when UseRelativeTransformations=false with
@@ -222,16 +226,16 @@ private:
         @param contactInfoLocal Per-pair local ContactInfo buffer
         @param bodyTags         Raw device pointer to per-component body tags
         @param numComposites    Number of composites (0 = skip composite check) */
-    void filterPairsBV_global(const RigidBody<T>* const*               rigidBodies,
-                              const GrainsMemBuffer<Vector3<T>, M>&    positions,
-                              const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                              const GrainsMemBuffer<IndexPair, M>&     pairList,
-                              GrainsMemBuffer<ContactInfo<T>, M>&      contactInfoLocal,
-                              const uint*                              bodyTags,
-                              uint                                     numComposites);
+    SelectedPairIndices filterPairsBV_global(const RigidBody<T>* const*               rigidBodies,
+                                             const GrainsMemBuffer<Vector3<T>, M>&    positions,
+                                             const GrainsMemBuffer<Quaternion<T>, M>& orientations,
+                                             const GrainsMemBuffer<IndexPair, M>&     pairList,
+                                             GrainsMemBuffer<ContactInfo<T>, M>& contactInfoLocal,
+                                             const uint*                         bodyTags,
+                                             uint                                numComposites);
 
     /** @brief Runs narrow-phase GJK and writes ContactInfo in A-local frame.
-        On DEVICE with BV-ON or composites, uses the compacted m_bvPassPairIndices index list.
+        On DEVICE with BV-ON or composites, uses the backend-owned compacted pair-index list.
         On HOST, skips intra-composite pairs inline.
         @param rigidBodies Raw pointer array of RigidBody*
         @param pairList    Pair list buffer
@@ -244,7 +248,7 @@ private:
 
     /** @brief Runs narrow-phase GJK using world-frame positions/quaternions directly, skipping the
         relative-transformation pre-pass.
-        On DEVICE with BV-ON or composites, uses the compacted m_bvPassPairIndices index list.
+        On DEVICE with BV-ON or composites, uses the backend-owned compacted pair-index list.
         On HOST, skips intra-composite pairs inline.
         @param rigidBodies  Raw pointer array of RigidBody*
         @param positions    World position buffer
@@ -294,8 +298,8 @@ private:
     /** @brief Builds (or rebuilds) the compact m_shapeData and m_bvData arrays.
         Scans bodyTags to identify unique shapes (by shapeId), builds a representative-slot
         table, then fills one ShapeData and one BVData entry per unique shape.
-        On DEVICE: downloads bodyTags, builds repSlots on CPU, uploads, launches kernels.
-        On HOST: scans directly and calls buildShapeAndBVData (CPU loop).
+        Representative slots are built from hostBodyTags on CPU for both backends.
+        Backends fill the tables; CUDA privately uploads representative slots.
         @param rigidBodies   Raw pointer array of RigidBody* (slot-indexed)
         @param bodyTagsData  Raw pointer to per-component body tags (host-accessible)
         @param nComponents   Total number of component slots (obstacles + particles) */
