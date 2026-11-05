@@ -36,7 +36,9 @@ private:
     GrainsMemBuffer<uint8_t, M> m_cubSelectTempStorage;
     /** \brief Zero-copy mapped pinned buffer holding the CUB compaction count.
         Device writes via getDeviceData() (mapped alias); host reads via getData(). */
+#if GRAINS_CUDA_COMPILER
     GrainsMemBuffer<uint, MemType::MAPPED> m_numActivePairsMapped;
+#endif
     /** \brief Per-pair intermediate torce for particle A (lazy resize; DEVICE path only) */
     GrainsMemBuffer<Torce<T>, M> m_intermediateTorceA;
     /** \brief Per-pair intermediate torce for particle B (lazy resize; DEVICE path only) */
@@ -117,7 +119,7 @@ public:
              const GrainsMemBuffer<RigidBody<T>*, M>*         rigidBody,
              const GrainsMemBuffer<Vector3<T>, M>&            position,
              const GrainsMemBuffer<Kinematics<T>, M>&         velocity,
-             const GrainsMemBuffer<uint2, M>&                 pairList,
+             const GrainsMemBuffer<IndexPair, M>&             pairList,
              const GrainsMemBuffer<ContactInfo<T>, M>&        contactInfo,
              GrainsMemBuffer<Torce<T>, M>&                    torce,
              const GrainsMemBuffer<uint, M>&                  bodyTag,

@@ -19,7 +19,7 @@ struct ContactEntry
     /** @name Parameters */
     //@{
     /** \brief Contact pair key (i,j) where i < j */
-    uint2 m_key;
+    IndexPair m_key;
     /** \brief Index into the ContactForce array */
     uint m_index;
     /** \brief Validity and activity flag: 0=empty, 1=stale (not touched this step), 2=active */
@@ -32,7 +32,7 @@ struct ContactEntry
     /** @brief Default constructor */
     __HOSTDEVICE__
     ContactEntry()
-        : m_key(make_uint2(0, 0))
+        : m_key(makeIndexPair(0, 0))
         , m_index(0xFFFFFFFF)  // Invalid index marker
         , m_valid(0)
     {
@@ -139,7 +139,7 @@ struct ContactMemoryView
         @param index output parameter for the contact state index
         @return true if found, false otherwise */
     __HOSTDEVICE__
-    bool find(uint2 key, uint& index) const
+    bool find(IndexPair key, uint& index) const
     {
         if(m_capacity == 0 || m_table == nullptr)
             return false;
@@ -178,7 +178,7 @@ struct ContactMemoryView
         @param index output parameter for the contact state index
         @return true if found or inserted, false if table is full */
     __HOSTDEVICE__
-    bool findOrInsert(uint2 key, uint& index)
+    bool findOrInsert(IndexPair key, uint& index)
     {
         if(m_capacity == 0 || m_table == nullptr || m_nextIndex == nullptr)
             return false;
@@ -266,7 +266,7 @@ struct ContactMemoryView
         @param key pair of component IDs (i,j) where i < j
         @return true if removed, false if not found */
     __HOSTDEVICE__
-    bool remove(uint2 key)
+    bool remove(IndexPair key)
     {
         if(m_capacity == 0 || m_table == nullptr)
             return false;

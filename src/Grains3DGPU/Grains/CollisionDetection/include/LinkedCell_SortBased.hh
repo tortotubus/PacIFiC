@@ -1,11 +1,18 @@
 #ifndef _LINKEDCELL_SORTBASED_HH_
 #define _LINKEDCELL_SORTBASED_HH_
 
+#include "GrainsPlatform.hh"
+#if GRAINS_CUDA_COMPILER
+
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
 
 #include "GrainsMemBuffer.hh"
 #include "LinkedCell.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_Kernels.hh"
+#endif
 
 // =================================================================================================
 /** @brief The class LinkedCell_SortBased.
@@ -279,5 +286,7 @@ public:
         return true;
     }
 };
+
+#endif  // GRAINS_CUDA_COMPILER
 
 #endif

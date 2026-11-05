@@ -1,6 +1,8 @@
 #ifndef _TORCE_HH_
 #define _TORCE_HH_
 
+#include "GrainsPlatform.hh"
+
 #include "Vector3.hh"
 
 // =================================================================================================
@@ -87,15 +89,17 @@ public:
 
     /** @brief Atomically adds a torque to the torce (GPU safe)
         @param t added torque */
-    __device__ void addTorqueAtomic(const Vector3<T>& t);
+#if GRAINS_CUDA_COMPILER
+    __DEVICE__ void addTorqueAtomic(const Vector3<T>& t);
 
     /** @brief Atomically adds a force to the torce (GPU safe)
         @param f added force */
-    __device__ void addForceAtomic(const Vector3<T>& f);
+    __DEVICE__ void addForceAtomic(const Vector3<T>& f);
 
     /** @brief Atomically adds both force and torque from another Torce (GPU safe)
         @param other Torce containing force and torque to add */
-    __device__ void addTorceAtomic(const Torce<T>& other);
+    __DEVICE__ void addTorceAtomic(const Torce<T>& other);
+#endif
     //@}
 };
 

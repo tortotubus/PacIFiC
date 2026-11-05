@@ -1,14 +1,20 @@
 #ifndef _NEIGHBORLIST_LINKEDCELL_HH_
 #define _NEIGHBORLIST_LINKEDCELL_HH_
 
+#include "GrainsPlatform.hh"
+
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
 
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 #include "LinkedCell.hh"
 #include "LinkedCellFactory.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_AtomicFixed.hh"
+#endif
 #include "LinkedCell_Host.hh"
 #include "NeighborList.hh"
 #include "NeighborList_Kernels.hh"
@@ -44,9 +50,13 @@ protected:
     /** \brief Number of obstacle-particle pairs */
     uint* m_obstacleParticlePairCount = nullptr;
     /** \brief CUDA stream for obstacle-particle pair generation */
+#if GRAINS_CUDA_COMPILER
     cudaStream_t m_stream0;
+#endif
     /** \brief CUDA stream for particle-particle neighbor generation */
+#if GRAINS_CUDA_COMPILER
     cudaStream_t m_stream1;
+#endif
     //@}
 
 public:
@@ -85,6 +95,7 @@ public:
         m_pairList.initialize(initNumPairs * nParticles);
         m_pairList.fill();
 
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             // Initialize neighbor counting buffers
@@ -94,8 +105,10 @@ public:
             m_numNeighborsPrefixSums.initialize(nParticles + 1);  // +1 for total
             m_numNeighborsPrefixSums.fill();
         }
+#endif
 
         // Allocate obstacle-particle pair count
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             // Pre-allocate CUB scan workspace
@@ -119,12 +132,14 @@ public:
             cudaErrCheck(cudaStreamCreate(&m_stream0));
             cudaErrCheck(cudaStreamCreate(&m_stream1));
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Destructor */
     ~NeighborList_LinkedCell() override
     {
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             if(m_cubScanTempStorage != nullptr)
@@ -140,6 +155,7 @@ public:
             cudaErrCheck(cudaStreamDestroy(m_stream0));
             cudaErrCheck(cudaStreamDestroy(m_stream1));
         }
+#endif
     }
     //@}
 
@@ -174,6 +190,7 @@ public:
                                            m_pairList);
                 *m_pairCount = m_pairList.getSize();
             }
+#if GRAINS_CUDA_COMPILER
             else if constexpr(M == MemType::DEVICE)
             {
                 using GP = GrainsParameters<T>;
@@ -326,6 +343,7 @@ public:
                 // Final synchronization of stream 1 (stream 0 already synchronized)
                 cudaStreamSynchronize(m_stream1);
             }
+#endif
 
             return true;
         }

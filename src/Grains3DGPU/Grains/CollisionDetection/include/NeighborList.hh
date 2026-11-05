@@ -27,7 +27,7 @@ protected:
     /** @name Parameters */
     //@{
     /** \brief Pair list */
-    GrainsMemBuffer<uint2, M> m_pairList;
+    GrainsMemBuffer<IndexPair, M> m_pairList;
     /** \brief Pair count */
     uint* m_pairCount;
     //@}
@@ -39,11 +39,14 @@ public:
     /** @brief Default constructor */
     NeighborList()
     {
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(cudaMallocManaged(&m_pairCount, sizeof(uint)));
         }
         else
+#endif
+
         {
             m_pairCount = new uint;
         }
@@ -54,11 +57,14 @@ public:
     /** @brief Destructor */
     virtual ~NeighborList()
     {
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(cudaFree(m_pairCount));
         }
         else
+#endif
+
         {
             delete m_pairCount;
         }
@@ -69,14 +75,14 @@ public:
     //@{
     // ---------------------------------------------------------------------------------------------
     /** @brief Gets pair list */
-    const GrainsMemBuffer<uint2, M>& getBuffer() const
+    const GrainsMemBuffer<IndexPair, M>& getBuffer() const
     {
         return m_pairList;
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Gets pair list data */
-    uint2* getData()
+    IndexPair* getData()
     {
         return m_pairList.getData();
     }

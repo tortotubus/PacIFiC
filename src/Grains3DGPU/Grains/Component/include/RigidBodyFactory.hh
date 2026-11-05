@@ -85,14 +85,21 @@ public:
         calls a device kernel that is implemented in the source file.
         @param h_RB Host-side RigidBody object
         @param d_RB Device-side RigidBody object */
+
+#if GRAINS_CUDA_COMPILER
     static void copyHostToDevice(GrainsMemBuffer<RigidBody<T>*, MemType::HOST>&   h_RB,
                                  GrainsMemBuffer<RigidBody<T>*, MemType::DEVICE>& d_RB);
+#endif
 
     /** @brief Frees RigidBody objects that were created on device via copyHostToDevice.
         Launches a kernel that calls device-side delete on every pointer, then releases
         the pointer array.  Safe to call even if d_RB is empty.
         @param d_RB Device-side RigidBody pointer buffer */
+
+#if GRAINS_CUDA_COMPILER
     static void freeDevice(GrainsMemBuffer<RigidBody<T>*, MemType::DEVICE>& d_RB);
+#endif
+
     //@}
 };
 

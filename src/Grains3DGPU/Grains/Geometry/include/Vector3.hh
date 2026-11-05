@@ -1,6 +1,8 @@
 #ifndef _VECTOR3_HH_
 #define _VECTOR3_HH_
 
+#include "GrainsPlatform.hh"
+
 #include "Basic.hh"
 
 // =================================================================================================
@@ -107,7 +109,9 @@ public:
 
     /** @brief Atomically add a vector to this vector (GPU safe)
         @param other vector to add atomically */
-    __device__ void atomicAdd(const Vector3<T>& other) noexcept;
+#if GRAINS_CUDA_COMPILER
+    __DEVICE__ void atomicAdd(const Vector3<T>& other) noexcept;
+#endif
     //@}
 
     /** @name Operators */

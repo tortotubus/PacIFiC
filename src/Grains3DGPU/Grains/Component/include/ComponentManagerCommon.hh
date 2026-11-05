@@ -2,7 +2,7 @@
 #define _COMPONENTMANAGERCOMMON_HH_
 
 #include "Basic.hh"
-#include "GrainsParameters.hh"
+#include "BodyTag.hh"
 #include "Kinematics.hh"
 #include "Quaternion.hh"
 #include "QuaternionMath.hh"

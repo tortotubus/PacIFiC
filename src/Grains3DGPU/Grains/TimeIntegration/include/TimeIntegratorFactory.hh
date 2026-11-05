@@ -43,9 +43,13 @@ public:
         It calls a device kernel that is implemented in the source file.
         @param h_TI Host-side TimeIntegrator object
         @param d_TI Device-side TimeIntegrator object */
+
+#if GRAINS_CUDA_COMPILER
     __HOST__
     static void copyHostToDevice(GrainsMemBuffer<TimeIntegrator<T>*, MemType::HOST>&   h_TI,
                                  GrainsMemBuffer<TimeIntegrator<T>*, MemType::DEVICE>& d_TI);
+#endif
+
     //@}
 };
 

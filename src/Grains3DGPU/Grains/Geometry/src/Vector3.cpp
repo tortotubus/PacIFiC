@@ -1,3 +1,4 @@
+#include "GrainsPlatform.hh"
 #include "Vector3.hh"
 #include "VectorMath.hh"
 
@@ -148,6 +149,7 @@ __HOSTDEVICE__ void Vector3<T>::reset() noexcept
 }
 
 // -------------------------------------------------------------------------------------------------
+#if GRAINS_CUDA_COMPILER
 // Atomically add a vector to this vector (GPU safe)
 template <typename T>
 __DEVICE__ void Vector3<T>::atomicAdd(const Vector3<T>& other) noexcept
@@ -158,6 +160,8 @@ __DEVICE__ void Vector3<T>::atomicAdd(const Vector3<T>& other) noexcept
     ::atomicAdd(thisPtr + 1, *(otherPtr + 1));
     ::atomicAdd(thisPtr + 2, *(otherPtr + 2));
 }
+
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // ith component accessor

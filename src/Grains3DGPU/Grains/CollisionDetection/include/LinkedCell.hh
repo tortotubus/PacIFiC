@@ -1,13 +1,19 @@
 #ifndef _LINKEDCELL_HH_
 #define _LINKEDCELL_HH_
 
+#include "GrainsPlatform.hh"
+
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
 
 #include "Cells.hh"
 #include "CellsFactory.hh"
 #include "GrainsMemBuffer.hh"
 #include "GrainsUtils.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_Kernels.hh"
+#endif
 #include "QuaternionMath.hh"
 #include "VectorMath.hh"
 
@@ -50,7 +56,7 @@ protected:
     /** \brief Buffer of obstacle IDs and the number of cells that have to be checked for a possible
         contact with a particle. This is essentially the number of cells each obstacle occupies +
         one-ring. */
-    GrainsMemBuffer<uint2, M> m_obstacleID;
+    GrainsMemBuffer<IndexPair, M> m_obstacleID;
     /** \brief Buffer of the cell IDs that that have to be checked for a possible contact with an
         obstacle. */
     GrainsMemBuffer<uint, M> m_obstacleCellID;
@@ -60,7 +66,8 @@ protected:
     size_t m_cubReduceTempStorageBytes = 0;
     /** \brief Maximum displacement of particles since the last update. Note that we store the
         squared value.  */
-    GrainsMemBuffer<T, MemType::MANAGED> m_maxDisplacementSquared;
+    GrainsMemBuffer<T, M == MemType::HOST ? MemType::HOST : MemType::MANAGED>
+        m_maxDisplacementSquared;
     /** \brief Cell size. This is the minimum possible size for the cells. Skin thickness will be
         added to this value. */
     T m_cellSizeWithoutSkin = 0;
@@ -81,7 +88,9 @@ protected:
     /** \brief Flag to indicate if adaptive skin is used */
     bool m_useAdaptiveSkin
         = false; /** rief Dedicated CUDA stream for asynchronous displacement reduction */
+#if GRAINS_CUDA_COMPILER
     cudaStream_t m_reduceStream = nullptr;
+#endif
     /** rief Whether a valid async displacement result is available */
     bool m_hasAsyncResult = false;  //@}
 
@@ -180,6 +189,7 @@ public:
         linkObstacles();
 
         // Initialize CUB reduce workspace for maximum displacement computation
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             // Query workspace size for Reduce operation with dummy iterator
@@ -200,6 +210,7 @@ public:
             cudaErrCheck(cudaMalloc(&m_cubReduceTempStorage, m_cubReduceTempStorageBytes));
             cudaErrCheck(cudaStreamCreate(&m_reduceStream));
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -210,6 +221,7 @@ public:
         // m_cells.freePointedObjects();
 
         // Free CUB workspace and reduce stream
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             if(m_cubReduceTempStorage != nullptr)
@@ -223,6 +235,7 @@ public:
                 m_reduceStream = nullptr;
             }
         }
+#endif
 
         // Set non-owning pointers to nullptr
         m_rb          = nullptr;
@@ -249,7 +262,7 @@ public:
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Gets obstacle IDs */
-    const uint2* getObstacleIDs() const
+    const IndexPair* getObstacleIDs() const
     {
         return m_obstacleID.getData();
     }
@@ -370,6 +383,7 @@ public:
             T maxDispSq = computeMaxDisplacement();
             return (T(4) * maxDispSq > m_skinThickness * m_skinThickness);
         }
+#if GRAINS_CUDA_COMPILER
         else
         {
             // 1-lag async: reduce was launched at end of prior updateLinkedCells(); sync only
@@ -379,6 +393,7 @@ public:
             cudaStreamSynchronize(m_reduceStream);
             return (T(4) * m_maxDisplacementSquared[0] > m_skinThickness * m_skinThickness);
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -391,6 +406,7 @@ public:
         {
             m_cells[0]->generateNeighborCells(m_neighborCells.getData());
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             // Assign one thread to each cell
@@ -404,6 +420,7 @@ public:
                                                                     m_neighborCells.getData());
             cudaErrCheck(cudaDeviceSynchronize());
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -428,7 +445,7 @@ public:
             };
 
             // Cell info
-            const uint4 numCells = m_cells[0]->getNumCellsPerDirection();
+            const CellDimensions numCells = m_cells[0]->getNumCellsPerDirection();
 
             for(uint i = 0; i < m_numObstacles; ++i)
             {
@@ -444,8 +461,8 @@ public:
                                         support(i, Vector3<T>(0, 0, 1))[Z]);
 
                 // Convert world coordinates to cell coordinates
-                const uint3 minCell = m_cells[0]->computeCellID(minExt, false);
-                const uint3 maxCell = m_cells[0]->computeCellID(maxExt, false);
+                const CellIndex minCell = m_cells[0]->computeCellID(minExt, false);
+                const CellIndex maxCell = m_cells[0]->computeCellID(maxExt, false);
 
                 uint cellCount = 0;
                 int  minX      = std::max((int)minCell.x - 1, 0);
@@ -463,7 +480,7 @@ public:
                         for(int z = minZ; z <= maxZ && cellCount < m_maxCellsPerObstacle; ++z)
                         {
                             uint cellHash = m_cells[0]->computeCellHash(
-                                make_uint3((uint)x, (uint)y, (uint)z));
+                                makeCellIndex((uint)x, (uint)y, (uint)z));
                             m_obstacleCellID[offset + cellCount] = cellHash;
                             ++cellCount;
                         }
@@ -475,6 +492,7 @@ public:
                 m_obstacleID[i].y = cellCount;
             }
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             // Launch one block per obstacle with one thread per block
@@ -490,6 +508,7 @@ public:
                                                                m_obstacleCellID.getData());
             cudaErrCheck(cudaDeviceSynchronize());
         }
+#endif
 
         // Obstacles are now in sync; reset flag so we don't relink every iteration for
         // static obstacles. Obstacle time integration must set this back to true when
@@ -512,6 +531,7 @@ public:
             }
             m_maxDisplacementSquared[0] = maxDisplacementSquared;
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             using CountingIt = cub::CountingInputIterator<int>;
@@ -530,6 +550,7 @@ public:
                                                    T(0)));
             cudaErrCheck(cudaDeviceSynchronize());
         }
+#endif
 
         return m_maxDisplacementSquared[0];
     }
@@ -542,6 +563,7 @@ public:
         iteration's needsUpdate() check with near-zero synchronization cost. */
     void launchDisplacementReduceAsync()
     {
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             using CountingIt = cub::CountingInputIterator<int>;
@@ -559,6 +581,7 @@ public:
                                       m_reduceStream);
             m_hasAsyncResult = true;
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Enable C++ standard extensions.")
 
 project(Grains3DGPU
   VERSION ${PACIFIC_VERSION_SEMVER}
-  LANGUAGES CUDA CXX 
+  LANGUAGES CXX
 )
 
 
@@ -31,6 +31,7 @@ else()
 endif()
 
 if (PACIFIC_USE_CUDA)
+  enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
 endif()
 
@@ -50,21 +51,26 @@ endif()
 # ================================================================================
 
 add_subdirectory(Grains)
-add_subdirectory(Main) 
-add_subdirectory(Validations) 
+add_subdirectory(Main)
+if(PACIFIC_USE_CUDA)
+  add_subdirectory(Validations)
+endif()
 
 
 if(PACIFIC_BUILD_TESTS)
   set(GRAINS3D_GPU_SOURCE_ROOT_DIR "${PROJECT_SOURCE_DIR}")
   set(GRAINS3D_GPU_BINARY_ROOT_DIR "${PROJECT_BINARY_DIR}")
   enable_testing()
-  add_subdirectory(Tests)
+  add_subdirectory(Tests/cpu)
+  if(PACIFIC_USE_CUDA)
+    add_subdirectory(Tests)
+  endif()
 endif()
 
 
 # ================================================================================
 #
-# Install 
+# Install
 #
 # ================================================================================
 
@@ -72,8 +78,8 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # ---- 1. Install the shared library ------------------------------------------------
-install(TARGETS 
-  Grains3DGPU 
+install(TARGETS
+  Grains3DGPU
   Grains3DGPU_main
   EXPORT Grains3DGPUTargets
   LIBRARY DESTINATION ${PACIFIC_MPI_INSTALL_LIBDIR}      # libGrains3DGPU.so

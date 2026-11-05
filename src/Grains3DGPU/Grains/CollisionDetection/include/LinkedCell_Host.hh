@@ -246,7 +246,7 @@ public:
         // uses the same 27-cell radius, so the two searches are now symmetric -- without this
         // a candidate sitting in a cell adjacent to an obstacle boundary would miss the
         // obstacle entirely and get inserted overlapping it.
-        const uint2* obstacleIDs         = this->getObstacleIDs();
+        const IndexPair* obstacleIDs         = this->getObstacleIDs();
         const uint*  obstacleCellIDs     = this->getObstacleCellIDs();
         const uint   maxCellsPerObstacle = this->getMaxCellsPerObstacle();
 

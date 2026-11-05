@@ -1,11 +1,16 @@
+#include "GrainsPlatform.hh"
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
 #include <type_traits>
 #include <vector>
 
 #include "BodyTag.hh"
 #include "CollisionDetectionCommon.hh"
 #include "CollisionDetectionModule.hh"
+#if GRAINS_CUDA_COMPILER
 #include "CollisionDetectionModule_Kernels.hh"
+#endif
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 
@@ -48,8 +53,10 @@ CollisionDetectionModule<T, M>::CollisionDetectionModule(
     size_t freeMem;
     if constexpr(M == MemType::HOST)
         freeMem = getAvailableHostMemory();
+#if GRAINS_CUDA_COMPILER
     else
         freeMem = getAvailableDeviceMemory();
+#endif
 
     const auto& LCD       = GrainsParameters<T>::m_collisionDetection.linkedCellParameters;
     size_t estimatedPairs = static_cast<size_t>(nParticles) * LCD.initialNumberOfPairsPerParticle;
@@ -66,6 +73,7 @@ CollisionDetectionModule<T, M>::CollisionDetectionModule(
     m_relPosition.initialize(estimatedPairs);
     m_relQuaternion.initialize(estimatedPairs);
     m_contactInfoLocal.initialize(estimatedPairs);
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         m_bvPassFlags.initialize(estimatedPairs);
@@ -83,6 +91,8 @@ CollisionDetectionModule<T, M>::CollisionDetectionModule(
                                    (int)estimatedPairs);
         m_cubTempStorage.initialize(m_cubTempStorageBytes);
     }
+#endif
+
     // Always build the compact shape/BV tables so that toggling usePrebuiltShapes at
     // runtime (e.g. across benchmark iterations) never reads an uninitialized m_shapeData.
     // Cost is O(nUniqueShapes) -- dominated by every other init step.
@@ -95,7 +105,7 @@ CollisionDetectionModule<T, M>::CollisionDetectionModule(
 // -------------------------------------------------------------------------------------------------
 // Gets the current pair list pointer from the neighbor list
 template <typename T, MemType M>
-const uint2* CollisionDetectionModule<T, M>::getPairList() const
+const IndexPair* CollisionDetectionModule<T, M>::getPairList() const
 {
     return m_neighborList->getData();
 }
@@ -137,7 +147,7 @@ void CollisionDetectionModule<T, M>::run(const RigidBody<T>* const*          rig
                                          GrainsMemBuffer<Quaternion<T>, M>&  localQuat,
                                          GrainsMemBuffer<uint, M>&           masterSlot,
                                          GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
-                                         GrainsMemBuffer<uint2, M>&          pairList,
+                                         GrainsMemBuffer<IndexPair, M>&      pairList,
                                          ComponentCounts&                    counts)
 {
     auto& gt = GrainsParameters<T>::m_cdmTimer;
@@ -173,11 +183,14 @@ void CollisionDetectionModule<T, M>::run(const RigidBody<T>* const*          rig
 // Resizes per-pair buffers and ComponentManager's contactInfo / pairList
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::resizePairBuffers(
-    GrainsMemBuffer<uint2, M>& pairList, GrainsMemBuffer<ContactInfo<T>, M>& contactInfo, uint size)
+    GrainsMemBuffer<IndexPair, M>&      pairList,
+    GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
+    uint                                size)
 {
     m_relPosition.resize(size);
     m_relQuaternion.resize(size);
     m_contactInfoLocal.resize(size);
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         m_bvPassFlags.resize(size);
@@ -198,6 +211,8 @@ void CollisionDetectionModule<T, M>::resizePairBuffers(
             m_cubTempStorage.resize(m_cubTempStorageBytes);
         }
     }
+#endif
+
     contactInfo.resize(size);
     pairList.resize(size);
 }
@@ -207,7 +222,7 @@ void CollisionDetectionModule<T, M>::resizePairBuffers(
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::updateNeighborList(
     GrainsMemBuffer<Vector3<T>, M>&     positions,
-    GrainsMemBuffer<uint2, M>&          pairList,
+    GrainsMemBuffer<IndexPair, M>&      pairList,
     GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
     ComponentCounts&                    counts)
 {
@@ -238,7 +253,7 @@ template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::computeRelativeTransformations(
     const GrainsMemBuffer<Vector3<T>, M>&    positions,
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-    const GrainsMemBuffer<uint2, M>&         pairList)
+    const GrainsMemBuffer<IndexPair, M>&     pairList)
 {
     const uint nPairs = m_neighborList->getSize();
     auto&      gt     = GrainsParameters<T>::m_cdmTimer;
@@ -255,6 +270,7 @@ void CollisionDetectionModule<T, M>::computeRelativeTransformations(
                                                   m_relQuaternion.getData(),
                                                   i);
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         if(nPairs == 0)
@@ -273,6 +289,7 @@ void CollisionDetectionModule<T, M>::computeRelativeTransformations(
                                                                          nPairs);
         cudaDeviceSynchronize();
     }
+#endif
 
     gt.stop(CDMStage::RelativeTransform);
 }
@@ -312,6 +329,7 @@ void CollisionDetectionModule<T, M>::buildShapeAndBVData(const RigidBody<T>* con
     m_shapeData.initialize(nUniqueShapes);
     m_bvData.initialize(nUniqueShapes);
 
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         // Upload repSlots to device
@@ -338,6 +356,8 @@ void CollisionDetectionModule<T, M>::buildShapeAndBVData(const RigidBody<T>* con
         cudaDeviceSynchronize();
     }
     else
+#endif
+
     {
         ::buildShapeAndBVData(m_shapeData.getData(),
                               m_bvData.getData(),
@@ -352,10 +372,10 @@ void CollisionDetectionModule<T, M>::buildShapeAndBVData(const RigidBody<T>* con
 // A-local frame. DEVICE BV-ON and composite paths use the compacted m_bvPassPairIndices list.
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::detectCollisionsComponents(
-    const RigidBody<T>* const*       rigidBodies,
-    const GrainsMemBuffer<uint2, M>& pairList,
-    const GrainsMemBuffer<uint, M>&  bodyTags,
-    const ComponentCounts&           counts)
+    const RigidBody<T>* const*           rigidBodies,
+    const GrainsMemBuffer<IndexPair, M>& pairList,
+    const GrainsMemBuffer<uint, M>&      bodyTags,
+    const ComponentCounts&               counts)
 {
     const uint               nPairs = m_neighborList->getSize();
     const BoundingVolumeType bvType = GrainsParameters<T>::m_collisionDetection.boundingVolumeType;
@@ -380,7 +400,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponents(
                 {
                     if(counts.numComposites > 0)
                     {
-                        const uint2 p    = pairList.getData()[i];
+                        const IndexPair p    = pairList.getData()[i];
                         const uint  tagA = bt[p.x];
                         const uint  tagB = bt[p.y];
                         if(isSubBody(tagA) && isSubBody(tagB)
@@ -422,6 +442,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponents(
         else
             run(OFFT{});
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         if(bvType == BoundingVolumeType::OBB || bvType == BoundingVolumeType::OBC
@@ -512,6 +533,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponents(
             gt.stop(CDMStage::NarrowPhase);
         }
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -521,7 +543,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
     const RigidBody<T>* const*               rigidBodies,
     const GrainsMemBuffer<Vector3<T>, M>&    positions,
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-    const GrainsMemBuffer<uint2, M>&         pairList,
+    const GrainsMemBuffer<IndexPair, M>&     pairList,
     GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo,
     const GrainsMemBuffer<uint, M>&          bodyTags,
     const ComponentCounts&                   counts)
@@ -549,7 +571,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
                 {
                     if(counts.numComposites > 0)
                     {
-                        const uint2 p    = pairList.getData()[i];
+                        const IndexPair p    = pairList.getData()[i];
                         const uint  tagA = bt[p.x];
                         const uint  tagB = bt[p.y];
                         if(isSubBody(tagA) && isSubBody(tagB)
@@ -591,6 +613,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
         else
             run(OFFT{});
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         const bool needFilter = (bvType == BoundingVolumeType::OBB
@@ -727,6 +750,7 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
             gt.stop(CDMStage::NarrowPhase);
         }
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -735,12 +759,13 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
 // OFF. Only invoked on the DEVICE path.
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::filterPairsBV(
-    const RigidBody<T>* const*          rigidBodies,
-    const GrainsMemBuffer<uint2, M>&    pairList,
-    GrainsMemBuffer<ContactInfo<T>, M>& contactInfoLocal,
-    const uint*                         bodyTags,
-    uint                                numComposites)
+    const RigidBody<T>* const*           rigidBodies,
+    const GrainsMemBuffer<IndexPair, M>& pairList,
+    GrainsMemBuffer<ContactInfo<T>, M>&  contactInfoLocal,
+    const uint*                          bodyTags,
+    uint                                 numComposites)
 {
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         auto& gt = GrainsParameters<T>::m_cdmTimer;
@@ -842,6 +867,7 @@ void CollisionDetectionModule<T, M>::filterPairsBV(
 
         gt.stop(CDMStage::BVFilter);
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -852,11 +878,12 @@ void CollisionDetectionModule<T, M>::filterPairsBV_global(
     const RigidBody<T>* const*               rigidBodies,
     const GrainsMemBuffer<Vector3<T>, M>&    positions,
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-    const GrainsMemBuffer<uint2, M>&         pairList,
+    const GrainsMemBuffer<IndexPair, M>&     pairList,
     GrainsMemBuffer<ContactInfo<T>, M>&      contactInfoLocal,
     const uint*                              bodyTags,
     uint                                     numComposites)
 {
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         auto& gt = GrainsParameters<T>::m_cdmTimer;
@@ -952,12 +979,13 @@ void CollisionDetectionModule<T, M>::filterPairsBV_global(
 
         gt.stop(CDMStage::BVFilter);
     }
+#endif
 }
 template <typename T, MemType M>
 void CollisionDetectionModule<T, M>::transformContactInfo(
     const GrainsMemBuffer<Vector3<T>, M>&    positions,
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-    const GrainsMemBuffer<uint2, M>&         pairList,
+    const GrainsMemBuffer<IndexPair, M>&     pairList,
     GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo)
 {
     const uint nPairs = m_neighborList->getSize();
@@ -975,6 +1003,7 @@ void CollisionDetectionModule<T, M>::transformContactInfo(
                                         contactInfo.getData(),
                                         i);
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         if(nPairs == 0)
@@ -993,6 +1022,8 @@ void CollisionDetectionModule<T, M>::transformContactInfo(
                                                                nPairs);
         cudaDeviceSynchronize();
     }
+#endif
+
     gt.stop(CDMStage::Transform);
 }
 
@@ -1043,6 +1074,7 @@ void CollisionDetectionModule<T, M>::sortParticles(GrainsMemBuffer<Vector3<T>, M
                         masterSlot[getCompositeIdx(tag)] = cID;
                 }
             }
+#if GRAINS_CUDA_COMPILER
             else if constexpr(M == MemType::DEVICE)
             {
                 uint numThreads, numBlocks;
@@ -1054,6 +1086,7 @@ void CollisionDetectionModule<T, M>::sortParticles(GrainsMemBuffer<Vector3<T>, M
                                                                     bodyTags.getData(),
                                                                     nTotal);
             }
+#endif
         }
         gt.stop(CDMStage::Sort);
     }
@@ -1065,5 +1098,9 @@ void CollisionDetectionModule<T, M>::sortParticles(GrainsMemBuffer<Vector3<T>, M
 // Explicit instantiations
 template class CollisionDetectionModule<float, MemType::HOST>;
 template class CollisionDetectionModule<double, MemType::HOST>;
+#if GRAINS_CUDA_COMPILER
 template class CollisionDetectionModule<float, MemType::DEVICE>;
+#endif
+#if GRAINS_CUDA_COMPILER
 template class CollisionDetectionModule<double, MemType::DEVICE>;
+#endif

@@ -1,7 +1,10 @@
+#include "GrainsPlatform.hh"
 #include "ForceModule.hh"
 #include "BodyTag.hh"
 #include "ForceModuleCommon.hh"
+#if GRAINS_CUDA_COMPILER
 #include "ForceModule_Kernels.hh"
+#endif
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 
@@ -10,6 +13,7 @@
 template <typename T, MemType M>
 ForceModule<T, M>::ForceModule(size_t pairCapacity, bool isContactWithMemory)
 {
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         // Compaction buffers sized to pair capacity
@@ -22,6 +26,7 @@ ForceModule<T, M>::ForceModule(size_t pairCapacity, bool isContactWithMemory)
                                                   m_numActivePairsMapped.getDeviceData());
         m_cubSelectTempStorage.initialize(cubBytes);
     }
+#endif
 
     if(isContactWithMemory)
     {
@@ -35,6 +40,7 @@ ForceModule<T, M>::ForceModule(size_t pairCapacity, bool isContactWithMemory)
 template <typename T, MemType M>
 void ForceModule<T, M>::resizeBuffers(size_t newPairCapacity)
 {
+#if GRAINS_CUDA_COMPILER
     if constexpr(M == MemType::DEVICE)
     {
         m_activeIndex.resize(newPairCapacity);
@@ -44,6 +50,7 @@ void ForceModule<T, M>::resizeBuffers(size_t newPairCapacity)
                                                   m_numActivePairsMapped.getDeviceData());
         m_cubSelectTempStorage.resize(cubBytes);
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -90,6 +97,7 @@ void ForceModule<T, M>::assembleCompositeTorces(GrainsMemBuffer<Torce<T>, M>&   
             torce[cID].reset();
         }
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         uint numThreads, numBlocks;
@@ -100,6 +108,7 @@ void ForceModule<T, M>::assembleCompositeTorces(GrainsMemBuffer<Torce<T>, M>&   
                                                                   bodyTag.getData(),
                                                                   nTotal);
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -109,7 +118,7 @@ void ForceModule<T, M>::run(const GrainsMemBuffer<ContactForceModel<T>*, M>& CF,
                             const GrainsMemBuffer<RigidBody<T>*, M>*         rigidBody,
                             const GrainsMemBuffer<Vector3<T>, M>&            position,
                             const GrainsMemBuffer<Kinematics<T>, M>&         velocity,
-                            const GrainsMemBuffer<uint2, M>&                 pairList,
+                            const GrainsMemBuffer<IndexPair, M>&             pairList,
                             const GrainsMemBuffer<ContactInfo<T>, M>&        contactInfo,
                             GrainsMemBuffer<Torce<T>, M>&                    torce,
                             const GrainsMemBuffer<uint, M>&                  bodyTag,
@@ -154,6 +163,7 @@ void ForceModule<T, M>::run(const GrainsMemBuffer<ContactForceModel<T>*, M>& CF,
         }
         gt.stop(FMStage::ExternalForces);
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         using GP = GrainsParameters<T>;
@@ -256,6 +266,7 @@ void ForceModule<T, M>::run(const GrainsMemBuffer<ContactForceModel<T>*, M>& CF,
                                                             numParticles);
         gt.stop(FMStage::ExternalForces);
     }
+#endif
 
     // 8. Accumulate sub-body torces into composite masters only when needed.
     if(counts.numSubBodies > 0)
@@ -271,5 +282,9 @@ void ForceModule<T, M>::run(const GrainsMemBuffer<ContactForceModel<T>*, M>& CF,
 // Explicit instantiations
 template class ForceModule<float, MemType::HOST>;
 template class ForceModule<double, MemType::HOST>;
+#if GRAINS_CUDA_COMPILER
 template class ForceModule<float, MemType::DEVICE>;
+#endif
+#if GRAINS_CUDA_COMPILER
 template class ForceModule<double, MemType::DEVICE>;
+#endif

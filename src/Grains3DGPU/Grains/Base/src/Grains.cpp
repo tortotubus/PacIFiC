@@ -61,6 +61,7 @@ void Grains<T>::postProcess(const std::unique_ptr<ComponentManager<T, MT>>& cm)
     if(GP::m_tSave.front() - SS.time < 0.01 * GP::m_dt)
     {
         GP::m_tSave.pop();
+#if GRAINS_CUDA_COMPILER
         if constexpr(MT == MemType::DEVICE)
         {
             cm->copyTo_PostProcessing(m_components);
@@ -68,6 +69,8 @@ void Grains<T>::postProcess(const std::unique_ptr<ComponentManager<T, MT>>& cm)
                 pp->PostProcessing(m_rigidBodyList, m_components, SS.time);
         }
         else
+#endif
+
         {
             for(auto& pp : m_postProcessor)
                 pp->PostProcessing(m_rigidBodyList, cm, SS.time);
@@ -554,9 +557,14 @@ template class Grains<float>;
 template class Grains<double>;
 template void Grains<float>::postProcess<MemType::HOST>(
     const std::unique_ptr<ComponentManager<float, MemType::HOST>>&);
+#if GRAINS_CUDA_COMPILER
 template void Grains<float>::postProcess<MemType::DEVICE>(
     const std::unique_ptr<ComponentManager<float, MemType::DEVICE>>&);
+#endif
+
 template void Grains<double>::postProcess<MemType::HOST>(
     const std::unique_ptr<ComponentManager<double, MemType::HOST>>&);
+#if GRAINS_CUDA_COMPILER
 template void Grains<double>::postProcess<MemType::DEVICE>(
     const std::unique_ptr<ComponentManager<double, MemType::DEVICE>>&);
+#endif

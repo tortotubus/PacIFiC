@@ -1,11 +1,13 @@
+#include "GrainsPlatform.hh"
 // TODO: CHANGE THE FORMAT FROM HH TO CUH LATER.
 #ifndef _COMPONENTMANAGERGPU_KERNLES_CUH_
 #define _COMPONENTMANAGERGPU_KERNLES_CUH_
 
+#if GRAINS_CUDA_COMPILER
 #include <cuda_runtime.h>
+#endif
 
-#include "ComponentManager.hh"
-#include "ComponentManagerCommon.hh"
+#include "ParticleIntegration.hh"
 #include "Kinematics.hh"
 #include "Quaternion.hh"
 #include "QuaternionMath.hh"
@@ -47,17 +49,20 @@ __GLOBAL__ void moveParticles_Kernel(const TimeIntegrator<T>* const* TI,
                                      const uint                      nObstacles,
                                      const uint                      nParticles)
 {
-    uint pID = blockIdx.x * blockDim.x + threadIdx.x;
-
+    const uint pID = blockIdx.x * blockDim.x + threadIdx.x;
     if(pID >= nParticles)
         return;
 
-    const uint cID = nObstacles + pID;
-    // Skip non-master sub-bodies -- their positions are set by updateSubBodyPositions_Kernel
-    if(isSubBody(bodyTag[cID]) && getSubBodyLocalIdx(bodyTag[cID]) != 0u)
-        return;
-
-    moveParticles_common(TI, rigidBody, position, quaternion, velocity, torce, cID);
+    const ParticleIntegrationView<T> view{TI,
+                                          rigidBody,
+                                          position,
+                                          quaternion,
+                                          velocity,
+                                          torce,
+                                          bodyTag,
+                                          nObstacles,
+                                          nObstacles + nParticles};
+    view.move(nObstacles + pID);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -81,17 +86,19 @@ __GLOBAL__ void advanceVelocity_Kernel(const TimeIntegrator<T>* const* TI,
                                        const uint                      nObstacles,
                                        const uint                      nParticles)
 {
-    uint pID = blockIdx.x * blockDim.x + threadIdx.x;
-
+    const uint pID = blockIdx.x * blockDim.x + threadIdx.x;
     if(pID >= nParticles)
         return;
 
-    const uint cID = nObstacles + pID;
-    // Skip non-master sub-bodies -- they are slaved to their composite master
-    if(isSubBody(bodyTag[cID]) && getSubBodyLocalIdx(bodyTag[cID]) != 0u)
-        return;
-
-    advanceVelocity_common(TI, rigidBody, quaternion, velocity, torce, cID);
+    const ParticleVelocityView<T> view{TI,
+                                       rigidBody,
+                                       quaternion,
+                                       velocity,
+                                       torce,
+                                       bodyTag,
+                                       nObstacles,
+                                       nObstacles + nParticles};
+    view.advanceVelocity(nObstacles + pID);
 }
 
 // -------------------------------------------------------------------------------------------------

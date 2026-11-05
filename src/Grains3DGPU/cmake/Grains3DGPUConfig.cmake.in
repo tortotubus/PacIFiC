@@ -6,6 +6,13 @@ if(@PACIFIC_USE_MPI@)
   find_dependency(MPI COMPONENTS C)
 endif()
 
+if(@PACIFIC_USE_CUDA@)
+  find_dependency(CUDAToolkit)
+endif()
+if(@PACIFIC_USE_OPENMP@)
+  find_dependency(OpenMP COMPONENTS CXX)
+endif()
+
 find_dependency(ZLIB)
 find_dependency(XercesC)
 

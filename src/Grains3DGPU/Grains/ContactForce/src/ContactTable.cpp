@@ -1,7 +1,10 @@
 #include "ContactTable.hh"
+#include "GrainsParameters.hh"
 
 // -------------------------------------------------------------------------------------------------
 // CUDA kernel for mark-and-sweep cleanup
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __GLOBAL__ void markAndSweepKernel(ContactEntry*      table,
                                    ContactHistory<T>* history,
@@ -29,6 +32,7 @@ __GLOBAL__ void markAndSweepKernel(ContactEntry*      table,
         entry.m_valid = 1;
     }
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Default constructor
@@ -150,6 +154,7 @@ uint ContactHashTable<T, M>::getNextIndex() const
     {
         return *m_nextIndex;
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         // Copy from device to host
@@ -157,6 +162,7 @@ uint ContactHashTable<T, M>::getNextIndex() const
         cudaErrCheck(cudaMemcpy(&hostValue, m_nextIndex, sizeof(uint), cudaMemcpyDeviceToHost));
         return hostValue;
     }
+#endif
 
     return 0;
 }
@@ -181,12 +187,14 @@ void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
     {
         m_table.fill(ContactEntry());
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         // Initialize device memory to zero. ContactEntry is not a POD primitive,
         // so use cudaMemset to avoid instantiating device-side constructors.
         cudaErrCheck(cudaMemset(m_table.getData(), 0, hashCapacity * sizeof(ContactEntry)));
     }
+#endif
 
     // Allocate and initialize the history data
     m_historyData.initialize(maxContacts);
@@ -194,11 +202,13 @@ void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
     {
         m_historyData.fill(ContactHistory<T>());
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         cudaErrCheck(
             cudaMemset(m_historyData.getData(), 0, maxContacts * sizeof(ContactHistory<T>)));
     }
+#endif
 
     // Allocate the index counter
     if constexpr(M == MemType::HOST)
@@ -206,11 +216,13 @@ void ContactHashTable<T, M>::allocate(uint hashCapacity, uint maxContacts)
         m_nextIndex  = new uint;
         *m_nextIndex = 0;
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         cudaErrCheck(cudaMalloc(&m_nextIndex, sizeof(uint)));
         cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -229,10 +241,13 @@ void ContactHashTable<T, M>::deallocate()
         {
             delete m_nextIndex;
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             cudaFree(m_nextIndex);
         }
+#endif
+
         m_nextIndex = nullptr;
     }
 }
@@ -248,10 +263,12 @@ void ContactHashTable<T, M>::clear()
         {
             m_table.fill(ContactEntry());
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(cudaMemset(m_table.getData(), 0, m_capacity * sizeof(ContactEntry)));
         }
+#endif
     }
 
     if(m_historyData.getSize() > 0)
@@ -260,11 +277,13 @@ void ContactHashTable<T, M>::clear()
         {
             m_historyData.fill(ContactHistory<T>());
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(
                 cudaMemset(m_historyData.getData(), 0, m_maxContacts * sizeof(ContactHistory<T>)));
         }
+#endif
     }
 
     if(m_nextIndex != nullptr)
@@ -273,10 +292,12 @@ void ContactHashTable<T, M>::clear()
         {
             *m_nextIndex = 0;
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
         }
+#endif
     }
 }
 
@@ -291,10 +312,12 @@ void ContactHashTable<T, M>::resetIndexCounter()
         {
             *m_nextIndex = 0;
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             cudaErrCheck(cudaMemset(m_nextIndex, 0, sizeof(uint)));
         }
+#endif
     }
 }
 
@@ -332,6 +355,7 @@ void ContactHashTable<T, M>::markAndSweep()
             }
         }
     }
+#if GRAINS_CUDA_COMPILER
     else if constexpr(M == MemType::DEVICE)
     {
         uint numBlocks, numThreads;
@@ -345,11 +369,16 @@ void ContactHashTable<T, M>::markAndSweep()
                                                          m_maxContacts);
         cudaErrCheck(cudaGetLastError());
     }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
 // Explicit template instantiation
 template class ContactHashTable<float, MemType::HOST>;
+#if GRAINS_CUDA_COMPILER
 template class ContactHashTable<float, MemType::DEVICE>;
+#endif
 template class ContactHashTable<double, MemType::HOST>;
+#if GRAINS_CUDA_COMPILER
 template class ContactHashTable<double, MemType::DEVICE>;
+#endif

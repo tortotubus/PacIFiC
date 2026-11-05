@@ -105,8 +105,12 @@ public:
         It calls a device kernel that is implemented in the source file.
         @param h_CF Host-side ContactForceModel object
         @param d_CF Device-side ContactForceModel object */
+
+#if GRAINS_CUDA_COMPILER
     static void copyHostToDevice(GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST>&   h_CF,
                                  GrainsMemBuffer<ContactForceModel<T>*, MemType::DEVICE>& d_CF);
+#endif
+
     //@}
 };
 

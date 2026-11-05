@@ -1,6 +1,8 @@
 #ifndef _NEIGHBORLIST_NSQ_HH_
 #define _NEIGHBORLIST_NSQ_HH_
 
+#include "GrainsPlatform.hh"
+
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
@@ -87,6 +89,7 @@ public:
                 updateNeighborList_Nsq_Host(nObstacles, nParticles, m_pairList.getData());
                 *m_pairCount = neededPairs;
             }
+#if GRAINS_CUDA_COMPILER
             else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
             {
                 uint numBlocks, numThreads;
@@ -100,6 +103,8 @@ public:
                 *m_pairCount = neededPairs;
                 cudaDeviceSynchronize();
             }
+#endif
+
             return true;
         }
         else

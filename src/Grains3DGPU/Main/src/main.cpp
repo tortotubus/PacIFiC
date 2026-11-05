@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
             rc = run_grains<double>(rootNode, opt.dry_run);
         }
 
-        rootNode->getOwnerDocument()->release();
+        // ReaderXML owns the parser and its DOM documents; terminate releases them.
         rootNode = nullptr;
         ReaderXML::terminate();
         reader_initialized = false;
@@ -192,10 +192,6 @@ int main(int argc, char* argv[])
         std::cerr << "ERROR: unknown exception\n";
     }
 
-    if(rootNode)
-    {
-        rootNode->getOwnerDocument()->release();
-    }
     if(reader_initialized)
     {
         ReaderXML::terminate();

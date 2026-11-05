@@ -10,7 +10,7 @@ add_subdirectory(Grains3D)
 # Add Grains3DGPU
 #
 
-if (PACIFIC_USE_CUDA)
+if (PACIFIC_BUILD_GRAINS3DGPU)
     add_subdirectory(Grains3DGPU)
 endif()
 

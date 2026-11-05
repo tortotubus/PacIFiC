@@ -1,7 +1,11 @@
 #ifndef _PARTICLESORTER_HH_
 #define _PARTICLESORTER_HH_
 
+#include "GrainsPlatform.hh"
+
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
 
 #include "Basic.hh"
 #include "Cells.hh"
@@ -10,7 +14,9 @@
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 #include "Kinematics.hh"
+#if GRAINS_CUDA_COMPILER
 #include "ParticleSorter_Kernels.hh"
+#endif
 #include "Quaternion.hh"
 #include "Torce.hh"
 #include "Vector3.hh"
@@ -53,7 +59,9 @@ protected:
     /** \brief CUB sort temporary storage bytes */
     size_t m_cubSortTempStorageBytes = 0;
     /** \brief CUDA streams for parallel gather operations (device only) */
+#if GRAINS_CUDA_COMPILER
     cudaStream_t m_streams[7];
+#endif
     //@}
 
 public:
@@ -93,6 +101,7 @@ public:
         m_tempLocalPos.reserve(numParticles);
         m_tempLocalQuat.reserve(numParticles);
 
+#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
             cudaGetLastError();
@@ -112,6 +121,7 @@ public:
             for(int i = 0; i < 7; ++i)
                 cudaStreamCreate(&m_streams[i]);
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -124,6 +134,7 @@ public:
             if(m_cells.getSize() > 0 && m_cells[0] != nullptr)
                 delete m_cells[0];
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             // Free CUB workspace
@@ -147,6 +158,7 @@ public:
                 cudaDeviceSynchronize();
             }
         }
+#endif
     }
     //@}
 
@@ -241,6 +253,7 @@ public:
                 dstLocalQuat[i] = tempLocalQuat[i];
             }
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             using GP = GrainsParameters<T>;
@@ -384,6 +397,7 @@ public:
             for(int i = 0; i < 7; ++i)
                 cudaStreamSynchronize(m_streams[i]);
         }
+#endif
     }
     //@}
 };

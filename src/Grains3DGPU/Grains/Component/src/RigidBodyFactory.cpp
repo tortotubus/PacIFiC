@@ -25,6 +25,8 @@
 /* ============================================================================================== */
 // GPU kernel to construct rigid bodies on device in batches
 // Takes array of indices where each rigid body should be placed
+
+#if GRAINS_CUDA_COMPILER
 template <typename T, typename... Arguments>
 __GLOBAL__ void createRigidBodiesBatchKernel(RigidBody<T>** rb,
                                              const uint*    indices,
@@ -72,9 +74,12 @@ __GLOBAL__ void createRigidBodiesBatchKernel(RigidBody<T>** rb,
         rb[targetIdx]  = new RigidBody<T>(convex, crustThickness, density, material);
     }
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Calls delete on every RigidBody pointer. */
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __GLOBAL__ void deleteRigidBodiesKernel(RigidBody<T>** d_RB, uint n)
 {
@@ -85,6 +90,7 @@ __GLOBAL__ void deleteRigidBodiesKernel(RigidBody<T>** d_RB, uint n)
         d_RB[i] = nullptr;
     }
 }
+#endif
 
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
@@ -447,6 +453,8 @@ __HOST__ void RigidBodyFactory<T>::create(DOMNode*         obstacles,
 // -------------------------------------------------------------------------------------------------
 // Constructs RigidBody objects on device by grouping similar bodies and launching one kernel per
 // group
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __HOST__ void
     RigidBodyFactory<T>::copyHostToDevice(GrainsMemBuffer<RigidBody<T>*, MemType::HOST>&   h_RB,
@@ -704,8 +712,11 @@ __HOST__ void
 
     cudaErrCheck(cudaDeviceSynchronize());
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __HOST__ void RigidBodyFactory<T>::freeDevice(GrainsMemBuffer<RigidBody<T>*, MemType::DEVICE>& d_RB)
 {
@@ -717,6 +728,7 @@ __HOST__ void RigidBodyFactory<T>::freeDevice(GrainsMemBuffer<RigidBody<T>*, Mem
     deleteRigidBodiesKernel<<<numBlocks, numThreads>>>(d_RB.getData(), n);
     cudaErrCheck(cudaDeviceSynchronize());
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Explicit instantiation

@@ -1,13 +1,21 @@
 #ifndef _LINKEDCELLFACTORY_HH_
 #define _LINKEDCELLFACTORY_HH_
 
+#include "GrainsPlatform.hh"
+
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "LinkedCell.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_Atomic.hh"
+#endif
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_AtomicFixed.hh"
+#endif
 #include "LinkedCell_Host.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_SortBased.hh"
+#endif
 
 // =================================================================================================
 /** @brief The class LinkedCellFactory.
@@ -65,6 +73,7 @@ public:
                                                         nObstacles,
                                                         nParticles);
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             if(type == LinkedCellType::SORTBASED)
@@ -98,6 +107,7 @@ public:
                 GAbort("LinkedCell type not supported on device. Aborting "
                        "Grains!");
         }
+#endif
 
         return nullptr;  // Should never reach here
     }

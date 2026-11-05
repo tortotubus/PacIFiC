@@ -1,3 +1,5 @@
+#include "Basic.hh"
+#include "GrainsPlatform.hh"
 #include <algorithm>
 #include <set>
 
@@ -7,30 +9,32 @@
 // -------------------------------------------------------------------------------------------------
 // Updates the neighbor list on host using an O(n^2) algorithm
 __HOST__ void
-    updateNeighborList_Nsq_Host(const uint nObstacles, const uint nParticles, uint2* pairList)
+    updateNeighborList_Nsq_Host(const uint nObstacles, const uint nParticles, IndexPair* pairList)
 {
     for(uint i = 0; i < nObstacles; ++i)
         for(uint j = 0; j < nParticles; ++j)
-            pairList[nParticles * i + j] = make_uint2(i, nObstacles + j);
+            pairList[nParticles * i + j] = makeIndexPair(i, nObstacles + j);
 
     // Offset for p-p interactions.
     uint offset = nObstacles * nParticles;
     for(uint i = 0; i < nParticles; ++i)
         for(uint j = i + 1; j < nParticles; ++j)
-            pairList[offset + i + j * (j - 1) / 2] = make_uint2(nObstacles + i, nObstacles + j);
+            pairList[offset + i + j * (j - 1) / 2] = makeIndexPair(nObstacles + i, nObstacles + j);
 }
 
 // -------------------------------------------------------------------------------------------------
 // Updates the neighbor list on device using an O(n^2) algorithm
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void
-    updateNeighborList_Nsq_Device(const uint nObstacles, const uint nParticles, uint2* pairList)
+    updateNeighborList_Nsq_Device(const uint nObstacles, const uint nParticles, IndexPair* pairList)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
     if(tID < nObstacles)
     {
         // Obstacle to particle pairs
         for(uint j = 0; j < nParticles; ++j)
-            pairList[nParticles * tID + j] = make_uint2(tID, nObstacles + j);
+            pairList[nParticles * tID + j] = makeIndexPair(tID, nObstacles + j);
     }
     else if(tID < nObstacles + nParticles)
     {
@@ -40,24 +44,26 @@ __GLOBAL__ void
         tID -= nObstacles;
         // Particle to obstacle pairs
         for(uint j = tID + 1; j < nParticles; ++j)
-            pairList[offset + tID + j * (j - 1) / 2] = make_uint2(nObstacles + tID, nObstacles + j);
+            pairList[offset + tID + j * (j - 1) / 2]
+                = makeIndexPair(nObstacles + tID, nObstacles + j);
     }
     else
         return;
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Updates the neighbor list on host using a linked cell approach
-__HOST__ void updateNeighborList_LC_Host(const uint*                            cellNeighborsList,
-                                         const uint2*                           obstacleIDs,
-                                         const uint*                            obstacleCellIDs,
-                                         const uint*                            particleIDs,
-                                         const uint*                            cellIDs,
-                                         const std::vector<std::list<uint>>&    cellParticles,
-                                         const uint                             maxCellsPerObstacle,
-                                         const uint                             numObstacles,
-                                         const uint                             numParticles,
-                                         GrainsMemBuffer<uint2, MemType::HOST>& pairList)
+__HOST__ void updateNeighborList_LC_Host(const uint*                         cellNeighborsList,
+                                         const IndexPair*                    obstacleIDs,
+                                         const uint*                         obstacleCellIDs,
+                                         const uint*                         particleIDs,
+                                         const uint*                         cellIDs,
+                                         const std::vector<std::list<uint>>& cellParticles,
+                                         const uint                          maxCellsPerObstacle,
+                                         const uint                          numObstacles,
+                                         const uint                          numParticles,
+                                         GrainsMemBuffer<IndexPair, MemType::HOST>& pairList)
 {
     constexpr uint NUM_NEIGHBOR_CELLS = 27;  // Number of neighboring cells
 
@@ -79,7 +85,7 @@ __HOST__ void updateNeighborList_LC_Host(const uint*                            
 
             // Check against all particles in the target cell
             for(uint particleID : targetCellParticles)
-                pairList.push_back(make_uint2(obstacleIndex, particleID));
+                pairList.push_back(makeIndexPair(obstacleIndex, particleID));
         }
     }
 
@@ -112,7 +118,7 @@ __HOST__ void updateNeighborList_LC_Host(const uint*                            
                     {
                         // Same-cell: avoid duplicates with ordering check
                         if(primaryParticle < otherParticle)
-                            pairList.push_back(make_uint2(primaryParticle, otherParticle));
+                            pairList.push_back(makeIndexPair(primaryParticle, otherParticle));
                     }
                     else
                     {
@@ -121,7 +127,7 @@ __HOST__ void updateNeighborList_LC_Host(const uint*                            
                             = primaryParticle < otherParticle ? primaryParticle : otherParticle;
                         const uint hi
                             = primaryParticle < otherParticle ? otherParticle : primaryParticle;
-                        pairList.push_back(make_uint2(lo, hi));
+                        pairList.push_back(makeIndexPair(lo, hi));
                     }
                 }
             }
@@ -131,16 +137,18 @@ __HOST__ void updateNeighborList_LC_Host(const uint*                            
 
 // -------------------------------------------------------------------------------------------------
 // Generate obstacle-particle pairs on device
-__GLOBAL__ void generateObstacleParticlePairs_Device(const uint2*    obstacleIDs,
-                                                     const uint*     obstacleCellIDs,
-                                                     const uint64_t* packedCellParticleIDs,
-                                                     const uint*     cellPrefixSums,
-                                                     const uint      maxCellsPerObstacle,
-                                                     const uint      numObstacles,
-                                                     const uint      numParticles,
-                                                     const uint      numCells,
-                                                     uint2*          pairList,
-                                                     uint*           pairCount)
+
+#if GRAINS_CUDA_COMPILER
+__GLOBAL__ void generateObstacleParticlePairs_Device(const IndexPair* obstacleIDs,
+                                                     const uint*      obstacleCellIDs,
+                                                     const uint64_t*  packedCellParticleIDs,
+                                                     const uint*      cellPrefixSums,
+                                                     const uint       maxCellsPerObstacle,
+                                                     const uint       numObstacles,
+                                                     const uint       numParticles,
+                                                     const uint       numCells,
+                                                     IndexPair*       pairList,
+                                                     uint*            pairCount)
 {
     uint obstacleIdx = blockIdx.x;
     if(obstacleIdx >= numObstacles)
@@ -181,13 +189,16 @@ __GLOBAL__ void generateObstacleParticlePairs_Device(const uint2*    obstacleIDs
                 continue;
             uint particleID       = static_cast<uint>(packed & 0xFFFFFFFF);
             uint globalIndex      = atomicAdd(pairCount, 1);
-            pairList[globalIndex] = make_uint2(obstacleIndex, particleID);
+            pairList[globalIndex] = makeIndexPair(obstacleIndex, particleID);
         }
     }
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Count neighbors per particle using linked cells with packed keys
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
                                       const uint64_t* cellParticleIDs,
                                       const uint*     cellPrefixSums,
@@ -255,9 +266,12 @@ __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
 
     neighborCounts[i - numObstacles] = totalNeighbors;
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Updates the neighbor list on device
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
                                              const uint64_t* cellParticleIDs,
                                              const uint*     cellPrefixSums,
@@ -266,7 +280,7 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
                                              const uint      numObstacles,
                                              const uint      numParticles,
                                              const uint      numCells,
-                                             uint2*          pairList)
+                                             IndexPair*      pairList)
 {
     constexpr uint NUM_NEIGHBOR_CELLS = 27;
 
@@ -322,13 +336,16 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
                 continue;
 
             // Always write (min,max) to keep pairs canonically ordered.
-            pairList[insertIndex++] = (i < j) ? make_uint2(i, j) : make_uint2(j, i);
+            pairList[insertIndex++] = (i < j) ? makeIndexPair(i, j) : makeIndexPair(j, i);
         }
     }
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Count neighbors per particle for AtomicFixed using direct count lookup
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsList,
                                                   const uint64_t* cellParticleIDsFixed,
                                                   const uint64_t* particleCellIDsSeq,
@@ -386,9 +403,12 @@ __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsL
 
     neighborCounts[i - numObstacles] = count;
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Updates the neighbor list for AtomicFixed using direct count lookup
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNeighborsList,
                                                          const uint64_t* cellParticleIDsFixed,
                                                          const uint64_t* particleCellIDsSeq,
@@ -399,7 +419,7 @@ __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNei
                                                          const uint      numObstacles,
                                                          const uint      numParticles,
                                                          const uint      numCells,
-                                                         uint2*          pairList)
+                                                         IndexPair*      pairList)
 {
     constexpr uint NUM_NEIGHBOR_CELLS = 27;
 
@@ -443,7 +463,8 @@ __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNei
                 continue;
 
             // Always write (min,max) to keep pairs canonically ordered.
-            pairList[insertIndex++] = (i < j) ? make_uint2(i, j) : make_uint2(j, i);
+            pairList[insertIndex++] = (i < j) ? makeIndexPair(i, j) : makeIndexPair(j, i);
         }
     }
 }
+#endif

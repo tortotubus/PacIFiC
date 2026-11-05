@@ -44,7 +44,7 @@ protected:
         cell. */
     Vector3<T> m_minCornerLinkedCell;
     /** \brief Number of cells per each direction + total number of cells */
-    uint4 m_numCells;
+    CellDimensions m_numCells;
     /** \brief Size of each cell */
     T m_cellSize;
     /** \brief Inverse of size of each cell */
@@ -88,7 +88,7 @@ public:
 
     /** @brief Gets the number of cells along each direction and total */
     __HOSTDEVICE__
-    uint4 getNumCellsPerDirection() const;
+    CellDimensions getNumCellsPerDirection() const;
 
     /** @brief Gets the number of cells */
     __HOSTDEVICE__
@@ -119,18 +119,18 @@ public:
     /** @brief Checks if a cell Id is in range
         @param id 3D Id */
     __HOSTDEVICE__
-    bool isValid(const uint3& id) const;
+    bool isValid(const CellIndex& id) const;
 
     /** @brief Returns the 3d Id of the cell which the point belongs to.
         @param p point
         @param checkIfValid flag to check if the cell ID is valid */
     __HOSTDEVICE__
-    uint3 computeCellID(const Vector3<T>& p, bool checkIfValid = true) const;
+    CellIndex computeCellID(const Vector3<T>& p, bool checkIfValid = true) const;
 
     /** @brief Returns the 3d Id of the cell given its hash
         @param cellHash cell hash */
     __HOSTDEVICE__
-    uint3 computeCellID(const uint cellHash) const;
+    CellIndex computeCellID(const uint cellHash) const;
 
     /** @brief Returns the cell hash of a given point
         @param p point */
@@ -141,7 +141,7 @@ public:
        code)
         @param cellId 3d cell Id */
     __HOSTDEVICE__
-    uint computeCellHash(const uint3& cellId) const;
+    uint computeCellHash(const CellIndex& cellId) const;
 
     /** @brief Returns the cell hash from the 3d Id of the cell (using Morton code).
         @param i position of the cell in the x-direction
@@ -160,7 +160,7 @@ public:
     /** @brief Returns dense linear index [0..numCells) from a 3D cell id. Returns UINT_MAX when
         out of bounds. */
     __HOSTDEVICE__
-    uint computeDenseIndex(const uint3& cellId) const;
+    uint computeDenseIndex(const CellIndex& cellId) const;
 
     /** @brief Returns dense linear index [0..numCells) from i,j,k (no wrap). Returns UINT_MAX when
         out of bounds. */
@@ -186,9 +186,9 @@ private:
 
     /** @brief Decodes linear hash to 3D coordinates
         @param hash Linear hash code
-        @return 3D coordinates as uint3 */
+        @return 3D coordinates as CellIndex */
     __HOSTDEVICE__
-    uint3 decodeLinearHash(uint hash) const;
+    CellIndex decodeLinearHash(uint hash) const;
     //@}
 
     /** @name Morton Code Helper Functions */
@@ -215,9 +215,9 @@ private:
 
     /** @brief Decodes Morton code to 3D coordinates
         @param code Morton code
-        @return 3D coordinates as uint3 */
+        @return 3D coordinates as CellIndex */
     __HOSTDEVICE__
-    uint3 decodeMortonCode(uint code) const;
+    CellIndex decodeMortonCode(uint code) const;
     //@}
 };
 

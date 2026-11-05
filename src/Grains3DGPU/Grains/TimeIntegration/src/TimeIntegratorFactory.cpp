@@ -9,6 +9,8 @@
 // This is mandatory as we cannot access device memory addresses on the host
 // So, we pass a device memory address to a kernel.
 // Memory address is then populated within the kernel.
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __GLOBAL__ void createTimeIntegratorKernel(TimeIntegrator<T>**      TI,
                                            const uint               index,
@@ -26,6 +28,7 @@ __GLOBAL__ void createTimeIntegratorKernel(TimeIntegrator<T>**      TI,
     else
         GAbort("Time integrator is not implemented for GPU!", "Aborting Grains!");
 }
+#endif
 
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
@@ -48,6 +51,8 @@ __HOST__ void TimeIntegratorFactory<T>::create(
 
 // -------------------------------------------------------------------------------------------------
 // Constructs a TimeIntegrator object on device.
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __HOST__ void TimeIntegratorFactory<T>::copyHostToDevice(
     GrainsMemBuffer<TimeIntegrator<T>*, MemType::HOST>&   h_TI,
@@ -67,6 +72,7 @@ __HOST__ void TimeIntegratorFactory<T>::copyHostToDevice(
     }
     cudaDeviceSynchronize();
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Explicit instantiation

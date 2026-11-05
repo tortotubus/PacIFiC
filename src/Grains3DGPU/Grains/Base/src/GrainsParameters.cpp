@@ -1,3 +1,4 @@
+#include "GrainsPlatform.hh"
 #include "GrainsParameters.hh"
 
 // -------------------------------------------------------------------------------------------------
@@ -5,8 +6,10 @@
 /* GPU */
 template <typename T>
 bool GrainsParameters<T>::m_isGPU = false;
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 cudaDeviceProp GrainsParameters<T>::m_GPU = {};
+#endif
 
 /* Dynamic Settings */
 template <typename T>

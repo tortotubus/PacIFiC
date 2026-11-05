@@ -1,9 +1,14 @@
 #ifndef _LINKEDCELL_ATOMICFIXED_HH_
 #define _LINKEDCELL_ATOMICFIXED_HH_
 
+#include "GrainsPlatform.hh"
+#if GRAINS_CUDA_COMPILER
+
 #include "GrainsMemBuffer.hh"
 #include "LinkedCell.hh"
+#if GRAINS_CUDA_COMPILER
 #include "LinkedCell_Kernels.hh"
+#endif
 
 // =================================================================================================
 /** @brief The class LinkedCell_AtomicFixed.
@@ -305,5 +310,7 @@ public:
     }
     //@}
 };
+
+#endif  // GRAINS_CUDA_COMPILER
 
 #endif

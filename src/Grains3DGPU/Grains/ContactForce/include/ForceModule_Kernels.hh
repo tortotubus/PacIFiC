@@ -1,9 +1,14 @@
+#include "GrainsPlatform.hh"
 // TODO: CHANGE THE FORMAT FROM HH TO CUH LATER.
 #ifndef _FORCEMODULE_KERNELS_CUH_
 #define _FORCEMODULE_KERNELS_CUH_
 
+#if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
+#endif
+#if GRAINS_CUDA_COMPILER
 #include <cuda_runtime.h>
+#endif
 
 #include "BodyTag.hh"
 #include "ContactForceModel.hh"
@@ -121,7 +126,7 @@ INLINE uint buildCompactActiveIndexIf(const ContactInfo<T>* contactInfoDev,
     @param nActive number of active pairs */
 template <typename T>
 __GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* CF,
-                                            const uint2*                       pairList,
+                                            const IndexPair*                   pairList,
                                             const ContactInfo<T>*              contactInfo,
                                             const uint*                        activeIdx,
                                             const Vector3<T>*                  position,
@@ -157,12 +162,12 @@ __GLOBAL__ void computeContactForces_Kernel(const ContactForceModel<T>* const* C
     @param torce final per-particle torce array (accumulated atomically)
     @param nActive number of active pairs */
 template <typename T>
-__GLOBAL__ void reduceTorces_Kernel(const uint2*    pairList,
-                                    const uint*     activeIdx,
-                                    const Torce<T>* intermediateTorceA,
-                                    const Torce<T>* intermediateTorceB,
-                                    Torce<T>*       torce,
-                                    const uint      nActive)
+__GLOBAL__ void reduceTorces_Kernel(const IndexPair* pairList,
+                                    const uint*      activeIdx,
+                                    const Torce<T>*  intermediateTorceA,
+                                    const Torce<T>*  intermediateTorceB,
+                                    Torce<T>*        torce,
+                                    const uint       nActive)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -188,7 +193,7 @@ __GLOBAL__ void reduceTorces_Kernel(const uint2*    pairList,
     @param nPairs total number of pairs */
 template <typename T>
 __GLOBAL__ void computeContactForces_AllPairs_Kernel(const ContactForceModel<T>* const* CF,
-                                                     const uint2*                       pairList,
+                                                     const IndexPair*                   pairList,
                                                      const ContactInfo<T>*              contactInfo,
                                                      const Vector3<T>*                  position,
                                                      const Kinematics<T>*               velocity,
@@ -226,11 +231,11 @@ __GLOBAL__ void computeContactForces_AllPairs_Kernel(const ContactForceModel<T>*
     @param torce final per-particle torce array (accumulated atomically)
     @param nPairs total number of pairs */
 template <typename T>
-__GLOBAL__ void reduceTorces_AllPairs_Kernel(const uint2*    pairList,
-                                             const Torce<T>* intermediateTorceA,
-                                             const Torce<T>* intermediateTorceB,
-                                             Torce<T>*       torce,
-                                             const uint      nPairs)
+__GLOBAL__ void reduceTorces_AllPairs_Kernel(const IndexPair* pairList,
+                                             const Torce<T>*  intermediateTorceA,
+                                             const Torce<T>*  intermediateTorceB,
+                                             Torce<T>*        torce,
+                                             const uint       nPairs)
 {
     uint tID = blockIdx.x * blockDim.x + threadIdx.x;
 

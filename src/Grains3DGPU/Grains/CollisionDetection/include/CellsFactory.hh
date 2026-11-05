@@ -1,7 +1,11 @@
 #ifndef _CELLSFACTORY_HH_
 #define _CELLSFACTORY_HH_
 
+#include "GrainsPlatform.hh"
+
+#if GRAINS_CUDA_COMPILER
 #include <cuda_runtime.h>
+#endif
 
 #include "Cells.hh"
 #include "GrainsMemBuffer.hh"
@@ -12,6 +16,8 @@
 /** @brief GPU kernel to construct the Cells on device. This is mandatory as we cannot access
     device memory addresses on the host. So, we pass a device memory address to a kernel. Memory
     address is then populated within the kernel. */
+
+#if GRAINS_CUDA_COMPILER
 template <typename T, CellOrdering CO, typename... Arguments>
 __GLOBAL__ void createCells_Kernel(Cells<T, CO>** cells,
                                    uint           index,
@@ -32,6 +38,7 @@ __GLOBAL__ void createCells_Kernel(Cells<T, CO>** cells,
         = new Cells<T, CO>(Vector3<T>(minX, minY, minZ), Vector3<T>(maxX, maxY, maxZ), size);
     *numCells = cells[index]->getNumCells();
 }
+#endif
 
 // =================================================================================================
 /** @brief The class CellsFactory.
@@ -75,10 +82,12 @@ public:
         {
             return create_host(minCorner, maxCorner, cellSize, cells);
         }
+#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
             return create_device(minCorner, maxCorner, cellSize, cells);
         }
+#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -105,6 +114,8 @@ public:
         @param maxCorner Maximum corner of the domain
         @param cellSize Size of each cell
         @param cells Memory buffer for storing the cell object(s) */
+
+#if GRAINS_CUDA_COMPILER
     static uint create_device(const Vector3<T>&                                minCorner,
                               const Vector3<T>&                                maxCorner,
                               const T                                          cellSize,
@@ -117,6 +128,7 @@ public:
         delete h_cells[0];
         return numCells;
     }
+#endif
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Cells objects must be instantiated on device, if we want to use them on device.
@@ -125,6 +137,8 @@ public:
         device kernel that is implemented in the source file.
         @param h_LC Host-side Cells object
         @param d_LC Device-side Cells object */
+
+#if GRAINS_CUDA_COMPILER
     static void copyHostToDevice(GrainsMemBuffer<Cells<T, CO>*, MemType::HOST>&   h_LC,
                                  GrainsMemBuffer<Cells<T, CO>*, MemType::DEVICE>& d_LC)
     {
@@ -160,6 +174,8 @@ public:
         cudaErrCheck(cudaDeviceSynchronize());
         cudaErrCheck(cudaFree(d_numCells));
     }
+#endif
+
     //@}
 };
 

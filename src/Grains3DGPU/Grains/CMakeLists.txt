@@ -134,117 +134,52 @@ list(APPEND GRAINS3D_GPU_SOURCES
 set(CMAKE_CXX_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN  OFF)
 
-set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
-
-#
-# Object Library (for direct reuse in CUDA consumers like tests)
-#
+if(NOT PACIFIC_USE_CUDA)
+  list(FILTER GRAINS3D_GPU_SOURCES EXCLUDE REGEX "(GrainsGPU|GrainsTestDev|CollisionDetectionModule_Kernels)\\.cpp$")
+else()
+  set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
+endif()
 
 add_library(Grains3DGPU_obj OBJECT ${GRAINS3D_GPU_SOURCES})
 add_library(PacIFiC::Grains3DGPU_obj ALIAS Grains3DGPU_obj)
+add_library(Grains3DGPU SHARED $<TARGET_OBJECTS:Grains3DGPU_obj>)
+add_library(PacIFiC::Grains3DGPU ALIAS Grains3DGPU)
+
+# Shared usage requirements for both the reusable objects and the installed library.
+foreach(grains_target Grains3DGPU_obj Grains3DGPU)
+  target_include_directories(${grains_target} PUBLIC
+    ${GRAINS3D_GPU_INCLUDE_DIRS}
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  )
+  target_link_libraries(${grains_target} PUBLIC ZLIB::ZLIB XercesC::XercesC)
+  if(PACIFIC_USE_MPI)
+    target_link_libraries(${grains_target} PUBLIC MPI::MPI_C)
+  endif()
+  if(PACIFIC_USE_OPENMP)
+    target_link_libraries(${grains_target} PUBLIC OpenMP::OpenMP_CXX)
+  endif()
+  if(PACIFIC_USE_CUDA)
+    set_target_properties(${grains_target} PROPERTIES
+      CUDA_STANDARD ${GRAINS3D_GPU_CUDA_STANDARD}
+      CUDA_STANDARD_REQUIRED ${GRAINS3D_GPU_CUDA_STANDARD_REQUIRED}
+      CUDA_ARCHITECTURES ${GRAINS3D_GPU_CUDA_ARCHITECTURES}
+      CUDA_SEPARABLE_COMPILATION ${GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION}
+      CUDA_RESOLVE_DEVICE_SYMBOLS ${GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS}
+    )
+    target_link_libraries(${grains_target} PUBLIC CUDA::cudart CUDA::curand)
+    foreach(cuda_opt IN LISTS GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST)
+      target_compile_options(${grains_target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${cuda_opt}>)
+    endforeach()
+  endif()
+endforeach()
 
 set_target_properties(Grains3DGPU_obj PROPERTIES
-  CUDA_STANDARD ${GRAINS3D_GPU_CUDA_STANDARD}
-  CUDA_STANDARD_REQUIRED ${GRAINS3D_GPU_CUDA_STANDARD_REQUIRED}
-  CUDA_ARCHITECTURES ${GRAINS3D_GPU_CUDA_ARCHITECTURES}
-  CUDA_SEPARABLE_COMPILATION ${GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION}
-  CUDA_RESOLVE_DEVICE_SYMBOLS ${GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS}
   POSITION_INDEPENDENT_CODE ON
   CXX_VISIBILITY_PRESET default
 )
-
-foreach(cuda_opt IN LISTS GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST)
-  target_compile_options(Grains3DGPU_obj PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:${cuda_opt}>
-  )
-endforeach()
-
-target_include_directories(Grains3DGPU_obj
-  PUBLIC
-    ${GRAINS3D_GPU_INCLUDE_DIRS}
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-if (PACIFIC_USE_MPI)
-  target_link_libraries(Grains3DGPU_obj
-    PUBLIC
-      MPI::MPI_C
-      ZLIB::ZLIB
-      XercesC::XercesC
-      OpenMP::OpenMP_CUDA
-      CUDA::cudart
-      CUDA::curand
-  )
-else()
-  target_link_libraries(Grains3DGPU_obj
-    PUBLIC
-      ZLIB::ZLIB
-      XercesC::XercesC
-      OpenMP::OpenMP_CUDA
-      CUDA::cudart
-      CUDA::curand
-  )
-endif()
-
-#
-# Shared Library
-#
-
-add_library(Grains3DGPU SHARED ${GRAINS3D_GPU_SOURCES})
-
-add_library(PacIFiC::Grains3DGPU ALIAS Grains3DGPU) 
-
 set_target_properties(Grains3DGPU PROPERTIES
-  CUDA_STANDARD ${GRAINS3D_GPU_CUDA_STANDARD}
-  CUDA_STANDARD_REQUIRED ${GRAINS3D_GPU_CUDA_STANDARD_REQUIRED}
-  CUDA_ARCHITECTURES ${GRAINS3D_GPU_CUDA_ARCHITECTURES}
-  CUDA_SEPARABLE_COMPILATION ${GRAINS3D_GPU_CUDA_SEPARABLE_COMPILATION}
-  CUDA_RESOLVE_DEVICE_SYMBOLS ${GRAINS3D_GPU_CUDA_RESOLVE_DEVICE_SYMBOLS}
-)
-
-foreach(cuda_opt IN LISTS GRAINS3D_GPU_CUDA_COMPILE_OPTIONS_LIST)
-  target_compile_options(Grains3DGPU PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:${cuda_opt}>
-  )
-endforeach()
-
-set_target_properties(Grains3DGPU PROPERTIES
-  OUTPUT_NAME "Grains3DGPU"
-)
-
-set_target_properties(Grains3DGPU PROPERTIES
+  OUTPUT_NAME Grains3DGPU
   VERSION ${PROJECT_VERSION}
   SOVERSION ${PROJECT_VERSION_MAJOR}
-)
-
-set_target_properties(Grains3DGPU PROPERTIES
   CXX_VISIBILITY_PRESET default
 )
- 
-target_include_directories(Grains3DGPU
-  PUBLIC
-    ${GRAINS3D_GPU_INCLUDE_DIRS}
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
-if (PACIFIC_USE_MPI)
-  target_link_libraries(Grains3DGPU 
-    PUBLIC
-      MPI::MPI_C
-      ZLIB::ZLIB
-      XercesC::XercesC
-      OpenMP::OpenMP_CUDA
-      CUDA::cudart
-      CUDA::curand
-    )
-else()
-  target_link_libraries(Grains3DGPU
-    PUBLIC
-      ZLIB::ZLIB
-      XercesC::XercesC
-      OpenMP::OpenMP_CUDA
-      CUDA::cudart
-      CUDA::curand
-  )
-endif()
- 

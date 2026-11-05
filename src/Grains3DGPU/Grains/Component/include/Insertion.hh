@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "GrainsMemBuffer.hh"
+#include "GrainsParameters.hh"
 #include "InsertionWindow.hh"
 #include "Kinematics.hh"
 #include "Quaternion.hh"

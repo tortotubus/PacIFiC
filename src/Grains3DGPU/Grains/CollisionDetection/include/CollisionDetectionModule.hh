@@ -64,7 +64,9 @@ private:
     GrainsMemBuffer<uint, M> m_bvPassPairIndices;
     /** \brief Size-1 zero-copy mapped pinned buffer; CUB writes the passing-pair count directly
         into this via the device alias; host reads it without any cudaMemcpy */
+#if GRAINS_CUDA_COMPILER
     GrainsMemBuffer<int, MemType::MAPPED> m_bvPassPairCountMapped;
+#endif
     /** \brief Scratch space for CUB DeviceSelect::Flagged */
     GrainsMemBuffer<uint8_t, M> m_cubTempStorage;
     /** \brief Byte size of the CUB scratch buffer */
@@ -115,7 +117,7 @@ public:
     /** @name Get methods */
     //@{
     /** @brief Returns raw pointer to the pair list (size = getPairCount()) */
-    const uint2* getPairList() const;
+    const IndexPair* getPairList() const;
 
     /** @brief Returns the current number of active pairs in the neighbor list */
     uint getPairCount() const;
@@ -160,7 +162,7 @@ public:
              GrainsMemBuffer<Quaternion<T>, M>&  localQuat,
              GrainsMemBuffer<uint, M>&           masterSlot,
              GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
-             GrainsMemBuffer<uint2, M>&          pairList,
+             GrainsMemBuffer<IndexPair, M>&      pairList,
              ComponentCounts&                    counts);
     //@}
 
@@ -171,7 +173,7 @@ private:
         @param pairList    ComponentManager-owned buffer resized in lock-step
         @param size        New minimum capacity
         @param contactInfo ComponentManager-owned buffer resized in lock-step */
-    void resizePairBuffers(GrainsMemBuffer<uint2, M>&          pairList,
+    void resizePairBuffers(GrainsMemBuffer<IndexPair, M>&      pairList,
                            GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
                            uint                                size);
 
@@ -182,7 +184,7 @@ private:
         @param contactInfo ComponentManager-owned buffer resized if NL grew
         @param counts      Component counts */
     void updateNeighborList(GrainsMemBuffer<Vector3<T>, M>&     positions,
-                            GrainsMemBuffer<uint2, M>&          pairList,
+                            GrainsMemBuffer<IndexPair, M>&      pairList,
                             GrainsMemBuffer<ContactInfo<T>, M>& contactInfo,
                             ComponentCounts&                    counts);
 
@@ -192,7 +194,7 @@ private:
         @param pairList     Pair list buffer */
     void computeRelativeTransformations(const GrainsMemBuffer<Vector3<T>, M>&    positions,
                                         const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                                        const GrainsMemBuffer<uint2, M>&         pairList);
+                                        const GrainsMemBuffer<IndexPair, M>&     pairList);
 
     /** @brief Runs the BV pre-filter.
         Also used as the composite-only filter when BV is OFF but composites exist.
@@ -204,11 +206,11 @@ private:
         @param contactInfoLocal Per-pair local ContactInfo buffer
         @param bodyTags         Raw device pointer to per-component body tags
         @param numComposites    Number of composites (0 = skip composite check) */
-    void filterPairsBV(const RigidBody<T>* const*          rigidBodies,
-                       const GrainsMemBuffer<uint2, M>&    pairList,
-                       GrainsMemBuffer<ContactInfo<T>, M>& contactInfoLocal,
-                       const uint*                         bodyTags,
-                       uint                                numComposites);
+    void filterPairsBV(const RigidBody<T>* const*           rigidBodies,
+                       const GrainsMemBuffer<IndexPair, M>& pairList,
+                       GrainsMemBuffer<ContactInfo<T>, M>&  contactInfoLocal,
+                       const uint*                          bodyTags,
+                       uint                                 numComposites);
 
     /** @brief BV pre-filter using world-frame positions/quaternions directly, bypassing the
         computeRelativeTransformations pre-pass. Used when UseRelativeTransformations=false with
@@ -223,7 +225,7 @@ private:
     void filterPairsBV_global(const RigidBody<T>* const*               rigidBodies,
                               const GrainsMemBuffer<Vector3<T>, M>&    positions,
                               const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                              const GrainsMemBuffer<uint2, M>&         pairList,
+                              const GrainsMemBuffer<IndexPair, M>&     pairList,
                               GrainsMemBuffer<ContactInfo<T>, M>&      contactInfoLocal,
                               const uint*                              bodyTags,
                               uint                                     numComposites);
@@ -235,10 +237,10 @@ private:
         @param pairList    Pair list buffer
         @param bodyTags    Per-component body tag buffer
         @param counts      Component counts */
-    void detectCollisionsComponents(const RigidBody<T>* const*       rigidBodies,
-                                    const GrainsMemBuffer<uint2, M>& pairList,
-                                    const GrainsMemBuffer<uint, M>&  bodyTags,
-                                    const ComponentCounts&           counts);
+    void detectCollisionsComponents(const RigidBody<T>* const*           rigidBodies,
+                                    const GrainsMemBuffer<IndexPair, M>& pairList,
+                                    const GrainsMemBuffer<uint, M>&      bodyTags,
+                                    const ComponentCounts&               counts);
 
     /** @brief Runs narrow-phase GJK using world-frame positions/quaternions directly, skipping the
         relative-transformation pre-pass.
@@ -254,7 +256,7 @@ private:
     void detectCollisionsComponentsGlobal(const RigidBody<T>* const*               rigidBodies,
                                           const GrainsMemBuffer<Vector3<T>, M>&    positions,
                                           const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                                          const GrainsMemBuffer<uint2, M>&         pairList,
+                                          const GrainsMemBuffer<IndexPair, M>&     pairList,
                                           GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo,
                                           const GrainsMemBuffer<uint, M>&          bodyTags,
                                           const ComponentCounts&                   counts);
@@ -266,7 +268,7 @@ private:
         @param contactInfo  ComponentManager's world-frame ContactInfo buffer */
     void transformContactInfo(const GrainsMemBuffer<Vector3<T>, M>&    positions,
                               const GrainsMemBuffer<Quaternion<T>, M>& orientations,
-                              const GrainsMemBuffer<uint2, M>&         pairList,
+                              const GrainsMemBuffer<IndexPair, M>&     pairList,
                               GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo);
 
     /** @brief Sorts particles by Morton codes for improved cache efficiency.

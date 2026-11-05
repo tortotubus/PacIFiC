@@ -32,14 +32,14 @@
     @param pairID ID of the pair */
 template <typename T>
 __HOSTDEVICE__ static INLINE void
-    computeRelativeTransformations_common(const uint2*         pairList,
+    computeRelativeTransformations_common(const IndexPair*     pairList,
                                           const Vector3<T>*    position,
                                           const Quaternion<T>* quaternion,
                                           Vector3<T>*          relativePosition,
                                           Quaternion<T>*       relativeQuaternion,
                                           const uint           pairID)
 {
-    const uint2 pair           = pairList[pairID];
+    const IndexPair pair           = pairList[pairID];
     const uint  idA            = pair.x;
     const uint  idB            = pair.y;
     relativePosition[pairID]   = quaternion[idA] << (position[idB] - position[idA]);
@@ -54,12 +54,12 @@ __HOSTDEVICE__ static INLINE void
     @param pairID ID of the pair */
 template <typename T>
 __HOSTDEVICE__ static INLINE void
-    computeRelativeTransformations_common(const uint2*         pairList,
+    computeRelativeTransformations_common(const IndexPair*     pairList,
                                           const Transform3<T>* transform,
                                           Transform3<T>*       relativeTransform,
                                           const uint           pairID)
 {
-    const uint2   pair = pairList[pairID];
+    const IndexPair pair = pairList[pairID];
     const uint    idA  = pair.x;
     const uint    idB  = pair.y;
     Transform3<T> invA;
@@ -80,14 +80,14 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponents_common(const uint2*               pairList,
+    detectCollisionsComponents_common(const IndexPair*           pairList,
                                       const RigidBody<T>* const* rigidBody,
                                       const Vector3<T>*          relPosition,
                                       const Quaternion<T>*       relQuaternion,
                                       ContactInfo<T>*            contactInfo,
                                       const uint                 pairID)
 {
-    const uint2          pair  = pairList[pairID];
+    const IndexPair      pair  = pairList[pairID];
     const uint           idA   = pair.x;
     const uint           idB   = pair.y;
     const RigidBody<T>&  rbA   = *(rigidBody[idA]);
@@ -115,14 +115,14 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponentsGlobal_common(const uint2*               pairList,
+    detectCollisionsComponentsGlobal_common(const IndexPair*           pairList,
                                             const RigidBody<T>* const* rigidBody,
                                             const Vector3<T>*          position,
                                             const Quaternion<T>*       quaternion,
                                             ContactInfo<T>*            contactInfo,
                                             const uint                 pairID)
 {
-    const uint2          pair  = pairList[pairID];
+    const IndexPair      pair  = pairList[pairID];
     const uint           idA   = pair.x;
     const uint           idB   = pair.y;
     const RigidBody<T>&  rbA   = *(rigidBody[idA]);
@@ -152,13 +152,13 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponents_common(const uint2*               pairList,
+    detectCollisionsComponents_common(const IndexPair*           pairList,
                                       const RigidBody<T>* const* rigidBody,
                                       const Transform3<T>*       relTransform,
                                       ContactInfo<T>*            contactInfo,
                                       const uint                 pairID)
 {
-    const uint2          pair = pairList[pairID];
+    const IndexPair      pair = pairList[pairID];
     const uint           idA  = pair.x;
     const uint           idB  = pair.y;
     const RigidBody<T>&  rbA  = *(rigidBody[idA]);
@@ -179,13 +179,13 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponentsGlobal_common(const uint2*               pairList,
+    detectCollisionsComponentsGlobal_common(const IndexPair*           pairList,
                                             const RigidBody<T>* const* rigidBody,
                                             const Transform3<T>*       transform,
                                             ContactInfo<T>*            contactInfo,
                                             const uint                 pairID)
 {
-    const uint2          pair = pairList[pairID];
+    const IndexPair      pair = pairList[pairID];
     const uint           idA  = pair.x;
     const uint           idB  = pair.y;
     const RigidBody<T>&  rbA  = *(rigidBody[idA]);
@@ -208,7 +208,7 @@ __HOSTDEVICE__ static INLINE void
     @param contactInfoWorld contact info in world frame (output, only for active pairs)
     @param pairID ID of the pair */
 template <typename T>
-__HOSTDEVICE__ static INLINE void transformContactInfo_common(const uint2*         pairList,
+__HOSTDEVICE__ static INLINE void transformContactInfo_common(const IndexPair*     pairList,
                                                               const Vector3<T>*    position,
                                                               const Quaternion<T>* quaternion,
                                                               ContactInfo<T>*      contactInfoLocal,
@@ -337,7 +337,7 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponents_common(const uint2*         pairList,
+    detectCollisionsComponents_common(const IndexPair*     pairList,
                                       const ShapeData<T>*  shapeData,
                                       const uint*          bodyTags,
                                       const Vector3<T>*    relPosition,
@@ -345,7 +345,7 @@ __HOSTDEVICE__ static INLINE void
                                       ContactInfo<T>*      contactInfo,
                                       const uint           pairID)
 {
-    const uint2          pair  = pairList[pairID];
+    const IndexPair      pair  = pairList[pairID];
     const ShapeData<T>&  sdA   = shapeData[getShapeId(bodyTags[pair.x])];
     const ShapeData<T>&  sdB   = shapeData[getShapeId(bodyTags[pair.y])];
     const Vector3<T>&    v_b2a = relPosition[pairID];
@@ -369,7 +369,7 @@ template <typename T,
           bool               GJKACC     = false,
           BoundingVolumeType BVType     = BoundingVolumeType::OFF>
 __HOSTDEVICE__ static INLINE void
-    detectCollisionsComponentsGlobal_common(const uint2*         pairList,
+    detectCollisionsComponentsGlobal_common(const IndexPair*     pairList,
                                             const ShapeData<T>*  shapeData,
                                             const uint*          bodyTags,
                                             const Vector3<T>*    position,
@@ -377,7 +377,7 @@ __HOSTDEVICE__ static INLINE void
                                             ContactInfo<T>*      contactInfo,
                                             const uint           pairID)
 {
-    const uint2          pair  = pairList[pairID];
+    const IndexPair      pair  = pairList[pairID];
     const uint           idA   = pair.x;
     const uint           idB   = pair.y;
     const ShapeData<T>&  sdA   = shapeData[getShapeId(bodyTags[idA])];

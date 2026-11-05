@@ -76,7 +76,7 @@ static __GLOBAL__ void initFixedCellPrefixSums_Device(const uint numCells,
     @param cells pointer to the Cells object (grid definition)
     @param nObstacles number of obstacles
     @param maxPerObstacle maximum number of cells an obstacle can occupy
-    @param obstacleID buffer for obstacle IDs and counts (uint2)
+    @param obstacleID buffer for obstacle IDs and counts (IndexPair)
     @param obstacleCellID buffer for cell IDs that obstacles occupy */
 template <typename T>
 static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
@@ -85,7 +85,7 @@ static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
                                             const Cells<T>* const*     cells,
                                             const uint                 nObstacles,
                                             const uint                 maxPerObstacle,
-                                            uint2*                     obstacleID,
+                                            IndexPair*                 obstacleID,
                                             uint*                      obstacleCellID)
 {
     const uint obstacleIdx = blockIdx.x;
@@ -107,7 +107,7 @@ static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
     };
 
     // Get grid dimensions
-    const uint4 numCells = cells[0]->getNumCellsPerDirection();
+    const CellDimensions numCells = cells[0]->getNumCellsPerDirection();
 
     // Compute AABB by querying support in all 6 axis directions
     const Vector3<T> minExt(support(Vector3<T>(-1, 0, 0))[0],
@@ -118,8 +118,8 @@ static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
                             support(Vector3<T>(0, 0, 1))[2]);
 
     // Convert world coordinates to cell coordinates
-    const uint3 minCell = cells[0]->computeCellID(minExt, false);
-    const uint3 maxCell = cells[0]->computeCellID(maxExt, false);
+    const CellIndex minCell = cells[0]->computeCellID(minExt, false);
+    const CellIndex maxCell = cells[0]->computeCellID(maxExt, false);
 
     int minX = std::max((int)minCell.x - 1, 0);
     int maxX = std::min((int)maxCell.x + 1, (int)numCells.x - 1);
@@ -139,7 +139,7 @@ static __GLOBAL__ void linkObstacles_Device(const RigidBody<T>* const* rb,
         {
             for(int z = minZ; z <= maxZ && cellCount < maxPerObstacle; ++z)
             {
-                uint cellHash = cells[0]->computeCellHash(make_uint3((uint)x, (uint)y, (uint)z));
+                uint cellHash = cells[0]->computeCellHash(makeCellIndex((uint)x, (uint)y, (uint)z));
                 obstacleCellID[offset + cellCount] = cellHash;
                 ++cellCount;
             }

@@ -1,6 +1,7 @@
 #ifndef _NEIGHBORLIST_KERNELS_HH_
 #define _NEIGHBORLIST_KERNELS_HH_
 
+#include "Basic.hh"
 #include "GrainsMemBuffer.hh"
 
 // =================================================================================================
@@ -19,14 +20,18 @@
     @param nParticles number of particles
     @param pairList array of pairs */
 __HOST__ void
-    updateNeighborList_Nsq_Host(const uint nObstacles, const uint nParticles, uint2* pairList);
+    updateNeighborList_Nsq_Host(const uint nObstacles, const uint nParticles, IndexPair* pairList);
 
 /** @brief Updates the neighbor list on device using an O(n^2) algorithm.
     @param nObstacles number of obstacles
     @param nParticles number of particles
     @param pairList array of pairs */
-__GLOBAL__ void
-    updateNeighborList_Nsq_Device(const uint nObstacles, const uint nParticles, uint2* pairList);
+
+#if GRAINS_CUDA_COMPILER
+__GLOBAL__ void updateNeighborList_Nsq_Device(const uint nObstacles,
+                                              const uint nParticles,
+                                              IndexPair* pairList);
+#endif
 
 /** @brief Updates the neighbor list on host using a linked cell approach.
     @param cellNeighborsList array of neighboring cells for each cell
@@ -39,16 +44,16 @@ __GLOBAL__ void
     @param numObstacles number of obstacles
     @param numParticles number of particles
     @param pairList reference to GrainsMemBuffer that will be resized if needed */
-__HOST__ void updateNeighborList_LC_Host(const uint*                            cellNeighborsList,
-                                         const uint2*                           obstacleIDs,
-                                         const uint*                            obstacleCellIDs,
-                                         const uint*                            particleIDs,
-                                         const uint*                            cellIDs,
-                                         const std::vector<std::list<uint>>&    cellParticles,
-                                         const uint                             maxCellsPerObstacle,
-                                         const uint                             numObstacles,
-                                         const uint                             numParticles,
-                                         GrainsMemBuffer<uint2, MemType::HOST>& pairList);
+__HOST__ void updateNeighborList_LC_Host(const uint*                         cellNeighborsList,
+                                         const IndexPair*                    obstacleIDs,
+                                         const uint*                         obstacleCellIDs,
+                                         const uint*                         particleIDs,
+                                         const uint*                         cellIDs,
+                                         const std::vector<std::list<uint>>& cellParticles,
+                                         const uint                          maxCellsPerObstacle,
+                                         const uint                          numObstacles,
+                                         const uint                          numParticles,
+                                         GrainsMemBuffer<IndexPair, MemType::HOST>& pairList);
 
 /** @brief Generate obstacle-particle pairs on device.
     @param obstacleIDs array of obstacle IDs and cell counts
@@ -61,16 +66,19 @@ __HOST__ void updateNeighborList_LC_Host(const uint*                            
     @param numCells number of cells
     @param pairList array of pairs
     @param pairCount pointer to device memory for storing the total pair count */
-__GLOBAL__ void generateObstacleParticlePairs_Device(const uint2*    obstacleIDs,
-                                                     const uint*     obstacleCellIDs,
-                                                     const uint64_t* cellParticleIDs,
-                                                     const uint*     cellPrefixSums,
-                                                     const uint      maxCellsPerObstacle,
-                                                     const uint      numObstacles,
-                                                     const uint      numParticles,
-                                                     const uint      numCells,
-                                                     uint2*          pairList,
-                                                     uint*           pairCount);
+
+#if GRAINS_CUDA_COMPILER
+__GLOBAL__ void generateObstacleParticlePairs_Device(const IndexPair* obstacleIDs,
+                                                     const uint*      obstacleCellIDs,
+                                                     const uint64_t*  cellParticleIDs,
+                                                     const uint*      cellPrefixSums,
+                                                     const uint       maxCellsPerObstacle,
+                                                     const uint       numObstacles,
+                                                     const uint       numParticles,
+                                                     const uint       numCells,
+                                                     IndexPair*       pairList,
+                                                     uint*            pairCount);
+#endif
 
 /** @brief Count neighbors per particle using linked cells with packed keys.
     @param cellNeighborsList array of neighboring cells for each cell
@@ -80,6 +88,8 @@ __GLOBAL__ void generateObstacleParticlePairs_Device(const uint2*    obstacleIDs
     @param numObstacles number of obstacles (subtracted from global ID to get local index)
     @param numCells number of cells
     @param neighborCounts output array of neighbor counts per particle */
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
                                       const uint64_t* cellParticleIDs,
                                       const uint*     cellPrefixSums,
@@ -87,6 +97,7 @@ __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
                                       const uint      numObstacles,
                                       const uint      numCells,
                                       uint*           neighborCounts);
+#endif
 
 /** @brief Updates the neighbor list on device keys.
     @param cellNeighborsList array of neighboring cells for each cell
@@ -98,6 +109,8 @@ __GLOBAL__ void countNeighbors_Device(const uint*     cellNeighborsList,
     @param numParticles number of particles
     @param numCells number of cells
     @param pairList array of pairs */
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
                                              const uint64_t* cellParticleIDs,
                                              const uint*     cellPrefixSums,
@@ -106,7 +119,8 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
                                              const uint      numObstacles,
                                              const uint      numParticles,
                                              const uint      numCells,
-                                             uint2*          pairList);
+                                             IndexPair*      pairList);
+#endif
 
 /** @brief Count neighbors per particle for AtomicFixed (direct count lookup).
     @param cellNeighborsList array of neighboring cells for each cell
@@ -117,6 +131,8 @@ __GLOBAL__ void updateNeighborList_LC_Device(const uint*     cellNeighborsList,
     @param numObstacles number of obstacles (subtracted from global ID to get local index)
     @param numCells number of cells
     @param neighborCounts output array of neighbor counts per particle */
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsList,
                                                   const uint64_t* cellParticleIDsFixed,
                                                   const uint64_t* particleCellIDsSeq,
@@ -126,6 +142,7 @@ __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsL
                                                   const uint      numObstacles,
                                                   const uint      numCells,
                                                   uint*           neighborCounts);
+#endif
 
 /** @brief Updates the neighbor list for AtomicFixed (direct count lookup).
     @param cellNeighborsList array of neighboring cells for each cell
@@ -138,6 +155,8 @@ __GLOBAL__ void countNeighbors_AtomicFixed_Device(const uint*     cellNeighborsL
     @param numParticles number of particles
     @param numCells number of cells
     @param pairList array of pairs */
+
+#if GRAINS_CUDA_COMPILER
 __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNeighborsList,
                                                          const uint64_t* cellParticleIDsFixed,
                                                          const uint64_t* particleCellIDsSeq,
@@ -148,7 +167,9 @@ __GLOBAL__ void updateNeighborList_LC_AtomicFixed_Device(const uint*     cellNei
                                                          const uint      numObstacles,
                                                          const uint      numParticles,
                                                          const uint      numCells,
-                                                         uint2*          pairList);
+                                                         IndexPair*      pairList);
+#endif
+
 //@}
 
 #endif

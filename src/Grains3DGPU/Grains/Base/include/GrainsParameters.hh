@@ -1,6 +1,8 @@
 #ifndef _GRAINSPARAMETERS_HH_
 #define _GRAINSPARAMETERS_HH_
 
+#include "GrainsPlatform.hh"
+
 #include "GrainsTimer.hh"
 #include "Vector3.hh"
 
@@ -151,7 +153,9 @@ public:
     /** \brief is simulation on GPU? */
     static bool m_isGPU;
     /** \brief GPU device properties */
+#if GRAINS_CUDA_COMPILER
     static cudaDeviceProp m_GPU;
+#endif
 
     /* Dynamic Settings */
     /** \brief Simulation state */

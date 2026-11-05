@@ -62,7 +62,7 @@ __HOSTDEVICE__ T Cells<T, OrderingScheme>::getCellSize() const
 // -------------------------------------------------------------------------------------------------
 // Gets the number of cells along each direction and total
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint4 Cells<T, OrderingScheme>::getNumCellsPerDirection() const
+__HOSTDEVICE__ CellDimensions Cells<T, OrderingScheme>::getNumCellsPerDirection() const
 {
     return (m_numCells);
 }
@@ -148,7 +148,7 @@ __HOSTDEVICE__ void
     {
         uint offset = numNeighbors * cellIndex;
         // Always use linear decode for row indexing to ensure dense [0..N)
-        uint3 cellId = decodeLinearHash(cellIndex);
+        CellIndex cellId = decodeLinearHash(cellIndex);
         
         for(int k = -1; k < 2; ++k) {
         for(int j = -1; j < 2; ++j) {
@@ -179,7 +179,7 @@ __HOSTDEVICE__ void
 // -------------------------------------------------------------------------------------------------
 // Checks if a cell Id is in range
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ bool Cells<T, OrderingScheme>::isValid(const uint3& id) const
+__HOSTDEVICE__ bool Cells<T, OrderingScheme>::isValid(const CellIndex& id) const
 {
     return (id.x < m_numCells.x && id.y < m_numCells.y && id.z < m_numCells.z);
 }
@@ -187,12 +187,12 @@ __HOSTDEVICE__ bool Cells<T, OrderingScheme>::isValid(const uint3& id) const
 // -------------------------------------------------------------------------------------------------
 // Returns the 3d Id of the cell which the point belongs to
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint3 Cells<T, OrderingScheme>::computeCellID(const Vector3<T>& p,
-                                                             bool              checkIfValid) const
+__HOSTDEVICE__ CellIndex Cells<T, OrderingScheme>::computeCellID(const Vector3<T>& p,
+                                                                 bool checkIfValid) const
 {
     const T* __RESTRICT__ pt    = p.getBuffer();
     const T* __RESTRICT__ minPt = m_minCornerLinkedCell.getBuffer();
-    uint3                 cellId;
+    CellIndex             cellId;
     // static_cast is faster than floor, though it comes with a cost ...
     // if the operand is negative, cast truncates toward zero, while floor
     // rounds down. However, the operand should be always non-negative in our
@@ -212,7 +212,7 @@ __HOSTDEVICE__ uint3 Cells<T, OrderingScheme>::computeCellID(const Vector3<T>& p
 // -------------------------------------------------------------------------------------------------
 // Returns the 3d Id of the cell given its hash (ordering-specific)
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint3 Cells<T, OrderingScheme>::computeCellID(const uint cellHash) const
+__HOSTDEVICE__ CellIndex Cells<T, OrderingScheme>::computeCellID(const uint cellHash) const
 {
     if constexpr(OrderingScheme == CellOrdering::MORTON)
     {
@@ -235,7 +235,7 @@ __HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeCellHash(const Vector3<T>& 
 // -------------------------------------------------------------------------------------------------
 // Returns the cell hash value from the 3d Id of the cell (ordering-specific)
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeCellHash(const uint3& cellID) const
+__HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeCellHash(const CellIndex& cellID) const
 {
     if constexpr(OrderingScheme == CellOrdering::MORTON)
     {
@@ -270,7 +270,7 @@ template <typename T, CellOrdering OrderingScheme>
 __HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeDenseIndex(const Vector3<T>& p,
                                                                 bool checkIfValid) const
 {
-    const uint3 id = computeCellID(p, checkIfValid);
+    const CellIndex id = computeCellID(p, checkIfValid);
     if(!isValid(id))
         return UINT_MAX;
     return computeLinearHash(id.x, id.y, id.z);
@@ -279,7 +279,7 @@ __HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeDenseIndex(const Vector3<T>
 // -------------------------------------------------------------------------------------------------
 // Returns dense linear index from 3D cell id
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeDenseIndex(const uint3& cellId) const
+__HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeDenseIndex(const CellIndex& cellId) const
 {
     if(!isValid(cellId))
         return UINT_MAX;
@@ -302,7 +302,7 @@ template <typename T, CellOrdering OrderingScheme>
 __HOSTDEVICE__ uint Cells<T, OrderingScheme>::mortonKeyFromLinearIndex(uint linearIndex) const
 {
     // Decode linear to (x,y,z), then compute Morton code
-    const uint3 id = decodeLinearHash(linearIndex);
+    const CellIndex id = decodeLinearHash(linearIndex);
     return computeMortonCode(id.x, id.y, id.z);
 }
 
@@ -317,12 +317,12 @@ __HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeLinearHash(uint x, uint y, 
 // -------------------------------------------------------------------------------------------------
 // Decodes linear hash to 3D coordinates
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint3 Cells<T, OrderingScheme>::decodeLinearHash(uint hash) const
+__HOSTDEVICE__ CellIndex Cells<T, OrderingScheme>::decodeLinearHash(uint hash) const
 {
     uint z = hash / (m_numCells.x * m_numCells.y);
     uint y = (hash / m_numCells.x) % m_numCells.y;
     uint x = hash % m_numCells.x;
-    return uint3{x, y, z};
+    return CellIndex{x, y, z};
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -366,9 +366,9 @@ __HOSTDEVICE__ uint Cells<T, OrderingScheme>::computeMortonCode(uint x, uint y, 
 // -------------------------------------------------------------------------------------------------
 // Decodes Morton code to 3D coordinates
 template <typename T, CellOrdering OrderingScheme>
-__HOSTDEVICE__ uint3 Cells<T, OrderingScheme>::decodeMortonCode(uint code) const
+__HOSTDEVICE__ CellIndex Cells<T, OrderingScheme>::decodeMortonCode(uint code) const
 {
-    uint3 result;
+    CellIndex result;
     result.x = compactBits(code);
     result.y = compactBits(code >> 1);
     result.z = compactBits(code >> 2);

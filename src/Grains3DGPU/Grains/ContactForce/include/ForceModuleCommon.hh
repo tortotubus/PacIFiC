@@ -13,6 +13,7 @@
 #include "RigidBody.hh"
 #include "Torce.hh"
 #include "Vector3.hh"
+#include "VectorMath.hh"
 
 // =================================================================================================
 /** @brief ForceModule common host/device helper functions.
@@ -44,7 +45,7 @@
     @param pairID ID of the pair */
 template <typename T>
 __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
-                                                              const uint2*          pairList,
+                                                              const IndexPair*      pairList,
                                                               const ContactInfo<T>* contactInfo,
                                                               const Vector3<T>*     position,
                                                               const Kinematics<T>*  velocity,
@@ -61,7 +62,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     // Compute the forces
     if(isContact)
     {
-        const uint2 pair = pairList[pairID];
+        const IndexPair pair = pairList[pairID];
         const uint  idA  = pair.x;
         const uint  idB  = pair.y;
 
@@ -152,7 +153,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     @param pairID ID of the pair */
 template <typename T>
 __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
-                                                              const uint2*          pairList,
+                                                              const IndexPair*      pairList,
                                                               const ContactInfo<T>* contactInfo,
                                                               const Vector3<T>*     position,
                                                               const Kinematics<T>*  velocity,
@@ -170,7 +171,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     // Compute the forces
     if(isContact)  // On device path, this check is redundant.
     {
-        const uint2 pair = pairList[pairID];
+        const IndexPair pair = pairList[pairID];
         const uint  idA  = pair.x;
         const uint  idB  = pair.y;
 
@@ -221,14 +222,15 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     @param intermediateTorceB intermediate torce storage for particle B in each pair
     @param torce final per-particle torce array (accumulated atomically)
     @param pairID ID of the pair */
+#if GRAINS_CUDA_COMPILER
 template <typename T>
-__device__ static INLINE void reduceTorces_common(const uint2*    pairList,
-                                                  const Torce<T>* intermediateTorceA,
-                                                  const Torce<T>* intermediateTorceB,
-                                                  Torce<T>*       torce,
-                                                  const uint      pairID)
+__DEVICE__ static INLINE void reduceTorces_common(const IndexPair* pairList,
+                                                  const Torce<T>*  intermediateTorceA,
+                                                  const Torce<T>*  intermediateTorceB,
+                                                  Torce<T>*        torce,
+                                                  const uint       pairID)
 {
-    const uint2     pair = pairList[pairID];
+    const IndexPair pair = pairList[pairID];
     const uint      idA  = pair.x;
     const uint      idB  = pair.y;
     const Torce<T>& tA   = intermediateTorceA[pairID];
@@ -238,6 +240,8 @@ __device__ static INLINE void reduceTorces_common(const uint2*    pairList,
     torce[idA].addTorceAtomic(tA);
     torce[idB].addTorceAtomic(tB);
 }
+
+#endif
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Adds gravity to the component.

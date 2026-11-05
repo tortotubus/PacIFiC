@@ -69,7 +69,7 @@ protected:
     /** \brief Per-pair contact information in world frame */
     GrainsMemBuffer<ContactInfo<T>, M> m_contactInfo;
     /** \brief Pair list (indices of interacting particle pairs, populated by CDModule) */
-    GrainsMemBuffer<uint2, M> m_pairList;
+    GrainsMemBuffer<IndexPair, M> m_pairList;
 
     /** \brief Simulation-level counts (particles, obstacles, pairs, composites, sub-bodies) */
     ComponentCounts m_counts;

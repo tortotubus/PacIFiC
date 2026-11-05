@@ -10,6 +10,8 @@
 // This is mandatory as we cannot access device memory addresses on the host
 // So, we pass a device memory address to a kernel.
 // Memory address is then populated within the kernel.
+
+#if GRAINS_CUDA_COMPILER
 template <typename T, typename... Arguments>
 __GLOBAL__ void createContactForceModelKernel(ContactForceModel<T>** CF,
                                               uint                   index,
@@ -37,6 +39,7 @@ __GLOBAL__ void createContactForceModelKernel(ContactForceModel<T>** CF,
                       "Unsupported number of parameters for createContactForceModelKernel");
     }
 }
+#endif
 
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
@@ -77,6 +80,8 @@ __HOST__ void
 
 // -------------------------------------------------------------------------------------------------
 // Constructs a ContactForceModel object on device.
+
+#if GRAINS_CUDA_COMPILER
 template <typename T>
 __HOST__ void ContactForceModelFactory<T>::copyHostToDevice(
     GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST>&   h_CF,
@@ -131,6 +136,7 @@ __HOST__ void ContactForceModelFactory<T>::copyHostToDevice(
     }
     cudaDeviceSynchronize();
 }
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Explicit instantiation

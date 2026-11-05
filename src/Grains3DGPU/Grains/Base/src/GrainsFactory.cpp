@@ -3,8 +3,12 @@
 #include "GrainsFactory.hh"
 #include "Grains.hh"
 #include "GrainsCPU.hh"
+#if GRAINS_CUDA_COMPILER
 #include "GrainsGPU.hh"
+#endif
+#if GRAINS_CUDA_COMPILER
 #include "GrainsTestDev.hh"
+#endif
 
 // -------------------------------------------------------------------------------------------------
 // Adds the path to the dtd files using the GRAINS_HOME variable to
@@ -109,10 +113,18 @@ Grains<T>* GrainsFactory<T>::create(DOMElement* root)
 
     if(option == "Standard")
         grains = new GrainsCPU<T>();
-    else if(option == "GPU")
-        grains = new GrainsGPU<T>();
-    else if(option == "GrainsTestDev")
-        grains = new GrainsTestDev<T>();
+    else if(option == "GPU" || option == "GrainsTestDev")
+    {
+#if GRAINS_CUDA_COMPILER
+        if(option == "GPU")
+            grains = new GrainsGPU<T>();
+        else
+            grains = new GrainsTestDev<T>();
+#else
+        throw std::runtime_error("This Grains3DGPU build has no CUDA backend; use Type=Standard "
+                                 "or rebuild with PACIFIC_USE_CUDA=ON.");
+#endif
+    }
 
     // Postconditions
     GAssert(grains, "Invalid Mode! Aborting Grains!");

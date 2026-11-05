@@ -1,4 +1,7 @@
+#include "GrainsPlatform.hh"
+#if GRAINS_CUDA_COMPILER
 #include "CollisionDetectionModule_Kernels.hh"
+#endif
 #include "CollisionDetectionCommon.hh"
 #include <cstdint>
 
@@ -7,7 +10,7 @@
 template <typename T>
 __GLOBAL__ void computeRelativeTransformations_Kernel(const Vector3<T>*    position,
                                                       const Quaternion<T>* quaternion,
-                                                      const uint2*         pairList,
+                                                      const IndexPair*     pairList,
                                                       Vector3<T>*          relPosition,
                                                       Quaternion<T>*       relQuaternion,
                                                       const uint           nPairs)
@@ -30,7 +33,7 @@ __GLOBAL__ void computeRelativeTransformations_Kernel(const Vector3<T>*    posit
 // When BVType is OFF the BV section is compiled away, leaving a pure composite-membership test.
 template <typename T, BoundingVolumeType BVType>
 __GLOBAL__ void filterPairsBV_Kernel(const RigidBody<T>* const* rigidBodies,
-                                     const uint2*               pairList,
+                                     const IndexPair*           pairList,
                                      const uint*                bodyTags,
                                      uint                       numComposites,
                                      const Vector3<T>*          relPosition,
@@ -43,7 +46,7 @@ __GLOBAL__ void filterPairsBV_Kernel(const RigidBody<T>* const* rigidBodies,
     if(tID >= nPairs)
         return;
 
-    const uint2 pair = pairList[tID];
+    const IndexPair pair = pairList[tID];
 
     // Reject intra-composite pairs (same composite, different sub-bodies)
     if(numComposites > 0)
@@ -84,7 +87,7 @@ __GLOBAL__ void filterPairsBV_Kernel(const RigidBody<T>* const* rigidBodies,
 // on-the-fly to avoid a separate computeRelativeTransformations_Kernel pre-pass.
 template <typename T, BoundingVolumeType BVType>
 __GLOBAL__ void filterPairsBV_Global_Kernel(const RigidBody<T>* const* rigidBodies,
-                                            const uint2*               pairList,
+                                            const IndexPair*           pairList,
                                             const uint*                bodyTags,
                                             uint                       numComposites,
                                             const Vector3<T>*          positions,
@@ -97,7 +100,7 @@ __GLOBAL__ void filterPairsBV_Global_Kernel(const RigidBody<T>* const* rigidBodi
     if(tID >= nPairs)
         return;
 
-    const uint2 pair = pairList[tID];
+    const IndexPair pair = pairList[tID];
 
     // Reject intra-composite pairs (same composite, different sub-bodies)
     if(numComposites > 0)
@@ -140,7 +143,7 @@ __GLOBAL__ void filterPairsBV_Global_Kernel(const RigidBody<T>* const* rigidBodi
 // table (BV-compacted path). When null the thread ID is used directly (BV-off path, all pairs).
 template <typename T, GJKType GJKVARIANT, bool GJKACC>
 __GLOBAL__ void detectCollisionsComponents_Kernel(const RigidBody<T>* const* rigidBody,
-                                                  const uint2*               pairList,
+                                                  const IndexPair*           pairList,
                                                   const uint*                activePairIndices,
                                                   const Vector3<T>*          relPosition,
                                                   const Quaternion<T>*       relQuaternion,
@@ -166,7 +169,7 @@ __GLOBAL__ void detectCollisionsComponents_Kernel(const RigidBody<T>* const* rig
 // table (BV-compacted path). When null the thread ID is used directly (BV-off path, all pairs).
 template <typename T, GJKType GJKVARIANT, bool GJKACC, BoundingVolumeType BVType>
 __GLOBAL__ void detectCollisionsComponentsGlobal_Kernel(const RigidBody<T>* const* rigidBody,
-                                                        const uint2*               pairList,
+                                                        const IndexPair*           pairList,
                                                         const uint*          activePairIndices,
                                                         const Vector3<T>*    position,
                                                         const Quaternion<T>* quaternion,
@@ -205,7 +208,7 @@ __GLOBAL__ void
 template <typename T>
 __GLOBAL__ void transformContactInfo_Kernel(const Vector3<T>*    position,
                                             const Quaternion<T>* quaternion,
-                                            const uint2*         pairList,
+                                            const IndexPair*     pairList,
                                             ContactInfo<T>*      contactInfoLocal,
                                             ContactInfo<T>*      contactInfoWorld,
                                             const uint           nPairs)
@@ -227,13 +230,13 @@ __GLOBAL__ void transformContactInfo_Kernel(const Vector3<T>*    position,
 #define X(T)                                                                                \
     template __GLOBAL__ void computeRelativeTransformations_Kernel<T>(const Vector3<T>*,    \
                                                                       const Quaternion<T>*, \
-                                                                      const uint2*,         \
+                                                                      const IndexPair*,     \
                                                                       Vector3<T>*,          \
                                                                       Quaternion<T>*,       \
                                                                       const uint);          \
     template __GLOBAL__ void transformContactInfo_Kernel<T>(const Vector3<T>*,              \
                                                             const Quaternion<T>*,           \
-                                                            const uint2*,                   \
+                                                            const IndexPair*,               \
                                                             ContactInfo<T>*,                \
                                                             ContactInfo<T>*,                \
                                                             const uint);
@@ -244,7 +247,7 @@ X(double)
 #define X(T, GJK, ACC)                                                       \
     template __GLOBAL__ void detectCollisionsComponents_Kernel<T, GJK, ACC>( \
         const RigidBody<T>* const*,                                          \
-        const uint2*,                                                        \
+        const IndexPair*,                                                    \
         const uint*,                                                         \
         const Vector3<T>*,                                                   \
         const Quaternion<T>*,                                                \
@@ -263,7 +266,7 @@ X(double, GJKType::SIGNEDVOLUME, true)
 #define X(T, GJK, ACC, BV)                                                             \
     template __GLOBAL__ void detectCollisionsComponentsGlobal_Kernel<T, GJK, ACC, BV>( \
         const RigidBody<T>* const*,                                                    \
-        const uint2*,                                                                  \
+        const IndexPair*,                                                              \
         const uint*,                                                                   \
         const Vector3<T>*,                                                             \
         const Quaternion<T>*,                                                          \
@@ -297,7 +300,7 @@ X(double, GJKType::SIGNEDVOLUME, true, BoundingVolumeType::OBC)
 
 #define X(T, BV)                                                                     \
     template __GLOBAL__ void filterPairsBV_Kernel<T, BV>(const RigidBody<T>* const*, \
-                                                         const uint2*,               \
+                                                         const IndexPair*,           \
                                                          const uint*,                \
                                                          uint,                       \
                                                          const Vector3<T>*,          \
@@ -315,7 +318,7 @@ X(double, BoundingVolumeType::OFF)
 
 #define X(T, BV)                                                                            \
     template __GLOBAL__ void filterPairsBV_Global_Kernel<T, BV>(const RigidBody<T>* const*, \
-                                                                const uint2*,               \
+                                                                const IndexPair*,           \
                                                                 const uint*,                \
                                                                 uint,                       \
                                                                 const Vector3<T>*,          \
@@ -335,7 +338,7 @@ X(double, BoundingVolumeType::OFF)
 // BV pre-filter using pre-built BVData (vtable-free bounding-volume queries, relative frame).
 template <typename T, BoundingVolumeType BVType>
 __GLOBAL__ void filterPairsBV_Kernel(const BVData<T>*     bvData,
-                                     const uint2*         pairList,
+                                     const IndexPair*     pairList,
                                      const uint*          bodyTags,
                                      uint                 numComposites,
                                      const Vector3<T>*    relPosition,
@@ -348,7 +351,7 @@ __GLOBAL__ void filterPairsBV_Kernel(const BVData<T>*     bvData,
     if(tID >= nPairs)
         return;
 
-    const uint2 pair = pairList[tID];
+    const IndexPair pair = pairList[tID];
 
     if(numComposites > 0)
     {
@@ -386,7 +389,7 @@ __GLOBAL__ void filterPairsBV_Kernel(const BVData<T>*     bvData,
 // BV pre-filter using pre-built BVData and world-frame transforms (vtable-free).
 template <typename T, BoundingVolumeType BVType>
 __GLOBAL__ void filterPairsBV_Global_Kernel(const BVData<T>*     bvData,
-                                            const uint2*         pairList,
+                                            const IndexPair*     pairList,
                                             const uint*          bodyTags,
                                             uint                 numComposites,
                                             const Vector3<T>*    positions,
@@ -399,7 +402,7 @@ __GLOBAL__ void filterPairsBV_Global_Kernel(const BVData<T>*     bvData,
     if(tID >= nPairs)
         return;
 
-    const uint2 pair = pairList[tID];
+    const IndexPair pair = pairList[tID];
 
     if(numComposites > 0)
     {
@@ -439,7 +442,7 @@ __GLOBAL__ void filterPairsBV_Global_Kernel(const BVData<T>*     bvData,
 // Explicit instantiations for Prebuilt BV filter kernels
 #define X(T, BV)                                                               \
     template __GLOBAL__ void filterPairsBV_Kernel<T, BV>(const BVData<T>*,     \
-                                                         const uint2*,         \
+                                                         const IndexPair*,     \
                                                          const uint*,          \
                                                          uint,                 \
                                                          const Vector3<T>*,    \
@@ -457,7 +460,7 @@ X(double, BoundingVolumeType::OFF)
 
 #define X(T, BV)                                                                      \
     template __GLOBAL__ void filterPairsBV_Global_Kernel<T, BV>(const BVData<T>*,     \
-                                                                const uint2*,         \
+                                                                const IndexPair*,     \
                                                                 const uint*,          \
                                                                 uint,                 \
                                                                 const Vector3<T>*,    \
@@ -510,7 +513,7 @@ __GLOBAL__ void fillBVData_Kernel(BVData<T>*                 bvData,
 // table (BV-compacted path). When null the thread ID is used directly (BV-off path, all pairs).
 template <typename T, GJKType GJKVARIANT, bool GJKACC>
 __GLOBAL__ void detectCollisionsComponents_Kernel(const ShapeData<T>*  shapeData,
-                                                  const uint2*         pairList,
+                                                  const IndexPair*     pairList,
                                                   const uint*          bodyTags,
                                                   const uint*          activePairIndices,
                                                   const Vector3<T>*    relPosition,
@@ -554,7 +557,7 @@ X(double)
 
 #define X(T, GJK, ACC)                                                                            \
     template __GLOBAL__ void detectCollisionsComponents_Kernel<T, GJK, ACC>(const ShapeData<T>*,  \
-                                                                            const uint2*,         \
+                                                                            const IndexPair*,     \
                                                                             const uint*,          \
                                                                             const uint*,          \
                                                                             const Vector3<T>*,    \
@@ -578,7 +581,7 @@ X(double, GJKType::SIGNEDVOLUME, true)
 // table (BV-compacted path). When null the thread ID is used directly (BV-off path, all pairs).
 template <typename T, GJKType GJKVARIANT, bool GJKACC>
 __GLOBAL__ void detectCollisionsComponentsGlobal_Kernel(const ShapeData<T>*  shapeData,
-                                                        const uint2*         pairList,
+                                                        const IndexPair*     pairList,
                                                         const uint*          bodyTags,
                                                         const uint*          activePairIndices,
                                                         const Vector3<T>*    position,
@@ -606,7 +609,7 @@ __GLOBAL__ void detectCollisionsComponentsGlobal_Kernel(const ShapeData<T>*  sha
 #define X(T, GJK, ACC)                                                             \
     template __GLOBAL__ void detectCollisionsComponentsGlobal_Kernel<T, GJK, ACC>( \
         const ShapeData<T>*,                                                       \
-        const uint2*,                                                              \
+        const IndexPair*,                                                          \
         const uint*,                                                               \
         const uint*,                                                               \
         const Vector3<T>*,                                                         \

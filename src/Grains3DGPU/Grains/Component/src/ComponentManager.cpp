@@ -1,7 +1,11 @@
+#include "GrainsPlatform.hh"
 #include "ComponentManager.hh"
+#include "GrainsParameters.hh"
 #include "BodyTag.hh"
-#include "ComponentManagerCommon.hh"
+#include "ParticleIntegration.hh"
+#if GRAINS_CUDA_COMPILER
 #include "ComponentManagerGPU_Kernels.hh"
+#endif
 #include "ForceModule.hh"
 #include "QuaternionMath.hh"
 #include "VectorMath.hh"
@@ -49,6 +53,7 @@ ComponentManager<T, M>::ComponentManager(
         // Derive sub-body world transforms from master positions
         updateSubBodyPositions();
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         // Upload all HOST buffers to device
@@ -73,6 +78,7 @@ ComponentManager<T, M>::ComponentManager(
         }
         m_masterSlot.copyFrom(hMasterSlot);
     }
+#endif
 
     // Create CollisionDetectionModule
     m_collisionDetectionModule = std::make_unique<CollisionDetectionModule<T, M>>(
@@ -260,38 +266,38 @@ void ComponentManager<T, M>::moveParticles(const GrainsMemBuffer<TimeIntegrator<
 {
     if constexpr(M == MemType::HOST)
     {
-        for(uint pID = m_counts.numObstacles; pID < m_counts.numObstacles + m_counts.numParticles;
-            ++pID)
-        {
-            if(isSubBody(m_bodyTag[pID]) && getSubBodyLocalIdx(m_bodyTag[pID]) != 0u)
-                continue;
-            moveParticles_common(TI.getData(),
-                                 m_rigidBody->getData(),
-                                 m_position.getData(),
-                                 m_quaternion.getData(),
-                                 m_velocity.getData(),
-                                 m_torce.getData(),
-                                 pID);
+        const ParticleIntegrationView<T> view{TI.getData(),
+                                              m_rigidBody->getData(),
+                                              m_position.getData(),
+                                              m_quaternion.getData(),
+                                              m_velocity.getData(),
+                                              m_torce.getData(),
+                                              m_bodyTag.getData(),
+                                              m_counts.numObstacles,
+                                              m_counts.numObstacles + m_counts.numParticles};
+        moveParticles_host(view);
         }
-    }
-    else
-    {
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(m_counts.numParticles,
-                                       GrainsParameters<T>::m_GPU,
-                                       numBlocks,
-                                       numThreads);
-        moveParticles_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
-                                                        m_rigidBody->getData(),
-                                                        m_position.getData(),
-                                                        m_quaternion.getData(),
-                                                        m_velocity.getData(),
-                                                        m_torce.getData(),
-                                                        m_bodyTag.getData(),
-                                                        m_counts.numObstacles,
-                                                        m_counts.numParticles);
-    }
-    updateSubBodyPositions();
+#if GRAINS_CUDA_COMPILER
+        else
+        {
+            uint numThreads, numBlocks;
+            computeOptimalThreadsAndBlocks(m_counts.numParticles,
+                                           GrainsParameters<T>::m_GPU,
+                                           numBlocks,
+                                           numThreads);
+            moveParticles_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
+                                                            m_rigidBody->getData(),
+                                                            m_position.getData(),
+                                                            m_quaternion.getData(),
+                                                            m_velocity.getData(),
+                                                            m_torce.getData(),
+                                                            m_bodyTag.getData(),
+                                                            m_counts.numObstacles,
+                                                            m_counts.numParticles);
+        }
+#endif
+
+        updateSubBodyPositions();
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -301,35 +307,34 @@ void ComponentManager<T, M>::advanceVelocity(const GrainsMemBuffer<TimeIntegrato
 {
     if constexpr(M == MemType::HOST)
     {
-        for(uint pID = m_counts.numObstacles; pID < m_counts.numObstacles + m_counts.numParticles;
-            ++pID)
-        {
-            if(isSubBody(m_bodyTag[pID]) && getSubBodyLocalIdx(m_bodyTag[pID]) != 0u)
-                continue;
-            advanceVelocity_common(TI.getData(),
-                                   m_rigidBody->getData(),
-                                   m_quaternion.getData(),
-                                   m_velocity.getData(),
-                                   m_torce.getData(),
-                                   pID);
+        const ParticleVelocityView<T> view{TI.getData(),
+                                           m_rigidBody->getData(),
+                                           m_quaternion.getData(),
+                                           m_velocity.getData(),
+                                           m_torce.getData(),
+                                           m_bodyTag.getData(),
+                                           m_counts.numObstacles,
+                                           m_counts.numObstacles + m_counts.numParticles};
+        advanceVelocity_host(view);
         }
-    }
-    else
-    {
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(m_counts.numParticles,
-                                       GrainsParameters<T>::m_GPU,
-                                       numBlocks,
-                                       numThreads);
-        advanceVelocity_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
-                                                          m_rigidBody->getData(),
-                                                          m_quaternion.getData(),
-                                                          m_velocity.getData(),
-                                                          m_torce.getData(),
-                                                          m_bodyTag.getData(),
-                                                          m_counts.numObstacles,
-                                                          m_counts.numParticles);
-    }
+#if GRAINS_CUDA_COMPILER
+        else
+        {
+            uint numThreads, numBlocks;
+            computeOptimalThreadsAndBlocks(m_counts.numParticles,
+                                           GrainsParameters<T>::m_GPU,
+                                           numBlocks,
+                                           numThreads);
+            advanceVelocity_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
+                                                              m_rigidBody->getData(),
+                                                              m_quaternion.getData(),
+                                                              m_velocity.getData(),
+                                                              m_torce.getData(),
+                                                              m_bodyTag.getData(),
+                                                              m_counts.numObstacles,
+                                                              m_counts.numParticles);
+        }
+#endif
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -356,6 +361,7 @@ void ComponentManager<T, M>::updateSubBodyPositions()
                 m_quaternion[cID] *= (T(1) / qn);
         }
     }
+#if GRAINS_CUDA_COMPILER
     else
     {
         const uint nTotal = m_counts.numObstacles + m_counts.numParticles;
@@ -369,11 +375,16 @@ void ComponentManager<T, M>::updateSubBodyPositions()
                                                                  m_bodyTag.getData(),
                                                                  nTotal);
     }
+#endif
 }
 
 // --------------------------------------------------------------------------------------------------
 // Explicit instantiations
 template class ComponentManager<float, MemType::HOST>;
 template class ComponentManager<double, MemType::HOST>;
+#if GRAINS_CUDA_COMPILER
 template class ComponentManager<float, MemType::DEVICE>;
+#endif
+#if GRAINS_CUDA_COMPILER
 template class ComponentManager<double, MemType::DEVICE>;
+#endif
