@@ -8,7 +8,6 @@
 #include "ContactForceModel.hh"
 #include "ContactInfo.hh"
 #include "ContactTable.hh"
-#include "GrainsParameters.hh"
 #include "Kinematics.hh"
 #include "RigidBody.hh"
 #include "Torce.hh"
@@ -20,12 +19,11 @@
 
     Header-only inline functions shared by the HOST (CPU loop) and DEVICE (GPU kernel) paths of
     ForceModule.  Functions are templated on the scalar type T and annotated with __HOSTDEVICE__
-    or __device__ as appropriate so that a single definition compiles for both paths.
+    so that a single definition compiles for both paths.
 
     Functions moved here from ComponentManagerCommon.hh:
       - computeContactForces_common  (single-torce variant, CPU path)
       - computeContactForces_common  (dual-torce variant, GPU intermediate storage path)
-      - reduceTorces_common           (__device__ only)
       - addExternalForces_common
 
     @author A.Yazdani - 2024 - Construction */
@@ -214,34 +212,6 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     // reset the distance so we don't compute the torce twice
     ci.setOverlapDistance(T(0));
 }
-
-// -------------------------------------------------------------------------------------------------
-/** @brief Reduces per-pair intermediate torces to per-particle torces (DEVICE kernel helper).
-    @param pairList list of pairs
-    @param intermediateTorceA intermediate torce storage for particle A in each pair
-    @param intermediateTorceB intermediate torce storage for particle B in each pair
-    @param torce final per-particle torce array (accumulated atomically)
-    @param pairID ID of the pair */
-#if GRAINS_CUDA_COMPILER
-template <typename T>
-__DEVICE__ static INLINE void reduceTorces_common(const IndexPair* pairList,
-                                                  const Torce<T>*  intermediateTorceA,
-                                                  const Torce<T>*  intermediateTorceB,
-                                                  Torce<T>*        torce,
-                                                  const uint       pairID)
-{
-    const IndexPair pair = pairList[pairID];
-    const uint      idA  = pair.x;
-    const uint      idB  = pair.y;
-    const Torce<T>& tA   = intermediateTorceA[pairID];
-    const Torce<T>& tB   = intermediateTorceB[pairID];
-
-    // Atomically accumulate all components (6 atomics per particle)
-    torce[idA].addTorceAtomic(tA);
-    torce[idB].addTorceAtomic(tB);
-}
-
-#endif
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Adds gravity to the component.

@@ -3,9 +3,8 @@
 #include "GrainsParameters.hh"
 #include "BodyTag.hh"
 #include "ParticleIntegration.hh"
-#if GRAINS_CUDA_COMPILER
-#include "ComponentManagerGPU_Kernels.hh"
-#endif
+#include "ParticleIntegrationCPU.hh"
+#include "ParticleIntegrationCUDA.hh"
 #include "ForceModule.hh"
 #include "QuaternionMath.hh"
 #include "VectorMath.hh"
@@ -259,82 +258,44 @@ void ComponentManager<T, M>::computeContactForces(
 }
 
 // -------------------------------------------------------------------------------------------------
-// Updates the position and quaternion of master particles (non-masters are updated by
-// updateSubBodyPositions after this call).
+// Updates the position and quaternion of master particles. Backend launchers own
+// iteration and scheduling; the indexed numerical operations are shared.
 template <typename T, MemType M>
 void ComponentManager<T, M>::moveParticles(const GrainsMemBuffer<TimeIntegrator<T>*, M>& TI)
 {
+    const ParticleIntegrationView<T> view{TI.getData(),
+                                          m_rigidBody->getData(),
+                                          m_position.getData(),
+                                          m_quaternion.getData(),
+                                          m_velocity.getData(),
+                                          m_torce.getData(),
+                                          m_bodyTag.getData(),
+                                          m_counts.numObstacles,
+                                          m_counts.numObstacles + m_counts.numParticles};
     if constexpr(M == MemType::HOST)
-    {
-        const ParticleIntegrationView<T> view{TI.getData(),
-                                              m_rigidBody->getData(),
-                                              m_position.getData(),
-                                              m_quaternion.getData(),
-                                              m_velocity.getData(),
-                                              m_torce.getData(),
-                                              m_bodyTag.getData(),
-                                              m_counts.numObstacles,
-                                              m_counts.numObstacles + m_counts.numParticles};
-        moveParticles_host(view);
-        }
-#if GRAINS_CUDA_COMPILER
-        else
-        {
-            uint numThreads, numBlocks;
-            computeOptimalThreadsAndBlocks(m_counts.numParticles,
-                                           GrainsParameters<T>::m_GPU,
-                                           numBlocks,
-                                           numThreads);
-            moveParticles_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
-                                                            m_rigidBody->getData(),
-                                                            m_position.getData(),
-                                                            m_quaternion.getData(),
-                                                            m_velocity.getData(),
-                                                            m_torce.getData(),
-                                                            m_bodyTag.getData(),
-                                                            m_counts.numObstacles,
-                                                            m_counts.numParticles);
-        }
-#endif
-
-        updateSubBodyPositions();
+        grains::cpu::moveParticles(view);
+    else
+        grains::cuda::moveParticles(view);
+    updateSubBodyPositions();
 }
 
 // -------------------------------------------------------------------------------------------------
-// Performs the second velocity half-kick (KDK Step 3; no-op for single-pass schemes).
+// Second velocity half-kick (KDK Step 3; no-op for single-pass schemes).
 template <typename T, MemType M>
 void ComponentManager<T, M>::advanceVelocity(const GrainsMemBuffer<TimeIntegrator<T>*, M>& TI)
 {
+    const ParticleVelocityView<T> view{TI.getData(),
+                                       m_rigidBody->getData(),
+                                       m_quaternion.getData(),
+                                       m_velocity.getData(),
+                                       m_torce.getData(),
+                                       m_bodyTag.getData(),
+                                       m_counts.numObstacles,
+                                       m_counts.numObstacles + m_counts.numParticles};
     if constexpr(M == MemType::HOST)
-    {
-        const ParticleVelocityView<T> view{TI.getData(),
-                                           m_rigidBody->getData(),
-                                           m_quaternion.getData(),
-                                           m_velocity.getData(),
-                                           m_torce.getData(),
-                                           m_bodyTag.getData(),
-                                           m_counts.numObstacles,
-                                           m_counts.numObstacles + m_counts.numParticles};
-        advanceVelocity_host(view);
-        }
-#if GRAINS_CUDA_COMPILER
-        else
-        {
-            uint numThreads, numBlocks;
-            computeOptimalThreadsAndBlocks(m_counts.numParticles,
-                                           GrainsParameters<T>::m_GPU,
-                                           numBlocks,
-                                           numThreads);
-            advanceVelocity_Kernel<<<numBlocks, numThreads>>>(TI.getData(),
-                                                              m_rigidBody->getData(),
-                                                              m_quaternion.getData(),
-                                                              m_velocity.getData(),
-                                                              m_torce.getData(),
-                                                              m_bodyTag.getData(),
-                                                              m_counts.numObstacles,
-                                                              m_counts.numParticles);
-        }
-#endif
+        grains::cpu::advanceVelocity(view);
+    else
+        grains::cuda::advanceVelocity(view);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -344,38 +305,19 @@ void ComponentManager<T, M>::updateSubBodyPositions()
 {
     if(m_counts.numSubBodies == 0)
         return;
-
+    // Preserve the previous host particle range and device component range.
+    const SubBodyTransformView<T> view{m_position.getData(),
+                                       m_quaternion.getData(),
+                                       m_localPos.getData(),
+                                       m_localQuat.getData(),
+                                       m_masterSlot.getData(),
+                                       m_bodyTag.getData(),
+                                       M == MemType::HOST ? m_counts.numObstacles : 0u,
+                                       m_counts.numObstacles + m_counts.numParticles};
     if constexpr(M == MemType::HOST)
-    {
-        const uint nTotal = m_counts.numObstacles + m_counts.numParticles;
-        for(uint cID = m_counts.numObstacles; cID < nTotal; ++cID)
-        {
-            const uint tag = m_bodyTag[cID];
-            if(!isSubBody(tag) || getSubBodyLocalIdx(tag) == 0u)
-                continue;
-            const uint mSlot  = m_masterSlot[getCompositeIdx(tag)];
-            m_position[cID]   = m_position[mSlot] + (m_quaternion[mSlot] >> m_localPos[cID]);
-            m_quaternion[cID] = m_quaternion[mSlot] * m_localQuat[cID];
-            T qn              = norm(m_quaternion[cID]);
-            if(qn > T(1e-12))
-                m_quaternion[cID] *= (T(1) / qn);
-        }
-    }
-#if GRAINS_CUDA_COMPILER
+        grains::cpu::updateSubBodyPositions(view);
     else
-    {
-        const uint nTotal = m_counts.numObstacles + m_counts.numParticles;
-        uint       numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nTotal, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-        updateSubBodyPositions_Kernel<<<numBlocks, numThreads>>>(m_position.getData(),
-                                                                 m_quaternion.getData(),
-                                                                 m_localPos.getData(),
-                                                                 m_localQuat.getData(),
-                                                                 m_masterSlot.getData(),
-                                                                 m_bodyTag.getData(),
-                                                                 nTotal);
-    }
-#endif
+        grains::cuda::updateSubBodyPositions(view);
 }
 
 // --------------------------------------------------------------------------------------------------

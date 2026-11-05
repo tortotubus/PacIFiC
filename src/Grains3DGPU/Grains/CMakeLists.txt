@@ -138,7 +138,20 @@ if(NOT PACIFIC_USE_CUDA)
   list(FILTER GRAINS3D_GPU_SOURCES EXCLUDE REGEX "(GrainsGPU|GrainsTestDev|CollisionDetectionModule_Kernels)\\.cpp$")
 else()
   set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
+  list(APPEND GRAINS3D_GPU_SOURCES
+    CollisionDetection/src/CollisionComputationCUDA.cu
+    Component/src/ParticleIntegrationCUDA.cu
+    ContactForce/src/ForceComputationCUDA.cu
+    ContactForce/src/ForceCompactionCUDA.cu
+  )
 endif()
+
+set_source_files_properties(
+  CollisionDetection/src/CollisionComputationCPU.cpp
+  Component/src/ParticleIntegrationCPU.cpp
+  ContactForce/src/ForceComputationCPU.cpp
+  PROPERTIES LANGUAGE CXX
+)
 
 add_library(Grains3DGPU_obj OBJECT ${GRAINS3D_GPU_SOURCES})
 add_library(PacIFiC::Grains3DGPU_obj ALIAS Grains3DGPU_obj)

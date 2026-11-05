@@ -9,13 +9,13 @@ template <typename T>
 struct ParticleVelocityView
 {
     const TimeIntegrator<T>* const* integrator;
-    const RigidBody<T>* const* rigidBody;
-    const Quaternion<T>* quaternion;
-    Kinematics<T>* velocity;
-    const Torce<T>* torce;
-    const uint* bodyTag;
-    uint begin;
-    uint end;
+    const RigidBody<T>* const*      rigidBody;
+    const Quaternion<T>*            quaternion;
+    Kinematics<T>*                  velocity;
+    const Torce<T>*                 torce;
+    const uint*                     bodyTag;
+    uint                            begin;
+    uint                            end;
 
     __HOSTDEVICE__ bool integrates(uint i) const
     {
@@ -34,14 +34,14 @@ template <typename T>
 struct ParticleIntegrationView
 {
     const TimeIntegrator<T>* const* integrator;
-    const RigidBody<T>* const* rigidBody;
-    Vector3<T>* position;
-    Quaternion<T>* quaternion;
-    Kinematics<T>* velocity;
-    Torce<T>* torce;
-    const uint* bodyTag;
-    uint begin;
-    uint end;
+    const RigidBody<T>* const*      rigidBody;
+    Vector3<T>*                     position;
+    Quaternion<T>*                  quaternion;
+    Kinematics<T>*                  velocity;
+    Torce<T>*                       torce;
+    const uint*                     bodyTag;
+    uint                            begin;
+    uint                            end;
 
     __HOSTDEVICE__ ParticleVelocityView<T> velocityView() const
     {
@@ -60,18 +60,34 @@ struct ParticleIntegrationView
     }
 };
 
+// Non-owning composite transforms. Backends choose the iteration range and
+// normalization tolerance to preserve their existing behavior.
 template <typename T>
-void moveParticles_host(const ParticleIntegrationView<T>& view)
+struct SubBodyTransformView
 {
-    for(uint i = view.begin; i < view.end; ++i)
-        view.move(i);
-}
+    Vector3<T>*          position;
+    Quaternion<T>*       quaternion;
+    const Vector3<T>*    localPos;
+    const Quaternion<T>* localQuat;
+    const uint*          masterSlot;
+    const uint*          bodyTag;
+    uint                 begin;
+    uint                 end;
 
-template <typename T>
-void advanceVelocity_host(const ParticleVelocityView<T>& view)
-{
-    for(uint i = view.begin; i < view.end; ++i)
-        view.advanceVelocity(i);
-}
+    __HOSTDEVICE__ void update(uint i, T normalizationTolerance) const
+    {
+        if(i < begin || i >= end)
+            return;
+        const uint tag = bodyTag[i];
+        if(!isSubBody(tag) || getSubBodyLocalIdx(tag) == 0u)
+            return;
+        const uint master = masterSlot[getCompositeIdx(tag)];
+        position[i]       = position[master] + (quaternion[master] >> localPos[i]);
+        quaternion[i]     = quaternion[master] * localQuat[i];
+        const T qn        = norm(quaternion[i]);
+        if(qn > normalizationTolerance)
+            quaternion[i] *= T(1) / qn;
+    }
+};
 
 #endif

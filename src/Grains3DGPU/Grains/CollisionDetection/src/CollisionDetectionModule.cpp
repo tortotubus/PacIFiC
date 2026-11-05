@@ -2,37 +2,19 @@
 #if GRAINS_CUDA_COMPILER
 #include <cub/cub.cuh>
 #endif
-#include <type_traits>
 #include <vector>
 
 #include "BodyTag.hh"
 #include "CollisionDetectionCommon.hh"
+#include "CollisionComputation.hh"
+#include "CollisionComputationCPU.hh"
+#include "CollisionComputationCUDA.hh"
 #include "CollisionDetectionModule.hh"
 #if GRAINS_CUDA_COMPILER
 #include "CollisionDetectionModule_Kernels.hh"
 #endif
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
-
-// -------------------------------------------------------------------------------------------------
-// Dispatches from runtime (NarrowPhaseType, bool) to compile-time template arguments by calling
-//   f( std::integral_constant<GJKType, GJKV>{}, std::bool_constant<GJKA>{} )
-// with the four concrete instantiations. The generic lambda in the call site then recovers
-// GJKV / GJKA as constexpr values via "constexpr auto V = decltype(tag)::value".
-template <typename Func>
-static void dispatchGJK(NarrowPhaseType npType, bool gjkAcc, Func&& f)
-{
-    using J  = std::integral_constant<GJKType, GJKType::JOHNSON>;
-    using SV = std::integral_constant<GJKType, GJKType::SIGNEDVOLUME>;
-    if(npType == NarrowPhaseType::GJK && !gjkAcc)
-        std::forward<Func>(f)(J{}, std::false_type{});
-    else if(npType == NarrowPhaseType::GJK && gjkAcc)
-        std::forward<Func>(f)(J{}, std::true_type{});
-    else if(npType == NarrowPhaseType::GJK_SV && !gjkAcc)
-        std::forward<Func>(f)(SV{}, std::false_type{});
-    else
-        std::forward<Func>(f)(SV{}, std::true_type{});
-}
 
 // -------------------------------------------------------------------------------------------------
 // Constructor: builds the NeighborList object, then allocates pair-indexed buffers
@@ -255,43 +237,19 @@ void CollisionDetectionModule<T, M>::computeRelativeTransformations(
     const GrainsMemBuffer<Quaternion<T>, M>& orientations,
     const GrainsMemBuffer<IndexPair, M>&     pairList)
 {
-    const uint nPairs = m_neighborList->getSize();
-    auto&      gt     = GrainsParameters<T>::m_cdmTimer;
-
-    gt.start(CDMStage::RelativeTransform);
-
+    auto& timer = GrainsParameters<T>::m_cdmTimer;
+    timer.start(CDMStage::RelativeTransform);
+    const RelativeTransformView<T> view{pairList.getData(),
+                                        positions.getData(),
+                                        orientations.getData(),
+                                        m_relPosition.getData(),
+                                        m_relQuaternion.getData(),
+                                        m_neighborList->getSize()};
     if constexpr(M == MemType::HOST)
-    {
-        for(uint i = 0; i < nPairs; ++i)
-            computeRelativeTransformations_common(pairList.getData(),
-                                                  positions.getData(),
-                                                  orientations.getData(),
-                                                  m_relPosition.getData(),
-                                                  m_relQuaternion.getData(),
-                                                  i);
-    }
-#if GRAINS_CUDA_COMPILER
+        grains::cpu::computeRelativeTransforms(view);
     else
-    {
-        if(nPairs == 0)
-        {
-            gt.stop(CDMStage::RelativeTransform);
-            return;
-        }
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nPairs, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-
-        computeRelativeTransformations_Kernel<<<numBlocks, numThreads>>>(positions.getData(),
-                                                                         orientations.getData(),
-                                                                         pairList.getData(),
-                                                                         m_relPosition.getData(),
-                                                                         m_relQuaternion.getData(),
-                                                                         nPairs);
-        cudaDeviceSynchronize();
-    }
-#endif
-
-    gt.stop(CDMStage::RelativeTransform);
+        grains::cuda::computeRelativeTransforms(view);
+    timer.stop(CDMStage::RelativeTransform);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -377,163 +335,49 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponents(
     const GrainsMemBuffer<uint, M>&      bodyTags,
     const ComponentCounts&               counts)
 {
-    const uint               nPairs = m_neighborList->getSize();
-    const BoundingVolumeType bvType = GrainsParameters<T>::m_collisionDetection.boundingVolumeType;
-    const NarrowPhaseType    npType = GrainsParameters<T>::m_collisionDetection.narrowPhaseType;
-    const bool               gjkAcc = GrainsParameters<T>::m_collisionDetection.gjkAcceleration;
-    auto&                    gt     = GrainsParameters<T>::m_cdmTimer;
-
-    if constexpr(M == MemType::HOST)
-    {
-        // BVType is passed directly to detectCollisionsComponents_common, which forwards it to
-        // closestPointsRigidBodies. The BV early-out and no-contact sentinel are handled
-        // internally. Intra-composite pairs are skipped via an explicit guard before the call.
-        const bool usePrebuilt = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-        auto       run         = [&](auto bvTypeTag) {
-            constexpr BoundingVolumeType BVT = decltype(bvTypeTag)::value;
-            gt.start(CDMStage::NarrowPhase);
-            dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                const uint*       bt   = bodyTags.getData();
-                for(uint i = 0; i < nPairs; ++i)
-                {
-                    if(counts.numComposites > 0)
-                    {
-                        const IndexPair p    = pairList.getData()[i];
-                        const uint  tagA = bt[p.x];
-                        const uint  tagB = bt[p.y];
-                        if(isSubBody(tagA) && isSubBody(tagB)
-                           && getCompositeIdx(tagA) == getCompositeIdx(tagB))
-                        {
-                            m_contactInfoLocal.getData()[i].setOverlapDistance(T(1));
-                            continue;
-                        }
-                    }
-                    if(usePrebuilt)
-                        detectCollisionsComponents_common<T, GJKV, GJKA, BVT>(
-                            pairList.getData(),
-                            m_shapeData.getData(),
-                            bt,
-                            m_relPosition.getData(),
-                            m_relQuaternion.getData(),
-                            m_contactInfoLocal.getData(),
-                            i);
-                    else
-                        detectCollisionsComponents_common<T, GJKV, GJKA, BVT>(
-                            pairList.getData(),
-                            rigidBodies,
-                            m_relPosition.getData(),
-                            m_relQuaternion.getData(),
-                            m_contactInfoLocal.getData(),
-                            i);
-                }
-            });
-            gt.stop(CDMStage::NarrowPhase);
-        };
-
-        using OFFT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OFF>;
-        using OBBT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBB>;
-        using OBCT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBC>;
-        if(bvType == BoundingVolumeType::OBB)
-            run(OBBT{});
-        else if(bvType == BoundingVolumeType::OBC)
-            run(OBCT{});
-        else
-            run(OFFT{});
-    }
+    using GP           = GrainsParameters<T>;
+    const auto& config = GP::m_collisionDetection;
+    auto&       timer  = GP::m_cdmTimer;
+    uint        count  = m_neighborList->getSize();
+    const uint* active = nullptr;
 #if GRAINS_CUDA_COMPILER
-    else
+    if constexpr(M == MemType::DEVICE)
     {
-        if(bvType == BoundingVolumeType::OBB || bvType == BoundingVolumeType::OBC
-           || counts.numComposites > 0)
+        if(config.boundingVolumeType != BoundingVolumeType::OFF || counts.numComposites > 0)
         {
-            // BV-ON: filter + composite rejection fused in the BV kernel.
-            // BV-OFF with composites: composite-only filter reusing BV CUB machinery.
             filterPairsBV(rigidBodies,
                           pairList,
                           m_contactInfoLocal,
                           bodyTags.getData(),
                           counts.numComposites);
-            gt.start(CDMStage::NarrowPhase);
-            if((uint)*m_bvPassPairCountMapped.getData() > 0)
-            {
-                uint numThreads, numBlocks;
-                computeOptimalThreadsAndBlocks((uint)*m_bvPassPairCountMapped.getData(),
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                const bool usePrebuilt
-                    = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-                dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                    constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                    constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                    if(usePrebuilt)
-                        detectCollisionsComponents_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(m_shapeData.getData(),
-                                                        pairList.getData(),
-                                                        bodyTags.getData(),
-                                                        m_bvPassPairIndices.getData(),
-                                                        m_relPosition.getData(),
-                                                        m_relQuaternion.getData(),
-                                                        m_contactInfoLocal.getData(),
-                                                        (uint)*m_bvPassPairCountMapped.getData());
-                    else
-                        detectCollisionsComponents_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(rigidBodies,
-                                                        pairList.getData(),
-                                                        m_bvPassPairIndices.getData(),
-                                                        m_relPosition.getData(),
-                                                        m_relQuaternion.getData(),
-                                                        m_contactInfoLocal.getData(),
-                                                        (uint)*m_bvPassPairCountMapped.getData());
-                });
-                cudaDeviceSynchronize();
-            }
-            gt.stop(CDMStage::NarrowPhase);
-        }
-        else
-        {
-            // BV-OFF, no composites: run GJK over all pairs without an index list.
-            gt.start(CDMStage::NarrowPhase);
-            if(nPairs > 0)
-            {
-                uint numThreads, numBlocks;
-                computeOptimalThreadsAndBlocks(nPairs,
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                const bool usePrebuilt
-                    = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-                dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                    constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                    constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                    if(usePrebuilt)
-                        detectCollisionsComponents_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(m_shapeData.getData(),
-                                                        pairList.getData(),
-                                                        bodyTags.getData(),
-                                                        nullptr,
-                                                        m_relPosition.getData(),
-                                                        m_relQuaternion.getData(),
-                                                        m_contactInfoLocal.getData(),
-                                                        nPairs);
-                    else
-                        detectCollisionsComponents_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(rigidBodies,
-                                                        pairList.getData(),
-                                                        nullptr,
-                                                        m_relPosition.getData(),
-                                                        m_relQuaternion.getData(),
-                                                        m_contactInfoLocal.getData(),
-                                                        nPairs);
-                });
-                cudaDeviceSynchronize();
-            }
-            gt.stop(CDMStage::NarrowPhase);
+            count  = static_cast<uint>(*m_bvPassPairCountMapped.getData());
+            active = m_bvPassPairIndices.getData();
         }
     }
 #endif
+    const CollisionPairView<T>     pairs{pairList.getData(),
+                                     rigidBodies,
+                                     m_shapeData.getData(),
+                                     bodyTags.getData(),
+                                     m_contactInfoLocal.getData(),
+                                     active,
+                                     count,
+                                     counts.numComposites};
+    const RelativeCollisionView<T> view{pairs, m_relPosition.getData(), m_relQuaternion.getData()};
+    NarrowPhaseOptions             options{config.narrowPhaseType,
+                               config.boundingVolumeType,
+                               config.gjkAcceleration,
+                               config.usePrebuiltShapes};
+    timer.start(CDMStage::NarrowPhase);
+    if constexpr(M == MemType::HOST)
+        grains::cpu::detectRelativeCollisions(view, options);
+    else
+    {
+        // CUDA bounding-volume rejection has already run in filterPairsBV.
+        options.boundingVolume = BoundingVolumeType::OFF;
+        grains::cuda::detectRelativeCollisions(view, options);
+    }
+    timer.stop(CDMStage::NarrowPhase);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -548,115 +392,26 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
     const GrainsMemBuffer<uint, M>&          bodyTags,
     const ComponentCounts&                   counts)
 {
-    const uint               nPairs = m_neighborList->getSize();
-    const BoundingVolumeType bvType = GrainsParameters<T>::m_collisionDetection.boundingVolumeType;
-    const NarrowPhaseType    npType = GrainsParameters<T>::m_collisionDetection.narrowPhaseType;
-    const bool               gjkAcc = GrainsParameters<T>::m_collisionDetection.gjkAcceleration;
-    auto&                    gt     = GrainsParameters<T>::m_cdmTimer;
-
-    if constexpr(M == MemType::HOST)
-    {
-        // BVType is passed directly to detectCollisionsComponentsGlobal_common, which forwards
-        // it to closestPointsRigidBodies. The BV early-out and no-contact sentinel are handled
-        // internally. Intra-composite pairs are skipped via an explicit guard before the call.
-        const bool usePrebuilt = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-        auto       run         = [&](auto bvTypeTag) {
-            constexpr BoundingVolumeType BVT = decltype(bvTypeTag)::value;
-            gt.start(CDMStage::NarrowPhase);
-            dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                const uint*       bt   = bodyTags.getData();
-                for(uint i = 0; i < nPairs; ++i)
-                {
-                    if(counts.numComposites > 0)
-                    {
-                        const IndexPair p    = pairList.getData()[i];
-                        const uint  tagA = bt[p.x];
-                        const uint  tagB = bt[p.y];
-                        if(isSubBody(tagA) && isSubBody(tagB)
-                           && getCompositeIdx(tagA) == getCompositeIdx(tagB))
-                        {
-                            contactInfo.getData()[i].setOverlapDistance(T(1));
-                            continue;
-                        }
-                    }
-                    if(usePrebuilt)
-                        detectCollisionsComponentsGlobal_common<T, GJKV, GJKA, BVT>(
-                            pairList.getData(),
-                            m_shapeData.getData(),
-                            bt,
-                            positions.getData(),
-                            orientations.getData(),
-                            contactInfo.getData(),
-                            i);
-                    else
-                        detectCollisionsComponentsGlobal_common<T, GJKV, GJKA, BVT>(
-                            pairList.getData(),
-                            rigidBodies,
-                            positions.getData(),
-                            orientations.getData(),
-                            contactInfo.getData(),
-                            i);
-                }
-            });
-            gt.stop(CDMStage::NarrowPhase);
-        };
-
-        using OFFT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OFF>;
-        using OBBT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBB>;
-        using OBCT = std::integral_constant<BoundingVolumeType, BoundingVolumeType::OBC>;
-        if(bvType == BoundingVolumeType::OBB)
-            run(OBBT{});
-        else if(bvType == BoundingVolumeType::OBC)
-            run(OBCT{});
-        else
-            run(OFFT{});
-    }
+    using GP           = GrainsParameters<T>;
+    const auto& config = GP::m_collisionDetection;
+    auto&       timer  = GP::m_cdmTimer;
+    uint        count  = m_neighborList->getSize();
+    const uint* active = nullptr;
 #if GRAINS_CUDA_COMPILER
-    else
+    if constexpr(M == MemType::DEVICE)
     {
-        const bool needFilter = (bvType == BoundingVolumeType::OBB
-                                 || bvType == BoundingVolumeType::OBC || counts.numComposites > 0);
-
-        if(needFilter)
+        if(config.boundingVolumeType != BoundingVolumeType::OFF || counts.numComposites > 0)
         {
-            uint       numBlocks, numThreads;
-            const bool useRelT
-                = GrainsParameters<T>::m_collisionDetection.useRelativeTransformations;
-            if(bvType == BoundingVolumeType::OBB || bvType == BoundingVolumeType::OBC)
+            if(config.useRelativeTransformations)
             {
-                if(useRelT)
-                {
-                    // Pre-compute relPos/relQuat for the existing BV kernel
-                    gt.start(CDMStage::RelativeTransform);
-                    if(nPairs > 0)
-                    {
-                        computeOptimalThreadsAndBlocks(nPairs,
-                                                       GrainsParameters<T>::m_GPU,
-                                                       numBlocks,
-                                                       numThreads);
-                        computeRelativeTransformations_Kernel<T>
-                            <<<numBlocks, numThreads>>>(positions.getData(),
-                                                        orientations.getData(),
-                                                        pairList.getData(),
-                                                        m_relPosition.getData(),
-                                                        m_relQuaternion.getData(),
-                                                        nPairs);
-                        cudaDeviceSynchronize();
-                    }
-                    gt.stop(CDMStage::RelativeTransform);
-                }
-            }
-            // BV filter:
-            //   useRelT=true  -> filterPairsBV  (reads pre-computed relPos/relQuat arrays)
-            //   useRelT=false -> filterPairsBV_global (computes rel transforms on-the-fly)
-            if(useRelT)
+                if(config.boundingVolumeType != BoundingVolumeType::OFF)
+                    computeRelativeTransformations(positions, orientations, pairList);
                 filterPairsBV(rigidBodies,
                               pairList,
                               contactInfo,
                               bodyTags.getData(),
                               counts.numComposites);
+            }
             else
                 filterPairsBV_global(rigidBodies,
                                      positions,
@@ -665,92 +420,33 @@ void CollisionDetectionModule<T, M>::detectCollisionsComponentsGlobal(
                                      contactInfo,
                                      bodyTags.getData(),
                                      counts.numComposites);
-
-            // GJK on compacted pairs (world frame, no relPos/relQuat needed)
-            gt.start(CDMStage::NarrowPhase);
-            if((uint)*m_bvPassPairCountMapped.getData() > 0)
-            {
-                computeOptimalThreadsAndBlocks((uint)*m_bvPassPairCountMapped.getData(),
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                const bool usePrebuilt
-                    = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-                dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                    constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                    constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                    if(usePrebuilt)
-                        detectCollisionsComponentsGlobal_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(m_shapeData.getData(),
-                                                        pairList.getData(),
-                                                        bodyTags.getData(),
-                                                        m_bvPassPairIndices.getData(),
-                                                        positions.getData(),
-                                                        orientations.getData(),
-                                                        contactInfo.getData(),
-                                                        (uint)*m_bvPassPairCountMapped.getData());
-                    else
-                        detectCollisionsComponentsGlobal_Kernel<T,
-                                                                GJKV,
-                                                                GJKA,
-                                                                BoundingVolumeType::OFF>
-                            <<<numBlocks, numThreads>>>(rigidBodies,
-                                                        pairList.getData(),
-                                                        m_bvPassPairIndices.getData(),
-                                                        positions.getData(),
-                                                        orientations.getData(),
-                                                        contactInfo.getData(),
-                                                        (uint)*m_bvPassPairCountMapped.getData());
-                });
-                cudaDeviceSynchronize();
-            }
-            gt.stop(CDMStage::NarrowPhase);
-        }
-        else
-        {
-            // BV-OFF, no composites: run GJK over all pairs without an index list.
-            gt.start(CDMStage::NarrowPhase);
-            if(nPairs > 0)
-            {
-                uint numThreads, numBlocks;
-                computeOptimalThreadsAndBlocks(nPairs,
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                const bool usePrebuilt
-                    = GrainsParameters<T>::m_collisionDetection.usePrebuiltShapes;
-                dispatchGJK(npType, gjkAcc, [&](auto gjkV_tag, auto gjkA_tag) {
-                    constexpr GJKType GJKV = decltype(gjkV_tag)::value;
-                    constexpr bool    GJKA = decltype(gjkA_tag)::value;
-                    if(usePrebuilt)
-                        detectCollisionsComponentsGlobal_Kernel<T, GJKV, GJKA>
-                            <<<numBlocks, numThreads>>>(m_shapeData.getData(),
-                                                        pairList.getData(),
-                                                        bodyTags.getData(),
-                                                        nullptr,
-                                                        positions.getData(),
-                                                        orientations.getData(),
-                                                        contactInfo.getData(),
-                                                        nPairs);
-                    else
-                        detectCollisionsComponentsGlobal_Kernel<T,
-                                                                GJKV,
-                                                                GJKA,
-                                                                BoundingVolumeType::OFF>
-                            <<<numBlocks, numThreads>>>(rigidBodies,
-                                                        pairList.getData(),
-                                                        nullptr,
-                                                        positions.getData(),
-                                                        orientations.getData(),
-                                                        contactInfo.getData(),
-                                                        nPairs);
-                });
-                cudaDeviceSynchronize();
-            }
-            gt.stop(CDMStage::NarrowPhase);
+            count  = static_cast<uint>(*m_bvPassPairCountMapped.getData());
+            active = m_bvPassPairIndices.getData();
         }
     }
 #endif
+    const CollisionPairView<T>   pairs{pairList.getData(),
+                                     rigidBodies,
+                                     m_shapeData.getData(),
+                                     bodyTags.getData(),
+                                     contactInfo.getData(),
+                                     active,
+                                     count,
+                                     counts.numComposites};
+    const GlobalCollisionView<T> view{pairs, positions.getData(), orientations.getData()};
+    NarrowPhaseOptions           options{config.narrowPhaseType,
+                               config.boundingVolumeType,
+                               config.gjkAcceleration,
+                               config.usePrebuiltShapes};
+    timer.start(CDMStage::NarrowPhase);
+    if constexpr(M == MemType::HOST)
+        grains::cpu::detectGlobalCollisions(view, options);
+    else
+    {
+        options.boundingVolume = BoundingVolumeType::OFF;
+        grains::cuda::detectGlobalCollisions(view, options);
+    }
+    timer.stop(CDMStage::NarrowPhase);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -988,43 +684,19 @@ void CollisionDetectionModule<T, M>::transformContactInfo(
     const GrainsMemBuffer<IndexPair, M>&     pairList,
     GrainsMemBuffer<ContactInfo<T>, M>&      contactInfo)
 {
-    const uint nPairs = m_neighborList->getSize();
-    auto&      gt     = GrainsParameters<T>::m_cdmTimer;
-
-    gt.start(CDMStage::Transform);
-
+    auto& timer = GrainsParameters<T>::m_cdmTimer;
+    timer.start(CDMStage::Transform);
+    const ContactTransformView<T> view{pairList.getData(),
+                                       positions.getData(),
+                                       orientations.getData(),
+                                       m_contactInfoLocal.getData(),
+                                       contactInfo.getData(),
+                                       m_neighborList->getSize()};
     if constexpr(M == MemType::HOST)
-    {
-        for(uint i = 0; i < nPairs; ++i)
-            transformContactInfo_common(pairList.getData(),
-                                        positions.getData(),
-                                        orientations.getData(),
-                                        m_contactInfoLocal.getData(),
-                                        contactInfo.getData(),
-                                        i);
-    }
-#if GRAINS_CUDA_COMPILER
+        grains::cpu::transformContacts(view);
     else
-    {
-        if(nPairs == 0)
-        {
-            gt.stop(CDMStage::Transform);
-            return;
-        }
-        uint numThreads, numBlocks;
-        computeOptimalThreadsAndBlocks(nPairs, GrainsParameters<T>::m_GPU, numBlocks, numThreads);
-
-        transformContactInfo_Kernel<<<numBlocks, numThreads>>>(positions.getData(),
-                                                               orientations.getData(),
-                                                               pairList.getData(),
-                                                               m_contactInfoLocal.getData(),
-                                                               contactInfo.getData(),
-                                                               nPairs);
-        cudaDeviceSynchronize();
-    }
-#endif
-
-    gt.stop(CDMStage::Transform);
+        grains::cuda::transformContacts(view);
+    timer.stop(CDMStage::Transform);
 }
 
 // -------------------------------------------------------------------------------------------------

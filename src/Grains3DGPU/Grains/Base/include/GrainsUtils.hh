@@ -115,7 +115,11 @@ __HOSTDEVICE__ static INLINE uint primeHash(IndexPair k)
 {
     // Simple, fast hash using prime numbers for good distribution
     if(k.x > k.y)
-        swap(k.x, k.y);
+    {
+        const uint first = k.x;
+        k.x = k.y;
+        k.y = first;
+    }
     uint h = k.x * 73856093u ^ k.y * 19349663u;
     return h;
 }

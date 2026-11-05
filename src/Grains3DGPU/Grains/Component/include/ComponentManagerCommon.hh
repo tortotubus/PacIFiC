@@ -20,8 +20,8 @@
     for flexibility in usage. The functions are marked as inline to allow for
     better optimization by the compiler.
 
-    Force computation helpers (computeContactForces_common, reduceTorces_common,
-    addExternalForces_common) have been moved to ForceModuleCommon.hh.
+    Force computation helpers (computeContactForces_common and addExternalForces_common)
+    live in ForceModuleCommon.hh; atomic reduction is private to ForceComputationCUDA.cu.
 
     @author A.Yazdani - 2025 - Construction */
 // =================================================================================================

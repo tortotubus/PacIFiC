@@ -2,6 +2,7 @@
 #define _FORCEMODULE_HH_
 
 #include "BodyTag.hh"
+#include "ForceComputationCUDA.hh"
 #include "ContactForceModel.hh"
 #include "ContactInfo.hh"
 #include "ContactTable.hh"
@@ -11,6 +12,20 @@
 #include "RigidBody.hh"
 #include "Torce.hh"
 #include "Vector3.hh"
+
+namespace grains::detail
+{
+    // HOST modules have no CUDA state, deleter calls, or allocations.
+    template <typename T, MemType M>
+    struct ForceBackendStorage
+    {
+    };
+    template <typename T>
+    struct ForceBackendStorage<T, MemType::DEVICE>
+    {
+        cuda::ForceStatePtr<T> state;
+    };
+}
 
 // =================================================================================================
 /** @brief The class ForceModule.
@@ -30,19 +45,7 @@ class ForceModule
 private:
     /** @name Owned resources */
     //@{
-    /** \brief Compact array of active pair indices (DEVICE path only) */
-    GrainsMemBuffer<uint, M> m_activeIndex;
-    /** \brief CUB DeviceSelect::If temporary storage (DEVICE path only) */
-    GrainsMemBuffer<uint8_t, M> m_cubSelectTempStorage;
-    /** \brief Zero-copy mapped pinned buffer holding the CUB compaction count.
-        Device writes via getDeviceData() (mapped alias); host reads via getData(). */
-#if GRAINS_CUDA_COMPILER
-    GrainsMemBuffer<uint, MemType::MAPPED> m_numActivePairsMapped;
-#endif
-    /** \brief Per-pair intermediate torce for particle A (lazy resize; DEVICE path only) */
-    GrainsMemBuffer<Torce<T>, M> m_intermediateTorceA;
-    /** \brief Per-pair intermediate torce for particle B (lazy resize; DEVICE path only) */
-    GrainsMemBuffer<Torce<T>, M> m_intermediateTorceB;
+    grains::detail::ForceBackendStorage<T, M> m_backend;
     /** \brief Contact history hash table (allocated only when isContactWithMemory == true) */
     ContactHashTable<T, M> m_contactTable;
     //@}
@@ -99,8 +102,8 @@ public:
 
     /** @brief Runs the complete force computation pipeline. Steps:
           1. cleanupContactTable (periodic mark-and-sweep every 1000 NL updates)
-          2. [DEVICE] resize m_intermediateTorceA/B to numPairs
-          3. [DEVICE] computeContactForces_Kernel -> reduceTorces_Kernel
+          2. [DEVICE] resize backend-owned intermediate buffers
+          3. [DEVICE] compute contact forces then reduce per-pair torces
              [HOST]   sequential computeContactForces_common loop
           4. addExternalForces (gravity)
           5. assembleCompositeTorces (no-op when numSubBodies == 0)
