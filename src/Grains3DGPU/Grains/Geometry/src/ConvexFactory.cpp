@@ -11,11 +11,11 @@
 // -------------------------------------------------------------------------------------------------
 // Construct a convex with an XML node as an input parameter
 template <typename T>
-Convex<T>* ConvexFactory<T>::create(DOMNode* root)
+Convex<T>* ConvexFactory<T>::create(grains::xml::OptionalElement root)
 {
     Convex<T>* convex;
-    DOMNode*   element = ReaderXML::getNodeNext(root);
-    string     type    = ReaderXML::getNodeName(element);
+    auto element = grains::xml::requireElement(root).firstChild();
+    string type = grains::xml::requireElement(element).name();
 
     if(type == "Sphere")
         convex = new Sphere<T>(element);

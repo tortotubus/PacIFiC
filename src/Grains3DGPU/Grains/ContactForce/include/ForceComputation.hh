@@ -18,17 +18,18 @@ struct ContactForceView
     ContactMemoryView<T>               memory;
     uint                               count;
 
+    template <typename ContactOps>
     __HOSTDEVICE__ void compute(uint i) const
     {
         if(i < count)
-            computeContactForces_common(models,
-                                        pairs,
-                                        contacts,
-                                        positions,
-                                        velocities,
-                                        torces,
-                                        memory,
-                                        i);
+            computeContactForces_common<ContactOps>(models,
+                                                    pairs,
+                                                    contacts,
+                                                    positions,
+                                                    velocities,
+                                                    torces,
+                                                    memory,
+                                                    i);
     }
 };
 
@@ -39,6 +40,7 @@ struct PairForceView
     Torce<T>*           first;
     Torce<T>*           second;
 
+    template <typename ContactOps>
     __HOSTDEVICE__ void compute(uint i) const
     {
         if(i >= contact.count)
@@ -46,15 +48,15 @@ struct PairForceView
         // Inactive pairs must not carry forces from the previous step into reduction.
         first[i].reset();
         second[i].reset();
-        computeContactForces_common(contact.models,
-                                    contact.pairs,
-                                    contact.contacts,
-                                    contact.positions,
-                                    contact.velocities,
-                                    first,
-                                    second,
-                                    contact.memory,
-                                    i);
+        computeContactForces_common<ContactOps>(contact.models,
+                                                contact.pairs,
+                                                contact.contacts,
+                                                contact.positions,
+                                                contact.velocities,
+                                                first,
+                                                second,
+                                                contact.memory,
+                                                i);
     }
 };
 

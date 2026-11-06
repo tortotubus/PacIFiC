@@ -2,7 +2,7 @@
 #define _CONVEXFACTORY_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class ConvexFactory.
@@ -41,7 +41,7 @@ public:
     //@{
     /** @brief Construct a convex with an XML node as an input parameter.
         @param root XML node */
-    static Convex<T>* create(DOMNode* root);
+    static Convex<T>* create(grains::xml::OptionalElement root);
 
     /** @brief Construct a convex with a type and a input stream as input parameters.
         @param type convex type

@@ -25,9 +25,8 @@ else()
   find_package(ZLIB REQUIRED)
 endif()
 
-if (PACIFIC_BUILD_THIRD_PARTY_XERCESC)
-else()
-  find_package(XercesC REQUIRED)
+if(NOT TARGET LibXml2::LibXml2)
+  find_package(LibXml2 2.14 REQUIRED)
 endif()
 
 if (PACIFIC_USE_CUDA)
@@ -61,10 +60,7 @@ if(PACIFIC_BUILD_TESTS)
   set(GRAINS3D_GPU_SOURCE_ROOT_DIR "${PROJECT_SOURCE_DIR}")
   set(GRAINS3D_GPU_BINARY_ROOT_DIR "${PROJECT_BINARY_DIR}")
   enable_testing()
-  add_subdirectory(Tests/cpu)
-  if(PACIFIC_USE_CUDA)
-    add_subdirectory(Tests)
-  endif()
+  add_subdirectory(Tests)
 endif()
 
 
@@ -98,10 +94,13 @@ install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/Geometry/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/PostProcessing/include/
   ${CMAKE_CURRENT_SOURCE_DIR}/Grains/TimeIntegration/include/
-  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/XML3/include/
+  ${CMAKE_CURRENT_SOURCE_DIR}/Grains/XML/include/
   DESTINATION ${PACIFIC_MPI_INSTALL_INCLUDEDIR}/Grains3DGPU
   COMPONENT Grains3DGPU_Devel
-  FILES_MATCHING PATTERN "*.h*" # match .h, .hh, .hpp
+  FILES_MATCHING
+    PATTERN "*.h*"  # .h, .hh, .hpp
+    PATTERN "*.cuh" # CUDA-only declarations
+    PATTERN "*.tpp" # header-visible template definitions
 )
 
 # ---- 3. Install data/config files --------------------------------

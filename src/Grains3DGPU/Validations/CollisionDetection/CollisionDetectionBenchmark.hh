@@ -13,6 +13,7 @@
 #include "CSVWriter.hh"
 #include "ComponentManagerCommon.hh"
 #include "GJK.hh"
+#include "GrainsCUDAError.hh"
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
@@ -26,7 +27,7 @@
 #include "Quaternion.hh"
 #include "QuaternionMath.hh"
 #include "RigidBody.hh"
-#include "RigidBodyFactory.hh"
+#include "RigidBodyFactoryCUDA.cuh"
 #include "Sphere.hh"
 #include "StepTimer.hh"
 #include "Superquadric.hh"
@@ -206,7 +207,7 @@ public:
         if(m_config.platform == PLATFORM::GPU || m_config.platform == PLATFORM::BOTH)
         {
             // Copy all data to device
-            RigidBodyFactory<T>::copyHostToDevice(m_rigidBodies, m_d_rigidBodies);
+            grains::cuda::copyRigidBodiesToDevice(m_rigidBodies, m_d_rigidBodies);
             m_d_positions.copyFrom(m_positions);
             m_d_quaternions.copyFrom(m_quaternions);
             m_d_transforms.copyFrom(m_transforms);
@@ -701,7 +702,7 @@ private:
         }
 
         // Get pair list
-        uint                                  numContacts = neighborList->getSize();
+        uint                                      numContacts = neighborList->getSize();
         GrainsMemBuffer<IndexPair, MemType::HOST> pairList(numContacts);
         neighborList->getBuffer().copyTo(pairList);
 

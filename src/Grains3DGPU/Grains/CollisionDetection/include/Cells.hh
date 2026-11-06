@@ -1,18 +1,10 @@
 #ifndef _CELLS_HH_
 #define _CELLS_HH_
 
+#include "CellsFwd.hh"
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "Vector3.hh"
-
-/** @brief Type of cell ordering */
-enum class CellOrdering
-{
-    /** @brief Linear ordering */
-    LINEAR = 0,
-    /** @brief Morton ordering (Z-curve) */
-    MORTON = 1
-};
 
 // =================================================================================================
 /** @brief The class Cells.
@@ -29,7 +21,7 @@ enum class CellOrdering
     @author A.Yazdani - 2025 - Modification for NeighborList
     @author A.Yazdani - 2025 - Morton code implementation */
 // =================================================================================================
-template <typename T, CellOrdering OrderingScheme = CellOrdering::LINEAR>
+template <typename T, CellOrdering OrderingScheme>
 class Cells
 {
 protected:

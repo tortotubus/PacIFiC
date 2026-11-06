@@ -2,7 +2,7 @@
 #define _RECTANGLE_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class Rectangle.
@@ -38,7 +38,7 @@ public:
     /** @brief Constructor with an XML node as an input parameter
         @param root XML node */
     __HOST__
-    Rectangle(DOMNode* root);
+    Rectangle(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

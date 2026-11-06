@@ -72,33 +72,12 @@ public:
         @param particleData output struct to hold parsed particle data
         @param numObstacles output number of obstacles
         @param numParticles output number of particles */
-    static void create(DOMNode*         obstacles,
-                       DOMNode*         particles,
+    static void create(grains::xml::OptionalElement obstacles,
+                       grains::xml::OptionalElement particles,
                        ParticleData<T>& obstacleData,
                        ParticleData<T>& particleData,
                        uint&            numObstacles,
                        uint&            numParticles);
-
-    /** @brief RigidBody objects must be instantiated on device, if we want to use them on device.
-        Copying from host is not supported due to runtime polymorphism for this class. This
-        function reads a host-side RigidBody object, and mimics it in a given device buffer. It
-        calls a device kernel that is implemented in the source file.
-        @param h_RB Host-side RigidBody object
-        @param d_RB Device-side RigidBody object */
-
-#if GRAINS_CUDA_COMPILER
-    static void copyHostToDevice(GrainsMemBuffer<RigidBody<T>*, MemType::HOST>&   h_RB,
-                                 GrainsMemBuffer<RigidBody<T>*, MemType::DEVICE>& d_RB);
-#endif
-
-    /** @brief Frees RigidBody objects that were created on device via copyHostToDevice.
-        Launches a kernel that calls device-side delete on every pointer, then releases
-        the pointer array.  Safe to call even if d_RB is empty.
-        @param d_RB Device-side RigidBody pointer buffer */
-
-#if GRAINS_CUDA_COMPILER
-    static void freeDevice(GrainsMemBuffer<RigidBody<T>*, MemType::DEVICE>& d_RB);
-#endif
 
     //@}
 };

@@ -2,7 +2,7 @@
 #define _POSTPROCESSINGWRITERFACTORY_HH_
 
 #include "PostProcessingWriter.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include <string>
 
 // =================================================================================================
@@ -35,7 +35,7 @@ public:
     /** @brief Creates a post-processing writer from an XML node
         @param nPPW XML node */
 
-    static PostProcessingWriter<T>* create(DOMNode* nPPW);
+    static PostProcessingWriter<T>* create(grains::xml::OptionalElement nPPW);
     //@}
 };
 

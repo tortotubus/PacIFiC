@@ -2,7 +2,7 @@
 #define _CONE_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class Cone.
@@ -39,7 +39,7 @@ public:
     /** @brief Constructor with an XML node as an input parameter
         @param root XML node */
     __HOST__
-    Cone(DOMNode* root);
+    Cone(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

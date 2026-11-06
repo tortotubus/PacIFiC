@@ -1,6 +1,7 @@
+#include "Data.hh"
 #include "Grains.hh"
 #include "GrainsFactory.hh"
-#include "ReaderXML.hh"
+#include "Libxml2Backend.hh"
 
 #include <filesystem>
 #include <iostream>
@@ -90,7 +91,7 @@ static std::optional<CliOptions> parse_args(int argc, char* argv[], std::string&
 }
 
 template <typename T>
-static int run_grains(DOMElement* rootNode, bool dry_run)
+static int run_grains(const grains::xml::Element& rootNode, bool dry_run)
 {
     std::unique_ptr<Grains<T>> grains(GrainsFactory<T>::create(rootNode));
     if(!grains)
@@ -142,15 +143,16 @@ int main(int argc, char* argv[])
     }
 
     std::string filename_exe;
-    DOMElement*  rootNode         = nullptr;
-    bool         reader_initialized = false;
     try
     {
         filename_exe = GrainsFactory<double>::init(opt.input_xml);
-        ReaderXML::initialize();
-        reader_initialized = true;
-        rootNode           = ReaderXML::getRoot(filename_exe);
-        std::string prc      = ReaderXML::getNodeAttr_String(rootNode, "Precision");
+        grains::xml::ParseOptions parseOptions;
+        parseOptions.dtd = grains::xml::DtdPolicy::LoadDefaults;
+        parseOptions.dtdDirectory = get_dtd_dir();
+        const auto document
+            = grains::xml::Libxml2Backend{}.parseFile(filename_exe, parseOptions);
+        const auto rootNode = document.root();
+        std::string prc = rootNode.requireAttribute<std::string>("Precision");
 
         int rc = 0;
         if(prc == "Single")
@@ -165,11 +167,6 @@ int main(int argc, char* argv[])
             }
             rc = run_grains<double>(rootNode, opt.dry_run);
         }
-
-        // ReaderXML owns the parser and its DOM documents; terminate releases them.
-        rootNode = nullptr;
-        ReaderXML::terminate();
-        reader_initialized = false;
 
         if(!opt.keep_temp && !filename_exe.empty())
         {
@@ -190,11 +187,6 @@ int main(int argc, char* argv[])
     catch(...)
     {
         std::cerr << "ERROR: unknown exception\n";
-    }
-
-    if(reader_initialized)
-    {
-        ReaderXML::terminate();
     }
 
     if(!opt.keep_temp && !filename_exe.empty())

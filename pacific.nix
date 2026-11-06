@@ -5,7 +5,6 @@
   cmake,
   pkg-config,
   gnumake,
-  gcc,
   openmpi,
   hdf5-mpi,
   zlib,
@@ -29,7 +28,6 @@ stdenv.mkDerivation {
   src = ./.;
 
   nativeBuildInputs = [
-    gcc
     cmake
     gnumake
     pkg-config

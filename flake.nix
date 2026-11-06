@@ -19,25 +19,45 @@
         "aarch64-linux"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
+      cudaToolchainFor = pkgs:
+        let
+          cudaPackages =
+            if pkgs.stdenv.hostPlatform.isLinux && pkgs ? cudaPackages then
+              pkgs.cudaPackages
+            else
+              null;
+        in
+        {
+          cudaToolkit =
+            if cudaPackages != null && cudaPackages ? cudatoolkit then
+              cudaPackages.cudatoolkit
+            else
+              null;
+          cudaNvcc =
+            if cudaPackages != null && cudaPackages ? cuda_nvcc then
+              cudaPackages.cuda_nvcc
+            else
+              null;
+          # nixpkgs selects this stdenv for the CUDA package set. Using it for PacIFiC as well
+          # keeps C, C++, and nvcc's host compiler in one supported compiler family.
+          stdenv =
+            if cudaPackages != null && cudaPackages ? backendStdenv then
+              cudaPackages.backendStdenv
+            else
+              pkgs.stdenv;
+        };
     in
     {
       overlays.default =
         final: prev:
         let
-          cudaToolkit =
-            if final.stdenv.isLinux && final ? cudaPackages && final.cudaPackages ? cudatoolkit then
-              final.cudaPackages.cudatoolkit
-            else
-              null;
-          cudaNvcc =
-            if final.stdenv.isLinux && final ? cudaPackages && final.cudaPackages ? cuda_nvcc then
-              final.cudaPackages.cuda_nvcc
-            else
-              null;
+          toolchain = cudaToolchainFor final;
         in
         {
           pacific = final.callPackage ./pacific.nix {
-            inherit cudaToolkit cudaNvcc;
+            stdenv = toolchain.stdenv;
+            cudaToolkit = toolchain.cudaToolkit;
+            cudaNvcc = toolchain.cudaNvcc;
           };
         };
 
@@ -64,19 +84,11 @@
             overlays = [ self.overlays.default ];
             config.allowUnfree = true;
           };
-          cudaToolkit =
-            if pkgs.stdenv.isLinux && pkgs ? cudaPackages && pkgs.cudaPackages ? cudatoolkit then
-              pkgs.cudaPackages.cudatoolkit
-            else
-              null;
-          cudaNvcc =
-            if pkgs.stdenv.isLinux && pkgs ? cudaPackages && pkgs.cudaPackages ? cuda_nvcc then
-              pkgs.cudaPackages.cuda_nvcc
-            else
-              null;
+          toolchain = cudaToolchainFor pkgs;
+          hostCC = toolchain.stdenv.cc;
         in
         {
-          default = pkgs.mkShell {
+          default = (pkgs.mkShell.override { stdenv = toolchain.stdenv; }) {
             inputsFrom = [ pkgs.pacific ];
             packages =
               (with pkgs; [
@@ -86,21 +98,24 @@
                 python313Packages.mkdocs
                 apptainer
               ])
-              ++ pkgs.lib.optionals (cudaToolkit != null) [ cudaToolkit ]
-              ++ pkgs.lib.optionals (cudaNvcc != null) [ cudaNvcc ];
+              ++ pkgs.lib.optionals (toolchain.cudaToolkit != null) [ toolchain.cudaToolkit ]
+              ++ pkgs.lib.optionals (toolchain.cudaNvcc != null) [ toolchain.cudaNvcc ];
             shellHook = ''
+              export CC="${hostCC}/bin/gcc"
+              export CXX="${hostCC}/bin/g++"
               export PETSC_DIR="${pkgs.petsc}"
               export HYPRE_DIR="${pkgs.hypre}"
               # Avoid relocatable Eigen configs reached through the system profile,
               # which may expose share/eigen3 without its corresponding headers.
               export Eigen3_ROOT="${pkgs.eigen}"
             ''
-            + pkgs.lib.optionalString (cudaToolkit != null) ''
-              export CUDA_PATH="${cudaToolkit}"
-              export CUDA_HOME="${cudaToolkit}"
+            + pkgs.lib.optionalString (toolchain.cudaToolkit != null) ''
+              export CUDA_PATH="${toolchain.cudaToolkit}"
+              export CUDA_HOME="${toolchain.cudaToolkit}"
             ''
-            + pkgs.lib.optionalString (cudaNvcc != null) ''
-              export CUDACXX="${cudaNvcc}/bin/nvcc"
+            + pkgs.lib.optionalString (toolchain.cudaNvcc != null) ''
+              export CUDACXX="${toolchain.cudaNvcc}/bin/nvcc"
+              export CUDAHOSTCXX="${hostCC}/bin/g++"
             '';
           };
         }

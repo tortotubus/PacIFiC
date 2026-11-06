@@ -3,7 +3,7 @@
 
 #include "Grains.hh"
 #include "GrainsUtils.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class GrainsFactory.
@@ -36,7 +36,7 @@ public:
 
     /** @brief Creates and returns a standard Grains application
         @param root XML root ("<Grains3D>" or "<Graind2D>") */
-    static Grains<T>* create(DOMElement* root);
+    static Grains<T>* create(grains::xml::OptionalElement root);
     //@}
 };
 

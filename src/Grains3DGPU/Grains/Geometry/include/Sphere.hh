@@ -2,7 +2,7 @@
 #define _SPHERE_HH_
 
 #include "Convex.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class Sphere.
@@ -36,7 +36,7 @@ public:
     /** @brief Constructor with an XML node as an input parameter
         @param root XML node */
     __HOST__
-    Sphere(DOMNode* root);
+    Sphere(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

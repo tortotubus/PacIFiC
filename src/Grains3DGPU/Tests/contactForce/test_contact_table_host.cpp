@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "ContactTable.hh"
+#include "ContactTableHostOps.hh"
+
+using ContactOps = grains::cpu::ContactTableOps;
 #include "GrainsUtils.hh"
 
 // Host-side tests for ContactHashTable.
@@ -49,9 +52,9 @@ TEST_F(ContactTableHostTest, ConstructorWithCapacity)
 
 TEST_F(ContactTableHostTest, BasicInsertion)
 {
-    uint2 pair1 = make_uint2(5, 10);
+    IndexPair pair1 = makeIndexPair(5, 10);
     uint  index1;
-    bool  success = view.findOrInsert(pair1, index1);
+    bool  success = ContactOps::findOrInsert(view, pair1, index1);
     EXPECT_TRUE(success);
     EXPECT_EQ(index1, 0u);
     EXPECT_EQ(table.getNextIndex(), 1u);
@@ -59,21 +62,21 @@ TEST_F(ContactTableHostTest, BasicInsertion)
 
 TEST_F(ContactTableHostTest, FindExisting)
 {
-    uint2 pair1 = make_uint2(5, 10);
+    IndexPair pair1 = makeIndexPair(5, 10);
     uint  index1, index2;
-    view.findOrInsert(pair1, index1);
-    bool found = view.find(pair1, index2);
+    ContactOps::findOrInsert(view, pair1, index1);
+    bool found = ContactOps::find(view, pair1, index2);
     EXPECT_TRUE(found);
     EXPECT_EQ(index1, index2);
 }
 
 TEST_F(ContactTableHostTest, FindNonExistent)
 {
-    uint2 pair1 = make_uint2(5, 10);
-    uint2 pair2 = make_uint2(7, 12);
+    IndexPair pair1 = makeIndexPair(5, 10);
+    IndexPair pair2 = makeIndexPair(7, 12);
     uint  index;
-    view.findOrInsert(pair1, index);
-    bool found = view.find(pair2, index);
+    ContactOps::findOrInsert(view, pair1, index);
+    bool found = ContactOps::find(view, pair2, index);
     EXPECT_FALSE(found);
 }
 
@@ -83,8 +86,8 @@ TEST_F(ContactTableHostTest, MultipleInsertions)
     uint      indices[numPairs];
     for(int i = 0; i < numPairs; ++i)
     {
-        uint2 pair    = make_uint2(i, i + 10);
-        bool  success = view.findOrInsert(pair, indices[i]);
+        IndexPair pair    = makeIndexPair(i, i + 10);
+        bool  success = ContactOps::findOrInsert(view, pair, indices[i]);
         EXPECT_TRUE(success);
         EXPECT_EQ(indices[i], (uint)i);
     }
@@ -93,29 +96,29 @@ TEST_F(ContactTableHostTest, MultipleInsertions)
 
 TEST_F(ContactTableHostTest, DuplicateInsertion)
 {
-    uint2 pair = make_uint2(5, 10);
+    IndexPair pair = makeIndexPair(5, 10);
     uint  index1, index2;
-    view.findOrInsert(pair, index1);
-    view.findOrInsert(pair, index2);
+    ContactOps::findOrInsert(view, pair, index1);
+    ContactOps::findOrInsert(view, pair, index2);
     EXPECT_EQ(index1, index2);
     EXPECT_EQ(table.getNextIndex(), 1u);
 }
 
 TEST_F(ContactTableHostTest, Removal)
 {
-    uint2 pair = make_uint2(5, 10);
+    IndexPair pair = makeIndexPair(5, 10);
     uint  index;
-    view.findOrInsert(pair, index);
-    bool removed = view.remove(pair);
+    ContactOps::findOrInsert(view, pair, index);
+    bool removed = ContactOps::remove(view, pair);
     EXPECT_TRUE(removed);
-    bool found = view.find(pair, index);
+    bool found = ContactOps::find(view, pair, index);
     EXPECT_FALSE(found);
 }
 
 TEST_F(ContactTableHostTest, RemoveNonExistent)
 {
-    uint2 pair    = make_uint2(5, 10);
-    bool  removed = view.remove(pair);
+    IndexPair pair    = makeIndexPair(5, 10);
+    bool  removed = ContactOps::remove(view, pair);
     EXPECT_FALSE(removed);
 }
 
@@ -123,9 +126,9 @@ TEST_F(ContactTableHostTest, ClearOperation)
 {
     for(int i = 0; i < 5; ++i)
     {
-        uint2 pair = make_uint2(i, i + 10);
+        IndexPair pair = makeIndexPair(i, i + 10);
         uint  index;
-        view.findOrInsert(pair, index);
+        ContactOps::findOrInsert(view, pair, index);
     }
     EXPECT_EQ(table.getNextIndex(), 5u);
     table.clear();
@@ -133,17 +136,17 @@ TEST_F(ContactTableHostTest, ClearOperation)
     uint index;
     for(int i = 0; i < 5; ++i)
     {
-        uint2 pair  = make_uint2(i, i + 10);
-        bool  found = view.find(pair, index);
+        IndexPair pair  = makeIndexPair(i, i + 10);
+        bool  found = ContactOps::find(view, pair, index);
         EXPECT_FALSE(found);
     }
 }
 
 TEST_F(ContactTableHostTest, ResetIndexCounter)
 {
-    uint2 pair = make_uint2(5, 10);
+    IndexPair pair = makeIndexPair(5, 10);
     uint  index;
-    view.findOrInsert(pair, index);
+    ContactOps::findOrInsert(view, pair, index);
     EXPECT_EQ(table.getNextIndex(), 1u);
     table.resetIndexCounter();
     EXPECT_EQ(table.getNextIndex(), 0u);
@@ -156,9 +159,9 @@ TEST_F(ContactTableHostTest, FullTable)
     ContactMemoryView<float>               localView = t.getView();
     for(int i = 0; i < capacity; ++i)
     {
-        uint2 pair = make_uint2(i, i + 100);
+        IndexPair pair = makeIndexPair(i, i + 100);
         uint  index;
-        bool  success = localView.findOrInsert(pair, index);
+        bool  success = ContactOps::findOrInsert(localView, pair, index);
         EXPECT_TRUE(success);
     }
 }
@@ -168,8 +171,8 @@ TEST_F(ContactTableHostTest, HashCollisions)
     uint indices[5];
     for(int i = 0; i < 5; ++i)
     {
-        uint2 pair    = make_uint2(i * 1000, i * 1000 + 1);
-        bool  success = view.findOrInsert(pair, indices[i]);
+        IndexPair pair    = makeIndexPair(i * 1000, i * 1000 + 1);
+        bool  success = ContactOps::findOrInsert(view, pair, indices[i]);
         EXPECT_TRUE(success);
     }
     for(int i = 0; i < 5; ++i)
@@ -183,10 +186,10 @@ TEST_F(ContactTableHostTest, PairOrdering)
 {
     ContactHashTable<float, MemType::HOST> t(100, 100);
     ContactMemoryView<float>               localView = t.getView();
-    uint2                                  pair1     = make_uint2(5, 10);
-    uint2                                  pair2     = make_uint2(10, 5);
+    IndexPair                                  pair1     = makeIndexPair(5, 10);
+    IndexPair                                  pair2     = makeIndexPair(10, 5);
     uint                                   index1, index2;
-    localView.findOrInsert(pair1, index1);
-    localView.findOrInsert(pair2, index2);
+    ContactOps::findOrInsert(localView, pair1, index1);
+    ContactOps::findOrInsert(localView, pair2, index2);
     EXPECT_NE(index1, index2);
 }

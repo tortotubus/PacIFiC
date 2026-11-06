@@ -30,10 +30,6 @@ public:
 
     /** @name High-level methods */
     //@{
-    // /** @brief Tasks to perform before time-stepping
-    // @param rootElement XML root */
-    // void initialize( DOMElement* rootElement );
-
     /** @brief Runs the simulation over the prescribed time interval */
     void simulate() final;
 

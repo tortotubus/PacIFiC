@@ -228,6 +228,84 @@ void writeParticles_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
     f.close();
 }
 
+// -------------------------------------------------------------------------------------------------
+// Writes one VTK vertex per particle. This representation keeps large simulations practical and
+// can be rendered as spheres with ParaView's Glyph filter using the Radius point-data array.
+template <typename T>
+void writeParticlePoints_Paraview(const GrainsMemBuffer<RigidBody<T>*>&       rb,
+                                  const std::unique_ptr<ComponentManager<T>>& cm,
+                                  const std::string&                          parFileName)
+{
+    std::ofstream f(parFileName, std::ios::out);
+    if(!f.is_open())
+        throw std::runtime_error("Cannot open file for writing: " + parFileName);
+
+    const uint                         numObstacles = cm->getNumberOfObstacles();
+    const uint                         numParticles = cm->getNumberOfParticles();
+    const GrainsMemBuffer<Vector3<T>>& position     = cm->getPosition();
+    const GrainsMemBuffer<Kinematics<T>>& velocity  = cm->getVelocity();
+
+    f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+    f << "<UnstructuredGrid>\n";
+    f << "<Piece NumberOfPoints=\"" << numParticles << "\" NumberOfCells=\"" << numParticles
+      << "\">\n";
+
+    f << "<PointData Scalars=\"Radius,NormU,NormOm\" Vectors=\"Velocity\">\n";
+    f << "<DataArray type=\"Float32\" Name=\"Radius\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << rb[numObstacles + i]->getCircumscribedRadius() << ' ';
+    f << "\n</DataArray>\n";
+
+    f << "<DataArray type=\"Float32\" Name=\"Velocity\" NumberOfComponents=\"3\" "
+         "format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+    {
+        const Vector3<T> u = velocity[numObstacles + i].getTranslationalComponent();
+        f << u[X] << ' ' << u[Y] << ' ' << u[Z] << ' ';
+    }
+    f << "\n</DataArray>\n";
+
+    f << "<DataArray type=\"Float32\" Name=\"NormU\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << norm(velocity[numObstacles + i].getTranslationalComponent()) << ' ';
+    f << "\n</DataArray>\n";
+
+    f << "<DataArray type=\"Float32\" Name=\"NormOm\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << norm(velocity[numObstacles + i].getAngularComponent()) << ' ';
+    f << "\n</DataArray>\n";
+    f << "</PointData>\n";
+
+    f << "<Points>\n";
+    f << "<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+    {
+        const Vector3<T>& p = position[numObstacles + i];
+        f << p[X] << ' ' << p[Y] << ' ' << p[Z] << ' ';
+    }
+    f << "\n</DataArray>\n";
+    f << "</Points>\n";
+
+    f << "<Cells>\n";
+    f << "<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << i << ' ';
+    f << "\n</DataArray>\n";
+    f << "<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << i + 1 << ' ';
+    f << "\n</DataArray>\n";
+    f << "<DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
+    for(uint i = 0; i < numParticles; ++i)
+        f << "1 ";  // VTK_VERTEX
+    f << "\n</DataArray>\n";
+    f << "</Cells>\n";
+
+    f << "</Piece>\n";
+    f << "</UnstructuredGrid>\n";
+    f << "</VTKFile>\n";
+}
+
 /* ============================================================================================== */
 /* High-Level Methods                                                                             */
 /* ============================================================================================== */
@@ -241,14 +319,24 @@ ParaviewPostProcessingWriter<T>::ParaviewPostProcessingWriter()
 // Constructor with XML node, rank and number of processes as input parameters
 template <typename T>
 
-ParaviewPostProcessingWriter<T>::ParaviewPostProcessingWriter(DOMNode* dn)
+ParaviewPostProcessingWriter<T>::ParaviewPostProcessingWriter(
+    grains::xml::OptionalElement dn)
 {
-    m_rootName  = ReaderXML::getNodeAttr_String(dn, "RootName");
-    m_directory = ReaderXML::getNodeAttr_String(dn, "Directory");
+    const auto& element = grains::xml::requireElement(dn);
+    m_rootName  = element.requireAttribute<std::string>("RootName");
+    m_directory = element.requireAttribute<std::string>("Directory");
+    const std::string particleRepresentation
+        = element.attributeOr<std::string>("ParticleRepresentation", "Surface");
+    if(particleRepresentation == "Points")
+        m_particlePoints = true;
+    else if(particleRepresentation != "Surface")
+        throw std::runtime_error("Unknown ParaView ParticleRepresentation: "
+                                 + particleRepresentation);
 
     GoutWI(9, "Type = Paraview");
     GoutWI(12, "Output file directory name =", m_directory);
     GoutWI(12, "Output file root name =", m_rootName);
+    GoutWI(12, "Particle representation =", particleRepresentation);
     // GoutWI(12, "Writing mode =", (m_binary ? "Binary" : "Text"));
 }
 
@@ -257,6 +345,8 @@ ParaviewPostProcessingWriter<T>::ParaviewPostProcessingWriter(DOMNode* dn)
 template <typename T>
 ParaviewPostProcessingWriter<T>::~ParaviewPostProcessingWriter()
 {
+    for(auto* stream : m_Paraview_saveParticles_pvd)
+        delete stream;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -289,6 +379,11 @@ void ParaviewPostProcessingWriter<T>::clearPostProcessingFiles() const
 template <typename T>
 void ParaviewPostProcessingWriter<T>::PostProcessing_start()
 {
+    std::error_code error;
+    std::filesystem::create_directories(m_directory, error);
+    if(error)
+        throw std::runtime_error("Cannot create ParaView output directory " + m_directory + ": "
+                                 + error.message());
     clearPostProcessingFiles();
     // Obstacles
     m_Paraview_saveObstacles_pvd << "<?xml version=\"1.0\"?>" << endl;
@@ -360,7 +455,10 @@ void ParaviewPostProcessingWriter<T>::PostProcessing(const GrainsMemBuffer<Rigid
     g << "</VTKFile>" << endl;
     g.close();
 
-    writeParticles_Paraview(rb, cm, parFileNamePath);
+    if(m_particlePoints)
+        writeParticlePoints_Paraview(rb, cm, parFileNamePath);
+    else
+        writeParticles_Paraview(rb, cm, parFileNamePath);
     m_ParaviewCycleNumber++;
 }
 

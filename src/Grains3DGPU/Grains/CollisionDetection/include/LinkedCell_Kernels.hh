@@ -316,7 +316,7 @@ static __GLOBAL__ void computeCellStart_Kernel(const uint64_t* cellParticleIDs,
     sync(cta);
 
     if(tid < numParticles)
-        if(tid == 0 || hash != sharedHash[threadIdx.x])
+        if(hash != UINT_MAX && (tid == 0 || hash != sharedHash[threadIdx.x]))
             cellStart[hash] = tid;
 }
 

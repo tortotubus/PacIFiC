@@ -6,7 +6,7 @@
 #include "Convex.hh"
 #include "Kinematics.hh"
 #include "Quaternion.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "Torce.hh"
 
 // =================================================================================================
@@ -90,7 +90,7 @@ public:
     /** @brief Constructor with an XML input
         @param root XML input */
     __HOST__
-    RigidBody(DOMNode* root);
+    RigidBody(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

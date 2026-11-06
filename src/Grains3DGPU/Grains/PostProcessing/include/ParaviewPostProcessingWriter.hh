@@ -27,11 +27,13 @@ protected:
     /** \brief files root name */
     std::string m_rootName;
     /** \brief Writing in binary */
-    bool m_binary;
+    bool m_binary = false;
     /** \brief Writing separately for each type of particle */
-    bool m_pertype;
+    bool m_pertype = false;
+    /** \brief Write one vertex per particle instead of its complete surface mesh */
+    bool m_particlePoints = false;
     /** \brief Cycle number */
-    uint m_ParaviewCycleNumber;
+    uint m_ParaviewCycleNumber = 0;
     //@}
 
 public:
@@ -43,7 +45,7 @@ public:
 
     /** @brief Constructor with an XML node */
 
-    ParaviewPostProcessingWriter(DOMNode* dn);
+    ParaviewPostProcessingWriter(grains::xml::OptionalElement dn);
 
     /** @brief Destructor */
 

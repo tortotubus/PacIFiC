@@ -15,17 +15,18 @@
 /* ============================================================================================== */
 // Reads if the root is of type Random
 template <typename T>
-__HOST__ static INLINE InsertionInfo<T> readDataRand(DOMNode* root)
+__HOST__ static INLINE InsertionInfo<T> readDataRand(grains::xml::OptionalElement root)
 {
     // Random generator seed. We pass it to InsertionWindow directly.
     // We also set the seed with srand. We use it for to randomly pick an
     // insertion window
     RandomGeneratorSeed rgs;
     unsigned            cSeed      = 1;  // default C RNG seed for window selection
-    std::string         seedString = ReaderXML::getNodeAttr_String(root, "Seed");
+    const auto& element = grains::xml::requireElement(root);
+    std::string seedString = element.requireAttribute<std::string>("Seed");
     if(seedString == "UserDefined")
     {
-        uint val = ReaderXML::getNodeAttr_Int(root, "Value");
+        uint val = element.requireAttribute<uint>("Value");
         GAssert(val, "Seed value is not provided. Aborting Grains!");
         rgs   = RGS_UDEF;
         cSeed = static_cast<unsigned>(val);
@@ -48,17 +49,12 @@ __HOST__ static INLINE InsertionInfo<T> readDataRand(DOMNode* root)
     srand(cSeed);
 
     // Insertion window
-    DOMNode*                        nWindows = ReaderXML::getNode(root, "Windows");
+    auto nWindows = element.getChild("Windows");
     std::vector<InsertionWindow<T>> insertionWindows;
     if(nWindows)
     {
-        // DOMNodeList* allWindows = ReaderXML::getNodes( nWindows, "Window" );
-        DOMNodeList* allWindows = ReaderXML::getNodes(nWindows);
-        for(int i = 0; i < allWindows->getLength(); i++)
-        {
-            DOMNode* nWindow = allWindows->item(i);
+        for(const auto& nWindow : nWindows->getChildren())
             insertionWindows.push_back(InsertionWindow<T>(nWindow, rgs));
-        }
     }
 
     return (insertionWindows);
@@ -67,9 +63,10 @@ __HOST__ static INLINE InsertionInfo<T> readDataRand(DOMNode* root)
 // -------------------------------------------------------------------------------------------------
 // Reads if the root is of type File
 template <typename T>
-__HOST__ static INLINE InsertionInfo<T> readDataFile(DOMNode* root)
+__HOST__ static INLINE InsertionInfo<T> readDataFile(grains::xml::OptionalElement root)
 {
-    std::string   fileName = ReaderXML::getNodeAttr_String(root, "Name");
+    std::string fileName
+        = grains::xml::requireElement(root).requireAttribute<std::string>("Name");
     std::ifstream file(fileName);
     GAssert(file.good(), "File initialization failed! Aborting Grains!");
     GoutWI(12, "File initialization with path" + fileName + ".");
@@ -80,11 +77,12 @@ __HOST__ static INLINE InsertionInfo<T> readDataFile(DOMNode* root)
 // -------------------------------------------------------------------------------------------------
 // Reads if the root is of type Constant
 template <typename T>
-__HOST__ static INLINE InsertionInfo<T> readDataCons(DOMNode* root)
+__HOST__ static INLINE InsertionInfo<T> readDataCons(grains::xml::OptionalElement root)
 {
-    T          xVal = T(ReaderXML::getNodeAttr_Double(root, "X"));
-    T          yVal = T(ReaderXML::getNodeAttr_Double(root, "Y"));
-    T          zVal = T(ReaderXML::getNodeAttr_Double(root, "Z"));
+    const auto& element = grains::xml::requireElement(root);
+    T          xVal = T(element.requireAttribute<double>("X"));
+    T          yVal = T(element.requireAttribute<double>("Y"));
+    T          zVal = T(element.requireAttribute<double>("Z"));
     Vector3<T> vec(xVal, yVal, zVal);
     GoutWI(12, "Constant initialization with", Vector3ToString(vec), ".");
 
@@ -94,7 +92,7 @@ __HOST__ static INLINE InsertionInfo<T> readDataCons(DOMNode* root)
 // -------------------------------------------------------------------------------------------------
 // Reads if the root is of type Zero
 template <typename T>
-__HOST__ static INLINE InsertionInfo<T> readDataZero(DOMNode* root)
+__HOST__ static INLINE InsertionInfo<T> readDataZero(grains::xml::OptionalElement)
 {
     Vector3<T> vec(T(0), T(0), T(0));
     GoutWI(12, "Zero initialization.");
@@ -123,11 +121,14 @@ __HOST__ Insertion<T>::Insertion()
 // -------------------------------------------------------------------------------------------------
 // Constructor with XML node
 template <typename T>
-__HOST__ Insertion<T>::Insertion(DOMNode* dn)
+__HOST__ Insertion<T>::Insertion(grains::xml::OptionalElement dn)
 {
     // We define a lambda function to read the XML node
-    auto read = [](DOMNode* root, InsertionType& type, InsertionInfo<T>& data) {
-        std::string nType = ReaderXML::getNodeAttr_String(root, "Type");
+    auto read = [](grains::xml::OptionalElement root,
+                   InsertionType& type,
+                   InsertionInfo<T>& data) {
+        std::string nType = grains::xml::requireElement(root)
+                                .requireAttribute<std::string>("Type");
         if(nType == "Random")
         {
             type = RANDOMINSERTION;
@@ -152,12 +153,11 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
             GAbort("Unknown Type in ParticleInsertion! Aborting Grains!");
     };
 
-    GAssert(dn, "ParticleInsertion node is missing! Aborting Grains!");
+    const auto& element = grains::xml::requireElement(dn);
 
     GoutWI(9, "Reading PositionInsertion Policy ...");
-    if(ReaderXML::getNode(dn, "InitialPosition"))
+    if(auto nIP = element.getChild("InitialPosition"))
     {
-        DOMNode* nIP = ReaderXML::getNode(dn, "InitialPosition");
         read(nIP, m_positionType, m_positionInsertionInfo);
     }
     else
@@ -167,9 +167,8 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
     }
 
     GoutWI(9, "Reading OrientationInsertion Policy ...");
-    if(ReaderXML::getNode(dn, "InitialOrientation"))
+    if(auto nIO = element.getChild("InitialOrientation"))
     {
-        DOMNode* nIO = ReaderXML::getNode(dn, "InitialOrientation");
         read(nIO, m_orientationType, m_orientationInsertionInfo);
     }
     else
@@ -180,9 +179,8 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
     }
 
     GoutWI(9, "Reading VeclocityInsertion Policy ...");
-    if(ReaderXML::getNode(dn, "InitialVelocity"))
+    if(auto nIV = element.getChild("InitialVelocity"))
     {
-        DOMNode* nIV = ReaderXML::getNode(dn, "InitialVelocity");
         read(nIV, m_translationalVelType, m_translationalVelInsertionInfo);
     }
     else
@@ -193,9 +191,8 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
     }
 
     GoutWI(9, "Reading AngularVeclocityInsertion Policy ...");
-    if(ReaderXML::getNode(dn, "InitialAngularVelocity"))
+    if(auto nIA = element.getChild("InitialAngularVelocity"))
     {
-        DOMNode* nIA = ReaderXML::getNode(dn, "InitialAngularVelocity");
         read(nIA, m_angularVelType, m_angularVelInsertionInfo);
     }
     else
@@ -205,10 +202,7 @@ __HOST__ Insertion<T>::Insertion(DOMNode* dn)
         GoutWI(12, "No InitialAngularVelocity node found. Using default.");
     }
 
-    if(ReaderXML::hasNodeAttr(dn, "ForceInsertion"))
-        m_forceInsertion = static_cast<bool>(ReaderXML::getNodeAttr_Int(dn, "ForceInsertion"));
-    else
-        m_forceInsertion = false;
+    m_forceInsertion = static_cast<bool>(element.attributeOr<int>("ForceInsertion", 0));
 }
 
 // -------------------------------------------------------------------------------------------------

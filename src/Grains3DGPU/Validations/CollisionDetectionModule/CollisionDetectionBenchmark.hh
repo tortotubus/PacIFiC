@@ -11,6 +11,7 @@
 #include "CSVWriter.hh"
 #include "CollisionDetectionModule.hh"
 #include "GrainsMemBuffer.hh"
+#include "GrainsCUDAUtils.hh"
 #include "GrainsParameters.hh"
 #include "GrainsUtils.hh"
 #include "Insertion.hh"
@@ -18,7 +19,7 @@
 #include "Kinematics.hh"
 #include "Quaternion.hh"
 #include "RigidBody.hh"
-#include "RigidBodyFactory.hh"
+#include "RigidBodyFactoryCUDA.cuh"
 #include "Sphere.hh"
 #include "Superquadric.hh"
 #include "Torce.hh"
@@ -39,7 +40,7 @@ struct HostParticleData
 // =================================================================================================
 /** @brief Reusable device-side RigidBody pointer array.
     Created once per scenario and shared across all GPU runners with different LC types.
-    ~DeviceParticleData calls freeDevice to clean up device heap allocations. */
+    ~DeviceParticleData deletes the device-heap allocations through the CUDA backend. */
 // =================================================================================================
 template <typename T>
 struct DeviceParticleData
@@ -52,7 +53,7 @@ struct DeviceParticleData
     DeviceParticleData(DeviceParticleData&&)                 = default;
     ~DeviceParticleData()
     {
-        RigidBodyFactory<T>::freeDevice(rb);
+        grains::cuda::freeRigidBodiesOnDevice(rb);
     }
 };
 
@@ -117,7 +118,7 @@ public:
 
     // -------------------------------------------------------------------------
     /** @brief Constructor -- reuses pre-inserted host particle data AND the shared device RB
-        pointer array, skipping both insertion and copyHostToDevice.
+        pointer array, skipping both insertion and device rigid-body construction.
         The device RigidBody objects are owned by dpd and must outlive this runner.
         @param scenario  Full benchmark configuration
         @param csv       CSV writer to append the result row to
@@ -144,12 +145,12 @@ public:
 
     // -------------------------------------------------------------------------
     /** @brief Build and return a DeviceParticleData for a given scenario.
-        Performs copyHostToDevice once; the result is shared across all GPU runners
+        Calls copyRigidBodiesToDevice once; the result is shared across all GPU runners
         that differ only in LC type, avoiding repeated device heap alloc/free cycles.
         @param scenario  Benchmark scenario */
     static DeviceParticleData<T> prepareDeviceData(const BenchmarkScenario& scenario)
     {
-        cudaErrCheck(cudaGetDeviceProperties(&GrainsParameters<T>::m_GPU, 0));
+        GrainsParameters<T>::m_GPU = getGrainsDeviceProperties();
 
         const T                    sx = static_cast<T>(scenario.particleSize[0]);
         const T                    sy = static_cast<T>(scenario.particleSize[1]);
@@ -175,7 +176,7 @@ public:
             h_rb[i] = new RigidBody<T>(shape->clone(), T(0), 0, 1);
 
         DeviceParticleData<T> dpd;
-        RigidBodyFactory<T>::copyHostToDevice(h_rb, dpd.rb);
+        grains::cuda::copyRigidBodiesToDevice(h_rb, dpd.rb);
 
         for(uint i = 0; i < N; ++i)
             delete h_rb[i];
@@ -271,7 +272,7 @@ public:
             delete m_h_rb[i];
         if constexpr(M == MemType::DEVICE)
             if(m_ownsDeviceObjects)
-                RigidBodyFactory<T>::freeDevice(m_rb);
+                grains::cuda::freeRigidBodiesOnDevice(m_rb);
     }
 
     // -------------------------------------------------------------------------
@@ -454,7 +455,7 @@ private:
     {
         // 0. GPU device properties
         if constexpr(M == MemType::DEVICE)
-            cudaErrCheck(cudaGetDeviceProperties(&GrainsParameters<T>::m_GPU, 0));
+            GrainsParameters<T>::m_GPU = getGrainsDeviceProperties();
 
         // 1. Build convex shape
         const T sx = static_cast<T>(scenario.particleSize[0]);
@@ -552,7 +553,7 @@ private:
             m_pos.copyFrom(m_h_pos);
             m_quat.copyFrom(m_h_quat);
             m_kin.copyFrom(m_h_kin);
-            RigidBodyFactory<T>::copyHostToDevice(m_h_rb, m_rb);
+            grains::cuda::copyRigidBodiesToDevice(m_h_rb, m_rb);
         }
 
         const uint estPairs = m_scenario.initialPairsPerParticle * N;
@@ -571,7 +572,7 @@ private:
     }
 
     /** @brief Variant of buildDeviceData that borrows the device RB pointer array from dpd
-        instead of calling copyHostToDevice.  The actual RigidBody objects on the device heap
+        instead of calling copyRigidBodiesToDevice.  The actual RigidBody objects on the device heap
         remain owned by dpd. */
     void buildDeviceDataBorrowed(DeviceParticleData<T>& dpd)
     {
@@ -761,7 +762,8 @@ private:
     // =========================================================================
     BenchmarkScenario m_scenario;
     CSVWriter&        m_csv;
-    /** True when this runner created device RigidBody objects (must call freeDevice).
+    /** True when this runner created device RigidBody objects (must call
+        freeRigidBodiesOnDevice).
         False when device objects are shared via DeviceParticleData (borrowed). */
     bool m_ownsDeviceObjects = true;
 

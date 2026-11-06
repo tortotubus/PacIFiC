@@ -41,7 +41,7 @@
     @param torce per-particle torce array (modified in-place, indexed by component ID)
     @param contactMemory view of contact memory (hash table + history data)
     @param pairID ID of the pair */
-template <typename T>
+template <typename ContactOps, typename T>
 __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
                                                               const IndexPair*      pairList,
                                                               const ContactInfo<T>* contactInfo,
@@ -119,7 +119,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
         if(contactMemory.m_historyData != nullptr)
         {
             uint historyIndex;
-            contactMemory.findOrInsert(pair, historyIndex);
+            ContactOps::findOrInsert(contactMemory, pair, historyIndex);
             historyPtr = &(contactMemory.m_historyData[historyIndex]);
         }
 
@@ -149,7 +149,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
     @param torceB intermediate torce storage for particle B in each pair (indexed by pairID)
     @param contactMemory view of contact memory (hash table + history data)
     @param pairID ID of the pair */
-template <typename T>
+template <typename ContactOps, typename T>
 __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForceModel<T>* const* CF,
                                                               const IndexPair*      pairList,
                                                               const ContactInfo<T>* contactInfo,
@@ -189,7 +189,7 @@ __HOSTDEVICE__ static INLINE void computeContactForces_common(const ContactForce
         if(contactMemory.m_historyData != nullptr)
         {
             uint historyIndex;
-            contactMemory.findOrInsert(pair, historyIndex);
+            ContactOps::findOrInsert(contactMemory, pair, historyIndex);
             historyPtr = &(contactMemory.m_historyData[historyIndex]);
         }
 

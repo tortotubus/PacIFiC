@@ -1,7 +1,5 @@
 #include "GrainsPlatform.hh"
-#if GRAINS_CUDA_COMPILER
-#include "CollisionDetectionModule_Kernels.hh"
-#endif
+#include "CollisionDetectionModule_Kernels.cuh"
 #include "CollisionDetectionCommon.hh"
 #include <cstdint>
 

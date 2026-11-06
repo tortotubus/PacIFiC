@@ -3,7 +3,7 @@
 
 #include "ContactForceModel.hh"
 #include "ContactTable.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class HookeContactForceModel.
@@ -44,7 +44,7 @@ public:
     /** @brief Constructor with an XML node
         @param root XML node */
     __HOST__
-    HookeContactForceModel(DOMNode* root);
+    HookeContactForceModel(grains::xml::OptionalElement root);
 
     /** @brief Constructor with five values as contact parameters
         @param kn normal stiffness coefficient

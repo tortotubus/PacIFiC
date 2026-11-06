@@ -1,5 +1,5 @@
 // Parse CCCL before the legacy common headers import names from std.
-#include <cub/cub.cuh>
+#include <cub/device/device_select.cuh>
 #include <thrust/iterator/counting_iterator.h>
 
 #include "CollisionCompactionCUDA.hh"

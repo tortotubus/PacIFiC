@@ -6,9 +6,10 @@
 // -------------------------------------------------------------------------------------------------
 // Creates a post-processing writer from an XML node
 template <typename T>
-PostProcessingWriter<T>* PostProcessingWriterFactory<T>::create(DOMNode* nPPW)
+PostProcessingWriter<T>* PostProcessingWriterFactory<T>::create(
+    grains::xml::OptionalElement nPPW)
 {
-    std::string              PPWName = ReaderXML::getNodeName(nPPW);
+    std::string              PPWName = grains::xml::requireElement(nPPW).name();
     PostProcessingWriter<T>* ppw     = NULL;
 
     if(PPWName == "RawData")

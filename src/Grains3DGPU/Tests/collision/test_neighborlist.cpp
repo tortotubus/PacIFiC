@@ -27,6 +27,7 @@
 
 #include "Box.hh"
 #include "CollisionDetection.hh"
+#include "GrainsCUDAUtils.hh"
 #include "GrainsParameters.hh"
 #include "NeighborList.hh"
 #include "NeighborListFactory.hh"
@@ -53,7 +54,7 @@ static PairSet extractPairs_CPU(NeighborList<double, MemType::HOST>*            
 {
     NL->updateNeighborList(positions, nObs, nParts);
     PairSet      pairs;
-    const uint2* data = NL->getData();
+    const IndexPair* data = NL->getData();
     uint         size = NL->getSize();
     for(uint i = 0; i < size; ++i)
         pairs.insert(normPair(data[i].x, data[i].y));
@@ -72,8 +73,8 @@ static PairSet extractPairs_GPU(NeighborList<double, MemType::DEVICE>*          
     uint    size = NL->getSize();
     if(size == 0)
         return pairs;
-    std::vector<uint2> host(size);
-    cudaMemcpy(host.data(), NL->getData(), size * sizeof(uint2), cudaMemcpyDeviceToHost);
+    std::vector<IndexPair> host(size);
+    cudaMemcpy(host.data(), NL->getData(), size * sizeof(IndexPair), cudaMemcpyDeviceToHost);
     for(uint i = 0; i < size; ++i)
         pairs.insert(normPair(host[i].x, host[i].y));
     return pairs;
@@ -295,6 +296,33 @@ TEST_F(NeighborListSimpleTest, LinkedCell_SortBased_GPU_KnownGroundTruth)
     EXPECT_EQ(got.size(), expected.size()) << "LinkedCell SORTBASED: wrong number of pairs";
     EXPECT_EQ(got, expected)
         << "LinkedCell SORTBASED: pair set does not match the known ground truth";
+}
+
+// ------------------------------------------------------------------------------------------------
+// Sort-based linked cells must ignore particles that have left the collision grid. Invalid
+// particles sort to the UINT64_MAX sentinel tail and must not become prefix-sum indices or pairs.
+// ------------------------------------------------------------------------------------------------
+TEST_F(NeighborListSimpleTest, LinkedCell_SortBased_GPU_IgnoresParticleOutsideDomain)
+{
+    using GP                                      = GrainsParameters<double>;
+    GP::m_collisionDetection.neighborListType     = NeighborListType::LINKEDCELL;
+    lcParamsLarge.type                            = LinkedCellType::SORTBASED;
+    GP::m_collisionDetection.linkedCellParameters = lcParamsLarge;
+    resetNLCounter();
+
+    pos_cpu[nParts - 1] = Vector3<double>(100.0, 100.0, 100.0);
+    pos_gpu.copyFrom(pos_cpu);
+
+    auto NL  = NeighborListFactory<double, MemType::DEVICE>::create(&rb_gpu,
+                                                                   pos_gpu,
+                                                                   quat_gpu,
+                                                                   GP::m_collisionDetection,
+                                                                   nObs,
+                                                                   nParts);
+    auto got = extractPairs_GPU(NL.get(), pos_gpu, nObs, nParts);
+
+    EXPECT_EQ(cudaGetLastError(), cudaSuccess);
+    EXPECT_EQ(got, allPairs(nParts - 1));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -914,7 +942,7 @@ TEST_F(NeighborListBruteForceTest, LinkedCell_HOST_vs_AllGPU_Variants)
 // ================================================================================================
 //  UTILITY: raw-buffer validity checks
 //  -------------------------------------
-//  These helpers inspect the raw uint2 pair buffer BEFORE any normalization so they can catch
+//  These helpers inspect the raw IndexPair pair buffer BEFORE any normalization so they can catch
 //  bugs that the PairSet abstraction would hide (e.g. buffer overflow writes dummy entries,
 //  a kernel emitting (i,i) self-pairs, or two entries for the same unordered pair).
 // ================================================================================================
@@ -928,7 +956,7 @@ static std::vector<std::pair<uint, uint>>
 {
     NL->updateNeighborList(positions, nObs, nParts);
     std::vector<std::pair<uint, uint>> out;
-    const uint2*                       data = NL->getData();
+    const IndexPair*                       data = NL->getData();
     uint                               size = NL->getSize();
     out.reserve(size);
     for(uint i = 0; i < size; ++i)
@@ -946,9 +974,9 @@ static std::vector<std::pair<uint, uint>>
     NL->updateNeighborList(positions, nObs, nParts);
     cudaDeviceSynchronize();
     uint               size = NL->getSize();
-    std::vector<uint2> host(size);
+    std::vector<IndexPair> host(size);
     if(size > 0)
-        cudaMemcpy(host.data(), NL->getData(), size * sizeof(uint2), cudaMemcpyDeviceToHost);
+        cudaMemcpy(host.data(), NL->getData(), size * sizeof(IndexPair), cudaMemcpyDeviceToHost);
     std::vector<std::pair<uint, uint>> out;
     out.reserve(size);
     for(uint i = 0; i < size; ++i)
@@ -1556,7 +1584,7 @@ protected:
         GrainsParameters<double>::m_collisionDetection = CollisionDetectionParameters<double>{};
         // Ensure GPU device properties are populated
         if(GrainsParameters<double>::m_GPU.maxThreadsPerBlock == 0)
-            cudaGetDeviceProperties(&GrainsParameters<double>::m_GPU, 0);
+            GrainsParameters<double>::m_GPU = getGrainsDeviceProperties();
         nParts = N;
 
         // sphere with circumscribed radius = 0.05

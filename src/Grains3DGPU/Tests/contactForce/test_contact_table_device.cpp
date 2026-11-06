@@ -3,23 +3,24 @@
 #include <set>
 
 #include "ContactTable.hh"
+#include "ContactTableDeviceOps.cuh"
 
 __GLOBAL__ void testInsertionKernel(
-    ContactMemoryView<float> view, uint2* pairs, uint* indices, bool* results, int numPairs)
+    ContactMemoryView<float> view, IndexPair* pairs, uint* indices, bool* results, int numPairs)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= numPairs)
         return;
-    results[idx] = view.findOrInsert(pairs[idx], indices[idx]);
+    results[idx] = grains::cuda::ContactTableOps::findOrInsert(view, pairs[idx], indices[idx]);
 }
 
 __GLOBAL__ void testFindKernel(
-    ContactMemoryView<float> view, uint2* pairs, uint* indices, bool* results, int numPairs)
+    ContactMemoryView<float> view, IndexPair* pairs, uint* indices, bool* results, int numPairs)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= numPairs)
         return;
-    results[idx] = view.find(pairs[idx], indices[idx]);
+    results[idx] = grains::cuda::ContactTableOps::find(view, pairs[idx], indices[idx]);
 }
 
 class ContactTableDeviceTest : public ::testing::Test
@@ -50,19 +51,19 @@ TEST_F(ContactTableDeviceTest, DeviceBasicInsertion)
 {
     const int numPairs = 100;
 
-    uint2* h_pairs   = new uint2[numPairs];
+    IndexPair* h_pairs   = new IndexPair[numPairs];
     uint*  h_indices = new uint[numPairs];
     bool*  h_results = new bool[numPairs];
     for(int i = 0; i < numPairs; ++i)
-        h_pairs[i] = make_uint2(i, i + 100);
+        h_pairs[i] = makeIndexPair(i, i + 100);
 
-    uint2* d_pairs;
+    IndexPair* d_pairs;
     uint*  d_indices;
     bool*  d_results;
-    cudaMalloc(&d_pairs, numPairs * sizeof(uint2));
+    cudaMalloc(&d_pairs, numPairs * sizeof(IndexPair));
     cudaMalloc(&d_indices, numPairs * sizeof(uint));
     cudaMalloc(&d_results, numPairs * sizeof(bool));
-    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(uint2), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(IndexPair), cudaMemcpyHostToDevice);
 
     int blockSize = 256;
     int numBlocks = (numPairs + blockSize - 1) / blockSize;
@@ -93,21 +94,21 @@ TEST_F(ContactTableDeviceTest, DeviceFindAfterInsertion)
 {
     const int numPairs = 50;
 
-    uint2* h_pairs          = new uint2[numPairs];
+    IndexPair* h_pairs          = new IndexPair[numPairs];
     uint*  h_indices_insert = new uint[numPairs];
     uint*  h_indices_find   = new uint[numPairs];
     bool*  h_results_insert = new bool[numPairs];
     bool*  h_results_find   = new bool[numPairs];
     for(int i = 0; i < numPairs; ++i)
-        h_pairs[i] = make_uint2(i * 2, i * 2 + 1);
+        h_pairs[i] = makeIndexPair(i * 2, i * 2 + 1);
 
-    uint2* d_pairs;
+    IndexPair* d_pairs;
     uint*  d_indices;
     bool*  d_results;
-    cudaMalloc(&d_pairs, numPairs * sizeof(uint2));
+    cudaMalloc(&d_pairs, numPairs * sizeof(IndexPair));
     cudaMalloc(&d_indices, numPairs * sizeof(uint));
     cudaMalloc(&d_results, numPairs * sizeof(bool));
-    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(uint2), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(IndexPair), cudaMemcpyHostToDevice);
 
     int blockSize = 256;
     int numBlocks = (numPairs + blockSize - 1) / blockSize;
@@ -145,19 +146,19 @@ TEST_F(ContactTableDeviceTest, ConcurrentInsertions)
     ContactHashTable<float, MemType::DEVICE> table(capacity, capacity);
     ContactMemoryView<float>                 view = table.getView();
 
-    uint2* h_pairs   = new uint2[numPairs];
+    IndexPair* h_pairs   = new IndexPair[numPairs];
     uint*  h_indices = new uint[numPairs];
     bool*  h_results = new bool[numPairs];
     for(int i = 0; i < numPairs; ++i)
-        h_pairs[i] = make_uint2(i, i + 10000);
+        h_pairs[i] = makeIndexPair(i, i + 10000);
 
-    uint2* d_pairs;
+    IndexPair* d_pairs;
     uint*  d_indices;
     bool*  d_results;
-    cudaMalloc(&d_pairs, numPairs * sizeof(uint2));
+    cudaMalloc(&d_pairs, numPairs * sizeof(IndexPair));
     cudaMalloc(&d_indices, numPairs * sizeof(uint));
     cudaMalloc(&d_results, numPairs * sizeof(bool));
-    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(uint2), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_pairs, h_pairs, numPairs * sizeof(IndexPair), cudaMemcpyHostToDevice);
 
     int blockSize = 256;
     int numBlocks = (numPairs + blockSize - 1) / blockSize;
@@ -186,4 +187,72 @@ TEST_F(ContactTableDeviceTest, ConcurrentInsertions)
     cudaFree(d_pairs);
     cudaFree(d_indices);
     cudaFree(d_results);
+}
+
+TEST_F(ContactTableDeviceTest, ClearAndResetCounter)
+{
+    const IndexPair hostPair = makeIndexPair(3, 7);
+    IndexPair*      devicePair;
+    uint*           deviceIndex;
+    bool*           deviceResult;
+
+    cudaMalloc(&devicePair, sizeof(IndexPair));
+    cudaMalloc(&deviceIndex, sizeof(uint));
+    cudaMalloc(&deviceResult, sizeof(bool));
+    cudaMemcpy(devicePair, &hostPair, sizeof(IndexPair), cudaMemcpyHostToDevice);
+
+    testInsertionKernel<<<1, 1>>>(view, devicePair, deviceIndex, deviceResult, 1);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    EXPECT_EQ(table.getNextIndex(), 1u);
+
+    table.resetIndexCounter();
+    EXPECT_EQ(table.getNextIndex(), 0u);
+
+    table.clear();
+    EXPECT_EQ(table.getNextIndex(), 0u);
+
+    testFindKernel<<<1, 1>>>(view, devicePair, deviceIndex, deviceResult, 1);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    bool found = true;
+    cudaMemcpy(&found, deviceResult, sizeof(bool), cudaMemcpyDeviceToHost);
+    EXPECT_FALSE(found);
+
+    cudaFree(devicePair);
+    cudaFree(deviceIndex);
+    cudaFree(deviceResult);
+}
+
+TEST_F(ContactTableDeviceTest, MarkAndSweepLifecycle)
+{
+    const IndexPair hostPair = makeIndexPair(11, 13);
+    IndexPair*      devicePair;
+    uint*           deviceIndex;
+    bool*           deviceResult;
+
+    cudaMalloc(&devicePair, sizeof(IndexPair));
+    cudaMalloc(&deviceIndex, sizeof(uint));
+    cudaMalloc(&deviceResult, sizeof(bool));
+    cudaMemcpy(devicePair, &hostPair, sizeof(IndexPair), cudaMemcpyHostToDevice);
+
+    testInsertionKernel<<<1, 1>>>(view, devicePair, deviceIndex, deviceResult, 1);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+
+    table.markAndSweep();
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    testFindKernel<<<1, 1>>>(view, devicePair, deviceIndex, deviceResult, 1);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    bool found = false;
+    cudaMemcpy(&found, deviceResult, sizeof(bool), cudaMemcpyDeviceToHost);
+    EXPECT_TRUE(found);
+
+    table.markAndSweep();
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    testFindKernel<<<1, 1>>>(view, devicePair, deviceIndex, deviceResult, 1);
+    ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+    cudaMemcpy(&found, deviceResult, sizeof(bool), cudaMemcpyDeviceToHost);
+    EXPECT_FALSE(found);
+
+    cudaFree(devicePair);
+    cudaFree(deviceIndex);
+    cudaFree(deviceResult);
 }

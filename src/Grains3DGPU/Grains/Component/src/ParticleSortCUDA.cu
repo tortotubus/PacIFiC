@@ -1,7 +1,7 @@
 // Keep CUB independent of Basic.hh and its legacy namespace imports.
 #include "GrainsCUDAError.hh"
 #include "ParticleSortCUDA.hh"
-#include <cub/cub.cuh>
+#include <cub/device/device_radix_sort.cuh>
 
 namespace grains::cuda::detail
 {

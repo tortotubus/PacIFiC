@@ -2,7 +2,7 @@
 #define _GRAINSGPU_HH_
 
 #include "Grains.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class GrainsGPU.
@@ -43,7 +43,7 @@ public:
 
     /** @brief Tasks to perform before time-stepping.
         @param rootElement XML root */
-    void initialize(DOMElement* rootElement) final;
+    void initialize(grains::xml::OptionalElement rootElement) final;
 
     /** @brief Runs the simulation over the prescribed time interval */
     void simulate() final;
@@ -57,15 +57,15 @@ public:
     /** @brief Construction of the simulation: linked cell, particles & obstacles, domain
         decomposition.
         @param rootElement XML root */
-    void Construction(DOMElement* rootElement);
+    void Construction(grains::xml::OptionalElement rootElement);
 
     /** @brief External force definition
         @param rootElement XML root */
-    void Forces(DOMElement* rootElement);
+    void Forces(grains::xml::OptionalElement rootElement);
 
     /** @brief Additional features of the simulation: insertion, post-processing.
         @param rootElement XML root */
-    void AdditionalFeatures(DOMElement* rootElement);
+    void AdditionalFeatures(grains::xml::OptionalElement rootElement);
     //@}
 };
 

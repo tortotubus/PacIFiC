@@ -56,7 +56,7 @@ public:
     /** @brief Tasks to perform before time-stepping, mostly reading setting variables in
         GrainsParameters.
         @param rootElement XML root */
-    virtual void initialize(DOMElement* rootElement);
+    virtual void initialize(grains::xml::OptionalElement rootElement);
 
     /** @brief Runs the simulation over the prescribed time interval */
     virtual void simulate() = 0;
@@ -77,20 +77,21 @@ public:
         or composite sub-body), and creates and initializes ComponentManager.  Also sets
         LC.minCellSize and LC.maxObstacleRadius for use by Construction().
         @param root Construction XML node */
-    void setupComponents(DOMNode* root, DOMElement* rootElement);
+    void setupComponents(grains::xml::OptionalElement root,
+                         grains::xml::OptionalElement rootElement);
 
     /** @brief Construction of the simulation: linked cell, particles & obstacles, domain
         decomposition.
         @param rootElement XML root */
-    void Construction(DOMElement* rootElement);
+    void Construction(grains::xml::OptionalElement rootElement);
 
     /** @brief External force definition
         @param rootElement XML root */
-    void Forces(DOMElement* rootElement);
+    void Forces(grains::xml::OptionalElement rootElement);
 
     /** @brief Additional features of the simulation: insertion, post-processing.
         @param rootElement XML root */
-    void AdditionalFeatures(DOMElement* rootElement);
+    void AdditionalFeatures(grains::xml::OptionalElement rootElement);
     //@}
 };
 

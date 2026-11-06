@@ -3,12 +3,10 @@
 
 #include <chrono>
 #include <cstdint>
-#include "GrainsPlatform.hh"
-#if GRAINS_CUDA_COMPILER
-#include <cuda_runtime.h>
-#endif
 #include <iomanip>
 #include <iostream>
+
+#include "GrainsTimerBackend.hh"
 
 /** @name Enumerations */
 //@{
@@ -120,10 +118,8 @@ public:
     {
         if(m_enabled)
         {
-#if GRAINS_CUDA_COMPILER
             if(m_isGPU)
-                cudaDeviceSynchronize();
-#endif
+                grains::detail::synchronizeTimerDevice();
             const uint8_t i = static_cast<uint8_t>(s);
             m_accum[i] += std::chrono::duration<double>(Clock::now() - m_t0[i]).count();
         }
@@ -212,10 +208,8 @@ public:
     {
         if(m_enabled)
         {
-#if GRAINS_CUDA_COMPILER
             if(m_isGPU)
-                cudaDeviceSynchronize();
-#endif
+                grains::detail::synchronizeTimerDevice();
             const uint8_t i = static_cast<uint8_t>(s);
             m_accum[i] += std::chrono::duration<double>(Clock::now() - m_t0[i]).count();
         }
@@ -305,10 +299,8 @@ public:
     {
         if(m_enabled)
         {
-#if GRAINS_CUDA_COMPILER
             if(m_isGPU)
-                cudaDeviceSynchronize();
-#endif
+                grains::detail::synchronizeTimerDevice();
             const uint8_t i = static_cast<uint8_t>(s);
             m_accum[i] += std::chrono::duration<double>(Clock::now() - m_t0[i]).count();
         }

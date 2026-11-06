@@ -6,10 +6,8 @@
 /* GPU */
 template <typename T>
 bool GrainsParameters<T>::m_isGPU = false;
-#if GRAINS_CUDA_COMPILER
 template <typename T>
-cudaDeviceProp GrainsParameters<T>::m_GPU = {};
-#endif
+GrainsDeviceProperties GrainsParameters<T>::m_GPU = {};
 
 /* Dynamic Settings */
 template <typename T>

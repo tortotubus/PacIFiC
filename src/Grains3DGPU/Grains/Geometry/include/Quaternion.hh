@@ -2,7 +2,7 @@
 #define _QUATERNION_HH_
 
 #include "Matrix3.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "Vector3.hh"
 
 // =================================================================================================
@@ -95,7 +95,7 @@ public:
     /** @brief Constructor from an XML node
         @param root XML node */
     __HOST__
-    Quaternion(DOMNode* root) noexcept;
+    Quaternion(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

@@ -5,6 +5,11 @@
 
 #include "Basic.hh"
 
+namespace grains::cuda
+{
+    struct Vector3Ops;
+}
+
 // =================================================================================================
 /** @brief The class Vector3.
 
@@ -15,6 +20,8 @@
 template <typename T>
 class Vector3
 {
+    friend struct grains::cuda::Vector3Ops;
+
 protected:
     /**@name Parameters */
     //@{
@@ -64,7 +71,7 @@ public:
     /** @brief Constructor from an XML node
         @param root XML node */
     __HOST__
-    Vector3(DOMNode* root) noexcept;
+    Vector3(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__
@@ -107,11 +114,6 @@ public:
     __HOSTDEVICE__
     void reset() noexcept;
 
-    /** @brief Atomically add a vector to this vector (GPU safe)
-        @param other vector to add atomically */
-#if GRAINS_CUDA_COMPILER
-    __DEVICE__ void atomicAdd(const Vector3<T>& other) noexcept;
-#endif
     //@}
 
     /** @name Operators */
@@ -142,5 +144,7 @@ __HOST__ std::ostream& operator<<(std::ostream& fileOut, const Vector3<T>& v);
 template <typename T>
 __HOST__ std::istream& operator>>(std::istream& fileIn, Vector3<T>& v);
 //@}
+
+#include "Vector3.tpp"
 
 #endif

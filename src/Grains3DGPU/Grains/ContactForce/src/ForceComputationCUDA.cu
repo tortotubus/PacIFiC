@@ -1,8 +1,10 @@
 #include "ForceComputationCUDA.hh"
 #include "ForceComputation.hh"
 #include "ForceCompactionCUDA.hh"
+#include "ContactTableDeviceOps.cuh"
 #include "GrainsCUDAUtils.hh"
 #include "GrainsParameters.hh"
+#include "TorceDeviceOps.cuh"
 
 namespace
 {
@@ -11,7 +13,7 @@ namespace
     {
         const uint i = blockIdx.x * blockDim.x + threadIdx.x;
         if(i < count)
-            view.compute(active ? active[i] : i);
+            view.template compute<grains::cuda::ContactTableOps>(active ? active[i] : i);
     }
     template <typename T>
     __global__ void reduceKernel(PairForceView<T> view, const uint* active, uint count)
@@ -21,8 +23,8 @@ namespace
             return;
         const uint      pairID = active ? active[i] : i;
         const IndexPair pair   = view.contact.pairs[pairID];
-        view.contact.torces[pair.x].addTorceAtomic(view.first[pairID]);
-        view.contact.torces[pair.y].addTorceAtomic(view.second[pairID]);
+        grains::cuda::TorceOps::addTorceAtomic(view.contact.torces[pair.x], view.first[pairID]);
+        grains::cuda::TorceOps::addTorceAtomic(view.contact.torces[pair.y], view.second[pairID]);
     }
     template <typename T>
     __global__ void externalKernel(ExternalForceView<T> view)
@@ -42,8 +44,8 @@ namespace
         Vector3<T> force, torque;
         if(view.contribution(i, master, force, torque))
         {
-            view.torces[master].addForceAtomic(force);
-            view.torces[master].addTorqueAtomic(torque);
+            grains::cuda::TorceOps::addForceAtomic(view.torces[master], force);
+            grains::cuda::TorceOps::addTorqueAtomic(view.torces[master], torque);
             view.torces[i].reset();
         }
     }

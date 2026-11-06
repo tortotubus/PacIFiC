@@ -5,6 +5,11 @@
 
 #include "Vector3.hh"
 
+namespace grains::cuda
+{
+    struct TorceOps;
+}
+
 // =================================================================================================
 /** @brief The class Torce.
 
@@ -16,6 +21,8 @@
 template <typename T>
 class Torce
 {
+    friend struct grains::cuda::TorceOps;
+
 private:
     /**@name Parameter */
     //@{
@@ -87,19 +94,6 @@ public:
     __HOSTDEVICE__
     void addForce(const Vector3<T>& f, const Vector3<T>& p);
 
-    /** @brief Atomically adds a torque to the torce (GPU safe)
-        @param t added torque */
-#if GRAINS_CUDA_COMPILER
-    __DEVICE__ void addTorqueAtomic(const Vector3<T>& t);
-
-    /** @brief Atomically adds a force to the torce (GPU safe)
-        @param f added force */
-    __DEVICE__ void addForceAtomic(const Vector3<T>& f);
-
-    /** @brief Atomically adds both force and torque from another Torce (GPU safe)
-        @param other Torce containing force and torque to add */
-    __DEVICE__ void addTorceAtomic(const Torce<T>& other);
-#endif
     //@}
 };
 
@@ -120,5 +114,7 @@ __HOST__ std::ostream& operator<<(std::ostream& fileOut, const Torce<T>& t);
 
 typedef Torce<float>  TorceF;
 typedef Torce<double> TorceD;
+
+#include "Torce.tpp"
 
 #endif

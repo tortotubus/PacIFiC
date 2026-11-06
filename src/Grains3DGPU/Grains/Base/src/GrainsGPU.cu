@@ -1,9 +1,10 @@
-#include "GrainsGPU.hh"
-#include "ContactForceModelFactory.hh"
+#include "ContactForceModelFactoryCUDA.cuh"
 #include "Grains.hh"
+#include "GrainsCUDAError.hh"
+#include "GrainsGPU.hh"
 #include "PostProcessingWriterFactory.hh"
-#include "RigidBodyFactory.hh"
-#include "TimeIntegratorFactory.hh"
+#include "RigidBodyFactoryCUDA.cuh"
+#include "TimeIntegratorFactoryCUDA.cuh"
 
 // -------------------------------------------------------------------------------------------------
 // Default constructor
@@ -54,13 +55,13 @@ void GrainsGPU<T>::setupGPUDevice()
 
     // Since this function is invoked, it means a GPU simulation is requested.
     GP::m_isGPU = true;
-    GP::m_GPU   = prop;
+    GP::m_GPU   = makeGrainsDeviceProperties(prop);
 }
 
 // -------------------------------------------------------------------------------------------------
 // Initializes the simulation using the XML input
 template <typename T>
-void GrainsGPU<T>::initialize(DOMElement* rootElement)
+void GrainsGPU<T>::initialize(grains::xml::OptionalElement rootElement)
 {
     // Read using the base class Grains<T> with GPU context ready
     Grains<T>::initialize(rootElement);
@@ -194,14 +195,14 @@ void GrainsGPU<T>::simulate()
 // Constructs the simulation -- Reads the Construction part of the XML input to
 // set the parameters
 template <typename T>
-void GrainsGPU<T>::Construction(DOMElement* rootElement)
+void GrainsGPU<T>::Construction(grains::xml::OptionalElement rootElement)
 {
     using GP = GrainsParameters<T>;
 
     // ---------------------------------------------------------------------------------------------
     // Particles
     GoutWI(3, "Copying rigid bodies to device ...");
-    RigidBodyFactory<T>::copyHostToDevice(Grains<T>::m_rigidBodyList, m_d_rigidBodyList);
+    grains::cuda::copyRigidBodiesToDevice(Grains<T>::m_rigidBodyList, m_d_rigidBodyList);
     GoutWI(3, "Copying rigid bodies to device completed!");
 
     // ---------------------------------------------------------------------------------------------
@@ -210,7 +211,7 @@ void GrainsGPU<T>::Construction(DOMElement* rootElement)
     // on the host. We allocate memory on device and copy the models over.
     GoutWI(3, "Copying contact force models to device ...");
     m_d_contactForce.reserve(GP::m_numContactPairs);
-    ContactForceModelFactory<T>::copyHostToDevice(Grains<T>::m_contactForce, m_d_contactForce);
+    grains::cuda::copyContactForceModelsToDevice(Grains<T>::m_contactForce, m_d_contactForce);
     GoutWI(3, "Copying contact force models to device completed!");
 
     // ---------------------------------------------------------------------------------------------
@@ -218,7 +219,7 @@ void GrainsGPU<T>::Construction(DOMElement* rootElement)
     // It is a GPU simulation, and we have already read time integration on the
     // host. We allocate memory on device and copy the scheme over.
     GoutWI(3, "Copying time integration scheme to device ...");
-    TimeIntegratorFactory<T>::copyHostToDevice(Grains<T>::m_timeIntegrator, m_d_timeIntegrator);
+    grains::cuda::copyTimeIntegratorsToDevice(Grains<T>::m_timeIntegrator, m_d_timeIntegrator);
     GoutWI(3, "Copying time integration scheme to device completed!");
 
     // ---------------------------------------------------------------------------------------------
@@ -253,14 +254,14 @@ void GrainsGPU<T>::Construction(DOMElement* rootElement)
 // -------------------------------------------------------------------------------------------------
 // External force definition
 template <typename T>
-void GrainsGPU<T>::Forces(DOMElement* rootElement)
+void GrainsGPU<T>::Forces(grains::xml::OptionalElement rootElement)
 {
 }
 
 // -------------------------------------------------------------------------------------------------
 // Additional features of the simulation: insertion, post-processing
 template <typename T>
-void GrainsGPU<T>::AdditionalFeatures(DOMElement* rootElement)
+void GrainsGPU<T>::AdditionalFeatures(grains::xml::OptionalElement rootElement)
 {
 }
 

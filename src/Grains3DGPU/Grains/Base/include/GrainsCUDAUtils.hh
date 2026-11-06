@@ -2,12 +2,30 @@
 #define GRAINS_CUDA_UTILS_HH
 
 #include "Basic.hh"
+#include "GrainsParameters.hh"
 
 #if !GRAINS_CUDA_COMPILER
 #error "GrainsCUDAUtils.hh requires a CUDA compiler"
 #endif
 
 #include "GrainsCUDAError.hh"
+
+// -------------------------------------------------------------------------------------------------
+/** @brief Convert CUDA runtime properties to the backend-neutral launch-sizing representation. */
+__HOST__ static INLINE GrainsDeviceProperties
+    makeGrainsDeviceProperties(const cudaDeviceProp& properties)
+{
+    return {properties.multiProcessorCount, properties.maxThreadsPerBlock};
+}
+
+// -------------------------------------------------------------------------------------------------
+/** @brief Query the launch-sizing properties for a CUDA device. */
+__HOST__ static INLINE GrainsDeviceProperties getGrainsDeviceProperties(const int device = 0)
+{
+    cudaDeviceProp properties{};
+    cudaErrCheck(cudaGetDeviceProperties(&properties, device));
+    return makeGrainsDeviceProperties(properties);
+}
 
 // -------------------------------------------------------------------------------------------------
 /** @brief Returns the available memory on the device in bytes */
@@ -27,7 +45,7 @@ __HOST__ static INLINE size_t getAvailableDeviceMemory()
     @param numBlocks the number of blocks (output)
     @param numThreads the number of threads per block (output) */
 __HOST__ static INLINE void computeOptimalThreadsAndBlocks(const uint            numElements,
-                                                           const cudaDeviceProp& prop,
+                                                           const GrainsDeviceProperties& prop,
                                                            uint&                 numBlocks,
                                                            uint&                 numThreads)
 {

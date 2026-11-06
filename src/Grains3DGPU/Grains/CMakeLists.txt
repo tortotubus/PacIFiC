@@ -22,108 +22,33 @@ configure_file(
 #
 
 set(GRAINS3D_GPU_INCLUDE_DIRS "")
-set(GRAINS3D_GPU_SOURCES "")
 
 # Base
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Base/include>")
-file(GLOB GRAINS3D_GPU_BASE_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/Base/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_BASE_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_BASE_SOURCES}
-)
 
 # CollisionDetection
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/CollisionDetection/include>")
-file(GLOB GRAINS3D_GPU_COLLISION_DETECTION_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/CollisionDetection/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_COLLISION_DETECTION_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_COLLISION_DETECTION_SOURCES}
-)
 
 # Component
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Component/include>")
-file(GLOB GRAINS3D_GPU_COMPONENT_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/Component/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_COMPONENT_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_COMPONENT_SOURCES}
-)
 
 # ContactForce
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ContactForce/include>")
-file(GLOB GRAINS3D_GPU_CONTACT_FORCE_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/ContactForce/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_CONTACT_FORCE_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_CONTACT_FORCE_SOURCES}
-)
-
-
-# Fluid
-list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Fluid/include>")
-file(GLOB GRAINS3D_GPU_FLUID_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/Fluid/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_FLUID_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_FLUID_SOURCES}
-)
 
 # Geometry
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Geometry/include>")
-file(GLOB GRAINS3D_GPU_GEOMETRY_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/Geometry/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_GEOMETRY_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_GEOMETRY_SOURCES}
-)
 
 # PostProcessing
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/PostProcessing/include>")
-file(GLOB GRAINS3D_GPU_POSTPROCESSING_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/PostProcessing/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_POSTPROCESSING_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_POSTPROCESSING_SOURCES}
-)
 
 # TimeIntegration
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/include>")
-file(GLOB GRAINS3D_GPU_TIMEINTEGRATION_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/TimeIntegration/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_TIMEINTEGRATION_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_TIMEINTEGRATION_SOURCES}
-)
 
 # Utility
 list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Utility/include>")
-file(GLOB GRAINS3D_GPU_UTILITY_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/Utility/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_UTILITY_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_UTILITY_SOURCES}
-)
 
-# XML3
-list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/XML3/include>")
-file(GLOB GRAINS3D_GPU_XML3_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/XML3/src/*.cpp"
-)
-list(SORT GRAINS3D_GPU_XML3_SOURCES)
-list(APPEND GRAINS3D_GPU_SOURCES
-  ${GRAINS3D_GPU_XML3_SOURCES}
-)
+# Backend-neutral XML handles. Native libxml2 headers are private to XML/src.
+list(APPEND GRAINS3D_GPU_INCLUDE_DIRS "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/XML/include>")
 
 
 
@@ -134,33 +59,16 @@ list(APPEND GRAINS3D_GPU_SOURCES
 set(CMAKE_CXX_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN  OFF)
 
-if(NOT PACIFIC_USE_CUDA)
-  list(FILTER GRAINS3D_GPU_SOURCES EXCLUDE REGEX "(GrainsGPU|GrainsTestDev|CollisionDetectionModule_Kernels)\\.cpp$")
-else()
-  set_source_files_properties(${GRAINS3D_GPU_SOURCES} PROPERTIES LANGUAGE CUDA)
-  list(APPEND GRAINS3D_GPU_SOURCES
-    CollisionDetection/src/CollisionComputationCUDA.cu
-    CollisionDetection/src/CollisionFilteringCUDA.cu
-    CollisionDetection/src/CollisionCompactionCUDA.cu
-    CollisionDetection/src/CollisionShapeDataCUDA.cu
-    Component/src/ParticleIntegrationCUDA.cu
-    Component/src/ParticleSortingCUDA.cu
-    Component/src/ParticleSortCUDA.cu
-    ContactForce/src/ForceComputationCUDA.cu
-    ContactForce/src/ForceCompactionCUDA.cu
-  )
-endif()
-
-set_source_files_properties(
-  CollisionDetection/src/CollisionComputationCPU.cpp
-  CollisionDetection/src/CollisionShapeDataCPU.cpp
-  Component/src/ParticleSortingCPU.cpp
-  Component/src/ParticleIntegrationCPU.cpp
-  ContactForce/src/ForceComputationCPU.cpp
-  PROPERTIES LANGUAGE CXX
-)
-
-add_library(Grains3DGPU_obj OBJECT ${GRAINS3D_GPU_SOURCES})
+add_library(Grains3DGPU_obj OBJECT)
+add_subdirectory(Base)
+add_subdirectory(CollisionDetection)
+add_subdirectory(Component)
+add_subdirectory(ContactForce)
+add_subdirectory(Geometry)
+add_subdirectory(PostProcessing)
+add_subdirectory(TimeIntegration)
+add_subdirectory(Utility)
+add_subdirectory(XML)
 add_library(PacIFiC::Grains3DGPU_obj ALIAS Grains3DGPU_obj)
 add_library(Grains3DGPU SHARED $<TARGET_OBJECTS:Grains3DGPU_obj>)
 add_library(PacIFiC::Grains3DGPU ALIAS Grains3DGPU)
@@ -171,7 +79,8 @@ foreach(grains_target Grains3DGPU_obj Grains3DGPU)
     ${GRAINS3D_GPU_INCLUDE_DIRS}
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   )
-  target_link_libraries(${grains_target} PUBLIC ZLIB::ZLIB XercesC::XercesC)
+  target_link_libraries(${grains_target} PUBLIC ZLIB::ZLIB)
+  target_link_libraries(${grains_target} PRIVATE LibXml2::LibXml2)
   if(PACIFIC_USE_MPI)
     target_link_libraries(${grains_target} PUBLIC MPI::MPI_C)
   endif()

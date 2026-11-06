@@ -1,5 +1,5 @@
 // Include CCCL before the legacy common headers, which import std names.
-#include <cub/cub.cuh>
+#include <cub/device/device_select.cuh>
 #include <thrust/iterator/counting_iterator.h>
 
 #include "ForceCompactionCUDA.hh"

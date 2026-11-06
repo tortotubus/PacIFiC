@@ -5,7 +5,6 @@
 #include "GJK.hh"
 #include "Grains.hh"
 #include "GrainsParameters.hh"
-#include "RigidBodyFactory.hh"
 #include "Superquadric.hh"
 #include "VectorMath.hh"
 

@@ -3,7 +3,7 @@
 
 #include "Matrix3.hh"
 #include "Quaternion.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // =================================================================================================
 /** @brief The class Transform3.
@@ -65,7 +65,7 @@ public:
     /** @brief Constructor with an XML node
          @param root the xml node */
     __HOST__
-    Transform3(DOMNode* root);
+    Transform3(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

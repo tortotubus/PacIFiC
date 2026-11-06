@@ -35,20 +35,8 @@ public:
         @param dt time step
         @param TI time integrator buffer */
     __HOST__
-    static void create(DOMNode* root, T dt, GrainsMemBuffer<TimeIntegrator<T>*, MemType::HOST>& TI);
-
-    /** @brief TimeIntegrator objects must be instantiated on device, if we want to use them on
-        device. Copying from host is not supported due to runtime polymorphism for this class. This
-        function reads a host-side TimeIntegrator object, and mimics it in a given device buffer.
-        It calls a device kernel that is implemented in the source file.
-        @param h_TI Host-side TimeIntegrator object
-        @param d_TI Device-side TimeIntegrator object */
-
-#if GRAINS_CUDA_COMPILER
-    __HOST__
-    static void copyHostToDevice(GrainsMemBuffer<TimeIntegrator<T>*, MemType::HOST>&   h_TI,
-                                 GrainsMemBuffer<TimeIntegrator<T>*, MemType::DEVICE>& d_TI);
-#endif
+    static void create(grains::xml::OptionalElement root, T dt,
+                       GrainsMemBuffer<TimeIntegrator<T>*, MemType::HOST>& TI);
 
     //@}
 };

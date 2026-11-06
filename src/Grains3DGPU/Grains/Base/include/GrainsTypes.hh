@@ -2,19 +2,10 @@
 #define GRAINS_TYPES_HH
 
 #include "GrainsPlatform.hh"
-#if GRAINS_CUDA_COMPILER
-#include <vector_types.h>
-#endif
 
-// Simulation indices keep the CUDA layout when compiled by CUDA, and use plain
-// data structures on the host. No CUDA runtime types enter a C++ translation unit.
+// Project-owned index types keep one name and ABI across C++ and CUDA translation units.
 using uint = unsigned int;
 
-#if GRAINS_CUDA_COMPILER
-using IndexPair      = uint2;
-using CellIndex      = uint3;
-using CellDimensions = uint4;
-#else
 struct CellIndex
 {
     uint x, y, z;
@@ -28,7 +19,6 @@ struct alignas(8) IndexPair
     uint x;
     uint y;
 };
-#endif
 
 static_assert(sizeof(IndexPair) == 8 && alignof(IndexPair) == 8);
 static_assert(sizeof(CellIndex) == 12 && alignof(CellIndex) == 4);

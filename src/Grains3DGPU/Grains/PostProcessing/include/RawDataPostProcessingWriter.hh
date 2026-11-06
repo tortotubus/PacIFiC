@@ -56,7 +56,7 @@ public:
 
     /** @brief Constructor with XML node
         @param dn XML node */
-    RawDataPostProcessingWriter(DOMNode* dn);
+    RawDataPostProcessingWriter(grains::xml::OptionalElement dn);
 
     /** @brief Destructor */
     ~RawDataPostProcessingWriter();

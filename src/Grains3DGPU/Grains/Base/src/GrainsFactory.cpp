@@ -1,14 +1,9 @@
 
 #include "Data.hh"
 #include "GrainsFactory.hh"
+#include "GrainsFactoryBackend.hh"
 #include "Grains.hh"
 #include "GrainsCPU.hh"
-#if GRAINS_CUDA_COMPILER
-#include "GrainsGPU.hh"
-#endif
-#if GRAINS_CUDA_COMPILER
-#include "GrainsTestDev.hh"
-#endif
 
 // -------------------------------------------------------------------------------------------------
 // Adds the path to the dtd files using the GRAINS_HOME variable to
@@ -101,30 +96,18 @@ string GrainsFactory<T>::init(string const& filename)
 // -------------------------------------------------------------------------------------------------
 // Creates and returns a standard Grains application
 template <typename T>
-Grains<T>* GrainsFactory<T>::create(DOMElement* root)
+Grains<T>* GrainsFactory<T>::create(grains::xml::OptionalElement root)
 {
-    // Preconditions
-    GAssert(root, "Invalid XML file! Aborting Grains!");
-
     Grains<T>* grains = NULL;
 
-    string type   = ReaderXML::getNodeName(root);
-    string option = ReaderXML::getNodeAttr_String(root, "Type");
+    const auto& element = grains::xml::requireElement(root);
+    string type   = element.name();
+    string option = element.requireAttribute<std::string>("Type");
 
     if(option == "Standard")
         grains = new GrainsCPU<T>();
     else if(option == "GPU" || option == "GrainsTestDev")
-    {
-#if GRAINS_CUDA_COMPILER
-        if(option == "GPU")
-            grains = new GrainsGPU<T>();
-        else
-            grains = new GrainsTestDev<T>();
-#else
-        throw std::runtime_error("This Grains3DGPU build has no CUDA backend; use Type=Standard "
-                                 "or rebuild with PACIFIC_USE_CUDA=ON.");
-#endif
-    }
+        grains = ::grains::detail::createAcceleratedGrains<T>(option);
 
     // Postconditions
     GAssert(grains, "Invalid Mode! Aborting Grains!");

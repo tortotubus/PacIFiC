@@ -5,7 +5,6 @@
 
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
-#include "GrainsUtils.hh"
 #include "NeighborList.hh"
 #include "NeighborList_Kernels.hh"
 #include "Transform3.hh"
@@ -53,7 +52,7 @@ public:
         m_pairList.initialize(initCapacity);
         m_pairList.fill();
 
-        *m_pairCount = 0;
+        m_pairCount[0] = 0;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -87,23 +86,15 @@ public:
             if constexpr(M == MemType::HOST || M == MemType::PINNED)
             {
                 updateNeighborList_Nsq_Host(nObstacles, nParticles, m_pairList.getData());
-                *m_pairCount = neededPairs;
+                m_pairCount[0] = neededPairs;
             }
-#if GRAINS_CUDA_COMPILER
             else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
             {
-                uint numBlocks, numThreads;
-                computeOptimalThreadsAndBlocks(nObstacles + nParticles,
-                                               GrainsParameters<T>::m_GPU,
-                                               numBlocks,
-                                               numThreads);
-                updateNeighborList_Nsq_Device<<<numBlocks, numThreads>>>(nObstacles,
-                                                                         nParticles,
-                                                                         m_pairList.getData());
-                *m_pairCount = neededPairs;
-                cudaDeviceSynchronize();
+                grains::cuda::updateNeighborListNsq<T>(nObstacles,
+                                                       nParticles,
+                                                       m_pairList.getData());
+                m_pairCount[0] = neededPairs;
             }
-#endif
 
             return true;
         }

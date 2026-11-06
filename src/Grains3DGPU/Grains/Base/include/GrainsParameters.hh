@@ -58,6 +58,14 @@ enum class NarrowPhaseType
 /** @name Structs */
 //@{
 // -------------------------------------------------------------------------------------------------
+/** @brief CUDA-independent subset of device properties used for launch sizing. */
+struct GrainsDeviceProperties
+{
+    int multiProcessorCount = 0;
+    int maxThreadsPerBlock  = 0;
+};
+
+// -------------------------------------------------------------------------------------------------
 /** @brief Plain-old-data struct grouping all simulation-level component counts. */
 struct ComponentCounts
 {
@@ -152,10 +160,8 @@ public:
     /* GPU */
     /** \brief is simulation on GPU? */
     static bool m_isGPU;
-    /** \brief GPU device properties */
-#if GRAINS_CUDA_COMPILER
-    static cudaDeviceProp m_GPU;
-#endif
+    /** \brief CUDA-independent device properties used for launch sizing */
+    static GrainsDeviceProperties m_GPU;
 
     /* Dynamic Settings */
     /** \brief Simulation state */

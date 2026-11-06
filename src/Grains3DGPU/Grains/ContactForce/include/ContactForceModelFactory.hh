@@ -97,19 +97,8 @@ public:
     /** @brief Creates and returns the contact force model given an XML node.
         @param root XML node
         @param CF Memory buffer for storing contact force models */
-    static void create(DOMElement* root, GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST>& CF);
-
-    /** @brief ContactForceModel objects must be instantiated on device, if we want to use them on
-        device. Copying from host is not supported due to runtime polymorphism for this class. This
-        function reads a host-side ContactForceModel object, and mimics it in a given device buffer.
-        It calls a device kernel that is implemented in the source file.
-        @param h_CF Host-side ContactForceModel object
-        @param d_CF Device-side ContactForceModel object */
-
-#if GRAINS_CUDA_COMPILER
-    static void copyHostToDevice(GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST>&   h_CF,
-                                 GrainsMemBuffer<ContactForceModel<T>*, MemType::DEVICE>& d_CF);
-#endif
+    static void create(grains::xml::OptionalElement root,
+                       GrainsMemBuffer<ContactForceModel<T>*, MemType::HOST>& CF);
 
     //@}
 };

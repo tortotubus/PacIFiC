@@ -13,7 +13,8 @@ __HOST__ InsertionWindow<T>::InsertionWindow()
 // -------------------------------------------------------------------------------------------------
 // Constructor with XML node and the type of the seed
 template <typename T>
-__HOST__ InsertionWindow<T>::InsertionWindow(DOMNode* dn, RandomGeneratorSeed seed)
+__HOST__ InsertionWindow<T>::InsertionWindow(grains::xml::OptionalElement dn,
+                                              RandomGeneratorSeed seed)
 {
     GoutWI(12, "Reading insertion window ...");
 
@@ -23,20 +24,13 @@ __HOST__ InsertionWindow<T>::InsertionWindow(DOMNode* dn, RandomGeneratorSeed se
     else if(seed == RGS_RANDOM)
         m_randGenerator.seed(time(NULL));
 
-    std::string nType = ReaderXML::getNodeAttr_String(dn, "Type");
+    const auto& element = grains::xml::requireElement(dn);
+    std::string nType = element.requireAttribute<std::string>("Type");
     if(nType == "Box")
     {
-        m_type         = BOXWINDOW;
-        DOMNode* nP1   = ReaderXML::getNode(dn, "MinPoint");
-        T        xVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "X"));
-        T        yVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "Y"));
-        T        zVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "Z"));
-        m_v1           = Vector3<T>(xVal1, yVal1, zVal1);
-        DOMNode* nP2   = ReaderXML::getNode(dn, "MaxPoint");
-        T        xVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "X"));
-        T        yVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "Y"));
-        T        zVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "Z"));
-        m_v2           = Vector3<T>(xVal2, yVal2, zVal2);
+        m_type = BOXWINDOW;
+        m_v1 = Vector3<T>(element.getChild("MinPoint"));
+        m_v2 = Vector3<T>(element.getChild("MaxPoint"));
         GoutWI(15,
                "Box insertion window with min and max points",
                Vector3ToString(m_v1),
@@ -46,20 +40,12 @@ __HOST__ InsertionWindow<T>::InsertionWindow(DOMNode* dn, RandomGeneratorSeed se
     }
     else if(nType == "Annulus")
     {
-        m_type         = ANNULUSWINDOW;
-        DOMNode* nP1   = ReaderXML::getNode(dn, "BottomPoint");
-        T        xVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "X"));
-        T        yVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "Y"));
-        T        zVal1 = T(ReaderXML::getNodeAttr_Double(nP1, "Z"));
-        m_v1           = Vector3<T>(xVal1, yVal1, zVal1);
-        DOMNode* nP2   = ReaderXML::getNode(dn, "TopPoint");
-        T        xVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "X"));
-        T        yVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "Y"));
-        T        zVal2 = T(ReaderXML::getNodeAttr_Double(nP2, "Z"));
-        m_v2           = Vector3<T>(xVal2, yVal2, zVal2);
-        DOMNode* nR    = ReaderXML::getNode(dn, "Radius");
-        m_iRad         = T(ReaderXML::getNodeAttr_Double(nR, "Inner"));
-        m_oRad         = T(ReaderXML::getNodeAttr_Double(nR, "Outter"));
+        m_type = ANNULUSWINDOW;
+        m_v1 = Vector3<T>(element.getChild("BottomPoint"));
+        m_v2 = Vector3<T>(element.getChild("TopPoint"));
+        const auto radius = element.requireChild("Radius");
+        m_iRad = T(radius.requireAttribute<double>("Inner"));
+        m_oRad = T(radius.requireAttribute<double>("Outter"));
         GoutWI(15,
                "Annulus insertion window with bottom point",
                Vector3ToString(m_v1),

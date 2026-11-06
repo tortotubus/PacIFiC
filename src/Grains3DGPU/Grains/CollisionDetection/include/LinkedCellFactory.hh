@@ -1,26 +1,17 @@
 #ifndef _LINKEDCELLFACTORY_HH_
 #define _LINKEDCELLFACTORY_HH_
 
-#include "GrainsPlatform.hh"
-
 #include "GrainsMemBuffer.hh"
 #include "GrainsParameters.hh"
 #include "LinkedCell.hh"
-#if GRAINS_CUDA_COMPILER
-#include "LinkedCell_Atomic.hh"
-#endif
-#if GRAINS_CUDA_COMPILER
-#include "LinkedCell_AtomicFixed.hh"
-#endif
+#include "LinkedCellFactoryCUDA.cuh"
 #include "LinkedCell_Host.hh"
-#if GRAINS_CUDA_COMPILER
-#include "LinkedCell_SortBased.hh"
-#endif
 
 // =================================================================================================
 /** @brief The class LinkedCellFactory.
 
-    Creates the linked cell structure for the simulation.
+    Creates the linked cell structure for the simulation. Host construction stays in this ordinary
+    C++ header; device implementation selection is owned by the CUDA backend.
 
     @author A.YAZDANI - 2025 - Construction */
 // =================================================================================================
@@ -33,11 +24,9 @@ class LinkedCellFactory
 private:
     /** @name Constructors & Destructor */
     //@{
-    // ---------------------------------------------------------------------------------------------
     /** @brief Default constructor (forbidden) */
     LinkedCellFactory() = default;
 
-    // ---------------------------------------------------------------------------------------------
     /** @brief Destructor (forbidden) */
     ~LinkedCellFactory() = default;
     //@}
@@ -45,71 +34,39 @@ private:
 public:
     /**@name Methods */
     //@{
-    // ---------------------------------------------------------------------------------------------
-    /** @brief Creates and returns a buffer of LinkedCell objects
-        @param rb Rigid body buffer
-        @param positions Positions buffer
-        @param quaternions Quaternions buffer
-        @param linkedCellParameters Linked cell parameters
-        @param nObstacles number of obstacles
-        @param nParticles number of particles
-        @return unique_ptr to the created LinkedCell object */
+    /** @brief Creates the configured linked-cell implementation.
+        @param rigidBodies Rigid-body buffer
+        @param positions Position buffer
+        @param orientations Quaternion buffer
+        @param parameters Linked-cell parameters
+        @param numObstacles Number of obstacles
+        @param numParticles Number of particles */
     static std::unique_ptr<LinkedCell<T, M>>
-        create(const GrainsMemBuffer<RigidBody<T>*, M>* rb,
+        create(const GrainsMemBuffer<RigidBody<T>*, M>* rigidBodies,
                const GrainsMemBuffer<Vector3<T>, M>&    positions,
-               const GrainsMemBuffer<Quaternion<T>, M>& quaternions,
-               const LinkedCellParameters<T>&           linkedCellParameters,
-               const uint                               nObstacles,
-               const uint                               nParticles)
+               const GrainsMemBuffer<Quaternion<T>, M>& orientations,
+               const LinkedCellParameters<T>&           parameters,
+               uint                                     numObstacles,
+               uint                                     numParticles)
     {
-        auto type = linkedCellParameters.type;
-        // Create the linked cell object
         if constexpr(M == MemType::HOST)
         {
-            return std::make_unique<LinkedCell_Host<T>>(rb,
+            return std::make_unique<LinkedCell_Host<T>>(rigidBodies,
                                                         positions,
-                                                        quaternions,
-                                                        linkedCellParameters,
-                                                        nObstacles,
-                                                        nParticles);
+                                                        orientations,
+                                                        parameters,
+                                                        numObstacles,
+                                                        numParticles);
         }
-#if GRAINS_CUDA_COMPILER
-        else if constexpr(M == MemType::DEVICE)
+        else
         {
-            if(type == LinkedCellType::SORTBASED)
-            {
-                return std::make_unique<LinkedCell_SortBased<T>>(rb,
-                                                                 positions,
-                                                                 quaternions,
-                                                                 linkedCellParameters,
-                                                                 nObstacles,
-                                                                 nParticles);
-            }
-            else if(type == LinkedCellType::ATOMIC)
-            {
-                return std::make_unique<LinkedCell_Atomic<T>>(rb,
-                                                              positions,
-                                                              quaternions,
-                                                              linkedCellParameters,
-                                                              nObstacles,
-                                                              nParticles);
-            }
-            else if(type == LinkedCellType::ATOMICFIXED)
-            {
-                return std::make_unique<LinkedCell_AtomicFixed<T>>(rb,
-                                                                   positions,
-                                                                   quaternions,
-                                                                   linkedCellParameters,
-                                                                   nObstacles,
-                                                                   nParticles);
-            }
-            else
-                GAbort("LinkedCell type not supported on device. Aborting "
-                       "Grains!");
+            return grains::cuda::createLinkedCell<T>(rigidBodies,
+                                                     positions,
+                                                     orientations,
+                                                     parameters,
+                                                     numObstacles,
+                                                     numParticles);
         }
-#endif
-
-        return nullptr;  // Should never reach here
     }
     //@}
 };

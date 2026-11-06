@@ -23,13 +23,16 @@ class NeighborList
     static_assert(M == MemType::HOST || M == MemType::DEVICE,
                   "NeighborList only supports MemType::HOST or MemType::DEVICE");
 
+    using PairCountBuffer
+        = GrainsMemBuffer<uint, M == MemType::HOST ? MemType::HOST : MemType::MANAGED>;
+
 protected:
     /** @name Parameters */
     //@{
     /** \brief Pair list */
     GrainsMemBuffer<IndexPair, M> m_pairList;
     /** \brief Pair count */
-    uint* m_pairCount;
+    PairCountBuffer m_pairCount;
     //@}
 
 public:
@@ -39,36 +42,13 @@ public:
     /** @brief Default constructor */
     NeighborList()
     {
-#if GRAINS_CUDA_COMPILER
-        if constexpr(M == MemType::DEVICE)
-        {
-            cudaErrCheck(cudaMallocManaged(&m_pairCount, sizeof(uint)));
-        }
-        else
-#endif
-
-        {
-            m_pairCount = new uint;
-        }
-        *m_pairCount = 0;
+        m_pairCount.initialize(1);
+        m_pairCount[0] = 0;
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Destructor */
-    virtual ~NeighborList()
-    {
-#if GRAINS_CUDA_COMPILER
-        if constexpr(M == MemType::DEVICE)
-        {
-            cudaErrCheck(cudaFree(m_pairCount));
-        }
-        else
-#endif
-
-        {
-            delete m_pairCount;
-        }
-    }
+    virtual ~NeighborList() = default;
     //@}
 
     /** @name Get methods */
@@ -91,7 +71,7 @@ public:
     /** @brief Gets size of pair list */
     uint getSize() const
     {
-        return *m_pairCount;
+        return m_pairCount[0];
     }
     //@}
 

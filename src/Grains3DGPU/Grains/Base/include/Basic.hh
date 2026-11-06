@@ -35,8 +35,12 @@
 #include <omp.h>
 #endif
 
-#include "ReaderXML.hh"
-#include "WriterXML.hh"
+#include "Xml.hh"
+
+// The existing Grains3DGPU headers use unqualified standard-library names.
+// ReaderXML.hh historically supplied this directive; retain that source
+// compatibility here until those headers are cleaned up independently.
+using namespace std;
 
 // =================================================================================================
 /** @brief Various constants and type definitions.

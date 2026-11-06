@@ -76,7 +76,7 @@ public:
     /** @brief Constructor with an XML node
         @param root XML node */
     __HOST__
-    Matrix3(DOMNode* root) noexcept;
+    Matrix3(grains::xml::OptionalElement root);
 
     /** @brief Destructor */
     __HOSTDEVICE__

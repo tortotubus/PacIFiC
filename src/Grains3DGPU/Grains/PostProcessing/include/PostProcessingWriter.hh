@@ -7,7 +7,7 @@
 #include "Basic.hh"
 #include "ComponentManager.hh"
 #include "GrainsMemBuffer.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 
 // PostProcessingWriter types
 enum PostProcessingWriterType

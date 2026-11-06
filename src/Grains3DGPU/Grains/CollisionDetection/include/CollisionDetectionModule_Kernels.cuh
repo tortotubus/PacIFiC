@@ -1,12 +1,10 @@
-#ifndef _COLLISIONDETECTIONMODULE_KERNELS_HH_
-#define _COLLISIONDETECTIONMODULE_KERNELS_HH_
+#ifndef COLLISION_DETECTION_MODULE_KERNELS_CUH
+#define COLLISION_DETECTION_MODULE_KERNELS_CUH
 
 #include "GrainsPlatform.hh"
 
 #include <cstdint>
-#if GRAINS_CUDA_COMPILER
 #include <cuda_runtime.h>
-#endif
 
 #include "BodyTag.hh"
 #include "ContactInfo.hh"
@@ -21,7 +19,7 @@
 // =================================================================================================
 /** @brief CUDA kernel declarations for CollisionDetectionModule.
 
-    Definitions live in CollisionDetectionModule_Kernels.cpp (compiled by nvcc).
+    Definitions live in CollisionDetectionModule_Kernels.cu.
 
     @author A.Yazdani - 2026 - Construction */
 // =================================================================================================

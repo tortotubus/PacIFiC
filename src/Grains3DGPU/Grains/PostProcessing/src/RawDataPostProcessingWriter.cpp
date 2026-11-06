@@ -11,13 +11,14 @@ RawDataPostProcessingWriter<T>::RawDataPostProcessingWriter()
 // -------------------------------------------------------------------------------------------------
 // Constructor with XML node
 template <typename T>
-RawDataPostProcessingWriter<T>::RawDataPostProcessingWriter(DOMNode* dn)
+RawDataPostProcessingWriter<T>::RawDataPostProcessingWriter(
+    grains::xml::OptionalElement dn)
     : m_ndigits(6)
 {
-    m_directory = ReaderXML::getNodeAttr_String(dn, "Directory");
-    m_rootName  = ReaderXML::getNodeAttr_String(dn, "RootName");
-    if(ReaderXML::hasNodeAttr(dn, "Precision"))
-        m_ndigits = ReaderXML::getNodeAttr_Int(dn, "Precision");
+    const auto& element = grains::xml::requireElement(dn);
+    m_directory = element.requireAttribute<std::string>("Directory");
+    m_rootName  = element.requireAttribute<std::string>("RootName");
+    m_ndigits   = element.attributeOr<int>("Precision", m_ndigits);
     GoutWI(9, "Type = RawData");
     GoutWI(12, "Output file directory name =", m_directory);
     GoutWI(12, "Output file root name =", m_rootName);

@@ -3,19 +3,27 @@
 
 #include "GrainsPlatform.hh"
 
-#if GRAINS_CUDA_COMPILER
-#include <cub/cub.cuh>
-#endif
-
 #include "Cells.hh"
 #include "CellsFactory.hh"
 #include "GrainsMemBuffer.hh"
 #include "GrainsUtils.hh"
-#if GRAINS_CUDA_COMPILER
-#include "LinkedCell_Kernels.hh"
-#endif
+#include "LinkedCellCUDA.hh"
 #include "QuaternionMath.hh"
 #include "VectorMath.hh"
+
+namespace grains::detail
+{
+    template <typename T, MemType M>
+    struct LinkedCellReductionStorage
+    {
+    };
+
+    template <typename T>
+    struct LinkedCellReductionStorage<T, MemType::DEVICE>
+    {
+        cuda::LinkedCellReductionStatePtr<T> state;
+    };
+}
 
 // =================================================================================================
 /** @brief The class LinkedCell.
@@ -60,10 +68,8 @@ protected:
     /** \brief Buffer of the cell IDs that that have to be checked for a possible contact with an
         obstacle. */
     GrainsMemBuffer<uint, M> m_obstacleCellID;
-    /** \brief CUB reduce temporary storage */
-    void* m_cubReduceTempStorage = nullptr;
-    /** \brief CUB reduce temporary storage bytes */
-    size_t m_cubReduceTempStorageBytes = 0;
+    /** \brief CUDA-owned state for maximum-displacement reduction. */
+    grains::detail::LinkedCellReductionStorage<T, M> m_reductionBackend;
     /** \brief Maximum displacement of particles since the last update. Note that we store the
         squared value.  */
     GrainsMemBuffer<T, M == MemType::HOST ? MemType::HOST : MemType::MANAGED>
@@ -86,30 +92,11 @@ protected:
     /** \brief Number of cells in the grid */
     uint m_numCells = 0;
     /** \brief Flag to indicate if adaptive skin is used */
-    bool m_useAdaptiveSkin
-        = false; /** rief Dedicated CUDA stream for asynchronous displacement reduction */
-#if GRAINS_CUDA_COMPILER
-    cudaStream_t m_reduceStream = nullptr;
-#endif
-    /** rief Whether a valid async displacement result is available */
+    bool m_useAdaptiveSkin = false;
+    /** \brief Whether a valid async displacement result is available */
     bool m_hasAsyncResult = false;  //@}
 
 public:
-    /** @name Helper functors for CUB operations */
-    //@{
-    /** \brief Functor to compute squared displacement between two positions */
-    struct DiffNorm2
-    {
-        const Vector3<T>* oldPos;
-        const Vector3<T>* pos;
-
-        INLINE __DEVICE__ T operator()(int i) const
-        {
-            return norm2(pos[i] - oldPos[i]);
-        }
-    };
-    //@}
-
     /** @name Constructors */
     //@{
     // ---------------------------------------------------------------------------------------------
@@ -188,29 +175,15 @@ public:
         // Setup obstacle
         linkObstacles();
 
-        // Initialize CUB reduce workspace for maximum displacement computation
-#if GRAINS_CUDA_COMPILER
+        // Initialize the CUDA-owned reduction state for maximum displacement computation.
         if constexpr(M == MemType::DEVICE)
         {
-            // Query workspace size for Reduce operation with dummy iterator
-            using CountingIt = cub::CountingInputIterator<int>;
-            using InputIt    = cub::TransformInputIterator<T, DiffNorm2, CountingIt>;
-
-            DiffNorm2  op{m_oldPosition.getData(), m_positions->getData()};
-            CountingIt count_it(0);
-            InputIt    input_it(count_it, op);
-            cudaErrCheck(cudaGetLastError());
-            cudaErrCheck(cub::DeviceReduce::Reduce(m_cubReduceTempStorage,
-                                                   m_cubReduceTempStorageBytes,
-                                                   input_it,
-                                                   m_maxDisplacementSquared.getData(),
-                                                   nObstacles + nParticles,
-                                                   cub::Max(),
-                                                   T(0)));
-            cudaErrCheck(cudaMalloc(&m_cubReduceTempStorage, m_cubReduceTempStorageBytes));
-            cudaErrCheck(cudaStreamCreate(&m_reduceStream));
+            m_reductionBackend.state = grains::cuda::createLinkedCellReductionState<T>(
+                nObstacles + nParticles,
+                m_oldPosition.getData(),
+                m_positions->getData(),
+                m_maxDisplacementSquared.getData());
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -219,23 +192,6 @@ public:
     {
         // Clean up the Cells objects using GrainsMemBuffer helper method
         // m_cells.freePointedObjects();
-
-        // Free CUB workspace and reduce stream
-#if GRAINS_CUDA_COMPILER
-        if constexpr(M == MemType::DEVICE)
-        {
-            if(m_cubReduceTempStorage != nullptr)
-            {
-                cudaFree(m_cubReduceTempStorage);
-                m_cubReduceTempStorage = nullptr;
-            }
-            if(m_reduceStream != nullptr)
-            {
-                cudaStreamDestroy(m_reduceStream);
-                m_reduceStream = nullptr;
-            }
-        }
-#endif
 
         // Set non-owning pointers to nullptr
         m_rb          = nullptr;
@@ -383,17 +339,15 @@ public:
             T maxDispSq = computeMaxDisplacement();
             return (T(4) * maxDispSq > m_skinThickness * m_skinThickness);
         }
-#if GRAINS_CUDA_COMPILER
         else
         {
             // 1-lag async: reduce was launched at end of prior updateLinkedCells(); sync only
             // the reduce stream (near-zero cost if physics integration has run since launch)
             if(!m_hasAsyncResult)
                 return true;  // Conservative on first iteration: no result available yet
-            cudaStreamSynchronize(m_reduceStream);
+            grains::cuda::synchronizeLinkedCellReduction(*m_reductionBackend.state);
             return (T(4) * m_maxDisplacementSquared[0] > m_skinThickness * m_skinThickness);
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -406,21 +360,12 @@ public:
         {
             m_cells[0]->generateNeighborCells(m_neighborCells.getData());
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
-            // Assign one thread to each cell
-            uint numBlocks, numThreads;
-            computeOptimalThreadsAndBlocks(m_numCells,
-                                           GrainsParameters<T>::m_GPU,
-                                           numBlocks,
-                                           numThreads);
-            generateNeighborCells_Device<<<numBlocks, numThreads>>>(m_cells.getData(),
-                                                                    m_numCells,
-                                                                    m_neighborCells.getData());
-            cudaErrCheck(cudaDeviceSynchronize());
+            grains::cuda::generateNeighborCells(m_cells.getData(),
+                                                m_numCells,
+                                                m_neighborCells.getData());
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -492,23 +437,17 @@ public:
                 m_obstacleID[i].y = cellCount;
             }
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
-            // Launch one block per obstacle with one thread per block
-            const uint numBlocks  = m_numObstacles;
-            const uint numThreads = 1;
-            linkObstacles_Device<T><<<numBlocks, numThreads>>>(m_rb->getData(),
-                                                               m_positions->getData(),
-                                                               m_quaternions->getData(),
-                                                               m_cells.getData(),
-                                                               m_numObstacles,
-                                                               m_maxCellsPerObstacle,
-                                                               m_obstacleID.getData(),
-                                                               m_obstacleCellID.getData());
-            cudaErrCheck(cudaDeviceSynchronize());
+            grains::cuda::linkObstacles(m_rb->getData(),
+                                        m_positions->getData(),
+                                        m_quaternions->getData(),
+                                        m_cells.getData(),
+                                        m_numObstacles,
+                                        m_maxCellsPerObstacle,
+                                        m_obstacleID.getData(),
+                                        m_obstacleCellID.getData());
         }
-#endif
 
         // Obstacles are now in sync; reset flag so we don't relink every iteration for
         // static obstacles. Obstacle time integration must set this back to true when
@@ -531,26 +470,14 @@ public:
             }
             m_maxDisplacementSquared[0] = maxDisplacementSquared;
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
         {
-            using CountingIt = cub::CountingInputIterator<int>;
-            using InputIt    = cub::TransformInputIterator<T, DiffNorm2, CountingIt>;
-
-            DiffNorm2  op{m_oldPosition.getData(), m_positions->getData()};
-            CountingIt count_it(0);
-            InputIt    input_it(count_it, op);
-            // Fused: compute displacement squared and find maximum in one CUB call
-            cudaErrCheck(cub::DeviceReduce::Reduce(m_cubReduceTempStorage,
-                                                   m_cubReduceTempStorageBytes,
-                                                   input_it,
-                                                   m_maxDisplacementSquared.getData(),
-                                                   m_positions->getSize(),
-                                                   cub::Max(),
-                                                   T(0)));
-            cudaErrCheck(cudaDeviceSynchronize());
+            grains::cuda::computeMaxDisplacementSquared(*m_reductionBackend.state,
+                                                        m_oldPosition.getData(),
+                                                        m_positions->getData(),
+                                                        m_positions->getSize(),
+                                                        m_maxDisplacementSquared.getData());
         }
-#endif
 
         return m_maxDisplacementSquared[0];
     }
@@ -563,25 +490,15 @@ public:
         iteration's needsUpdate() check with near-zero synchronization cost. */
     void launchDisplacementReduceAsync()
     {
-#if GRAINS_CUDA_COMPILER
         if constexpr(M == MemType::DEVICE)
         {
-            using CountingIt = cub::CountingInputIterator<int>;
-            using InputIt    = cub::TransformInputIterator<T, DiffNorm2, CountingIt>;
-            DiffNorm2  op{m_oldPosition.getData(), m_positions->getData()};
-            CountingIt count_it(0);
-            InputIt    input_it(count_it, op);
-            cub::DeviceReduce::Reduce(m_cubReduceTempStorage,
-                                      m_cubReduceTempStorageBytes,
-                                      input_it,
-                                      m_maxDisplacementSquared.getData(),
-                                      m_positions->getSize(),
-                                      cub::Max(),
-                                      T(0),
-                                      m_reduceStream);
+            grains::cuda::launchMaxDisplacementSquared(*m_reductionBackend.state,
+                                                       m_oldPosition.getData(),
+                                                       m_positions->getData(),
+                                                       m_positions->getSize(),
+                                                       m_maxDisplacementSquared.getData());
             m_hasAsyncResult = true;
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 #include "ForceComputationCPU.hh"
 #include "ForceComputation.hh"
+#include "ContactTableHostOps.hh"
 
 namespace
 {
@@ -7,7 +8,7 @@ namespace
     void compute(ContactForceView<T> view)
     {
         for(uint i = 0; i < view.count; ++i)
-            view.compute(i);
+            view.template compute<grains::cpu::ContactTableOps>(i);
     }
     template <typename T>
     void add(ExternalForceView<T> view)

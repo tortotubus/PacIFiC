@@ -2,31 +2,17 @@
 #define _GRAINSMEMBUFFER_HH_
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <new>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "GrainsAssert.hh"
-
-#if GRAINS_CUDA_COMPILER
-#include "GrainsCUDAUtils.hh"
-using GrainsStream = cudaStream_t;
-#else
-// Host operations are synchronous. No CUDA type or emulated runtime is needed.
-using GrainsStream = std::nullptr_t;
-#endif
-
-enum class MemType
-{
-    HOST,
-    DEVICE,
-    MANAGED,
-    PINNED,
-    MAPPED,
-    UNKNOWN
-};
+#include "GrainsMemBufferBackend.hh"
 
 // =================================================================================================
 /** @brief The class GrainsMemBuffer.
@@ -37,64 +23,33 @@ enum class MemType
 
     @author A.Yazdani - 2025 - Construction */
 // =================================================================================================
-/** @name GrainsMemBuffer: External Methods */
-//@{
-/** @brief Fills a buffer to default.
-    @param buffer the buffer to be initialized
-    @param size size of the buffer
-    @param value the default value to be set (default is T()) */
-#if GRAINS_CUDA_COMPILER
-template <typename T>
-__GLOBAL__ void fill_Kernel(T* buffer, const size_t size, const T& value = T())
-{
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if(idx >= size)
-        return;
-    buffer[idx] = value;
-}
-
-// -------------------------------------------------------------------------------------------------
-/** @brief fills a buffer with incremental values.
-    @param buffer the buffer to be initialized
-    @param size size of the buffer
-    @param start the starting value (default is 0) */
-template <typename T>
-__GLOBAL__ void sequence_Kernel(T* buffer, const size_t size, const T& start = T(0))
-{
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if(idx >= size)
-        return;
-
-    buffer[idx] = static_cast<T>(start + idx);
-}
-
-// -------------------------------------------------------------------------------------------------
-/** @brief Kernel to free device pointers stored in a pointer array.
-    @param ptrArray array of device pointers
-    @param size number of pointers in the array */
-template <typename T>
-__GLOBAL__ void freePointedObjects_Kernel(T** ptrArray, const size_t size)
-{
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if(idx >= size)
-        return;
-
-    if(ptrArray[idx] != nullptr)
-    {
-        cudaFree(ptrArray[idx]);
-        ptrArray[idx] = nullptr;
-    }
-}
-//@}
-
-#endif
 
 // =================================================================================================
 template <typename T, MemType M = MemType::HOST>
 class GrainsMemBuffer
 {
-    static_assert(GRAINS_CUDA_COMPILER || M == MemType::HOST,
-                  "Non-HOST GrainsMemBuffer requires a CUDA compiler");
+    static_assert(M != MemType::UNKNOWN, "GrainsMemBuffer cannot use MemType::UNKNOWN");
+
+    static GrainsScalarValue packScalar(const T& value)
+    {
+        static_assert(std::is_arithmetic_v<T>,
+                      "Device fill and sequence require an arithmetic element type");
+        static_assert(sizeof(T) <= sizeof(GrainsScalarValue::bytes),
+                      "Scalar value is too large for the memory backend");
+
+        GrainsScalarValue packed;
+        std::memcpy(packed.bytes, &value, sizeof(T));
+        packed.size = static_cast<std::uint8_t>(sizeof(T));
+        if constexpr(std::is_same_v<T, bool>)
+            packed.kind = GrainsScalarKind::BOOLEAN;
+        else if constexpr(std::is_floating_point_v<T>)
+            packed.kind = GrainsScalarKind::FLOATING_POINT;
+        else if constexpr(std::is_signed_v<T>)
+            packed.kind = GrainsScalarKind::SIGNED_INTEGER;
+        else
+            packed.kind = GrainsScalarKind::UNSIGNED_INTEGER;
+        return packed;
+    }
 
 protected:
     /** @name Parameters */
@@ -320,7 +275,7 @@ public:
     /** @brief Reserves memory for the buffer.
         @param new_capacity new capacity of the buffer
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void reserve(size_t new_capacity, [[maybe_unused]] GrainsStream stream = nullptr)
+    void reserve(size_t new_capacity, GrainsStream stream = nullptr)
     {
         GAssert(new_capacity > 0, "Capacity must be positive in reserve()");
 
@@ -338,19 +293,16 @@ public:
             {
                 std::memcpy(new_buf.getData(), m_ptr, m_size * sizeof(T));
             }
-#if GRAINS_CUDA_COMPILER
             else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
             {
-                // Device-to-device copy for device/managed memory using stream
-                cudaErrCheck(cudaMemcpyAsync(new_buf.getData(),
-                                             m_ptr,
-                                             m_size * sizeof(T),
-                                             cudaMemcpyDeviceToDevice,
-                                             stream));
-                // Synchronize before freeing old buffer to ensure copy completes
-                cudaStreamSynchronize(stream);
+                grains::memory::copyAsync(new_buf.getData(),
+                                          M,
+                                          m_ptr,
+                                          M,
+                                          m_size * sizeof(T),
+                                          stream);
+                grains::memory::synchronize(stream);
             }
-#endif
         }
 
         // Preserve logical size; capacity is already new_capacity
@@ -388,25 +340,12 @@ public:
             if(!m_ptr)
                 throw std::bad_alloc();
         }
-#if GRAINS_CUDA_COMPILER
-        else if constexpr(M == MemType::DEVICE)
+        else
         {
-            cudaErrCheck(cudaMalloc(&m_ptr, sizeof(T) * new_capacity));
+            const auto allocation = grains::memory::allocate(M, sizeof(T) * new_capacity);
+            m_ptr                 = static_cast<T*>(allocation.pointer);
+            m_d_ptr               = static_cast<T*>(allocation.deviceAlias);
         }
-        else if constexpr(M == MemType::MANAGED)
-        {
-            cudaErrCheck(cudaMallocManaged(&m_ptr, sizeof(T) * new_capacity));
-        }
-        else if constexpr(M == MemType::PINNED)
-        {
-            cudaErrCheck(cudaMallocHost(&m_ptr, sizeof(T) * new_capacity));
-        }
-        else if constexpr(M == MemType::MAPPED)
-        {
-            cudaErrCheck(cudaHostAlloc(&m_ptr, sizeof(T) * new_capacity, cudaHostAllocMapped));
-            cudaErrCheck(cudaHostGetDevicePointer(&m_d_ptr, m_ptr, 0));
-        }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -493,7 +432,7 @@ public:
     // ---------------------------------------------------------------------------------------------
     /** @brief Shrinks the buffer to fit the current size
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void shrink_to_fit([[maybe_unused]] GrainsStream stream = nullptr)
+    void shrink_to_fit(GrainsStream stream = nullptr)
     {
         if(m_size == m_capacity)
             return;
@@ -508,84 +447,18 @@ public:
 
         if constexpr(M == MemType::HOST || M == MemType::PINNED || M == MemType::MAPPED)
             std::memcpy(new_buf.m_ptr, m_ptr, m_size * sizeof(T));
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
-        {
-            cudaMemcpyKind kind = cudaMemcpyDeviceToDevice;
-            cudaErrCheck(
-                cudaMemcpyAsync(new_buf.getData(), m_ptr, m_size * sizeof(T), kind, stream));
-        }
-        else
-        {
-            std::cerr << "Unsupported memory type for shrink_to_fit()\n";
-            return;
-        }
-#endif
+            grains::memory::copyAsync(new_buf.getData(), M, m_ptr, M, m_size * sizeof(T), stream);
 
         *this = std::move(new_buf);
     }
-
-    // ---------------------------------------------------------------------------------------------
-    /** @brief Returns the kind of memory transfer for the given src and dst memory types. */
-#if GRAINS_CUDA_COMPILER
-    template <MemType Src, MemType Dst>
-    constexpr cudaMemcpyKind getMemcpyKind() const
-    {
-        if constexpr(Src == MemType::HOST && Dst == MemType::HOST)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::HOST && Dst == MemType::DEVICE)
-            return cudaMemcpyHostToDevice;
-        else if constexpr(Src == MemType::DEVICE && Dst == MemType::HOST)
-            return cudaMemcpyDeviceToHost;
-        else if constexpr(Src == MemType::DEVICE && Dst == MemType::DEVICE)
-            return cudaMemcpyDeviceToDevice;
-        else if constexpr(Src == MemType::HOST && Dst == MemType::MANAGED)
-            return cudaMemcpyHostToDevice;
-        else if constexpr(Src == MemType::MANAGED && Dst == MemType::HOST)
-            return cudaMemcpyDeviceToHost;
-        else if constexpr(Src == MemType::DEVICE && Dst == MemType::MANAGED)
-            return cudaMemcpyDeviceToDevice;
-        else if constexpr(Src == MemType::MANAGED && Dst == MemType::DEVICE)
-            return cudaMemcpyDeviceToDevice;
-        else if constexpr(Src == MemType::MANAGED && Dst == MemType::MANAGED)
-            return cudaMemcpyDeviceToDevice;
-        else if constexpr(Src == MemType::PINNED && Dst == MemType::HOST)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::HOST && Dst == MemType::PINNED)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::PINNED && Dst == MemType::DEVICE)
-            return cudaMemcpyHostToDevice;
-        else if constexpr(Src == MemType::DEVICE && Dst == MemType::PINNED)
-            return cudaMemcpyDeviceToHost;
-        else if constexpr(Src == MemType::PINNED && Dst == MemType::PINNED)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::MAPPED && Dst == MemType::HOST)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::HOST && Dst == MemType::MAPPED)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::MAPPED && Dst == MemType::DEVICE)
-            return cudaMemcpyHostToDevice;
-        else if constexpr(Src == MemType::DEVICE && Dst == MemType::MAPPED)
-            return cudaMemcpyDeviceToHost;
-        else if constexpr(Src == MemType::MAPPED && Dst == MemType::MAPPED)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::PINNED && Dst == MemType::MAPPED)
-            return cudaMemcpyHostToHost;
-        else if constexpr(Src == MemType::MAPPED && Dst == MemType::PINNED)
-            return cudaMemcpyHostToHost;
-        else
-            return cudaMemcpyDefault;
-    }
-
-#endif
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Copy to another buffer (host/device aware).
         @param dest destination buffer
         @param stream CUDA stream for asynchronous operations (default: 0) */
     template <MemType destM>
-    void copyTo(GrainsMemBuffer<T, destM>&    dest,
-                [[maybe_unused]] GrainsStream stream = nullptr) const
+    void copyTo(GrainsMemBuffer<T, destM>& dest, GrainsStream stream = nullptr) const
     {
         if(m_size == 0 || !m_ptr)
             return;
@@ -594,15 +467,8 @@ public:
 
         if constexpr(M == MemType::HOST && destM == MemType::HOST)
             std::memcpy(dest.getData(), m_ptr, getBytes());
-#if GRAINS_CUDA_COMPILER
         else
-        {
-            cudaMemcpyKind kind    = getMemcpyKind<M, destM>();
-            const T*       src_ptr = m_ptr;
-            T*             dst_ptr = dest.getData();
-            cudaErrCheck(cudaMemcpyAsync(dst_ptr, src_ptr, getBytes(), kind, stream));
-        }
-#endif
+            grains::memory::copyAsync(dest.getData(), destM, m_ptr, M, getBytes(), stream);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -610,8 +476,7 @@ public:
         @param src source buffer
         @param stream CUDA stream for asynchronous operations (default: 0) */
     template <MemType srcM>
-    void copyFrom(const GrainsMemBuffer<T, srcM>& src,
-                  [[maybe_unused]] GrainsStream   stream = nullptr)
+    void copyFrom(const GrainsMemBuffer<T, srcM>& src, GrainsStream stream = nullptr)
     {
         if constexpr(M == srcM)
         {
@@ -631,15 +496,8 @@ public:
         {
             std::memcpy(m_ptr, src.m_ptr, src.getBytes());
         }
-#if GRAINS_CUDA_COMPILER
         else
-        {
-            cudaMemcpyKind kind    = getMemcpyKind<srcM, M>();
-            const T*       src_ptr = src.getData();
-            T*             dst_ptr = m_ptr;
-            cudaErrCheck(cudaMemcpyAsync(dst_ptr, src_ptr, src.getBytes(), kind, stream));
-        }
-#endif
+            grains::memory::copyAsync(m_ptr, M, src.getData(), srcM, src.getBytes(), stream);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -658,36 +516,10 @@ public:
     /** @brief Frees the allocated memory */
     void free()
     {
-        if(m_ptr)
-        {
-            if constexpr(M == MemType::HOST)
-            {
-                std::free(m_ptr);
-            }
-#if GRAINS_CUDA_COMPILER
-            else if constexpr(M == MemType::DEVICE)
-            {
-                cudaErrCheck(cudaFree(m_ptr));
-            }
-            else if constexpr(M == MemType::PINNED)
-            {
-                cudaErrCheck(cudaFreeHost(m_ptr));
-            }
-            else if constexpr(M == MemType::MAPPED)
-            {
-                cudaErrCheck(cudaFreeHost(m_ptr));
-                // m_d_ptr is a device alias into the same physical allocation
-            }
-            else if constexpr(M == MemType::MANAGED)
-            {
-                cudaErrCheck(cudaFree(m_ptr));
-            }
-            else
-            {
-                std::cerr << "Unknown memory type for free()\n";
-            }
-#endif
-        }
+        if constexpr(M == MemType::HOST)
+            std::free(m_ptr);
+        else
+            grains::memory::release(M, {m_ptr, m_d_ptr});
 
         m_ptr      = nullptr;
         m_d_ptr    = nullptr;
@@ -722,30 +554,14 @@ public:
                 }
             }
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE)
-        {
-            // Device memory: copy pointers to host first, then free each
-            std::vector<T> hostPtrs(m_size);
-            cudaErrCheck(
-                cudaMemcpy(hostPtrs.data(), m_ptr, m_size * sizeof(T), cudaMemcpyDeviceToHost));
-            std::cout << "Freeing " << m_size << " pointed objects from device memory...\n";
-            for(size_t i = 0; i < m_size; ++i)
-            {
-                if(hostPtrs[i] != nullptr)
-                    cudaErrCheck(cudaFree(hostPtrs[i]));
-            }
-            std::cout << "Freed " << m_size << " pointed objects from device memory.\n";
-            fill();
-            cudaErrCheck(cudaDeviceSynchronize());
-        }
-#endif
+            grains::memory::freeDevicePointers(m_ptr, m_size);
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Fills the buffer with default values
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void fill([[maybe_unused]] GrainsStream stream = nullptr)
+    void fill(GrainsStream stream = nullptr)
     {
         if(m_size == 0)
             return;
@@ -757,20 +573,15 @@ public:
                 m_ptr[i] = T();
             }
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
-        {
-            // Use optimized cudaMemsetAsync for zero initialization
-            cudaMemsetAsync(m_ptr, 0, m_size * sizeof(T), stream);
-        }
-#endif
+            grains::memory::setBytesAsync(m_ptr, 0, m_size * sizeof(T), stream);
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Fills the buffer with a user-provided value.
         @param value value to initialize with
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void fill(const T& value, [[maybe_unused]] GrainsStream stream = nullptr)
+    void fill(const T& value, GrainsStream stream = nullptr)
     {
         if(m_size == 0)
             return;
@@ -780,41 +591,36 @@ public:
             for(size_t i = 0; i < m_size; ++i)
                 m_ptr[i] = value;
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
         {
-            static_assert(std::is_fundamental<T>::value,
-                          "T must be a primitive type for device init");
+            static_assert(std::is_arithmetic_v<T>,
+                          "Device fill requires an arithmetic element type");
 
-            // Use cudaMemset for common patterns: 0 and UINT_MAX
             if(value == T(0))
+                grains::memory::setBytesAsync(m_ptr, 0, m_size * sizeof(T), stream);
+            else if constexpr(std::is_unsigned_v<T>)
             {
-                cudaMemsetAsync(m_ptr, 0, m_size * sizeof(T), stream);
-            }
-            else if constexpr(std::is_unsigned<T>::value)
-            {
-                if(value == static_cast<T>(~T(0)))  // UINT_MAX for this type
-                {
-                    cudaMemsetAsync(m_ptr, 0xFF, m_size * sizeof(T), stream);
-                }
+                if(value == static_cast<T>(~T(0)))
+                    grains::memory::setBytesAsync(m_ptr, 0xFF, m_size * sizeof(T), stream);
                 else
                 {
-                    fill_Kernel<<<(m_size + 255) / 256, 256, 0, stream>>>(m_ptr, m_size, value);
+                    const auto packed = packScalar(value);
+                    grains::memory::fillScalarAsync(m_ptr, m_size, packed, stream);
                 }
             }
             else
             {
-                fill_Kernel<<<(m_size + 255) / 256, 256, 0, stream>>>(m_ptr, m_size, value);
+                const auto packed = packScalar(value);
+                grains::memory::fillScalarAsync(m_ptr, m_size, packed, stream);
             }
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Fills the buffer incrementally with values starting from a given value.
         @param start the starting value (default is 0)
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void sequence(const T& start = T(0), [[maybe_unused]] GrainsStream stream = nullptr)
+    void sequence(const T& start = T(0), GrainsStream stream = nullptr)
     {
         if(m_size == 0)
             return;
@@ -824,21 +630,18 @@ public:
             for(size_t i = 0; i < m_size; ++i)
                 m_ptr[i] = static_cast<T>(start + i);
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
         {
-            static_assert(std::is_fundamental<T>::value,
-                          "T must be a primitive type for device init");
-            sequence_Kernel<<<(m_size + 255) / 256, 256, 0, stream>>>(m_ptr, m_size, start);
+            const auto packed = packScalar(start);
+            grains::memory::sequenceScalarAsync(m_ptr, m_size, packed, stream);
         }
-#endif
     }
 
     // ---------------------------------------------------------------------------------------------
     /** @brief Prints the buffer contents (host/pinned/device/managed)
         @param label optional label to print before the buffer contents
         @param stream CUDA stream for asynchronous operations (default: 0) */
-    void print(const std::string& label = "", [[maybe_unused]] GrainsStream stream = nullptr) const
+    void print(const std::string& label = "", GrainsStream stream = nullptr) const
     {
         if constexpr(M == MemType::HOST || M == MemType::PINNED || M == MemType::MAPPED)
         {
@@ -848,25 +651,17 @@ public:
                 std::cout << "[" << i << "]. " << m_ptr[i] << "\n";
             std::cout << std::endl;
         }
-#if GRAINS_CUDA_COMPILER
         else if constexpr(M == MemType::DEVICE || M == MemType::MANAGED)
         {
-            // Copy to host and print
             std::vector<T> hostBuf(m_size);
-            cudaErrCheck(
-                cudaMemcpyAsync(hostBuf.data(), m_ptr, getBytes(), cudaMemcpyDeviceToHost, stream));
-            cudaStreamSynchronize(stream);  // Must synchronize before printing
+            grains::memory::copyAsync(hostBuf.data(), MemType::HOST, m_ptr, M, getBytes(), stream);
+            grains::memory::synchronize(stream);
             if(!label.empty())
                 std::cout << label << ": " << "\n";
             for(size_t i = 0; i < m_size; ++i)
                 std::cout << "[" << i << "]. " << hostBuf[i] << "\n";
             std::cout << std::endl;
         }
-        else
-        {
-            std::cerr << "print() unsupported for this memory type" << std::endl;
-        }
-#endif
     }
     //@}
 

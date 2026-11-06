@@ -8,7 +8,7 @@
 #include "InsertionWindow.hh"
 #include "Kinematics.hh"
 #include "Quaternion.hh"
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "RigidBody.hh"
 
 /** @name Enumerations */
@@ -86,7 +86,7 @@ public:
     /** @brief Constructor with XML element
         @param dn XML element */
     __HOST__
-    Insertion(DOMNode* dn);
+    Insertion(grains::xml::OptionalElement dn);
 
     /** @brief Destructor */
     __HOST__
@@ -132,7 +132,8 @@ public:
         for each component
         @param dn XML node */
     __HOST__
-    std::pair<InsertionType, InsertionInfo<T>> readTypeAndData(DOMNode* root);
+    std::pair<InsertionType, InsertionInfo<T>>
+    readTypeAndData(grains::xml::OptionalElement root);
 
     /** @brief Returns a vector of Vector3 accroding to type and data.
         @param type insertion type

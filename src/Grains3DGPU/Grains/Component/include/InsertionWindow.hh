@@ -1,7 +1,7 @@
 #ifndef _INSERTIONWINDOW_HH_
 #define _INSERTIONWINDOW_HH_
 
-#include "ReaderXML.hh"
+#include "Xml.hh"
 #include "Vector3.hh"
 #include <random>
 
@@ -81,7 +81,7 @@ public:
         @param dn XML node
         @param seed random generator seed */
     __HOST__
-    InsertionWindow(DOMNode* dn, RandomGeneratorSeed seed);
+    InsertionWindow(grains::xml::OptionalElement dn, RandomGeneratorSeed seed);
 
     /** @brief Destructor */
     __HOST__
