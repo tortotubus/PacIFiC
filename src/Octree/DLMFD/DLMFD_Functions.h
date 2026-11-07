@@ -2855,47 +2855,84 @@ double compute_L2_norm( const vector u )
 
 
 
+ 
+typedef struct {
+  unsigned long long rss, pss, private_bytes, max_rank_rss;
+  int rss_available, details_available;
+} DLMFD_MemoryUsage;
 
-/** Computes the total used RSS memory */
-//----------------------------------------------------------------------------
-size_t compute_used_memory( void ) 
-//----------------------------------------------------------------------------
+DLMFD_MemoryUsage compute_memory_usage( void )
 {
-  char line[256] = "";
-  size_t procpid = getpid(), mem;
-  char sprocpid[16] = "";
-  char procpidfilename[80] = "/proc/";
-  char keyword[256] = "";
-  char refkeyword[16] = "VmRSS:"; 
-  char unit[16] = ""; 
-  char refunit[16] = "kB";
-  bool found = false;    
-  
-  sprintf( sprocpid, "%lu", procpid );
-  strcat( procpidfilename, sprocpid );
-  strcat( procpidfilename, "/status" );
-  
-  FILE* ft = fopen( procpidfilename, "r" ); 
-  if ( ft )
-    while ( fgets( line, sizeof(line), ft ) && !found )
-    {
-      sscanf( line, "%s", keyword );
-      if ( ! strcmp( keyword, refkeyword ) )
+  unsigned long long rss = 0, pss = 0, private_bytes = 0;
+  int rss_available = 0, details_available = 0;
+  char line[256], key[64], unit[16];
+  unsigned long long value;
+ 
+  FILE* status = fopen( "/proc/self/status", "r" );
+  if ( status )
+  {
+    while ( fgets( line, sizeof(line), status ) )
+      if ( sscanf( line, "%63s %llu %15s", key, &value, unit ) == 3
+           && !strcmp( key, "VmRSS:" ) && !strcmp( unit, "kB" ) )
       {
-	sscanf( line, "%s %lu %s", keyword, &mem, unit );
-	if ( strcmp( unit, refunit ) )
-	  printf( "Compute_used_memory: Unit is %s\n", unit ); 
-	found = true;	
-      }    
+        rss = value * 1024ULL;
+        rss_available = 1;
+        break;
+      }
+    fclose( status );
+  }
+
+  FILE* rollup = fopen( "/proc/self/smaps_rollup", "r" );
+  if ( rollup )
+  {
+    int fields = 0;
+    while ( fgets( line, sizeof(line), rollup ) )
+    {
+      if ( sscanf( line, "%63s %llu %15s", key, &value, unit ) != 3
+           || strcmp( unit, "kB" ) ) continue;
+      if ( !strcmp( key, "Rss:" ) )
+      {
+        rss = value * 1024ULL;
+        rss_available = 1;
+      }
+      else if ( !strcmp( key, "Pss:" ) )
+      {
+        pss = value * 1024ULL;
+        fields |= 1;
+      }
+      else if ( !strcmp( key, "Private_Clean:" ) )
+      {
+        private_bytes += value * 1024ULL;
+        fields |= 2;
+      }
+      else if ( !strcmp( key, "Private_Dirty:" ) )
+      {
+        private_bytes += value * 1024ULL;
+        fields |= 4;
+      }
     }
-    
+    details_available = fields == 7;
+    fclose( rollup );
+  }
+
+  unsigned long long max_rank_rss = rss;
 # if _MPI
-    mpi_all_reduce( mem, MPI_UNSIGNED_LONG, MPI_SUM );
+  mpi_all_reduce( rss, MPI_UNSIGNED_LONG_LONG, MPI_SUM );
+  mpi_all_reduce( pss, MPI_UNSIGNED_LONG_LONG, MPI_SUM );
+  mpi_all_reduce( private_bytes, MPI_UNSIGNED_LONG_LONG, MPI_SUM );
+  mpi_all_reduce( max_rank_rss, MPI_UNSIGNED_LONG_LONG, MPI_MAX );
+  mpi_all_reduce( rss_available, MPI_INT, MPI_MIN );
+  mpi_all_reduce( details_available, MPI_INT, MPI_MIN );
 # endif
-
-  mem *= 1000.;
-
-  return mem;          	         
+  DLMFD_MemoryUsage usage = { rss, pss, private_bytes, max_rank_rss,
+                             rss_available, details_available };
+  return usage;
+}
+ 
+size_t compute_used_memory( void )
+{
+  DLMFD_MemoryUsage usage = compute_memory_usage();
+  return (size_t) usage.rss;
 }
 
 

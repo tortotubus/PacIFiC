@@ -913,10 +913,11 @@ event end_timestep (i++)
 # endif
 
 
-  /* Display the total RSS memory used by the simulation */
+  /* Display summed RSS/PSS/private memory and the largest rank RSS. */
   if ( !used_mem_counter )
   {
-    size_t memory = compute_used_memory();
+    DLMFD_MemoryUsage usage = compute_memory_usage();
+    unsigned long long memory = usage.rss;
     if ( pid() == 0 )
     {   
 #     if !PRODUCTION_LOG      
@@ -924,11 +925,23 @@ event end_timestep (i++)
 #     else
         printf( " - Mem = " );
 #     endif 
-      if ( memory > mem_go )
-        printf( "%.2f Go\n", ( (double)memory ) / mem_go );
+      if ( !usage.rss_available )
+        printf( "unavailable" );
+      else if ( memory > mem_go )
+        printf( "%.2f Go", ( (double)memory ) / mem_go );
       else if ( memory > mem_mo )
-        printf( "%.2f Mo\n", ( (double)memory ) / mem_mo );      
-      else printf( "%lu octets\n", memory );
+        printf( "%.2f Mo", ( (double)memory ) / mem_mo );
+      else printf( "%llu octets", memory );
+      if ( usage.details_available )
+        printf( " [sum RSS/PSS/private = %.3f/%.3f/%.3f GiB",
+                (double)usage.rss / mem_go, (double)usage.pss / mem_go,
+                (double)usage.private_bytes / mem_go );
+      else
+        printf( " [sum PSS/private unavailable" );
+      if ( usage.rss_available )
+        printf( "; max rank RSS = %.3f GiB]\n",
+                (double)usage.max_rank_rss / mem_go );
+      else printf( "; rank RSS unavailable]\n" );
     }
     ++used_mem_counter;
   }
