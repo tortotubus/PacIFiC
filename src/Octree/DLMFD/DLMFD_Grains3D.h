@@ -18,6 +18,18 @@
 /** Additional functions for the coupling with Grains3D */
 # include "DLMFD_BasiliskGrains3DCouplingFunctions.h"
 
+/** Release a Grains transfer buffer using its allocating heap.
+Rank zero receives an untraced std::malloc buffer from libGrains3D;
+other ranks allocate their receive buffers through Basilisk's wrappers.
+sysfree bypasses MTRACE only for the externally allocated buffer. */
+static void free_grains_transfer_buffer( char* buffer )
+{
+  if ( pid() == 0 )
+    sysfree( buffer );
+  else
+    free( buffer );
+}
+
 
 /** Here we overload the generic events defined in the general DLMFD plugin 
 DLMFD_Plugin.h such that it uses Grains3D as a granular solver */
@@ -79,7 +91,7 @@ event GranularSolver_init (t < -1.)
   	sizeof(RigidBody) );
   pstr = CreateReferenceRBBasilisk( pstr, pstrsize, ReferenceRigidBodies,
   	nbReferenceRigidBodies, FLUID_DENSITY );
-  free( pstr );
+  free_grains_transfer_buffer( pstr );
  
   if ( pid() == 0 )
   {
@@ -111,7 +123,7 @@ event GranularSolver_init (t < -1.)
   // Update all rigid body data 
   pstr = UpdateParticlesBasilisk( pstr, pstrsize, allRigidBodies, nbRigidBodies,
   	ReferenceRigidBodies, FLUID_DENSITY, true );	 	 
-  free( pstr );       
+  free_grains_transfer_buffer( pstr );
 } 
 
 
@@ -159,7 +171,7 @@ event GranularSolver_predictor (t < -1.)
   // Update all rigid body data 
   pstr = UpdateParticlesBasilisk( pstr, pstrsize, allRigidBodies, nbRigidBodies,
     	ReferenceRigidBodies, FLUID_DENSITY, false );  
-  free( pstr ); 
+  free_grains_transfer_buffer( pstr );
 }
 
 
