@@ -1,0 +1,77 @@
+<Grains3D Type="Standard">
+  <Construction>
+    <LinkedCell MX="1." MY="1." MZ="20." CellSizeFactor="10."/>
+    <Origin OX="0.2" OY="0.2" OZ="0."/>
+    <Periodicity PX="1" PY="1" PZ="0"/>    
+    
+
+    <ContactForceModels>
+      <ContactForceModel>
+	<Material materialA="matP" materialB="matP"/>
+	<Hooke>
+	  <kn>1.e+6</kn>
+	  <muc>0.4</muc>
+	  <en>0.9</en>
+	  <kr>0.</kr>
+	</Hooke>	  
+      </ContactForceModel>                       
+    </ContactForceModels>
+
+
+    <Particles>
+      <Particle Number="1" Density="122.5">
+        <Convex CrustThickness="0.00025">
+          <Superquadric a="1.5e-3" b="1.e-2" c="1.e-2" n1="2." n2="2."/>
+        </Convex>
+        <AngularPosition Type="Matrix">
+	1.745240643728e-02   0   9.998476951564e-01
+        0   1.000000000000e+00   0
+        -9.998476951564e-01   0   1.745240643728e-02
+        </AngularPosition>
+        <Material>matP</Material>
+      </Particle>
+    </Particles>
+
+  
+  </Construction>
+
+  <Forces>
+    <Gravity GX="0.0" GY="0.0" GZ="0."/>  
+  </Forces>
+
+
+  <Simulation>
+    <TimeInterval Start="0." End="1.e-5"/> 
+    <TimeStep dt="1.e-5"/>
+    <RestartFile Name="Grains/Init/insert" WritingMode="Hybrid"/>
+    <TimeSave Start="0." End="1.e-5" Every="1.e-5"/>         
+    <CollisionalRelativeVelocity value="1.5"/> 
+    
+    <ParticleInsertion>
+      <Mode Type="OverTime"/>
+      <Order Type="Ordered"/>
+      <InitialAngularPosition Type="Fixed"/>
+      <RandomGeneratorSeed Type="Default"/> 
+      <Frequency TryEvery="1"/> 
+      <ForceInsertion Value="False"/>    
+      <ParticlePosition>
+	<Windows>
+	  <Window Type="Point">
+	    <Point X="0.600001" Y="0.600001" Z="19.9"/>
+	  </Window> 
+	</Windows>		
+      </ParticlePosition>
+      
+      <InitialVelocity Mode="Zero">
+      </InitialVelocity> 
+    </ParticleInsertion> 
+
+    <PostProcessing>   
+      <Writers>
+        <Paraview RootName="insert" Directory="Grains/Init" WritingMode="Binary" UseGlyphWheneverPossible="False" NbPtsPerSQQuarter="8"/>
+        <RawData Name="Grains/Init/insert"/>
+      </Writers>     
+    </PostProcessing>
+  </Simulation>      
+</Grains3D>
+

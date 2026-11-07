@@ -1,0 +1,13 @@
+#!/bin/sh
+
+
+# Input file
+if [ $1 ] 
+  then
+    ROOT_FILE=$1
+  else 
+    ROOT_FILE=Grains/Init/insert
+fi
+INPUT_FILE=$ROOT_FILE.xml
+
+time grains3d $INPUT_FILE
