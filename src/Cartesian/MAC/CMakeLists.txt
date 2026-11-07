@@ -26,7 +26,7 @@ endif()
 set(MAC_PETSC_API_VERSION "AUTO" CACHE STRING
   "MAC PETSc ExternalAPI version. Use AUTO to select from the PETSc package version.")
 set_property(CACHE MAC_PETSC_API_VERSION PROPERTY STRINGS
-  AUTO 3.25.3 3.24.3 3.19.6 3.17.5 3.11.4 3.2.0)
+  AUTO 3.25.3 3.25.1 3.24.3 3.19.6 3.17.5 3.11.4 3.2.0)
 
 function(mac_select_petsc_api_version petsc_version output_variable)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ExternalAPI/PETSc_${petsc_version}/include/EXT_PETScAPI.hh")
