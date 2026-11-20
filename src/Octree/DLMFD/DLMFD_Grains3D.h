@@ -6,7 +6,7 @@
 
 /** File names definition */
 # ifndef GRAINS_RESULT_DIR
-#   define GRAINS_RESULT_DIR "Grains/Simu"
+#   define GRAINS_RESULT_DIR "Res"
 # endif
 # ifndef GRAINS_INPUTFILE
 #   define GRAINS_INPUTFILE "Grains/Simu/simul.xml"
@@ -17,18 +17,6 @@
 
 /** Additional functions for the coupling with Grains3D */
 # include "DLMFD_BasiliskGrains3DCouplingFunctions.h"
-
-/** Release a Grains transfer buffer using its allocating heap.
-Rank zero receives an untraced std::malloc buffer from libGrains3D;
-other ranks allocate their receive buffers through Basilisk's wrappers.
-sysfree bypasses MTRACE only for the externally allocated buffer. */
-static void free_grains_transfer_buffer( char* buffer )
-{
-  if ( pid() == 0 )
-    sysfree( buffer );
-  else
-    free( buffer );
-}
 
 
 /** Here we overload the generic events defined in the general DLMFD plugin 
@@ -75,7 +63,7 @@ event GranularSolver_init (t < -1.)
       // In Grains in reload mode the initial post-processing does not
       // output any result but simply open existing files and recover the 
       // initial cycle number
-      SaveResults_Grains();
+      SaveResults_Grains( !write_fluid_data_counter );
     }
     else SetInitialCycleNumber( init_cycle_number );   
   }
@@ -91,7 +79,7 @@ event GranularSolver_init (t < -1.)
   	sizeof(RigidBody) );
   pstr = CreateReferenceRBBasilisk( pstr, pstrsize, ReferenceRigidBodies,
   	nbReferenceRigidBodies, FLUID_DENSITY );
-  free_grains_transfer_buffer( pstr );
+  free( pstr );
  
   if ( pid() == 0 )
   {
@@ -123,7 +111,7 @@ event GranularSolver_init (t < -1.)
   // Update all rigid body data 
   pstr = UpdateParticlesBasilisk( pstr, pstrsize, allRigidBodies, nbRigidBodies,
   	ReferenceRigidBodies, FLUID_DENSITY, true );	 	 
-  free_grains_transfer_buffer( pstr );
+  free( pstr );       
 } 
 
 
@@ -171,7 +159,7 @@ event GranularSolver_predictor (t < -1.)
   // Update all rigid body data 
   pstr = UpdateParticlesBasilisk( pstr, pstrsize, allRigidBodies, nbRigidBodies,
     	ReferenceRigidBodies, FLUID_DENSITY, false );  
-  free_grains_transfer_buffer( pstr );
+  free( pstr ); 
 }
 
 
@@ -213,7 +201,9 @@ event GranularSolver_saveResults (t < -1.)
       SetParaviewPostProcessingTranslationVector( vtk_shift_to_zero.x,
       	vtk_shift_to_zero.y, vtk_shift_to_zero.z );
 #   endif  
+
+    printf ( "   Rigid body data\n" );
   
-    SaveResults_Grains();
+    SaveResults_Grains( !write_fluid_data_counter );
   }  
 }
