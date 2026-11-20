@@ -8,8 +8,6 @@
 #include <iostream>
 #include <cstring>
 #include <string>
-#include <cstdlib>
-#include <new>
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,8 +70,7 @@ extern "C" {
     // We remove the formatting and separate each entry by " "
     string buff;
     *pstrsize = int(iss.str().size()) + 1;    
-    char* pstr = static_cast<char*>( std::malloc(*pstrsize ));
-    if ( !pstr ) throw std::bad_alloc();
+    char* pstr = new char [*pstrsize];
     int pos = 0;
     while ( iss >> buff )
     {
@@ -90,13 +87,14 @@ extern "C" {
 
 
 
-  void SaveResults_Grains() 
+  void SaveResults_Grains( bool writeSyncWithFluid ) 
   {
     static unsigned int ppcounter = 0;
+    string premess = "      ";
     if ( !ppcounter ) 
-      grains->InitialPostProcessing( 6 );
+      grains->InitialPostProcessing( 6, writeSyncWithFluid, premess );
     else
-      grains->doPostProcessing( 6 );
+      grains->doPostProcessing( 6, writeSyncWithFluid, premess );
     ++ppcounter; 
   }
   
@@ -177,8 +175,7 @@ extern "C" {
     // We remove the formatting and separate each entry by " "
     string buff;
     *pstrsize = int(iss.str().size()) + 1;    
-    char* pstr = static_cast<char*>( std::malloc( *pstrsize ) );
-    if ( !pstr ) throw std::bad_alloc();
+    char* pstr = new char [*pstrsize];
     int pos = 0;
     while ( iss >> buff )
     {
